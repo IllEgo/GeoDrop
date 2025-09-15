@@ -13,8 +13,15 @@ object GeofencePendingIntent {
     fun get(context: Context): PendingIntent {
         cached?.let { return it }
         val intent = Intent(context, GeofenceReceiver::class.java)
-        val flags = (PendingIntent.FLAG_UPDATE_CURRENT or
-                if (Build.VERSION.SDK_INT >= 23) PendingIntent.FLAG_IMMUTABLE else 0)
+        val flags = when {
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+            }
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.M -> {
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            }
+            else -> PendingIntent.FLAG_UPDATE_CURRENT
+        }
         return PendingIntent.getBroadcast(context, REQ_CODE, intent, flags).also { cached = it }
     }
 }
