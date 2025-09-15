@@ -15,7 +15,13 @@
         android:label="GeoDrop"
         android:theme="@style/Theme.Material3.DayNight.NoActionBar">
 
-        <activity android:name=".ui.DropDetailActivity" />
+        <activity
+            android:name=".ui.DropDetailActivity"
+            android:parentActivityName=".MainActivity">
+            <meta-data
+                android:name="android.support.PARENT_ACTIVITY"
+                android:value=".MainActivity" />
+        </activity>
 
         <activity
             android:name=".MainActivity"
