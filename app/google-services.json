@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1017151605782",
+    "project_id": "geodrop-dfcba",
+    "storage_bucket": "geodrop-dfcba.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1017151605782:android:ea2aee07aad06f381a3937",
+        "android_client_info": {
+          "package_name": "com.e3hi.geodrop"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDD9c_0xHim_ITvXZlHY67b_m_SR-9DUJs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
