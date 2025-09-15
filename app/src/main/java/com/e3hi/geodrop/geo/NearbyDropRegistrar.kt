@@ -29,11 +29,23 @@ import kotlin.math.sqrt
 @SuppressLint("MissingPermission") // we check at runtime in hasPreciseLocation()
 class NearbyDropRegistrar {
 
+    sealed interface NearbySyncStatus {
+        data class Success(val count: Int) : NearbySyncStatus
+        object MissingPermission : NearbySyncStatus
+        object NoLocation : NearbySyncStatus
+        data class Error(val message: String) : NearbySyncStatus
+    }
+
     /** Entry point: try to detect current location, then register geofences around you. */
-    fun registerNearby(context: Context, maxMeters: Double = 300.0) {
+    fun registerNearby(
+        context: Context,
+        maxMeters: Double = 300.0,
+        onStatus: (NearbySyncStatus) -> Unit = {}
+    ) {
         if (!hasPreciseLocation(context)) {
             Log.e(TAG, "No precise location permission (ACCESS_FINE_LOCATION=false). Skipping geofence registration.")
             logPerms(context)
+            notifyStatus(onStatus, NearbySyncStatus.MissingPermission)
             return
         }
 
@@ -41,7 +53,7 @@ class NearbyDropRegistrar {
             context,
             onLocation = { lat, lng ->
                 Log.d(TAG, "Registrar using location lat=$lat lng=$lng")
-                registerNearbyAt(context, lat, lng, maxMeters)
+                registerNearbyAt(context, lat, lng, maxMeters, onStatus)
             },
             onNoLocation = {
                 Log.w(TAG, "No location; will retry once in 5s (set emulator/device location).")
@@ -50,10 +62,11 @@ class NearbyDropRegistrar {
                         context,
                         onLocation = { lat, lng ->
                             Log.d(TAG, "Retry found location lat=$lat lng=$lng")
-                            registerNearbyAt(context, lat, lng, maxMeters)
+                            registerNearbyAt(context, lat, lng, maxMeters, onStatus)
                         },
                         onNoLocation = {
                             Log.e(TAG, "Retry also failed to get location. Make sure Location is ON and a mock/fresh fix is set.")
+                            notifyStatus(onStatus, NearbySyncStatus.NoLocation)
                         }
                     )
                 }, 5000)
@@ -65,10 +78,17 @@ class NearbyDropRegistrar {
      * Testing helper: force a specific origin (e.g., emulator Extended controls → Location).
      * This bypasses FusedLocation so you can validate geofences at known coords.
      */
-    fun registerNearbyAt(context: Context, originLat: Double, originLng: Double, maxMeters: Double = 300.0) {
+    fun registerNearbyAt(
+        context: Context,
+        originLat: Double,
+        originLng: Double,
+        maxMeters: Double = 300.0,
+        onStatus: (NearbySyncStatus) -> Unit = {}
+    ) {
         if (!hasPreciseLocation(context)) {
             Log.e(TAG, "No precise location permission; cannot add geofences.")
             logPerms(context)
+            notifyStatus(onStatus, NearbySyncStatus.MissingPermission)
             return
         }
 
@@ -102,6 +122,7 @@ class NearbyDropRegistrar {
 
                 if (toAdd.isEmpty()) {
                     Log.d(TAG, "No nearby foreign drops within ${maxMeters.toInt()} m to register.")
+                    notifyStatus(onStatus, NearbySyncStatus.Success(0))
                     return@addOnSuccessListener
                 }
 
@@ -113,18 +134,35 @@ class NearbyDropRegistrar {
                 geos.addGeofences(req, pendingIntent)
                     .addOnSuccessListener {
                         Log.d(TAG, "Geofences added: ${toAdd.size}")
+                        notifyStatus(onStatus, NearbySyncStatus.Success(toAdd.size))
                     }
                     .addOnFailureListener { e ->
                         Log.e(TAG, "addGeofences FAILED", e)
                         logPerms(context)
+                        notifyStatus(
+                            onStatus,
+                            NearbySyncStatus.Error(
+                                "Couldn't register nearby drops: ${e.localizedMessage ?: "unknown error"}"
+                            )
+                        )
                     }
             }
             .addOnFailureListener { e ->
                 Log.e(TAG, "Query drops FAILED", e)
+                notifyStatus(
+                    onStatus,
+                    NearbySyncStatus.Error(
+                        "Couldn't check for nearby drops: ${e.localizedMessage ?: "unknown error"}"
+                    )
+                )
             }
     }
 
     // ---------- helpers ----------
+
+    private fun notifyStatus(callback: (NearbySyncStatus) -> Unit, status: NearbySyncStatus) {
+        Handler(Looper.getMainLooper()).post { callback(status) }
+    }
 
     private fun hasPreciseLocation(ctx: Context): Boolean {
         val fine = ContextCompat.checkSelfPermission(ctx, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED

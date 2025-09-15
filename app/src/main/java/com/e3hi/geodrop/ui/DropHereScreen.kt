@@ -12,6 +12,7 @@ import androidx.compose.ui.unit.dp
 import com.e3hi.geodrop.data.Drop
 import com.e3hi.geodrop.data.FirestoreRepo
 import com.e3hi.geodrop.geo.NearbyDropRegistrar
+import com.e3hi.geodrop.geo.NearbyDropRegistrar.NearbySyncStatus
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
@@ -30,6 +31,7 @@ fun DropHereScreen() {
 
     val fused = remember { LocationServices.getFusedLocationProviderClient(ctx) }
     val repo = remember { FirestoreRepo() }
+    val registrar = remember { NearbyDropRegistrar() }
 
     var note by remember { mutableStateOf(TextFieldValue("")) }
     var isSubmitting by remember { mutableStateOf(false) }
@@ -38,7 +40,7 @@ fun DropHereScreen() {
     // Optional: also sync nearby on first open if already signed in
     LaunchedEffect(Unit) {
         if (FirebaseAuth.getInstance().currentUser != null) {
-            NearbyDropRegistrar().registerNearby(ctx, maxMeters = 300.0)
+            registrar.registerNearby(ctx, maxMeters = 300.0)
         }
     }
 
@@ -113,7 +115,38 @@ fun DropHereScreen() {
 
         // Handy for testing: re-scan & register geofences without restarting
         Button(
-            onClick = { NearbyDropRegistrar().registerNearby(ctx, maxMeters = 300.0) },
+            onClick = {
+                registrar.registerNearby(ctx, maxMeters = 300.0) { statusResult ->
+                    when (statusResult) {
+                        is NearbySyncStatus.Success -> {
+                            val msg = if (statusResult.count > 0) {
+                                val base = "Found ${statusResult.count} drop" +
+                                        if (statusResult.count == 1) " nearby from another user." else "s nearby from other users."
+                                "$base You'll be notified when you're close."
+                            } else {
+                                "No nearby drops from other users right now."
+                            }
+                            status = msg
+                            snackbar.showMessage(scope, msg)
+                        }
+                        NearbySyncStatus.MissingPermission -> {
+                            val msg = "Location permission is required to sync nearby drops."
+                            status = msg
+                            snackbar.showMessage(scope, msg)
+                        }
+                        NearbySyncStatus.NoLocation -> {
+                            val msg = "Couldn't get your current location. Turn on GPS and try again."
+                            status = msg
+                            snackbar.showMessage(scope, msg)
+                        }
+                        is NearbySyncStatus.Error -> {
+                            val msg = statusResult.message
+                            status = msg
+                            snackbar.showMessage(scope, msg)
+                        }
+                    }
+                }
+            },
             modifier = Modifier.fillMaxWidth()
         ) { Text("Sync nearby drops") }
 
