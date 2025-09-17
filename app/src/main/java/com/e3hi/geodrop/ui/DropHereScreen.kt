@@ -2,13 +2,18 @@ package com.e3hi.geodrop.ui
 
 import android.annotation.SuppressLint
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.e3hi.geodrop.data.Drop
 import com.e3hi.geodrop.data.FirestoreRepo
 import com.e3hi.geodrop.geo.NearbyDropRegistrar
@@ -17,7 +22,14 @@ import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
 import com.google.android.gms.tasks.Tasks
+import com.google.android.gms.maps.CameraUpdateFactory
+import com.google.android.gms.maps.model.LatLng
 import com.google.firebase.auth.FirebaseAuth
+import com.google.maps.android.compose.GoogleMap
+import com.google.maps.android.compose.MapUiSettings
+import com.google.maps.android.compose.Marker
+import com.google.maps.android.compose.MarkerState
+import com.google.maps.android.compose.rememberCameraPositionState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -36,6 +48,11 @@ fun DropHereScreen() {
     var note by remember { mutableStateOf(TextFieldValue("")) }
     var isSubmitting by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
+    var showMap by remember { mutableStateOf(false) }
+    var mapError by remember { mutableStateOf<String?>(null) }
+    var mapLoading by remember { mutableStateOf(false) }
+    var mapDrops by remember { mutableStateOf<List<Drop>>(emptyList()) }
+    var mapRefreshToken by remember { mutableStateOf(0) }
 
     // Optional: also sync nearby on first open if already signed in
     LaunchedEffect(Unit) {
@@ -62,6 +79,31 @@ fun DropHereScreen() {
         )
         repo.addDrop(d) // suspend (uses Firestore .await() internally)
         uiDone(lat, lng)
+    }
+
+    LaunchedEffect(showMap, mapRefreshToken) {
+        if (showMap) {
+            mapLoading = true
+            mapError = null
+            val uid = FirebaseAuth.getInstance().currentUser?.uid
+            if (uid == null) {
+                mapLoading = false
+                mapError = "Sign-in is still in progress. Try again in a moment."
+            } else {
+                try {
+                    mapDrops = repo.getDropsForUser(uid)
+                        .sortedByDescending { it.createdAt }
+                } catch (e: Exception) {
+                    mapError = e.message ?: "Failed to load your drops."
+                } finally {
+                    mapLoading = false
+                }
+            }
+        } else {
+            mapDrops = emptyList()
+            mapError = null
+            mapLoading = false
+        }
     }
 
     Column(
@@ -152,6 +194,18 @@ fun DropHereScreen() {
 
         Button(
             onClick = {
+                if (FirebaseAuth.getInstance().currentUser == null) {
+                    snackbar.showMessage(scope, "Signing you in… please try again shortly.")
+                } else {
+                    showMap = true
+                }
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) { Text("View my drops on map") }
+
+
+        Button(
+            onClick = {
                 val uid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: "anon"
                 val d = com.e3hi.geodrop.data.Drop(
                     text = "Test from button",
@@ -177,6 +231,150 @@ fun DropHereScreen() {
 
         Spacer(Modifier.weight(1f))
         SnackbarHost(hostState = snackbar, modifier = Modifier.fillMaxWidth())
+    }
+
+    if (showMap) {
+        DropsMapDialog(
+            loading = mapLoading,
+            drops = mapDrops,
+            error = mapError,
+            onDismiss = { showMap = false },
+            onRetry = { mapRefreshToken += 1 }
+        )
+    }
+}
+
+@Composable
+private fun DropsMapDialog(
+    loading: Boolean,
+    drops: List<Drop>,
+    error: String?,
+    onDismiss: () -> Unit,
+    onRetry: () -> Unit
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background
+        ) {
+            Scaffold(
+                topBar = {
+                    @OptIn(ExperimentalMaterial3Api::class)
+                    @Composable
+                    fun MyMapScreen(onDismiss: () -> Unit) {
+                        TopAppBar(
+                            title = { Text("My drops on map") },
+                            navigationIcon = {
+                                IconButton(onClick = onDismiss) {
+                                    Icon(Icons.Filled.Close, contentDescription = "Close map")
+                                }
+                            }
+                        )
+                    }
+                }
+            ) { padding ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                ) {
+                    when {
+                        loading -> {
+                            CircularProgressIndicator(Modifier.align(Alignment.Center))
+                        }
+
+                        error != null -> {
+                            MapDialogMessage(
+                                message = error,
+                                primaryLabel = "Retry",
+                                onPrimary = onRetry,
+                                onDismiss = onDismiss
+                            )
+                        }
+
+                        drops.isEmpty() -> {
+                            MapDialogMessage(
+                                message = "You haven't dropped any notes yet.",
+                                primaryLabel = null,
+                                onPrimary = null,
+                                onDismiss = onDismiss
+                            )
+                        }
+
+                        else -> {
+                            DropsMapContent(drops)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MapDialogMessage(
+    message: String,
+    primaryLabel: String?,
+    onPrimary: (() -> Unit)?,
+    onDismiss: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 32.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = message,
+            style = MaterialTheme.typography.bodyLarge,
+            textAlign = TextAlign.Center
+        )
+
+        Spacer(Modifier.height(16.dp))
+
+        if (primaryLabel != null && onPrimary != null) {
+            Button(onClick = onPrimary) {
+                Text(primaryLabel)
+            }
+            Spacer(Modifier.height(8.dp))
+        }
+
+        TextButton(onClick = onDismiss) {
+            Text("Close")
+        }
+    }
+}
+
+@Composable
+private fun DropsMapContent(drops: List<Drop>) {
+    val cameraPositionState = rememberCameraPositionState()
+    val uiSettings = remember { MapUiSettings(zoomControlsEnabled = true) }
+
+    LaunchedEffect(drops) {
+        if (drops.isNotEmpty()) {
+            val first = drops.first()
+            val update = CameraUpdateFactory.newLatLngZoom(LatLng(first.lat, first.lng), 13f)
+            cameraPositionState.animate(update)
+        }
+    }
+
+    GoogleMap(
+        modifier = Modifier.fillMaxSize(),
+        cameraPositionState = cameraPositionState,
+        uiSettings = uiSettings
+    ) {
+        drops.forEach { drop ->
+            val position = LatLng(drop.lat, drop.lng)
+            Marker(
+                state = MarkerState(position),
+                title = drop.text.ifBlank { "(No message)" },
+                snippet = "Lat: %.5f, Lng: %.5f".format(drop.lat, drop.lng)
+            )
+        }
     }
 }
 

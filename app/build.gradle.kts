@@ -41,6 +41,10 @@ dependencies {
 
     // Play Services Location (for geofencing / fused location)
     implementation("com.google.android.gms:play-services-location:21.3.0")
+    implementation("com.google.android.gms:play-services-maps:18.2.0")
+
+    // Google Maps Compose
+    implementation("com.google.maps.android:maps-compose:4.3.3")
 
     // Compose + Material3
     implementation("androidx.compose.ui:ui:$composeVersion")

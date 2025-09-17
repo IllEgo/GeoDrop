@@ -2,4 +2,5 @@
     <string name="app_name">GeoDrop</string>
     <string name="notif_channel_name">GeoDrop Nearby</string>
     <string name="notif_channel_desc">Alerts when you enter a drop area</string>
+    <string name="google_maps_key">AIzaSyDD9c_0xHim_ITvXZlHY67b_m_SR-9DUJs</string>
 </resources>

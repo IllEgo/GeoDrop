@@ -45,4 +45,15 @@ class FirestoreRepo(
                 onError(e)
             }
     }
+
+    suspend fun getDropsForUser(uid: String): List<Drop> {
+        val snapshot = drops
+            .whereEqualTo("createdBy", uid)
+            .get()
+            .await()
+
+        return snapshot.documents.map { doc ->
+            doc.toObject(Drop::class.java)?.copy(id = doc.id) ?: Drop(id = doc.id)
+        }
+    }
 }
