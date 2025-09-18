@@ -425,7 +425,7 @@ private fun DropsMapContent(drops: List<Drop>, currentLocation: LatLng?) {
             ExtendedFloatingActionButton(
                 onClick = { showRadius = !showRadius },
                 modifier = Modifier
-                    .align(Alignment.BottomEnd)
+                    .align(Alignment.TopStart)
                     .padding(16.dp)
             ) {
                 Icon(
