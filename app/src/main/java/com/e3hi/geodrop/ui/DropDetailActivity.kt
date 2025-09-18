@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.e3hi.geodrop.MainActivity
+import com.e3hi.geodrop.util.formatTimestamp
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
 
@@ -34,24 +35,27 @@ class DropDetailActivity : ComponentActivity() {
         val initialText = intent.getStringExtra("dropText")
         val initialLat = if (intent.hasExtra("dropLat")) intent.getDoubleExtra("dropLat", 0.0) else null
         val initialLng = if (intent.hasExtra("dropLng")) intent.getDoubleExtra("dropLng", 0.0) else null
+        val initialCreatedAt = intent.getLongExtra("dropCreatedAt", -1L).takeIf { it > 0L }
         setContent {
             val context = LocalContext.current
             var text by remember { mutableStateOf(initialText) }
             var lat by remember { mutableStateOf(initialLat) }
             var lng by remember { mutableStateOf(initialLng) }
-            var isLoading by remember { mutableStateOf(text == null) }
+            var createdAt by remember { mutableStateOf(initialCreatedAt) }
+            var isLoading by remember { mutableStateOf(text == null || lat == null || lng == null || createdAt == null) }
 
             LaunchedEffect(dropId) {
                 if (dropId.isBlank()) {
                     isLoading = false
                     return@LaunchedEffect
                 }
-                if (text == null || lat == null || lng == null) {
+                if (text == null || lat == null || lng == null || createdAt == null) {
                     isLoading = true
                     val doc = Firebase.firestore.collection("drops").document(dropId).get().awaitOrNull()
                     text = doc?.getString("text")?.takeIf { it.isNotBlank() } ?: text
                     lat = doc?.getDouble("lat") ?: lat
                     lng = doc?.getDouble("lng") ?: lng
+                    createdAt = doc?.getLong("createdAt")?.takeIf { it > 0L } ?: createdAt
                     isLoading = false
                 }
             }
@@ -72,6 +76,17 @@ class DropDetailActivity : ComponentActivity() {
                     else -> "Not available"
                 }
                 Text(message, style = MaterialTheme.typography.bodyLarge)
+
+                val createdAtText = when {
+                    createdAt != null -> formatTimestamp(createdAt)
+                    isLoading -> "Loading…"
+                    else -> null
+                }
+                Text(
+                    "Dropped: ${createdAtText ?: "Not available"}",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+
 
                 Text("Lat: ${lat?.let { formatCoordinate(it) } ?: "-"}")
                 Text("Lng: ${lng?.let { formatCoordinate(it) } ?: "-"}")

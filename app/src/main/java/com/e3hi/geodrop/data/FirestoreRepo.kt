@@ -22,7 +22,8 @@ class FirestoreRepo(
      * NEW: Suspend API. Writes a drop and returns the new document id.
      */
     suspend fun addDrop(drop: Drop): String {
-        val ref: DocumentReference = drops.add(drop).await()
+        val dropToSave = drop.ensureTimestamp()
+        val ref: DocumentReference = drops.add(dropToSave).await()
         Log.d("GeoDrop", "Created drop ${ref.id}")
         return ref.id
     }
@@ -56,4 +57,7 @@ class FirestoreRepo(
             doc.toObject(Drop::class.java)?.copy(id = doc.id) ?: Drop(id = doc.id)
         }
     }
+
+    private fun Drop.ensureTimestamp(): Drop =
+        if (createdAt > 0L) this else copy(createdAt = System.currentTimeMillis())
 }

@@ -18,6 +18,7 @@ import com.e3hi.geodrop.data.Drop
 import com.e3hi.geodrop.data.FirestoreRepo
 import com.e3hi.geodrop.geo.NearbyDropRegistrar
 import com.e3hi.geodrop.geo.NearbyDropRegistrar.NearbySyncStatus
+import com.e3hi.geodrop.util.formatTimestamp
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
@@ -406,10 +407,15 @@ private fun DropsMapContent(drops: List<Drop>, currentLocation: LatLng?) {
 
         drops.forEach { drop ->
             val position = LatLng(drop.lat, drop.lng)
+            val snippetParts = mutableListOf(
+                "Lat: %.5f, Lng: %.5f".format(drop.lat, drop.lng)
+            )
+            formatTimestamp(drop.createdAt)?.let { snippetParts.add(0, "Dropped $it") }
+
             Marker(
                 state = MarkerState(position),
                 title = drop.text.ifBlank { "(No message)" },
-                snippet = "Lat: %.5f, Lng: %.5f".format(drop.lat, drop.lng)
+                snippet = snippetParts.joinToString("\n")
             )
         }
     }

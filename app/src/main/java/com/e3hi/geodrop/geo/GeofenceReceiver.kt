@@ -47,6 +47,7 @@ class GeofenceReceiver : BroadcastReceiver() {
                 val dropText = doc?.getString("text")?.takeIf { it.isNotBlank() }
                 val dropLat = doc?.getDouble("lat")
                 val dropLng = doc?.getDouble("lng")
+                val dropCreatedAt = doc?.getLong("createdAt")?.takeIf { it > 0L }
 
 
                 val open = Intent(context, DropDetailActivity::class.java).apply {
@@ -54,6 +55,7 @@ class GeofenceReceiver : BroadcastReceiver() {
                     dropText?.let { putExtra("dropText", it) }
                     dropLat?.let { putExtra("dropLat", it) }
                     dropLng?.let { putExtra("dropLng", it) }
+                    dropCreatedAt?.let { putExtra("dropCreatedAt", it) }
                 }
 
 
