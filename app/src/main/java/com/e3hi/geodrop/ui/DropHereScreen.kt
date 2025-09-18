@@ -229,30 +229,6 @@ fun DropHereScreen() {
             modifier = Modifier.fillMaxWidth()
         ) { Text("View my drops on map") }
 
-
-        Button(
-            onClick = {
-                val uid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: "anon"
-                val d = com.e3hi.geodrop.data.Drop(
-                    text = "Test from button",
-                    lat = 0.0, lng = 0.0,
-                    createdBy = uid,
-                    createdAt = System.currentTimeMillis()
-                )
-                com.e3hi.geodrop.data.FirestoreRepo().createDrop(
-                    d,
-                    onId = { id ->
-                        // show snackbar from a coroutine, not LaunchedEffect
-                        scope.launch { snackbar.showSnackbar("Wrote doc $id") }
-                    },
-                    onError = { e ->
-                        scope.launch { snackbar.showSnackbar("Write failed: ${e.message}") }
-                    }
-                )
-            },
-            modifier = Modifier.fillMaxWidth()
-        ) { Text("Test Firestore write") }
-
         status?.let { Text(it) }
 
         Spacer(Modifier.weight(1f))
