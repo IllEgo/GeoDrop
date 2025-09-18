@@ -3,7 +3,7 @@ package com.e3hi.geodrop.ui
 import android.annotation.SuppressLint
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -23,6 +23,7 @@ import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
 import com.google.android.gms.tasks.Tasks
 import com.google.android.gms.maps.CameraUpdateFactory
+import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.LatLng
 import com.google.firebase.auth.FirebaseAuth
 import com.google.maps.android.compose.GoogleMap
@@ -53,6 +54,24 @@ fun DropHereScreen() {
     var mapLoading by remember { mutableStateOf(false) }
     var mapDrops by remember { mutableStateOf<List<Drop>>(emptyList()) }
     var mapRefreshToken by remember { mutableStateOf(0) }
+    var mapCurrentLocation by remember { mutableStateOf<LatLng?>(null) }
+
+    suspend fun getLatestLocation(): Pair<Double, Double>? = withContext(Dispatchers.IO) {
+        val fresh = try {
+            val cts = CancellationTokenSource()
+            Tasks.await(fused.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cts.token))
+        } catch (_: Exception) {
+            null
+        }
+
+        val loc = fresh ?: try {
+            Tasks.await(fused.lastLocation)
+        } catch (_: Exception) {
+            null
+        }
+
+        loc?.let { it.latitude to it.longitude }
+    }
 
     // Optional: also sync nearby on first open if already signed in
     LaunchedEffect(Unit) {
@@ -85,6 +104,7 @@ fun DropHereScreen() {
         if (showMap) {
             mapLoading = true
             mapError = null
+            mapCurrentLocation = null
             val uid = FirebaseAuth.getInstance().currentUser?.uid
             if (uid == null) {
                 mapLoading = false
@@ -93,6 +113,7 @@ fun DropHereScreen() {
                 try {
                     mapDrops = repo.getDropsForUser(uid)
                         .sortedByDescending { it.createdAt }
+                    mapCurrentLocation = getLatestLocation()?.let { (lat, lng) -> LatLng(lat, lng) }
                 } catch (e: Exception) {
                     mapError = e.message ?: "Failed to load your drops."
                 } finally {
@@ -103,11 +124,14 @@ fun DropHereScreen() {
             mapDrops = emptyList()
             mapError = null
             mapLoading = false
+            mapCurrentLocation = null
         }
     }
 
     Column(
-        Modifier.fillMaxSize().padding(20.dp),
+        Modifier
+            .fillMaxSize()
+            .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -127,19 +151,20 @@ fun DropHereScreen() {
                 isSubmitting = true
                 scope.launch {
                     try {
-                        val (lat, lng) = withContext(Dispatchers.IO) {
-                            // Try fresh high-accuracy first
-                            val fresh = try {
-                                val cts = CancellationTokenSource()
-                                Tasks.await(fused.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cts.token))
-                            } catch (_: Exception) { null }
-
-                            val loc = fresh ?: try {
-                                Tasks.await(fused.lastLocation)
-                            } catch (_: Exception) { null }
-
-                            if (loc == null) null else loc.latitude to loc.longitude
-                        } ?: run {
+//                        val (lat, lng) = withContext(Dispatchers.IO) {
+//                            // Try fresh high-accuracy first
+//                            val fresh = try {
+//                                val cts = CancellationTokenSource()
+//                                Tasks.await(fused.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cts.token))
+//                            } catch (_: Exception) { null }
+//
+//                            val loc = fresh ?: try {
+//                                Tasks.await(fused.lastLocation)
+//                            } catch (_: Exception) { null }
+//
+//                            if (loc == null) null else loc.latitude to loc.longitude
+//                        } ?: run {
+                        val (lat, lng) = getLatestLocation() ?: run {
                             isSubmitting = false
                             snackbar.showMessage(scope, "No location available. Turn on GPS & try again.")
                             return@launch
@@ -237,6 +262,7 @@ fun DropHereScreen() {
         DropsMapDialog(
             loading = mapLoading,
             drops = mapDrops,
+            currentLocation = mapCurrentLocation,
             error = mapError,
             onDismiss = { showMap = false },
             onRetry = { mapRefreshToken += 1 }
@@ -248,6 +274,7 @@ fun DropHereScreen() {
 private fun DropsMapDialog(
     loading: Boolean,
     drops: List<Drop>,
+    currentLocation: LatLng?,
     error: String?,
     onDismiss: () -> Unit,
     onRetry: () -> Unit
@@ -260,20 +287,20 @@ private fun DropsMapDialog(
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background
         ) {
+            @OptIn(ExperimentalMaterial3Api::class)
             Scaffold(
                 topBar = {
-                    @OptIn(ExperimentalMaterial3Api::class)
-                    @Composable
-                    fun MyMapScreen(onDismiss: () -> Unit) {
-                        TopAppBar(
-                            title = { Text("My drops on map") },
-                            navigationIcon = {
-                                IconButton(onClick = onDismiss) {
-                                    Icon(Icons.Filled.Close, contentDescription = "Close map")
-                                }
+                    TopAppBar(
+                        title = { Text("My drops on map") },
+                        navigationIcon = {
+                            IconButton(onClick = onDismiss) {
+                                Icon(
+                                    Icons.Filled.ArrowBack,
+                                    contentDescription = "Back to main page"
+                                )
                             }
-                        )
-                    }
+                        }
+                    )
                 }
             ) { padding ->
                 Box(
@@ -305,7 +332,7 @@ private fun DropsMapDialog(
                         }
 
                         else -> {
-                            DropsMapContent(drops)
+                            DropsMapContent(drops, currentLocation)
                         }
                     }
                 }
@@ -344,21 +371,21 @@ private fun MapDialogMessage(
         }
 
         TextButton(onClick = onDismiss) {
-            Text("Close")
+            Text("Back to main page")
         }
     }
 }
 
 @Composable
-private fun DropsMapContent(drops: List<Drop>) {
+private fun DropsMapContent(drops: List<Drop>, currentLocation: LatLng?) {
     val cameraPositionState = rememberCameraPositionState()
     val uiSettings = remember { MapUiSettings(zoomControlsEnabled = true) }
 
-    LaunchedEffect(drops) {
-        if (drops.isNotEmpty()) {
-            val first = drops.first()
-            val update = CameraUpdateFactory.newLatLngZoom(LatLng(first.lat, first.lng), 13f)
-            cameraPositionState.animate(update)
+
+    LaunchedEffect(drops, currentLocation) {
+        val target = currentLocation ?: drops.firstOrNull()?.let { LatLng(it.lat, it.lng) }
+        if (target != null) {
+            val update = CameraUpdateFactory.newLatLngZoom(target, 13f)
         }
     }
 
@@ -367,6 +394,15 @@ private fun DropsMapContent(drops: List<Drop>) {
         cameraPositionState = cameraPositionState,
         uiSettings = uiSettings
     ) {
+        currentLocation?.let { location ->
+            Marker(
+                state = MarkerState(location),
+                title = "Your current location",
+                icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE),
+                zIndex = 1f
+            )
+        }
+
         drops.forEach { drop ->
             val position = LatLng(drop.lat, drop.lng)
             Marker(
