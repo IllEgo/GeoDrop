@@ -4,10 +4,14 @@ import android.annotation.SuppressLint
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.RadioButtonChecked
+import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
@@ -27,6 +31,7 @@ import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.LatLng
 import com.google.firebase.auth.FirebaseAuth
+import com.google.maps.android.compose.Circle
 import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.MapUiSettings
 import com.google.maps.android.compose.Marker
@@ -358,6 +363,7 @@ private fun DropsMapContent(drops: List<Drop>, currentLocation: LatLng?) {
     val cameraPositionState = rememberCameraPositionState()
     val uiSettings = remember { MapUiSettings(zoomControlsEnabled = true) }
 
+    var showRadius by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(drops, currentLocation) {
         val target = currentLocation ?: drops.firstOrNull()?.let { LatLng(it.lat, it.lng) }
@@ -367,32 +373,68 @@ private fun DropsMapContent(drops: List<Drop>, currentLocation: LatLng?) {
         }
     }
 
-    GoogleMap(
-        modifier = Modifier.fillMaxSize(),
-        cameraPositionState = cameraPositionState,
-        uiSettings = uiSettings
-    ) {
-        currentLocation?.let { location ->
-            Marker(
-                state = MarkerState(location),
-                title = "Your current location",
-                icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE),
-                zIndex = 1f
-            )
+
+    LaunchedEffect(currentLocation) {
+        if (currentLocation == null) {
+            showRadius = false
+        }
+    }
+
+    Box(Modifier.fillMaxSize()) {
+        GoogleMap(
+            modifier = Modifier.fillMaxSize(),
+            cameraPositionState = cameraPositionState,
+            uiSettings = uiSettings
+        ) {
+            currentLocation?.let { location ->
+                if (showRadius) {
+                    Circle(
+                        center = location,
+                        radius = 300.0,
+                        strokeColor = Color(0xFF1E88E5),
+                        strokeWidth = 2f,
+                        fillColor = Color(0x331E88E5)
+                    )
+                }
+
+                Marker(
+                    state = MarkerState(location),
+                    title = "Your current location",
+                    icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE),
+                    zIndex = 1f
+                )
+            }
+
+            drops.forEach { drop ->
+                val position = LatLng(drop.lat, drop.lng)
+                val snippetParts = mutableListOf(
+                    "Lat: %.5f, Lng: %.5f".format(drop.lat, drop.lng)
+                )
+                formatTimestamp(drop.createdAt)?.let { snippetParts.add(0, "Dropped $it") }
+
+                Marker(
+                    state = MarkerState(position),
+                    title = drop.text.ifBlank { "(No message)" },
+                    snippet = snippetParts.joinToString("\n")
+                )
+            }
         }
 
-        drops.forEach { drop ->
-            val position = LatLng(drop.lat, drop.lng)
-            val snippetParts = mutableListOf(
-                "Lat: %.5f, Lng: %.5f".format(drop.lat, drop.lng)
-            )
-            formatTimestamp(drop.createdAt)?.let { snippetParts.add(0, "Dropped $it") }
 
-            Marker(
-                state = MarkerState(position),
-                title = drop.text.ifBlank { "(No message)" },
-                snippet = snippetParts.joinToString("\n")
-            )
+        if (currentLocation != null) {
+            ExtendedFloatingActionButton(
+                onClick = { showRadius = !showRadius },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(16.dp)
+            ) {
+                Icon(
+                    imageVector = if (showRadius) Icons.Filled.RadioButtonChecked else Icons.Filled.RadioButtonUnchecked,
+                    contentDescription = null
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(if (showRadius) "Hide 300 m radius" else "Show 300 m radius")
+            }
         }
     }
 }

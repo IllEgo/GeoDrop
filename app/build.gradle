@@ -28,6 +28,8 @@ android {
 
 dependencies {
     def compose_version = '1.6.8'
+
+    implementation "androidx.compose.material:material-icons-extended:${compose_version}"
 	
 	implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1'
 
