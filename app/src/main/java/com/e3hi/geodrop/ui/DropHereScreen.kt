@@ -386,6 +386,7 @@ private fun DropsMapContent(drops: List<Drop>, currentLocation: LatLng?) {
         val target = currentLocation ?: drops.firstOrNull()?.let { LatLng(it.lat, it.lng) }
         if (target != null) {
             val update = CameraUpdateFactory.newLatLngZoom(target, 13f)
+            cameraPositionState.animate(update)
         }
     }
 
