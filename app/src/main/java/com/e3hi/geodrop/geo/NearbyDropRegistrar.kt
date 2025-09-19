@@ -104,6 +104,7 @@ class NearbyDropRegistrar {
 
                 for (doc in snap.documents) {
                     val drop = doc.toObject(Drop::class.java) ?: continue
+                    if (drop.isDeleted) continue
                     val id = doc.id
 
                     // ignore my own drops — only notify for "other users"

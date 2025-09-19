@@ -3,6 +3,7 @@ package com.e3hi.geodrop.data
 import android.util.Log
 import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
 import kotlinx.coroutines.tasks.await
@@ -22,7 +23,7 @@ class FirestoreRepo(
      * NEW: Suspend API. Writes a drop and returns the new document id.
      */
     suspend fun addDrop(drop: Drop): String {
-        val dropToSave = drop.ensureTimestamp()
+        val dropToSave = drop.prepareForSave()
         val ref: DocumentReference = drops.add(dropToSave).await()
         Log.d("GeoDrop", "Created drop ${ref.id}")
         return ref.id
@@ -53,23 +54,33 @@ class FirestoreRepo(
             .get()
             .await()
 
-        return snapshot.documents.map { doc ->
-            doc.toObject(Drop::class.java)?.copy(id = doc.id) ?: Drop(id = doc.id)
+        return snapshot.documents.mapNotNull { doc ->
+            val drop = doc.toObject(Drop::class.java)?.copy(id = doc.id)
+                ?: Drop(id = doc.id)
+
+            if (drop.isDeleted) null else drop
         }
     }
 
     suspend fun deleteDrop(dropId: String) {
         if (dropId.isBlank()) return
 
+        val updates = mapOf(
+            "isDeleted" to true,
+            "deletedAt" to System.currentTimeMillis()
+        )
+
         drops
             .document(dropId)
-            .delete()
+            .set(updates, SetOptions.merge())
             .await()
 
-        Log.d("GeoDrop", "Deleted drop $dropId")
+        Log.d("GeoDrop", "Marked drop $dropId as deleted")
     }
 
 
-    private fun Drop.ensureTimestamp(): Drop =
-        if (createdAt > 0L) this else copy(createdAt = System.currentTimeMillis())
+    private fun Drop.prepareForSave(): Drop {
+        val withTimestamp = if (createdAt > 0L) this else copy(createdAt = System.currentTimeMillis())
+        return withTimestamp.copy(isDeleted = false, deletedAt = null)
+    }
 }
