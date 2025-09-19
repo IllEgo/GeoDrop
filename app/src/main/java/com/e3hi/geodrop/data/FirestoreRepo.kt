@@ -58,6 +58,18 @@ class FirestoreRepo(
         }
     }
 
+    suspend fun deleteDrop(dropId: String) {
+        if (dropId.isBlank()) return
+
+        drops
+            .document(dropId)
+            .delete()
+            .await()
+
+        Log.d("GeoDrop", "Deleted drop $dropId")
+    }
+
+
     private fun Drop.ensureTimestamp(): Drop =
         if (createdAt > 0L) this else copy(createdAt = System.currentTimeMillis())
 }

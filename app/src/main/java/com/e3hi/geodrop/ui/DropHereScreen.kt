@@ -2,8 +2,11 @@ package com.e3hi.geodrop.ui
 
 import android.annotation.SuppressLint
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.RadioButtonChecked
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material3.*
@@ -13,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -61,6 +65,12 @@ fun DropHereScreen() {
     var mapDrops by remember { mutableStateOf<List<Drop>>(emptyList()) }
     var mapRefreshToken by remember { mutableStateOf(0) }
     var mapCurrentLocation by remember { mutableStateOf<LatLng?>(null) }
+    var showManageDrops by remember { mutableStateOf(false) }
+    var manageDrops by remember { mutableStateOf<List<Drop>>(emptyList()) }
+    var manageLoading by remember { mutableStateOf(false) }
+    var manageError by remember { mutableStateOf<String?>(null) }
+    var manageRefreshToken by remember { mutableStateOf(0) }
+    var manageDeletingId by remember { mutableStateOf<String?>(null) }
 
     suspend fun getLatestLocation(): Pair<Double, Double>? = withContext(Dispatchers.IO) {
         val fresh = try {
@@ -133,6 +143,34 @@ fun DropHereScreen() {
             mapCurrentLocation = null
         }
     }
+
+    LaunchedEffect(showManageDrops, manageRefreshToken) {
+        if (showManageDrops) {
+            manageLoading = true
+            manageError = null
+            manageDeletingId = null
+            val uid = FirebaseAuth.getInstance().currentUser?.uid
+            if (uid == null) {
+                manageLoading = false
+                manageError = "Sign-in is still in progress. Try again in a moment."
+            } else {
+                try {
+                    manageDrops = repo.getDropsForUser(uid)
+                        .sortedByDescending { it.createdAt }
+                } catch (e: Exception) {
+                    manageError = e.message ?: "Failed to load your drops."
+                } finally {
+                    manageLoading = false
+                }
+            }
+        } else {
+            manageDrops = emptyList()
+            manageError = null
+            manageLoading = false
+            manageDeletingId = null
+        }
+    }
+
 
     Column(
         Modifier
@@ -234,6 +272,17 @@ fun DropHereScreen() {
             modifier = Modifier.fillMaxWidth()
         ) { Text("View my drops on map") }
 
+        Button(
+            onClick = {
+                if (FirebaseAuth.getInstance().currentUser == null) {
+                    snackbar.showMessage(scope, "Signing you in… please try again shortly.")
+                } else {
+                    showManageDrops = true
+                }
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) { Text("Manage my drops") }
+
         status?.let { Text(it) }
 
         Spacer(Modifier.weight(1f))
@@ -248,6 +297,36 @@ fun DropHereScreen() {
             error = mapError,
             onDismiss = { showMap = false },
             onRetry = { mapRefreshToken += 1 }
+        )
+    }
+
+    if (showManageDrops) {
+        ManageDropsDialog(
+            loading = manageLoading,
+            drops = manageDrops,
+            deletingId = manageDeletingId,
+            error = manageError,
+            onDismiss = { showManageDrops = false },
+            onRetry = { manageRefreshToken += 1 },
+            onDelete = { drop ->
+                if (drop.id.isBlank()) {
+                    snackbar.showMessage(scope, "Unable to delete this drop.")
+                    return@ManageDropsDialog
+                }
+
+                manageDeletingId = drop.id
+                scope.launch {
+                    try {
+                        repo.deleteDrop(drop.id)
+                        manageDrops = manageDrops.filterNot { it.id == drop.id }
+                        snackbar.showMessage(scope, "Drop deleted.")
+                    } catch (e: Exception) {
+                        snackbar.showMessage(scope, "Error: ${e.message}")
+                    } finally {
+                        manageDeletingId = null
+                    }
+                }
+            }
         )
     }
 }
@@ -296,7 +375,7 @@ private fun DropsMapDialog(
                         }
 
                         error != null -> {
-                            MapDialogMessage(
+                            DialogMessageContent(
                                 message = error,
                                 primaryLabel = "Retry",
                                 onPrimary = onRetry,
@@ -305,7 +384,7 @@ private fun DropsMapDialog(
                         }
 
                         drops.isEmpty() -> {
-                            MapDialogMessage(
+                            DialogMessageContent(
                                 message = "You haven't dropped any notes yet.",
                                 primaryLabel = null,
                                 onPrimary = null,
@@ -324,7 +403,7 @@ private fun DropsMapDialog(
 }
 
 @Composable
-private fun MapDialogMessage(
+private fun DialogMessageContent(
     message: String,
     primaryLabel: String?,
     onPrimary: (() -> Unit)?,
@@ -354,6 +433,157 @@ private fun MapDialogMessage(
 
         TextButton(onClick = onDismiss) {
             Text("Back to main page")
+        }
+    }
+}
+
+@Composable
+private fun ManageDropsDialog(
+    loading: Boolean,
+    drops: List<Drop>,
+    deletingId: String?,
+    error: String?,
+    onDismiss: () -> Unit,
+    onRetry: () -> Unit,
+    onDelete: (Drop) -> Unit
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background
+        ) {
+            @OptIn(ExperimentalMaterial3Api::class)
+            Scaffold(
+                topBar = {
+                    TopAppBar(
+                        title = { Text("Manage my drops") },
+                        navigationIcon = {
+                            IconButton(onClick = onDismiss) {
+                                Icon(
+                                    Icons.Filled.ArrowBack,
+                                    contentDescription = "Back to main page"
+                                )
+                            }
+                        }
+                    )
+                }
+            ) { padding ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                ) {
+                    when {
+                        loading -> {
+                            CircularProgressIndicator(Modifier.align(Alignment.Center))
+                        }
+
+                        error != null -> {
+                            DialogMessageContent(
+                                message = error,
+                                primaryLabel = "Retry",
+                                onPrimary = onRetry,
+                                onDismiss = onDismiss
+                            )
+                        }
+
+                        drops.isEmpty() -> {
+                            DialogMessageContent(
+                                message = "You haven't dropped any notes yet.",
+                                primaryLabel = null,
+                                onPrimary = null,
+                                onDismiss = onDismiss
+                            )
+                        }
+
+                        else -> {
+                            LazyColumn(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                items(drops, key = { it.id }) { drop ->
+                                    ManageDropRow(
+                                        drop = drop,
+                                        isDeleting = deletingId == drop.id,
+                                        onDelete = { onDelete(drop) }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ManageDropRow(
+    drop: Drop,
+    isDeleting: Boolean,
+    onDelete: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = drop.text.ifBlank { "(No message)" },
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold
+            )
+
+            Spacer(Modifier.height(4.dp))
+
+            formatTimestamp(drop.createdAt)?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            Spacer(Modifier.height(4.dp))
+
+            Text(
+                text = "Lat: %.5f, Lng: %.5f".format(drop.lat, drop.lng),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Spacer(Modifier.height(12.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                TextButton(
+                    onClick = onDelete,
+                    enabled = !isDeleting
+                ) {
+                    if (isDeleting) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text("Deleting…")
+                    } else {
+                        Icon(
+                            imageVector = Icons.Filled.Delete,
+                            contentDescription = "Delete drop"
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text("Delete")
+                    }
+                }
+            }
         }
     }
 }
