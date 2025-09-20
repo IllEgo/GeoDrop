@@ -94,6 +94,9 @@ fun DropHereScreen() {
         onDispose { auth.removeAuthStateListener(listener) }
     }
 
+    val noteInventory = remember { NoteInventory(ctx) }
+    var collectedNotes by remember { mutableStateOf(noteInventory.getCollectedNotes()) }
+
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
@@ -164,7 +167,6 @@ fun DropHereScreen() {
     val mediaStorage = remember { MediaStorageRepo() }
     val registrar = remember { NearbyDropRegistrar() }
     val groupPrefs = remember { GroupPreferences(ctx) }
-    val noteInventory = remember { NoteInventory(ctx) }
 
     var joinedGroups by remember { mutableStateOf(groupPrefs.getJoinedGroups()) }
     var dropVisibility by remember { mutableStateOf(DropVisibility.Public) }
@@ -188,7 +190,6 @@ fun DropHereScreen() {
     var manageRefreshToken by remember { mutableStateOf(0) }
     var manageDeletingId by remember { mutableStateOf<String?>(null) }
     var showManageGroups by remember { mutableStateOf(false) }
-    var collectedNotes by remember { mutableStateOf(noteInventory.getCollectedNotes()) }
     var showCollectedNotes by remember { mutableStateOf(false) }
 
     suspend fun getLatestLocation(): Pair<Double, Double>? = withContext(Dispatchers.IO) {
