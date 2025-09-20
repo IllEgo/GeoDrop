@@ -5,6 +5,7 @@ import android.app.Activity
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
@@ -12,7 +13,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -22,15 +26,17 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.foundation.layout.height
 import androidx.compose.ui.unit.dp
-import android.widget.Toast
 import com.e3hi.geodrop.MainActivity
 import com.e3hi.geodrop.data.DropContentType
 import com.e3hi.geodrop.util.formatTimestamp
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 
 class DropDetailActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -45,47 +51,98 @@ class DropDetailActivity : ComponentActivity() {
         val initialMediaUrl = intent.getStringExtra("dropMediaUrl")?.takeIf { it.isNotBlank() }
         setContent {
             val context = LocalContext.current
-            var state by remember {
-                mutableStateOf(
-                    if (dropId.isBlank()) {
-                        if (initialText != null || initialLat != null || initialLng != null || initialCreatedAt != null) {
-                            DropDetailUiState.Loaded(
-                                text = initialText,
-                                lat = initialLat,
-                                lng = initialLng,
-                                createdAt = initialCreatedAt,
-                                groupCode = initialGroupCode,
-                                contentType = initialContentType,
-                                mediaUrl = initialMediaUrl
-                            )
-                        } else {
-                            DropDetailUiState.NotFound
-                        }
-                    } else {
-                        DropDetailUiState.Loading
-                    }
+
+            val initialState = if (dropId.isBlank()) {
+                if (
+                    initialText != null ||
+                    initialLat != null ||
+                    initialLng != null ||
+                    initialCreatedAt != null ||
+                    initialGroupCode != null ||
+                    initialMediaUrl != null
+                ) {
+                    DropDetailUiState.Loaded(
+                        text = initialText,
+                        lat = initialLat,
+                        lng = initialLng,
+                        createdAt = initialCreatedAt,
+                        groupCode = initialGroupCode,
+                        contentType = initialContentType,
+                        mediaUrl = initialMediaUrl
+                    )
+                } else {
+                    DropDetailUiState.NotFound
+                }
+            } else if (
+                initialText != null ||
+                initialLat != null ||
+                initialLng != null ||
+                initialCreatedAt != null ||
+                initialGroupCode != null ||
+                initialMediaUrl != null
+            ) {
+                DropDetailUiState.Loaded(
+                    text = initialText,
+                    lat = initialLat,
+                    lng = initialLng,
+                    createdAt = initialCreatedAt,
+                    groupCode = initialGroupCode,
+                    contentType = initialContentType,
+                    mediaUrl = initialMediaUrl
                 )
+            } else {
+                DropDetailUiState.Loading
             }
+
+            var state by remember { mutableStateOf(initialState) }
 
             LaunchedEffect(dropId) {
                 if (dropId.isBlank()) return@LaunchedEffect
-                state = DropDetailUiState.Loading
-                val doc = Firebase.firestore.collection("drops").document(dropId).get().awaitOrNull()
-                val isDeleted = doc?.getBoolean("isDeleted") == true
-                state = when {
-                    doc == null -> DropDetailUiState.NotFound
-                    isDeleted -> DropDetailUiState.Deleted
-                    else -> DropDetailUiState.Loaded(
-                        text = doc.getString("text")?.takeIf { it.isNotBlank() } ?: initialText,
-                        lat = doc.getDouble("lat") ?: initialLat,
-                        lng = doc.getDouble("lng") ?: initialLng,
-                        createdAt = doc.getLong("createdAt")?.takeIf { it > 0L } ?: initialCreatedAt,
-                        groupCode = doc.getString("groupCode")?.takeIf { it.isNotBlank() } ?: initialGroupCode,
-                        contentType = doc.getString("contentType")?.let { DropContentType.fromRaw(it) }
-                            ?: initialContentType,
-                        mediaUrl = doc.getString("mediaUrl")?.takeIf { it.isNotBlank() } ?: initialMediaUrl
-                    )
+                val previousLoaded = state as? DropDetailUiState.Loaded
+                if (previousLoaded == null) {
+                    state = DropDetailUiState.Loading
                 }
+                val doc = Firebase.firestore.collection("drops").document(dropId).get().awaitOrNull()
+
+                if (doc == null) {
+                    previousLoaded?.let {
+                        Toast.makeText(
+                            context,
+                            "Couldn't refresh drop details. Showing saved info.",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        state = it
+                    } ?: run {
+                        state = DropDetailUiState.NotFound
+                    }
+                    return@LaunchedEffect
+                }
+
+                val isDeleted = doc.getBoolean("isDeleted") == true
+                if (isDeleted) {
+                    state = DropDetailUiState.Deleted
+                    return@LaunchedEffect
+                }
+
+                state = DropDetailUiState.Loaded(
+                    text = doc.getString("text")?.takeIf { it.isNotBlank() }
+                        ?: previousLoaded?.text
+                        ?: initialText,
+                    lat = doc.getDouble("lat") ?: previousLoaded?.lat ?: initialLat,
+                    lng = doc.getDouble("lng") ?: previousLoaded?.lng ?: initialLng,
+                    createdAt = doc.getLong("createdAt")?.takeIf { it > 0L }
+                        ?: previousLoaded?.createdAt
+                        ?: initialCreatedAt,
+                    groupCode = doc.getString("groupCode")?.takeIf { it.isNotBlank() }
+                        ?: previousLoaded?.groupCode
+                        ?: initialGroupCode,
+                    contentType = doc.getString("contentType")?.let { DropContentType.fromRaw(it) }
+                        ?: previousLoaded?.contentType
+                        ?: initialContentType,
+                    mediaUrl = doc.getString("mediaUrl")?.takeIf { it.isNotBlank() }
+                        ?: previousLoaded?.mediaUrl
+                        ?: initialMediaUrl
+                )
             }
 
             Column(
@@ -140,6 +197,27 @@ class DropDetailActivity : ComponentActivity() {
 
                 (state as? DropDetailUiState.Loaded)?.let { current ->
                     current.mediaUrl?.let { link ->
+                        if (current.contentType == DropContentType.PHOTO) {
+                            val imageRequest = remember(link) {
+                                ImageRequest.Builder(context)
+                                    .data(link)
+                                    .crossfade(true)
+                                    .build()
+                            }
+
+                            AsyncImage(
+                                model = imageRequest,
+                                contentDescription = current.text ?: "Photo drop",
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(min = 180.dp, max = 360.dp)
+                                    .clip(RoundedCornerShape(12.dp)),
+                                contentScale = ContentScale.Crop
+                            )
+
+                            Spacer(Modifier.height(8.dp))
+                        }
+
                         val buttonLabel = when (current.contentType) {
                             DropContentType.TEXT -> "Open attachment"
                             DropContentType.PHOTO -> "View photo"
