@@ -51,6 +51,7 @@ class FirestoreRepo(
     suspend fun getDropsForUser(uid: String): List<Drop> {
         val snapshot = drops
             .whereEqualTo("createdBy", uid)
+            .whereEqualTo("isDeleted", false)
             .get()
             .await()
 
