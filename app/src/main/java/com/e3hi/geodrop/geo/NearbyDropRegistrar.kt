@@ -10,6 +10,7 @@ import android.os.Looper
 import android.util.Log
 import androidx.core.content.ContextCompat
 import com.e3hi.geodrop.data.Drop
+import com.e3hi.geodrop.util.GroupPreferences
 import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofencingClient
 import com.google.android.gms.location.GeofencingRequest
@@ -40,6 +41,7 @@ class NearbyDropRegistrar {
     fun registerNearby(
         context: Context,
         maxMeters: Double = 300.0,
+        groupCodes: Set<String> = emptySet(),
         onStatus: (NearbySyncStatus) -> Unit = {}
     ) {
         if (!hasPreciseLocation(context)) {
@@ -53,7 +55,7 @@ class NearbyDropRegistrar {
             context,
             onLocation = { lat, lng ->
                 Log.d(TAG, "Registrar using location lat=$lat lng=$lng")
-                registerNearbyAt(context, lat, lng, maxMeters, onStatus)
+                registerNearbyAt(context, lat, lng, maxMeters, groupCodes, onStatus)
             },
             onNoLocation = {
                 Log.w(TAG, "No location; will retry once in 5s (set emulator/device location).")
@@ -62,7 +64,7 @@ class NearbyDropRegistrar {
                         context,
                         onLocation = { lat, lng ->
                             Log.d(TAG, "Retry found location lat=$lat lng=$lng")
-                            registerNearbyAt(context, lat, lng, maxMeters, onStatus)
+                            registerNearbyAt(context, lat, lng, maxMeters, groupCodes, onStatus)
                         },
                         onNoLocation = {
                             Log.e(TAG, "Retry also failed to get location. Make sure Location is ON and a mock/fresh fix is set.")
@@ -83,6 +85,7 @@ class NearbyDropRegistrar {
         originLat: Double,
         originLng: Double,
         maxMeters: Double = 300.0,
+        groupCodes: Set<String> = emptySet(),
         onStatus: (NearbySyncStatus) -> Unit = {}
     ) {
         if (!hasPreciseLocation(context)) {
@@ -95,6 +98,7 @@ class NearbyDropRegistrar {
         val geos: GeofencingClient = LocationServices.getGeofencingClient(context)
         val db = Firebase.firestore
         val me = FirebaseAuth.getInstance().currentUser?.uid
+        val allowedGroups = groupCodes.mapNotNull { GroupPreferences.normalizeGroupCode(it) }.toSet()
 
         db.collection("drops")
             .get()
@@ -109,6 +113,9 @@ class NearbyDropRegistrar {
 
                     // ignore my own drops — only notify for "other users"
                     if (drop.createdBy == me) continue
+
+                    val dropGroup = GroupPreferences.normalizeGroupCode(drop.groupCode)
+                    if (dropGroup != null && dropGroup !in allowedGroups) continue
 
                     val d = distanceMeters(originLat, originLng, drop.lat, drop.lng)
                     if (d <= maxMeters) {

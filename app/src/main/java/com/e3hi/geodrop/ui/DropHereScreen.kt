@@ -1,9 +1,12 @@
 package com.e3hi.geodrop.ui
 
 import android.annotation.SuppressLint
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
@@ -26,6 +29,7 @@ import com.e3hi.geodrop.data.Drop
 import com.e3hi.geodrop.data.FirestoreRepo
 import com.e3hi.geodrop.geo.NearbyDropRegistrar
 import com.e3hi.geodrop.geo.NearbyDropRegistrar.NearbySyncStatus
+import com.e3hi.geodrop.util.GroupPreferences
 import com.e3hi.geodrop.util.formatTimestamp
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
@@ -55,8 +59,12 @@ fun DropHereScreen() {
     val fused = remember { LocationServices.getFusedLocationProviderClient(ctx) }
     val repo = remember { FirestoreRepo() }
     val registrar = remember { NearbyDropRegistrar() }
+    val groupPrefs = remember { GroupPreferences(ctx) }
 
+    var joinedGroups by remember { mutableStateOf(groupPrefs.getJoinedGroups()) }
+    var dropVisibility by remember { mutableStateOf(DropVisibility.Public) }
     var note by remember { mutableStateOf(TextFieldValue("")) }
+    var groupCodeInput by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
     var isSubmitting by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
     var showMap by remember { mutableStateOf(false) }
@@ -71,6 +79,7 @@ fun DropHereScreen() {
     var manageError by remember { mutableStateOf<String?>(null) }
     var manageRefreshToken by remember { mutableStateOf(0) }
     var manageDeletingId by remember { mutableStateOf<String?>(null) }
+    var showManageGroups by remember { mutableStateOf(false) }
 
     suspend fun getLatestLocation(): Pair<Double, Double>? = withContext(Dispatchers.IO) {
         val fresh = try {
@@ -90,30 +99,49 @@ fun DropHereScreen() {
     }
 
     // Optional: also sync nearby on first open if already signed in
-    LaunchedEffect(Unit) {
+    LaunchedEffect(joinedGroups) {
         if (FirebaseAuth.getInstance().currentUser != null) {
-            registrar.registerNearby(ctx, maxMeters = 300.0)
+            registrar.registerNearby(
+                ctx,
+                maxMeters = 300.0,
+                groupCodes = joinedGroups.toSet()
+            )
         }
     }
 
-    fun uiDone(lat: Double, lng: Double) {
+    fun uiDone(lat: Double, lng: Double, groupCode: String?) {
         isSubmitting = false
         note = TextFieldValue("")
-        status = "Dropped at (%.5f, %.5f)".format(lat, lng)
-        scope.launch { snackbar.showSnackbar("Note dropped!") }
+        val baseStatus = "Dropped at (%.5f, %.5f)".format(lat, lng)
+        status = if (groupCode != null) {
+            "$baseStatus for group $groupCode"
+        } else {
+            baseStatus
+        }
+        val snackbarMessage = if (groupCode != null) {
+            "Group drop saved!"
+        } else {
+            "Note dropped!"
+        }
+        scope.launch { snackbar.showSnackbar(snackbarMessage) }
     }
 
-    suspend fun addDropAt(lat: Double, lng: Double) {
+    suspend fun addDropAt(lat: Double, lng: Double, groupCode: String?) {
         val uid = FirebaseAuth.getInstance().currentUser?.uid ?: "anon"
         val d = Drop(
             text = note.text.ifBlank { "New drop" },
             lat = lat,
             lng = lng,
             createdBy = uid,
-            createdAt = System.currentTimeMillis()
+            createdAt = System.currentTimeMillis(),
+            groupCode = groupCode
         )
         repo.addDrop(d) // suspend (uses Firestore .await() internally)
-        uiDone(lat, lng)
+        if (groupCode != null) {
+            groupPrefs.addGroup(groupCode)
+            joinedGroups = groupPrefs.getJoinedGroups()
+        }
+        uiDone(lat, lng, groupCode)
     }
 
     LaunchedEffect(showMap, mapRefreshToken) {
@@ -189,12 +217,92 @@ fun DropHereScreen() {
             modifier = Modifier.fillMaxWidth()
         )
 
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text("Drop visibility", style = MaterialTheme.typography.titleSmall)
+
+            VisibilityOption(
+                title = "Public drop",
+                description = "Anyone nearby can discover this note.",
+                selected = dropVisibility == DropVisibility.Public,
+                onClick = { dropVisibility = DropVisibility.Public }
+            )
+
+            VisibilityOption(
+                title = "Group-only drop",
+                description = "Limit discovery to people who share your group code.",
+                selected = dropVisibility == DropVisibility.GroupOnly,
+                onClick = { dropVisibility = DropVisibility.GroupOnly }
+            )
+
+            if (dropVisibility == DropVisibility.GroupOnly) {
+                OutlinedTextField(
+                    value = groupCodeInput,
+                    onValueChange = { groupCodeInput = it },
+                    label = { Text("Group code") },
+                    modifier = Modifier.fillMaxWidth(),
+                    supportingText = {
+                        Text("Codes stay on this device. Share them with your crew or guests.")
+                    }
+                )
+
+                if (joinedGroups.isNotEmpty()) {
+                    Text(
+                        text = "Tap a saved code to reuse it:",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        joinedGroups.forEach { code ->
+                            AssistChip(
+                                onClick = { groupCodeInput = TextFieldValue(code) },
+                                label = { Text(code) }
+                            )
+                        }
+                    }
+                }
+            } else {
+                val visibilityMessage = if (joinedGroups.isEmpty()) {
+                    "Add a group code to keep drops private for weddings, crew ops, or hunts."
+                } else {
+                    "Active group codes: ${joinedGroups.joinToString()}."
+                }
+
+                Text(
+                    text = visibilityMessage,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
         Button(
             enabled = !isSubmitting,
             onClick = {
                 isSubmitting = true
                 scope.launch {
                     try {
+                        val selectedGroupCode = if (dropVisibility == DropVisibility.GroupOnly) {
+                            GroupPreferences.normalizeGroupCode(groupCodeInput.text)
+                                ?: run {
+                                    isSubmitting = false
+                                    snackbar.showMessage(
+                                        scope,
+                                        "Enter a group code to make this drop private."
+                                    )
+                                    return@launch
+                                }
+                        } else {
+                            null
+                        }
 //                        val (lat, lng) = withContext(Dispatchers.IO) {
 //                            // Try fresh high-accuracy first
 //                            val fresh = try {
@@ -214,7 +322,7 @@ fun DropHereScreen() {
                             return@launch
                         }
 
-                        addDropAt(lat, lng)
+                        addDropAt(lat, lng, selectedGroupCode)
                     } catch (e: Exception) {
                         isSubmitting = false
                         snackbar.showMessage(scope, "Error: ${e.message}")
@@ -227,7 +335,11 @@ fun DropHereScreen() {
         // Handy for testing: re-scan & register geofences without restarting
         Button(
             onClick = {
-                registrar.registerNearby(ctx, maxMeters = 300.0) { statusResult ->
+                registrar.registerNearby(
+                    ctx,
+                    maxMeters = 300.0,
+                    groupCodes = joinedGroups.toSet()
+                ) { statusResult ->
                     when (statusResult) {
                         is NearbySyncStatus.Success -> {
                             val msg = if (statusResult.count > 0) {
@@ -271,6 +383,11 @@ fun DropHereScreen() {
             },
             modifier = Modifier.fillMaxWidth()
         ) { Text("View my drops on map") }
+
+        Button(
+            onClick = { showManageGroups = true },
+            modifier = Modifier.fillMaxWidth()
+        ) { Text("Manage group codes") }
 
         Button(
             onClick = {
@@ -326,6 +443,30 @@ fun DropHereScreen() {
                         manageDeletingId = null
                     }
                 }
+            }
+        )
+    }
+
+    if (showManageGroups) {
+        ManageGroupsDialog(
+            groups = joinedGroups,
+            onDismiss = { showManageGroups = false },
+            onAdd = { code ->
+                groupPrefs.addGroup(code)
+                joinedGroups = groupPrefs.getJoinedGroups()
+                if (dropVisibility == DropVisibility.GroupOnly) {
+                    groupCodeInput = TextFieldValue(code)
+                }
+                snackbar.showMessage(scope, "Saved group $code")
+            },
+            onRemove = { code ->
+                groupPrefs.removeGroup(code)
+                joinedGroups = groupPrefs.getJoinedGroups()
+                val currentInput = GroupPreferences.normalizeGroupCode(groupCodeInput.text)
+                if (currentInput == code) {
+                    groupCodeInput = TextFieldValue("")
+                }
+                snackbar.showMessage(scope, "Removed group $code")
             }
         )
     }
@@ -438,6 +579,114 @@ private fun DialogMessageContent(
 }
 
 @Composable
+private fun ManageGroupsDialog(
+    groups: List<String>,
+    onDismiss: () -> Unit,
+    onAdd: (String) -> Unit,
+    onRemove: (String) -> Unit
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background
+        ) {
+            @OptIn(ExperimentalMaterial3Api::class)
+            Scaffold(
+                topBar = {
+                    TopAppBar(
+                        title = { Text("Manage group codes") },
+                        navigationIcon = {
+                            IconButton(onClick = onDismiss) {
+                                Icon(
+                                    Icons.Filled.ArrowBack,
+                                    contentDescription = "Back to main page"
+                                )
+                            }
+                        }
+                    )
+                }
+            ) { padding ->
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    var newCode by rememberSaveable(stateSaver = TextFieldValue.Saver) {
+                        mutableStateOf(TextFieldValue(""))
+                    }
+
+                    OutlinedTextField(
+                        value = newCode,
+                        onValueChange = { newCode = it },
+                        label = { Text("Add a group code") },
+                        supportingText = {
+                            Text("Codes stay on this device. Share with people you trust.")
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    val normalized = GroupPreferences.normalizeGroupCode(newCode.text)
+                    Button(
+                        onClick = {
+                            normalized?.let {
+                                onAdd(it)
+                                newCode = TextFieldValue("")
+                            }
+                        },
+                        enabled = normalized != null,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Save code")
+                    }
+
+                    if (groups.isEmpty()) {
+                        Spacer(Modifier.height(16.dp))
+                        Text(
+                            text = "No saved group codes yet.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = TextAlign.Center
+                        )
+                        Text(
+                            text = "Use group codes to keep drops private for weddings, team ops, and scavenger hunts.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    } else {
+                        Text(
+                            text = "Your saved codes",
+                            style = MaterialTheme.typography.titleMedium
+                        )
+
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f, fill = false),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(groups, key = { it }) { code ->
+                                GroupCodeRow(
+                                    code = code,
+                                    onRemove = { onRemove(code) }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun ManageDropsDialog(
     loading: Boolean,
     drops: List<Drop>,
@@ -523,6 +772,46 @@ private fun ManageDropsDialog(
 }
 
 @Composable
+private fun GroupCodeRow(
+    code: String,
+    onRemove: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = code,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = "Share this code so only your group sees the drop.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            Spacer(Modifier.width(8.dp))
+
+            IconButton(onClick = onRemove) {
+                Icon(
+                    imageVector = Icons.Filled.Delete,
+                    contentDescription = "Remove group code"
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun ManageDropRow(
     drop: Drop,
     isDeleting: Boolean,
@@ -548,6 +837,17 @@ private fun ManageDropRow(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+
+            Spacer(Modifier.height(4.dp))
+
+            val visibilityLabel = drop.groupCode?.takeIf { !it.isNullOrBlank() }
+                ?.let { "Group-only · $it" }
+                ?: "Public drop"
+            Text(
+                text = visibilityLabel,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
 
             Spacer(Modifier.height(4.dp))
 
@@ -641,6 +941,7 @@ private fun DropsMapContent(drops: List<Drop>, currentLocation: LatLng?) {
                     "Lat: %.5f, Lng: %.5f".format(drop.lat, drop.lng)
                 )
                 formatTimestamp(drop.createdAt)?.let { snippetParts.add(0, "Dropped $it") }
+                drop.groupCode?.takeIf { !it.isNullOrBlank() }?.let { snippetParts.add("Group $it") }
 
                 Marker(
                     state = MarkerState(position),
@@ -668,6 +969,39 @@ private fun DropsMapContent(drops: List<Drop>, currentLocation: LatLng?) {
         }
     }
 }
+
+@Composable
+private fun VisibilityOption(
+    title: String,
+    description: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        RadioButton(selected = selected, onClick = onClick)
+        Spacer(Modifier.width(8.dp))
+        Column {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
+            )
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+private enum class DropVisibility { Public, GroupOnly }
 
 /** Tiny helper to show snackbars from non-suspend places. */
 private fun SnackbarHostState.showMessage(scope: kotlinx.coroutines.CoroutineScope, msg: String) {

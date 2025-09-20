@@ -8,5 +8,6 @@ data class Drop(
     val createdBy: String = "",
     val createdAt: Long = 0L,
     val isDeleted: Boolean = false,
-    val deletedAt: Long? = null
+    val deletedAt: Long? = null,
+    val groupCode: String? = null
 )

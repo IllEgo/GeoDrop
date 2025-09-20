@@ -9,6 +9,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.core.content.PermissionChecker
 import com.e3hi.geodrop.ui.DropHereScreen
+import com.e3hi.geodrop.util.GroupPreferences
 import com.e3hi.geodrop.util.createNotificationChannelIfNeeded
 import com.e3hi.geodrop.geo.NearbyDropRegistrar
 import com.google.firebase.auth.FirebaseAuth
@@ -34,16 +35,27 @@ class MainActivity : ComponentActivity() {
         createNotificationChannelIfNeeded(this)
         ensureRuntimePermissions()
 
+        val groupPrefs = GroupPreferences(this)
+        val joinedGroups = groupPrefs.getJoinedGroups().toSet()
+
         // Anonymous sign-in (PLAIN API, no ktx)
         val auth = FirebaseAuth.getInstance()
         if (auth.currentUser == null) {
             auth.signInAnonymously()
                 .addOnCompleteListener {
                     // After we have a UID, try registering nearby geofences
-                    NearbyDropRegistrar().registerNearby(this, maxMeters = 300.0)
+                    NearbyDropRegistrar().registerNearby(
+                        this,
+                        maxMeters = 300.0,
+                        groupCodes = joinedGroups
+                    )
                 }
         } else {
-            NearbyDropRegistrar().registerNearby(this, maxMeters = 300.0)
+            NearbyDropRegistrar().registerNearby(
+                this,
+                maxMeters = 300.0,
+                groupCodes = joinedGroups
+            )
         }
 
         setContent { DropHereScreen() }

@@ -22,6 +22,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.layout.height
 import androidx.compose.ui.unit.dp
 import com.e3hi.geodrop.MainActivity
 import com.e3hi.geodrop.util.formatTimestamp
@@ -36,13 +37,14 @@ class DropDetailActivity : ComponentActivity() {
         val initialLat = if (intent.hasExtra("dropLat")) intent.getDoubleExtra("dropLat", 0.0) else null
         val initialLng = if (intent.hasExtra("dropLng")) intent.getDoubleExtra("dropLng", 0.0) else null
         val initialCreatedAt = intent.getLongExtra("dropCreatedAt", -1L).takeIf { it > 0L }
+        val initialGroupCode = intent.getStringExtra("dropGroupCode")?.takeIf { it.isNotBlank() }
         setContent {
             val context = LocalContext.current
             var state by remember {
                 mutableStateOf(
                     if (dropId.isBlank()) {
                         if (initialText != null || initialLat != null || initialLng != null || initialCreatedAt != null) {
-                            DropDetailUiState.Loaded(initialText, initialLat, initialLng, initialCreatedAt)
+                            DropDetailUiState.Loaded(initialText, initialLat, initialLng, initialCreatedAt, initialGroupCode)
                         } else {
                             DropDetailUiState.NotFound
                         }
@@ -64,7 +66,8 @@ class DropDetailActivity : ComponentActivity() {
                         text = doc.getString("text")?.takeIf { it.isNotBlank() } ?: initialText,
                         lat = doc.getDouble("lat") ?: initialLat,
                         lng = doc.getDouble("lng") ?: initialLng,
-                        createdAt = doc.getLong("createdAt")?.takeIf { it > 0L } ?: initialCreatedAt
+                        createdAt = doc.getLong("createdAt")?.takeIf { it > 0L } ?: initialCreatedAt,
+                        groupCode = doc.getString("groupCode")?.takeIf { it.isNotBlank() } ?: initialGroupCode
                     )
                 }
             }
@@ -93,6 +96,19 @@ class DropDetailActivity : ComponentActivity() {
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
+
+                Spacer(Modifier.height(8.dp))
+
+                val visibilityText = when (val current = state) {
+                    is DropDetailUiState.Loaded -> current.groupCode?.let { "Group-only · $it" } ?: "Public drop"
+                    DropDetailUiState.Loading -> "Loading…"
+                    DropDetailUiState.Deleted -> "Not available"
+                    DropDetailUiState.NotFound -> "Not available"
+                }
+                Text(
+                    "Visibility: $visibilityText",
+                    style = MaterialTheme.typography.bodyMedium
+                )
 
                 val createdAtText = when (val current = state) {
                     is DropDetailUiState.Loaded -> current.createdAt?.let { formatTimestamp(it) }
@@ -157,7 +173,8 @@ private sealed interface DropDetailUiState {
         val text: String?,
         val lat: Double?,
         val lng: Double?,
-        val createdAt: Long?
+        val createdAt: Long?,
+        val groupCode: String?
     ) : DropDetailUiState
 
     object Loading : DropDetailUiState

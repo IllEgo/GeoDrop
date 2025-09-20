@@ -92,7 +92,8 @@ class FirestoreRepo(
             "createdBy" to withTimestamp.createdBy,
             "createdAt" to withTimestamp.createdAt,
             "isDeleted" to false,
-            "deletedAt" to null
+            "deletedAt" to null,
+            "groupCode" to withTimestamp.groupCode?.takeIf { it.isNotBlank() }
         )
     }
 }
