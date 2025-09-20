@@ -38,25 +38,34 @@ class DropDetailActivity : ComponentActivity() {
         val initialCreatedAt = intent.getLongExtra("dropCreatedAt", -1L).takeIf { it > 0L }
         setContent {
             val context = LocalContext.current
-            var text by remember { mutableStateOf(initialText) }
-            var lat by remember { mutableStateOf(initialLat) }
-            var lng by remember { mutableStateOf(initialLng) }
-            var createdAt by remember { mutableStateOf(initialCreatedAt) }
-            var isLoading by remember { mutableStateOf(text == null || lat == null || lng == null || createdAt == null) }
+            var state by remember {
+                mutableStateOf(
+                    if (dropId.isBlank()) {
+                        if (initialText != null || initialLat != null || initialLng != null || initialCreatedAt != null) {
+                            DropDetailUiState.Loaded(initialText, initialLat, initialLng, initialCreatedAt)
+                        } else {
+                            DropDetailUiState.NotFound
+                        }
+                    } else {
+                        DropDetailUiState.Loading
+                    }
+                )
+            }
 
             LaunchedEffect(dropId) {
-                if (dropId.isBlank()) {
-                    isLoading = false
-                    return@LaunchedEffect
-                }
-                if (text == null || lat == null || lng == null || createdAt == null) {
-                    isLoading = true
-                    val doc = Firebase.firestore.collection("drops").document(dropId).get().awaitOrNull()
-                    text = doc?.getString("text")?.takeIf { it.isNotBlank() } ?: text
-                    lat = doc?.getDouble("lat") ?: lat
-                    lng = doc?.getDouble("lng") ?: lng
-                    createdAt = doc?.getLong("createdAt")?.takeIf { it > 0L } ?: createdAt
-                    isLoading = false
+                if (dropId.isBlank()) return@LaunchedEffect
+                state = DropDetailUiState.Loading
+                val doc = Firebase.firestore.collection("drops").document(dropId).get().awaitOrNull()
+                val isDeleted = doc?.getBoolean("isDeleted") == true
+                state = when {
+                    doc == null -> DropDetailUiState.NotFound
+                    isDeleted -> DropDetailUiState.Deleted
+                    else -> DropDetailUiState.Loaded(
+                        text = doc.getString("text")?.takeIf { it.isNotBlank() } ?: initialText,
+                        lat = doc.getDouble("lat") ?: initialLat,
+                        lng = doc.getDouble("lng") ?: initialLng,
+                        createdAt = doc.getLong("createdAt")?.takeIf { it > 0L } ?: initialCreatedAt
+                    )
                 }
             }
 
@@ -70,17 +79,26 @@ class DropDetailActivity : ComponentActivity() {
                 Text("ID: $dropId", style = MaterialTheme.typography.bodyMedium)
 
                 Text("Message", style = MaterialTheme.typography.titleMedium)
-                val message = when {
-                    !text.isNullOrBlank() -> text!!
-                    isLoading -> "Loading…"
-                    else -> "Not available"
+                val message = when (val current = state) {
+                    is DropDetailUiState.Loaded -> current.text ?: "Not available"
+                    DropDetailUiState.Loading -> "Loading…"
+                    DropDetailUiState.Deleted -> "Not available"
+                    DropDetailUiState.NotFound -> "Not available"
                 }
                 Text(message, style = MaterialTheme.typography.bodyLarge)
 
-                val createdAtText = when {
-                    createdAt != null -> formatTimestamp(createdAt)
-                    isLoading -> "Loading…"
-                    else -> null
+                if (state is DropDetailUiState.Deleted) {
+                    Text(
+                        "This drop has been deleted.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+
+                val createdAtText = when (val current = state) {
+                    is DropDetailUiState.Loaded -> current.createdAt?.let { formatTimestamp(it) }
+                    DropDetailUiState.Loading -> "Loading…"
+                    DropDetailUiState.Deleted -> null
+                    DropDetailUiState.NotFound -> null
                 }
                 Text(
                     "Dropped: ${createdAtText ?: "Not available"}",
@@ -88,8 +106,21 @@ class DropDetailActivity : ComponentActivity() {
                 )
 
 
-                Text("Lat: ${lat?.let { formatCoordinate(it) } ?: "-"}")
-                Text("Lng: ${lng?.let { formatCoordinate(it) } ?: "-"}")
+                val latText = when (val current = state) {
+                    is DropDetailUiState.Loaded -> current.lat?.let { formatCoordinate(it) } ?: "-"
+                    DropDetailUiState.Loading -> "Loading…"
+                    DropDetailUiState.Deleted -> "-"
+                    DropDetailUiState.NotFound -> "-"
+                }
+                val lngText = when (val current = state) {
+                    is DropDetailUiState.Loaded -> current.lng?.let { formatCoordinate(it) } ?: "-"
+                    DropDetailUiState.Loading -> "Loading…"
+                    DropDetailUiState.Deleted -> "-"
+                    DropDetailUiState.NotFound -> "-"
+                }
+
+                Text("Lat: $latText")
+                Text("Lng: $lngText")
 
                 Spacer(Modifier.weight(1f))
 
@@ -120,3 +151,16 @@ private suspend fun <T> com.google.android.gms.tasks.Task<T>.awaitOrNull(): T? =
     try { com.google.android.gms.tasks.Tasks.await(this) } catch (_: Exception) { null }
 
 private fun formatCoordinate(value: Double): String = "%.5f".format(value)
+
+private sealed interface DropDetailUiState {
+    data class Loaded(
+        val text: String?,
+        val lat: Double?,
+        val lng: Double?,
+        val createdAt: Long?
+    ) : DropDetailUiState
+
+    object Loading : DropDetailUiState
+    object NotFound : DropDetailUiState
+    object Deleted : DropDetailUiState
+}

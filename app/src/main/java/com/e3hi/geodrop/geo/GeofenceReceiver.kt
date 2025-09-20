@@ -44,10 +44,16 @@ class GeofenceReceiver : BroadcastReceiver() {
                     null
                 }
 
-                val dropText = doc?.getString("text")?.takeIf { it.isNotBlank() }
-                val dropLat = doc?.getDouble("lat")
-                val dropLng = doc?.getDouble("lng")
-                val dropCreatedAt = doc?.getLong("createdAt")?.takeIf { it > 0L }
+                val isDeleted = doc?.getBoolean("isDeleted") == true
+                if (doc == null || isDeleted) {
+                    Log.d("GeoDrop", "Skipping notification for drop $id because it no longer exists or is deleted.")
+                    return@launch
+                }
+
+                val dropText = doc.getString("text")?.takeIf { it.isNotBlank() }
+                val dropLat = doc.getDouble("lat")
+                val dropLng = doc.getDouble("lng")
+                val dropCreatedAt = doc.getLong("createdAt")?.takeIf { it > 0L }
 
 
                 val open = Intent(context, DropDetailActivity::class.java).apply {
