@@ -38,6 +38,7 @@ dependencies {
     // Firestore & Messaging (KTX is fine; can be plain too if you prefer)
     implementation("com.google.firebase:firebase-firestore-ktx")
     implementation("com.google.firebase:firebase-messaging-ktx")
+    implementation("com.google.firebase:firebase-storage-ktx")
 
     // Play Services Location (for geofencing / fused location)
     implementation("com.google.android.gms:play-services-location:21.3.0")

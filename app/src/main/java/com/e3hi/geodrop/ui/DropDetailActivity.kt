@@ -3,6 +3,7 @@ package com.e3hi.geodrop.ui
 
 import android.app.Activity
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -24,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.layout.height
 import androidx.compose.ui.unit.dp
+import android.widget.Toast
 import com.e3hi.geodrop.MainActivity
 import com.e3hi.geodrop.data.DropContentType
 import com.e3hi.geodrop.util.formatTimestamp
@@ -135,12 +137,37 @@ class DropDetailActivity : ComponentActivity() {
                     style = MaterialTheme.typography.bodyMedium
                 )
 
-                (state as? DropDetailUiState.Loaded)?.mediaUrl?.let { link ->
-                    Text(
-                        "Link: $link",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.primary
-                    )
+
+                (state as? DropDetailUiState.Loaded)?.let { current ->
+                    current.mediaUrl?.let { link ->
+                        val buttonLabel = when (current.contentType) {
+                            DropContentType.TEXT -> "Open attachment"
+                            DropContentType.PHOTO -> "View photo"
+                            DropContentType.AUDIO -> "Play audio"
+                        }
+                        Button(
+                            onClick = {
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(link))
+                                runCatching { context.startActivity(intent) }
+                                    .onFailure {
+                                        Toast.makeText(
+                                            context,
+                                            "No app found to open this media.",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(buttonLabel)
+                        }
+
+                        Text(
+                            text = link,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
 
                 Spacer(Modifier.height(8.dp))

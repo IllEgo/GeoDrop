@@ -1,6 +1,12 @@
 package com.e3hi.geodrop.ui
 
+import android.Manifest
 import android.annotation.SuppressLint
+import android.app.Activity
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.provider.MediaStore
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -25,11 +31,14 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import com.e3hi.geodrop.data.Drop
 import com.e3hi.geodrop.data.DropContentType
 import com.e3hi.geodrop.data.displayTitle
 import com.e3hi.geodrop.data.mediaLabel
 import com.e3hi.geodrop.data.FirestoreRepo
+import com.e3hi.geodrop.data.MediaStorageRepo
 import com.e3hi.geodrop.geo.NearbyDropRegistrar
 import com.e3hi.geodrop.geo.NearbyDropRegistrar.NearbySyncStatus
 import com.e3hi.geodrop.util.GroupPreferences
@@ -48,9 +57,13 @@ import com.google.maps.android.compose.MapUiSettings
 import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.rememberCameraPositionState
+import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
+import java.io.IOException
 
 @SuppressLint("MissingPermission")
 @Composable
@@ -61,6 +74,7 @@ fun DropHereScreen() {
 
     val fused = remember { LocationServices.getFusedLocationProviderClient(ctx) }
     val repo = remember { FirestoreRepo() }
+    val mediaStorage = remember { MediaStorageRepo() }
     val registrar = remember { NearbyDropRegistrar() }
     val groupPrefs = remember { GroupPreferences(ctx) }
 
@@ -68,7 +82,8 @@ fun DropHereScreen() {
     var dropVisibility by remember { mutableStateOf(DropVisibility.Public) }
     var dropContentType by remember { mutableStateOf(DropContentType.TEXT) }
     var note by remember { mutableStateOf(TextFieldValue("")) }
-    var mediaUrl by remember { mutableStateOf(TextFieldValue("")) }
+    var capturedPhotoPath by rememberSaveable { mutableStateOf<String?>(null) }
+    var capturedAudioUri by rememberSaveable { mutableStateOf<String?>(null) }
     var groupCodeInput by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
     var isSubmitting by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
@@ -114,10 +129,115 @@ fun DropHereScreen() {
         }
     }
 
+    LaunchedEffect(dropContentType) {
+        when (dropContentType) {
+            DropContentType.TEXT -> {
+                capturedPhotoPath = null
+                capturedAudioUri = null
+            }
+
+            DropContentType.PHOTO -> {
+                capturedAudioUri = null
+            }
+
+            DropContentType.AUDIO -> {
+                capturedPhotoPath = null
+            }
+        }
+    }
+
+    var pendingPhotoPath by remember { mutableStateOf<String?>(null) }
+    var pendingPermissionAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+    var pendingAudioPermissionAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+
+    val takePictureLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
+        val path = pendingPhotoPath
+        if (success && path != null) {
+            capturedPhotoPath = path
+        } else if (path != null) {
+            runCatching { File(path).delete() }
+        }
+        pendingPhotoPath = null
+    }
+
+    val recordAudioLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val uri = result.data?.data
+            if (uri != null) {
+                capturedAudioUri = uri.toString()
+            } else {
+                snackbar.showMessage(scope, "Recording unavailable. Try again.")
+            }
+        }
+    }
+
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        val action = pendingPermissionAction
+        pendingPermissionAction = null
+        if (granted) {
+            action?.invoke()
+        } else {
+            snackbar.showMessage(scope, "Camera permission is required to capture a photo.")
+        }
+    }
+
+    val audioPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        val action = pendingAudioPermissionAction
+        pendingAudioPermissionAction = null
+        if (granted) {
+            action?.invoke()
+        } else {
+            snackbar.showMessage(scope, "Microphone permission is required to record audio.")
+        }
+    }
+
+    fun clearPhoto() {
+        val path = capturedPhotoPath
+        if (path != null) {
+            runCatching { File(path).delete() }
+        }
+        capturedPhotoPath = null
+    }
+
+    fun ensureCameraAndLaunch() {
+        val permission = Manifest.permission.CAMERA
+        if (ContextCompat.checkSelfPermission(ctx, permission) == PackageManager.PERMISSION_GRANTED) {
+            val photoDir = File(ctx.cacheDir, "camera").apply { if (!exists()) mkdirs() }
+            val photoFile = kotlin.runCatching { File.createTempFile("geodrop_photo_", ".jpg", photoDir) }
+                .getOrNull()
+            if (photoFile == null) {
+                snackbar.showMessage(scope, "Couldn't prepare a file for the camera.")
+                return
+            }
+            val uri = FileProvider.getUriForFile(ctx, "${ctx.packageName}.fileprovider", photoFile)
+            pendingPhotoPath = photoFile.absolutePath
+            takePictureLauncher.launch(uri)
+        } else {
+            pendingPermissionAction = { ensureCameraAndLaunch() }
+            cameraPermissionLauncher.launch(permission)
+        }
+    }
+
+    fun ensureAudioAndLaunch() {
+        val permission = Manifest.permission.RECORD_AUDIO
+        if (ContextCompat.checkSelfPermission(ctx, permission) == PackageManager.PERMISSION_GRANTED) {
+            val intent = Intent(MediaStore.Audio.Media.RECORD_SOUND_ACTION)
+            if (intent.resolveActivity(ctx.packageManager) != null) {
+                recordAudioLauncher.launch(intent)
+            } else {
+                snackbar.showMessage(scope, "No recorder app available on this device.")
+            }
+        } else {
+            pendingAudioPermissionAction = { ensureAudioAndLaunch() }
+            audioPermissionLauncher.launch(permission)
+        }
+    }
+
     fun uiDone(lat: Double, lng: Double, groupCode: String?, contentType: DropContentType) {
         isSubmitting = false
         note = TextFieldValue("")
-        mediaUrl = TextFieldValue("")
+        capturedPhotoPath = null
+        capturedAudioUri = null
         val baseStatus = "Dropped at (%.5f, %.5f)".format(lat, lng)
         val typeSummary = when (contentType) {
             DropContentType.TEXT -> "note"
@@ -253,14 +373,14 @@ fun DropHereScreen() {
 
             ContentTypeOption(
                 title = "Photo drop",
-                description = "Leave a link to a photo that others can open.",
+                description = "Capture a photo with your camera that others can open.",
                 selected = dropContentType == DropContentType.PHOTO,
                 onClick = { dropContentType = DropContentType.PHOTO }
             )
 
             ContentTypeOption(
                 title = "Audio drop",
-                description = "Share a link to a sound or song clip.",
+                description = "Record a quick voice message for nearby explorers.",
                 selected = dropContentType == DropContentType.AUDIO,
                 onClick = { dropContentType = DropContentType.AUDIO }
             )
@@ -289,20 +409,52 @@ fun DropHereScreen() {
             supportingText = supportingTextContent
         )
 
-        if (dropContentType != DropContentType.TEXT) {
-            val mediaLabel = if (dropContentType == DropContentType.PHOTO) "Photo URL" else "Audio URL"
-            val mediaSupporting = if (dropContentType == DropContentType.PHOTO) {
-                "Paste a public link so others can open the photo."
-            } else {
-                "Paste a link to the audio file or clip."
+        when (dropContentType) {
+            DropContentType.PHOTO -> {
+                val hasPhoto = capturedPhotoPath != null
+                MediaCaptureCard(
+                    title = "Attach a photo",
+                    description = "Snap a picture with your camera to pin at this location.",
+                    status = if (hasPhoto) "Photo ready to upload." else "No photo captured yet.",
+                    primaryLabel = if (hasPhoto) "Retake photo" else "Open camera",
+                    onPrimary = {
+                        if (hasPhoto) {
+                            clearPhoto()
+                        }
+                        ensureCameraAndLaunch()
+                    },
+                    secondaryLabel = if (hasPhoto) "Remove photo" else null,
+                    onSecondary = if (hasPhoto) {
+                        { clearPhoto() }
+                    } else {
+                        null
+                    }
+                )
             }
-            OutlinedTextField(
-                value = mediaUrl,
-                onValueChange = { mediaUrl = it },
-                label = { Text(mediaLabel) },
-                modifier = Modifier.fillMaxWidth(),
-                supportingText = { Text(mediaSupporting) }
-            )
+
+            DropContentType.AUDIO -> {
+                val hasAudio = capturedAudioUri != null
+                MediaCaptureCard(
+                    title = "Record audio",
+                    description = "Capture a short voice note for anyone who discovers this drop.",
+                    status = if (hasAudio) "Audio message ready to upload." else "No recording yet.",
+                    primaryLabel = if (hasAudio) "Record again" else "Record audio",
+                    onPrimary = {
+                        if (hasAudio) {
+                            capturedAudioUri = null
+                        }
+                        ensureAudioAndLaunch()
+                    },
+                    secondaryLabel = if (hasAudio) "Remove audio" else null,
+                    onSecondary = if (hasAudio) {
+                        { capturedAudioUri = null }
+                    } else {
+                        null
+                    }
+                )
+            }
+
+            DropContentType.TEXT -> Unit
         }
 
         Column(
@@ -391,22 +543,75 @@ fun DropHereScreen() {
                         } else {
                             null
                         }
-                        val mediaInput = if (dropContentType == DropContentType.TEXT) {
-                            null
-                        } else {
-                            mediaUrl.text.trim().takeIf { it.isNotEmpty() }
-                                ?: run {
+                        val mediaUrlResult = when (dropContentType) {
+                            DropContentType.TEXT -> null
+
+                            DropContentType.PHOTO -> {
+                                val path = capturedPhotoPath ?: run {
                                     isSubmitting = false
-                                    val missingMessage = when (dropContentType) {
-                                        DropContentType.PHOTO -> "Add a link to your photo before dropping."
-                                        DropContentType.AUDIO -> "Add a link to your audio before dropping."
-                                        DropContentType.TEXT -> ""
-                                    }
-                                    if (missingMessage.isNotBlank()) {
-                                        snackbar.showMessage(scope, missingMessage)
-                                    }
+                                    snackbar.showMessage(scope, "Capture a photo before dropping.")
                                     return@launch
                                 }
+
+                                val photoBytes = withContext(Dispatchers.IO) {
+                                    try {
+                                        File(path).takeIf { it.exists() }?.readBytes()
+                                    } catch (e: IOException) {
+                                        null
+                                    }
+                                } ?: run {
+                                    isSubmitting = false
+                                    snackbar.showMessage(scope, "Couldn't read the captured photo. Retake it and try again.")
+                                    return@launch
+                                }
+
+                                val uploaded = mediaStorage.uploadMedia(
+                                    DropContentType.PHOTO,
+                                    photoBytes,
+                                    "image/jpeg"
+                                )
+
+                                withContext(Dispatchers.IO) {
+                                    runCatching { File(path).delete() }
+                                }
+
+                                uploaded
+                            }
+
+                            DropContentType.AUDIO -> {
+                                val uriString = capturedAudioUri ?: run {
+                                    isSubmitting = false
+                                    snackbar.showMessage(scope, "Record an audio message before dropping.")
+                                    return@launch
+                                }
+                                val uri = Uri.parse(uriString)
+
+                                val audioBytes = withContext(Dispatchers.IO) {
+                                    try {
+                                        ctx.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                                    } catch (e: IOException) {
+                                        null
+                                    }
+                                } ?: run {
+                                    isSubmitting = false
+                                    snackbar.showMessage(scope, "Couldn't read the audio recording. Record again and try once more.")
+                                    return@launch
+                                }
+
+                                val mimeType = ctx.contentResolver.getType(uri) ?: "audio/mpeg"
+
+                                val uploaded = mediaStorage.uploadMedia(
+                                    DropContentType.AUDIO,
+                                    audioBytes,
+                                    mimeType
+                                )
+
+                                withContext(Dispatchers.IO) {
+                                    runCatching { ctx.contentResolver.delete(uri, null, null) }
+                                }
+
+                                uploaded
+                            }
                         }
 //                        val (lat, lng) = withContext(Dispatchers.IO) {
 //                            // Try fresh high-accuracy first
@@ -433,7 +638,7 @@ fun DropHereScreen() {
                             groupCode = selectedGroupCode,
                             contentType = dropContentType,
                             noteText = note.text,
-                            mediaInput = mediaInput
+                            mediaInput = mediaUrlResult
                         )
                     } catch (e: Exception) {
                         isSubmitting = false
@@ -918,6 +1123,47 @@ private fun GroupCodeRow(
                     imageVector = Icons.Filled.Delete,
                     contentDescription = "Remove group code"
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MediaCaptureCard(
+    title: String,
+    description: String,
+    status: String,
+    primaryLabel: String,
+    onPrimary: () -> Unit,
+    secondaryLabel: String? = null,
+    onSecondary: (() -> Unit)? = null
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(title, style = MaterialTheme.typography.titleMedium)
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = status,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Button(onClick = onPrimary, modifier = Modifier.fillMaxWidth()) { Text(primaryLabel) }
+            if (secondaryLabel != null && onSecondary != null) {
+                TextButton(onClick = onSecondary) {
+                    Text(secondaryLabel)
+                }
             }
         }
     }
