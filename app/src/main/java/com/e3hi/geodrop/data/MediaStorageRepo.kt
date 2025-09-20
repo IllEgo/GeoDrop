@@ -56,11 +56,7 @@ class MediaStorageRepo(
         private fun normalizeBucket(rawBucket: String): String {
             val withoutScheme = rawBucket.removePrefix("gs://")
 
-            val canonicalBucket = if (withoutScheme.endsWith(".firebasestorage.app")) {
-                withoutScheme.removeSuffix(".firebasestorage.app") + ".appspot.com"
-            } else {
-                withoutScheme
-            }
+            val canonicalBucket = withoutScheme.removeSuffix("/")
 
             return "gs://$canonicalBucket"
         }
