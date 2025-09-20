@@ -10,6 +10,7 @@ import android.os.Looper
 import android.util.Log
 import androidx.core.content.ContextCompat
 import com.e3hi.geodrop.data.Drop
+import com.e3hi.geodrop.data.NoteInventory
 import com.e3hi.geodrop.util.GroupPreferences
 import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofencingClient
@@ -97,6 +98,7 @@ class NearbyDropRegistrar {
 
         val geos: GeofencingClient = LocationServices.getGeofencingClient(context)
         val db = Firebase.firestore
+        val inventory = NoteInventory(context)
         val me = FirebaseAuth.getInstance().currentUser?.uid
         val allowedGroups = groupCodes.mapNotNull { GroupPreferences.normalizeGroupCode(it) }.toSet()
 
@@ -110,6 +112,8 @@ class NearbyDropRegistrar {
                     val drop = doc.toObject(Drop::class.java) ?: continue
                     if (drop.isDeleted) continue
                     val id = doc.id
+
+                    if (inventory.isCollected(id) || inventory.isIgnored(id)) continue
 
                     // ignore my own drops — only notify for "other users"
                     if (drop.createdBy == me) continue

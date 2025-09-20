@@ -52,5 +52,9 @@
         <receiver
             android:name=".geo.GeofenceReceiver"
             android:exported="false" />
+
+        <receiver
+            android:name=".geo.DropDecisionReceiver"
+            android:exported="false" />
     </application>
 </manifest>

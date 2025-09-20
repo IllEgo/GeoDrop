@@ -11,6 +11,8 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.TaskStackBuilder
 import com.e3hi.geodrop.R
 import com.e3hi.geodrop.data.DropContentType
+import com.e3hi.geodrop.data.NoteInventory
+import com.e3hi.geodrop.geo.DropDecisionReceiver
 import com.e3hi.geodrop.ui.DropDetailActivity
 import com.e3hi.geodrop.util.CHANNEL_NEARBY
 import com.google.android.gms.location.Geofence
@@ -34,6 +36,12 @@ class GeofenceReceiver : BroadcastReceiver() {
 
         // There can be multiple. We'll notify for the first.
         val id = event.triggeringGeofences?.firstOrNull()?.requestId ?: return
+
+        val inventory = NoteInventory(context)
+        if (inventory.isCollected(id) || inventory.isIgnored(id)) {
+            Log.d("GeoDrop", "Skipping geofence $id because it was already processed locally.")
+            return
+        }
 
         val pendingResult = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
@@ -95,13 +103,58 @@ class GeofenceReceiver : BroadcastReceiver() {
                         "Audio drop nearby" to message
                     }
                 }
+                val pickupIntent = Intent(context, DropDecisionReceiver::class.java).apply {
+                    action = DropDecisionReceiver.ACTION_PICK_UP
+                    putExtra(DropDecisionReceiver.EXTRA_DROP_ID, id)
+                    dropText?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_TEXT, it) }
+                    dropLat?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_LAT, it) }
+                    dropLng?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_LNG, it) }
+                    dropCreatedAt?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_CREATED_AT, it) }
+                    dropGroupCode?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_GROUP, it) }
+                    putExtra(DropDecisionReceiver.EXTRA_DROP_CONTENT_TYPE, dropContentType.name)
+                    dropMediaUrl?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_MEDIA_URL, it) }
+                }
+
+                val pickupPending = PendingIntent.getBroadcast(
+                    context,
+                    id.hashCode(),
+                    pickupIntent,
+                    PendingIntentFlagsCompat
+                )
+
+                val ignoreIntent = Intent(context, DropDecisionReceiver::class.java).apply {
+                    action = DropDecisionReceiver.ACTION_IGNORE
+                    putExtra(DropDecisionReceiver.EXTRA_DROP_ID, id)
+                }
+
+                val ignorePending = PendingIntent.getBroadcast(
+                    context,
+                    id.hashCode() xor 0x2000,
+                    ignoreIntent,
+                    PendingIntentFlagsCompat
+                )
+
+                val prompt = when (dropContentType) {
+                    DropContentType.TEXT -> "Pick up this note?"
+                    DropContentType.PHOTO -> "Pick up this photo?"
+                    DropContentType.AUDIO -> "Pick up this audio note?"
+                }
+
                 val notif = NotificationCompat.Builder(context, CHANNEL_NEARBY)
                     .setSmallIcon(R.drawable.ic_notification)
                     .setContentTitle(title)
                     .setContentText(body)
-                    .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+                    .setStyle(
+                        NotificationCompat.BigTextStyle().bigText(
+                            listOfNotNull(body, prompt).joinToString("\n")
+                        )
+                    )
                     .setAutoCancel(true)
                     .setContentIntent(contentIntent)
+                    .addAction(R.drawable.ic_notification, "Pick up", pickupPending)
+                    .addAction(R.drawable.ic_notification, "Ignore", ignorePending)
+                    .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+                    .setPriority(NotificationCompat.PRIORITY_HIGH)
                     .build()
 
                 withContext(Dispatchers.Main) {

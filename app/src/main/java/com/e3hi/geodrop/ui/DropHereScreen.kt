@@ -3,7 +3,10 @@ package com.e3hi.geodrop.ui
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.provider.MediaStore
@@ -26,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
@@ -34,12 +38,14 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import com.e3hi.geodrop.data.CollectedNote
 import com.e3hi.geodrop.data.Drop
 import com.e3hi.geodrop.data.DropContentType
 import com.e3hi.geodrop.data.displayTitle
 import com.e3hi.geodrop.data.mediaLabel
 import com.e3hi.geodrop.data.FirestoreRepo
 import com.e3hi.geodrop.data.MediaStorageRepo
+import com.e3hi.geodrop.data.NoteInventory
 import com.e3hi.geodrop.geo.NearbyDropRegistrar
 import com.e3hi.geodrop.geo.NearbyDropRegistrar.NearbySyncStatus
 import com.e3hi.geodrop.util.GroupPreferences
@@ -59,17 +65,22 @@ import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.rememberCameraPositionState
 import androidx.core.content.ContextCompat
+import androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED
 import androidx.core.content.FileProvider
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
+import java.util.Locale
 
 @SuppressLint("MissingPermission")
 @Composable
 fun DropHereScreen() {
     val ctx = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val auth = remember { FirebaseAuth.getInstance() }
     var currentUser by remember { mutableStateOf(auth.currentUser) }
     var signingIn by remember { mutableStateOf(false) }
@@ -81,6 +92,38 @@ fun DropHereScreen() {
         }
         auth.addAuthStateListener(listener)
         onDispose { auth.removeAuthStateListener(listener) }
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                collectedNotes = noteInventory.getCollectedNotes()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    DisposableEffect(noteInventory) {
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                if (intent?.action == NoteInventory.ACTION_INVENTORY_CHANGED) {
+                    collectedNotes = noteInventory.getCollectedNotes()
+                }
+            }
+        }
+        val filter = IntentFilter(NoteInventory.ACTION_INVENTORY_CHANGED)
+        val registered = ContextCompat.registerReceiver(
+            ctx,
+            receiver,
+            filter,
+            RECEIVER_NOT_EXPORTED
+        )
+        onDispose {
+            if (registered != null) {
+                ctx.unregisterReceiver(receiver)
+            }
+        }
     }
 
     if (currentUser == null) {
@@ -121,6 +164,7 @@ fun DropHereScreen() {
     val mediaStorage = remember { MediaStorageRepo() }
     val registrar = remember { NearbyDropRegistrar() }
     val groupPrefs = remember { GroupPreferences(ctx) }
+    val noteInventory = remember { NoteInventory(ctx) }
 
     var joinedGroups by remember { mutableStateOf(groupPrefs.getJoinedGroups()) }
     var dropVisibility by remember { mutableStateOf(DropVisibility.Public) }
@@ -144,6 +188,8 @@ fun DropHereScreen() {
     var manageRefreshToken by remember { mutableStateOf(0) }
     var manageDeletingId by remember { mutableStateOf<String?>(null) }
     var showManageGroups by remember { mutableStateOf(false) }
+    var collectedNotes by remember { mutableStateOf(noteInventory.getCollectedNotes()) }
+    var showCollectedNotes by remember { mutableStateOf(false) }
 
     suspend fun getLatestLocation(): Pair<Double, Double>? = withContext(Dispatchers.IO) {
         val fresh = try {
@@ -763,6 +809,19 @@ fun DropHereScreen() {
             modifier = Modifier.fillMaxWidth()
         ) { Text("Manage my drops") }
 
+            Button(
+                onClick = {
+                    collectedNotes = noteInventory.getCollectedNotes()
+                    showCollectedNotes = true
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                val count = collectedNotes.size
+                Text(
+                    text = if (count == 0) "View collected notes" else "View collected notes ($count)"
+                )
+            }
+
             status?.let { Text(it) }
 
             Spacer(Modifier.height(80.dp))
@@ -814,6 +873,30 @@ fun DropHereScreen() {
                         manageDeletingId = null
                     }
                 }
+            }
+        )
+    }
+
+    if (showCollectedNotes) {
+        CollectedNotesDialog(
+            notes = collectedNotes,
+            onDismiss = { showCollectedNotes = false },
+            onView = { note ->
+                val intent = Intent(ctx, DropDetailActivity::class.java).apply {
+                    putExtra("dropId", note.id)
+                    if (note.text.isNotBlank()) putExtra("dropText", note.text)
+                    note.lat?.let { putExtra("dropLat", it) }
+                    note.lng?.let { putExtra("dropLng", it) }
+                    note.dropCreatedAt?.let { putExtra("dropCreatedAt", it) }
+                    note.groupCode?.let { putExtra("dropGroupCode", it) }
+                    putExtra("dropContentType", note.contentType.name)
+                    note.mediaUrl?.let { putExtra("dropMediaUrl", it) }
+                }
+                ctx.startActivity(intent)
+            },
+            onRemove = { note ->
+                noteInventory.removeCollected(note.id)
+                collectedNotes = noteInventory.getCollectedNotes()
             }
         )
     }
@@ -947,6 +1030,164 @@ private fun DialogMessageContent(
             Text("Back to main page")
         }
     }
+}
+
+@Composable
+private fun CollectedNotesDialog(
+    notes: List<CollectedNote>,
+    onDismiss: () -> Unit,
+    onView: (CollectedNote) -> Unit,
+    onRemove: (CollectedNote) -> Unit
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background
+        ) {
+            @OptIn(ExperimentalMaterial3Api::class)
+            Scaffold(
+                topBar = {
+                    TopAppBar(
+                        title = { Text("Collected notes") },
+                        navigationIcon = {
+                            IconButton(onClick = onDismiss) {
+                                Icon(
+                                    Icons.Filled.ArrowBack,
+                                    contentDescription = "Back to main page"
+                                )
+                            }
+                        }
+                    )
+                }
+            ) { padding ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                ) {
+                    if (notes.isEmpty()) {
+                        DialogMessageContent(
+                            message = "You haven't collected any notes yet.",
+                            primaryLabel = null,
+                            onPrimary = null,
+                            onDismiss = onDismiss
+                        )
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 16.dp),
+                            contentPadding = PaddingValues(vertical = 16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            items(notes, key = { it.id }) { note ->
+                                CollectedNoteCard(
+                                    note = note,
+                                    onView = { onView(note) },
+                                    onRemove = { onRemove(note) }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CollectedNoteCard(
+    note: CollectedNote,
+    onView: () -> Unit,
+    onRemove: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            val typeLabel = when (note.contentType) {
+                DropContentType.TEXT -> "Text note"
+                DropContentType.PHOTO -> "Photo drop"
+                DropContentType.AUDIO -> "Audio drop"
+            }
+            Text(
+                text = typeLabel,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+
+            val preview = note.text.ifBlank {
+                when (note.contentType) {
+                    DropContentType.TEXT -> "(No message)"
+                    DropContentType.PHOTO -> "Photo drop"
+                    DropContentType.AUDIO -> "Audio drop"
+                }
+            }
+            Text(
+                text = preview,
+                style = MaterialTheme.typography.bodyLarge
+            )
+
+            Text(
+                text = "Collected: ${formatTimestamp(note.collectedAt)}",
+                style = MaterialTheme.typography.bodyMedium
+            )
+
+            note.dropCreatedAt?.let {
+                Text(
+                    text = "Dropped: ${formatTimestamp(it)}",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+
+            note.groupCode?.let { group ->
+                Text(
+                    text = "Group: $group",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+
+            if (note.lat != null && note.lng != null) {
+                Text(
+                    text = "Location: ${formatCoordinate(note.lat)}, ${formatCoordinate(note.lng)}",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+
+            note.mediaUrl?.let { link ->
+                Text(
+                    text = "Media: $link",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(onClick = onView) {
+                    Text("View details")
+                }
+                IconButton(onClick = onRemove) {
+                    Icon(Icons.Filled.Delete, contentDescription = "Remove from inventory")
+                }
+            }
+        }
+    }
+}
+
+private fun formatCoordinate(value: Double): String {
+    return String.format(Locale.US, "%.5f", value)
 }
 
 @Composable
