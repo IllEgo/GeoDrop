@@ -37,7 +37,9 @@ class FirestoreRepo(
         onId: (String) -> Unit = {},
         onError: (Throwable) -> Unit = {}
     ) {
-        drops.add(drop)
+        val dropToSave = drop.prepareForSave()
+
+        drops.add(dropToSave)
             .addOnSuccessListener { ref ->
                 Log.d("GeoDrop", "Created drop ${ref.id}")
                 onId(ref.id)
@@ -80,8 +82,17 @@ class FirestoreRepo(
     }
 
 
-    private fun Drop.prepareForSave(): Drop {
+    private fun Drop.prepareForSave(): Map<String, Any?> {
         val withTimestamp = if (createdAt > 0L) this else copy(createdAt = System.currentTimeMillis())
-        return withTimestamp.copy(isDeleted = false, deletedAt = null)
+
+        return hashMapOf(
+            "text" to withTimestamp.text,
+            "lat" to withTimestamp.lat,
+            "lng" to withTimestamp.lng,
+            "createdBy" to withTimestamp.createdBy,
+            "createdAt" to withTimestamp.createdAt,
+            "isDeleted" to false,
+            "deletedAt" to null
+        )
     }
 }
