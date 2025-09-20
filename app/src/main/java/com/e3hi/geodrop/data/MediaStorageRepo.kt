@@ -41,12 +41,28 @@ class MediaStorageRepo(
     companion object {
         private fun defaultStorage(): FirebaseStorage {
             val app = FirebaseApp.getInstance()
-            val bucket = app.options.storageBucket
-            return if (bucket.isNullOrBlank()) {
-                Firebase.storage(app)
-            } else {
-                Firebase.storage(app, "gs://$bucket")
+            val bucket = app.options.storageBucket?.takeIf { it.isNotBlank() }
+
+            if (bucket.isNullOrBlank()) {
+                return Firebase.storage(app)
             }
+
+            val normalizedBucket = normalizeBucket(bucket)
+
+            return runCatching { Firebase.storage(app, normalizedBucket) }
+                .getOrElse { Firebase.storage(app) }
+        }
+
+        private fun normalizeBucket(rawBucket: String): String {
+            val withoutScheme = rawBucket.removePrefix("gs://")
+
+            val canonicalBucket = if (withoutScheme.endsWith(".firebasestorage.app")) {
+                withoutScheme.removeSuffix(".firebasestorage.app") + ".appspot.com"
+            } else {
+                withoutScheme
+            }
+
+            return "gs://$canonicalBucket"
         }
     }
 }
