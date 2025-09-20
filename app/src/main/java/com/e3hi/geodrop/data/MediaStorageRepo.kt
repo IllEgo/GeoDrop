@@ -3,8 +3,8 @@ package com.e3hi.geodrop.data
 import android.webkit.MimeTypeMap
 import com.google.firebase.ktx.Firebase
 import com.google.firebase.storage.FirebaseStorage
+import com.google.firebase.storage.StorageMetadata
 import com.google.firebase.storage.ktx.storage
-import com.google.firebase.storage.ktx.storageMetadata
 import kotlinx.coroutines.tasks.await
 import java.util.UUID
 
@@ -29,9 +29,9 @@ class MediaStorageRepo(
         val fileName = "${System.currentTimeMillis()}-${UUID.randomUUID()}.$extension"
         val ref = storage.reference.child("drops/$folder/$fileName")
 
-        val metadata = storageMetadata {
-            contentType = resolvedMime
-        }
+        val metadata = StorageMetadata.Builder()
+            .setContentType(resolvedMime)
+            .build()
 
         ref.putBytes(data, metadata).await()
         return ref.downloadUrl.await().toString()
