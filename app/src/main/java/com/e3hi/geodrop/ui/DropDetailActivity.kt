@@ -25,6 +25,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.layout.height
 import androidx.compose.ui.unit.dp
 import com.e3hi.geodrop.MainActivity
+import com.e3hi.geodrop.data.DropContentType
 import com.e3hi.geodrop.util.formatTimestamp
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
@@ -38,13 +39,23 @@ class DropDetailActivity : ComponentActivity() {
         val initialLng = if (intent.hasExtra("dropLng")) intent.getDoubleExtra("dropLng", 0.0) else null
         val initialCreatedAt = intent.getLongExtra("dropCreatedAt", -1L).takeIf { it > 0L }
         val initialGroupCode = intent.getStringExtra("dropGroupCode")?.takeIf { it.isNotBlank() }
+        val initialContentType = DropContentType.fromRaw(intent.getStringExtra("dropContentType"))
+        val initialMediaUrl = intent.getStringExtra("dropMediaUrl")?.takeIf { it.isNotBlank() }
         setContent {
             val context = LocalContext.current
             var state by remember {
                 mutableStateOf(
                     if (dropId.isBlank()) {
                         if (initialText != null || initialLat != null || initialLng != null || initialCreatedAt != null) {
-                            DropDetailUiState.Loaded(initialText, initialLat, initialLng, initialCreatedAt, initialGroupCode)
+                            DropDetailUiState.Loaded(
+                                text = initialText,
+                                lat = initialLat,
+                                lng = initialLng,
+                                createdAt = initialCreatedAt,
+                                groupCode = initialGroupCode,
+                                contentType = initialContentType,
+                                mediaUrl = initialMediaUrl
+                            )
                         } else {
                             DropDetailUiState.NotFound
                         }
@@ -67,7 +78,10 @@ class DropDetailActivity : ComponentActivity() {
                         lat = doc.getDouble("lat") ?: initialLat,
                         lng = doc.getDouble("lng") ?: initialLng,
                         createdAt = doc.getLong("createdAt")?.takeIf { it > 0L } ?: initialCreatedAt,
-                        groupCode = doc.getString("groupCode")?.takeIf { it.isNotBlank() } ?: initialGroupCode
+                        groupCode = doc.getString("groupCode")?.takeIf { it.isNotBlank() } ?: initialGroupCode,
+                        contentType = doc.getString("contentType")?.let { DropContentType.fromRaw(it) }
+                            ?: initialContentType,
+                        mediaUrl = doc.getString("mediaUrl")?.takeIf { it.isNotBlank() } ?: initialMediaUrl
                     )
                 }
             }
@@ -83,7 +97,14 @@ class DropDetailActivity : ComponentActivity() {
 
                 Text("Message", style = MaterialTheme.typography.titleMedium)
                 val message = when (val current = state) {
-                    is DropDetailUiState.Loaded -> current.text ?: "Not available"
+                    is DropDetailUiState.Loaded -> {
+                        val fallback = when (current.contentType) {
+                            DropContentType.TEXT -> "Not available"
+                            DropContentType.PHOTO -> "Photo drop"
+                            DropContentType.AUDIO -> "Audio drop"
+                        }
+                        current.text?.takeIf { it.isNotBlank() } ?: fallback
+                    }
                     DropDetailUiState.Loading -> "Loading…"
                     DropDetailUiState.Deleted -> "Not available"
                     DropDetailUiState.NotFound -> "Not available"
@@ -94,6 +115,31 @@ class DropDetailActivity : ComponentActivity() {
                     Text(
                         "This drop has been deleted.",
                         style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+
+                Spacer(Modifier.height(8.dp))
+
+                val typeText = when (val current = state) {
+                    is DropDetailUiState.Loaded -> when (current.contentType) {
+                        DropContentType.TEXT -> "Text note"
+                        DropContentType.PHOTO -> "Photo drop"
+                        DropContentType.AUDIO -> "Audio drop"
+                    }
+                    DropDetailUiState.Loading -> "Loading…"
+                    DropDetailUiState.Deleted -> "Not available"
+                    DropDetailUiState.NotFound -> "Not available"
+                }
+                Text(
+                    "Type: $typeText",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+
+                (state as? DropDetailUiState.Loaded)?.mediaUrl?.let { link ->
+                    Text(
+                        "Link: $link",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary
                     )
                 }
 
@@ -174,7 +220,9 @@ private sealed interface DropDetailUiState {
         val lat: Double?,
         val lng: Double?,
         val createdAt: Long?,
-        val groupCode: String?
+        val groupCode: String?,
+        val contentType: DropContentType = DropContentType.TEXT,
+        val mediaUrl: String? = null
     ) : DropDetailUiState
 
     object Loading : DropDetailUiState

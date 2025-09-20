@@ -26,6 +26,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.e3hi.geodrop.data.Drop
+import com.e3hi.geodrop.data.DropContentType
+import com.e3hi.geodrop.data.displayTitle
+import com.e3hi.geodrop.data.mediaLabel
 import com.e3hi.geodrop.data.FirestoreRepo
 import com.e3hi.geodrop.geo.NearbyDropRegistrar
 import com.e3hi.geodrop.geo.NearbyDropRegistrar.NearbySyncStatus
@@ -63,7 +66,9 @@ fun DropHereScreen() {
 
     var joinedGroups by remember { mutableStateOf(groupPrefs.getJoinedGroups()) }
     var dropVisibility by remember { mutableStateOf(DropVisibility.Public) }
+    var dropContentType by remember { mutableStateOf(DropContentType.TEXT) }
     var note by remember { mutableStateOf(TextFieldValue("")) }
+    var mediaUrl by remember { mutableStateOf(TextFieldValue("")) }
     var groupCodeInput by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
     var isSubmitting by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
@@ -109,39 +114,63 @@ fun DropHereScreen() {
         }
     }
 
-    fun uiDone(lat: Double, lng: Double, groupCode: String?) {
+    fun uiDone(lat: Double, lng: Double, groupCode: String?, contentType: DropContentType) {
         isSubmitting = false
         note = TextFieldValue("")
+        mediaUrl = TextFieldValue("")
         val baseStatus = "Dropped at (%.5f, %.5f)".format(lat, lng)
+        val typeSummary = when (contentType) {
+            DropContentType.TEXT -> "note"
+            DropContentType.PHOTO -> "photo drop"
+            DropContentType.AUDIO -> "audio drop"
+        }
         status = if (groupCode != null) {
-            "$baseStatus for group $groupCode"
+            "$baseStatus for group $groupCode ($typeSummary)"
         } else {
-            baseStatus
+            "$baseStatus ($typeSummary)"
         }
         val snackbarMessage = if (groupCode != null) {
             "Group drop saved!"
         } else {
-            "Note dropped!"
+            when (contentType) {
+                DropContentType.TEXT -> "Note dropped!"
+                DropContentType.PHOTO -> "Photo drop saved!"
+                DropContentType.AUDIO -> "Audio drop saved!"
+            }
         }
         scope.launch { snackbar.showSnackbar(snackbarMessage) }
     }
 
-    suspend fun addDropAt(lat: Double, lng: Double, groupCode: String?) {
+    suspend fun addDropAt(
+        lat: Double,
+        lng: Double,
+        groupCode: String?,
+        contentType: DropContentType,
+        noteText: String,
+        mediaInput: String?
+    ) {
         val uid = FirebaseAuth.getInstance().currentUser?.uid ?: "anon"
+        val sanitizedMedia = mediaInput?.takeIf { it.isNotBlank() }
+        val sanitizedText = when (contentType) {
+            DropContentType.TEXT -> noteText.ifBlank { "New drop" }
+            DropContentType.PHOTO, DropContentType.AUDIO -> noteText.trim()
+        }
         val d = Drop(
-            text = note.text.ifBlank { "New drop" },
+            text = sanitizedText,
             lat = lat,
             lng = lng,
             createdBy = uid,
             createdAt = System.currentTimeMillis(),
-            groupCode = groupCode
+            groupCode = groupCode,
+            contentType = contentType,
+            mediaUrl = sanitizedMedia
         )
         repo.addDrop(d) // suspend (uses Firestore .await() internally)
         if (groupCode != null) {
             groupPrefs.addGroup(groupCode)
             joinedGroups = groupPrefs.getJoinedGroups()
         }
-        uiDone(lat, lng, groupCode)
+        uiDone(lat, lng, groupCode, contentType)
     }
 
     LaunchedEffect(showMap, mapRefreshToken) {
@@ -207,15 +236,74 @@ fun DropHereScreen() {
         verticalArrangement = Arrangement.spacedBy(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text("Drop a note at your current location", style = MaterialTheme.typography.titleMedium)
+        Text("Drop something at your current location", style = MaterialTheme.typography.titleMedium)
+
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text("Drop content", style = MaterialTheme.typography.titleSmall)
+
+            ContentTypeOption(
+                title = "Text note",
+                description = "Share a written message for people nearby.",
+                selected = dropContentType == DropContentType.TEXT,
+                onClick = { dropContentType = DropContentType.TEXT }
+            )
+
+            ContentTypeOption(
+                title = "Photo drop",
+                description = "Leave a link to a photo that others can open.",
+                selected = dropContentType == DropContentType.PHOTO,
+                onClick = { dropContentType = DropContentType.PHOTO }
+            )
+
+            ContentTypeOption(
+                title = "Audio drop",
+                description = "Share a link to a sound or song clip.",
+                selected = dropContentType == DropContentType.AUDIO,
+                onClick = { dropContentType = DropContentType.AUDIO }
+            )
+        }
+
+        val noteLabel = when (dropContentType) {
+            DropContentType.TEXT -> "Your note"
+            DropContentType.PHOTO, DropContentType.AUDIO -> "Caption (optional)"
+        }
+        val noteSupporting = when (dropContentType) {
+            DropContentType.TEXT -> null
+            DropContentType.PHOTO -> "Add a short caption to go with your photo."
+            DropContentType.AUDIO -> "Add a short caption to go with your audio clip."
+        }
+        val noteMinLines = if (dropContentType == DropContentType.TEXT) 3 else 1
+        val supportingTextContent: (@Composable () -> Unit)? = noteSupporting?.let { helper ->
+            { Text(helper) }
+        }
 
         OutlinedTextField(
             value = note,
             onValueChange = { note = it },
-            label = { Text("Your note") },
-            minLines = 3,
-            modifier = Modifier.fillMaxWidth()
+            label = { Text(noteLabel) },
+            minLines = noteMinLines,
+            modifier = Modifier.fillMaxWidth(),
+            supportingText = supportingTextContent
         )
+
+        if (dropContentType != DropContentType.TEXT) {
+            val mediaLabel = if (dropContentType == DropContentType.PHOTO) "Photo URL" else "Audio URL"
+            val mediaSupporting = if (dropContentType == DropContentType.PHOTO) {
+                "Paste a public link so others can open the photo."
+            } else {
+                "Paste a link to the audio file or clip."
+            }
+            OutlinedTextField(
+                value = mediaUrl,
+                onValueChange = { mediaUrl = it },
+                label = { Text(mediaLabel) },
+                modifier = Modifier.fillMaxWidth(),
+                supportingText = { Text(mediaSupporting) }
+            )
+        }
 
         Column(
             modifier = Modifier.fillMaxWidth(),
@@ -303,6 +391,23 @@ fun DropHereScreen() {
                         } else {
                             null
                         }
+                        val mediaInput = if (dropContentType == DropContentType.TEXT) {
+                            null
+                        } else {
+                            mediaUrl.text.trim().takeIf { it.isNotEmpty() }
+                                ?: run {
+                                    isSubmitting = false
+                                    val missingMessage = when (dropContentType) {
+                                        DropContentType.PHOTO -> "Add a link to your photo before dropping."
+                                        DropContentType.AUDIO -> "Add a link to your audio before dropping."
+                                        DropContentType.TEXT -> ""
+                                    }
+                                    if (missingMessage.isNotBlank()) {
+                                        snackbar.showMessage(scope, missingMessage)
+                                    }
+                                    return@launch
+                                }
+                        }
 //                        val (lat, lng) = withContext(Dispatchers.IO) {
 //                            // Try fresh high-accuracy first
 //                            val fresh = try {
@@ -322,7 +427,14 @@ fun DropHereScreen() {
                             return@launch
                         }
 
-                        addDropAt(lat, lng, selectedGroupCode)
+                        addDropAt(
+                            lat = lat,
+                            lng = lng,
+                            groupCode = selectedGroupCode,
+                            contentType = dropContentType,
+                            noteText = note.text,
+                            mediaInput = mediaInput
+                        )
                     } catch (e: Exception) {
                         isSubmitting = false
                         snackbar.showMessage(scope, "Error: ${e.message}")
@@ -526,7 +638,7 @@ private fun DropsMapDialog(
 
                         drops.isEmpty() -> {
                             DialogMessageContent(
-                                message = "You haven't dropped any notes yet.",
+                                message = "You haven't dropped anything yet.",
                                 primaryLabel = null,
                                 onPrimary = null,
                                 onDismiss = onDismiss
@@ -823,10 +935,32 @@ private fun ManageDropRow(
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                text = drop.text.ifBlank { "(No message)" },
+                text = drop.displayTitle(),
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.SemiBold
             )
+
+            Spacer(Modifier.height(4.dp))
+
+            val typeLabel = when (drop.contentType) {
+                DropContentType.TEXT -> "Text note"
+                DropContentType.PHOTO -> "Photo drop"
+                DropContentType.AUDIO -> "Audio drop"
+            }
+            Text(
+                text = "Type: $typeLabel",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            drop.mediaLabel()?.let { link ->
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = "Link: $link",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
 
             Spacer(Modifier.height(4.dp))
 
@@ -940,12 +1074,19 @@ private fun DropsMapContent(drops: List<Drop>, currentLocation: LatLng?) {
                 val snippetParts = mutableListOf(
                     "Lat: %.5f, Lng: %.5f".format(drop.lat, drop.lng)
                 )
+                val typeLabel = when (drop.contentType) {
+                    DropContentType.TEXT -> "Text note"
+                    DropContentType.PHOTO -> "Photo drop"
+                    DropContentType.AUDIO -> "Audio drop"
+                }
+                snippetParts.add(0, "Type: $typeLabel")
                 formatTimestamp(drop.createdAt)?.let { snippetParts.add(0, "Dropped $it") }
                 drop.groupCode?.takeIf { !it.isNullOrBlank() }?.let { snippetParts.add("Group $it") }
+                drop.mediaLabel()?.let { snippetParts.add("Link: $it") }
 
                 Marker(
                     state = MarkerState(position),
-                    title = drop.text.ifBlank { "(No message)" },
+                    title = drop.displayTitle(),
                     snippet = snippetParts.joinToString("\n")
                 )
             }
@@ -971,7 +1112,37 @@ private fun DropsMapContent(drops: List<Drop>, currentLocation: LatLng?) {
 }
 
 @Composable
+private fun ContentTypeOption(
+    title: String,
+    description: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    SelectionOption(
+        title = title,
+        description = description,
+        selected = selected,
+        onClick = onClick
+    )
+}
+
+@Composable
 private fun VisibilityOption(
+    title: String,
+    description: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    SelectionOption(
+        title = title,
+        description = description,
+        selected = selected,
+        onClick = onClick
+    )
+}
+
+@Composable
+private fun SelectionOption(
     title: String,
     description: String,
     selected: Boolean,

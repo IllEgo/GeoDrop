@@ -10,6 +10,7 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.TaskStackBuilder
 import com.e3hi.geodrop.R
+import com.e3hi.geodrop.data.DropContentType
 import com.e3hi.geodrop.ui.DropDetailActivity
 import com.e3hi.geodrop.util.CHANNEL_NEARBY
 import com.google.android.gms.location.Geofence
@@ -55,6 +56,9 @@ class GeofenceReceiver : BroadcastReceiver() {
                 val dropLng = doc.getDouble("lng")
                 val dropCreatedAt = doc.getLong("createdAt")?.takeIf { it > 0L }
                 val dropGroupCode = doc.getString("groupCode")?.takeIf { it.isNotBlank() }
+                val dropContentType = doc.getString("contentType")?.let { DropContentType.fromRaw(it) }
+                    ?: DropContentType.TEXT
+                val dropMediaUrl = doc.getString("mediaUrl")?.takeIf { it.isNotBlank() }
 
 
                 val open = Intent(context, DropDetailActivity::class.java).apply {
@@ -64,6 +68,8 @@ class GeofenceReceiver : BroadcastReceiver() {
                     dropLng?.let { putExtra("dropLng", it) }
                     dropCreatedAt?.let { putExtra("dropCreatedAt", it) }
                     dropGroupCode?.let { putExtra("dropGroupCode", it) }
+                    putExtra("dropContentType", dropContentType.name)
+                    dropMediaUrl?.let { putExtra("dropMediaUrl", it) }
                 }
 
 
@@ -73,10 +79,25 @@ class GeofenceReceiver : BroadcastReceiver() {
                 } ?: PendingIntent.getActivity(context, 2001, open, PendingIntentFlagsCompat)
 
 
-                val body = dropText ?: "You’re near a dropped message. Tap to open."
+                val (title, body) = when (dropContentType) {
+                    DropContentType.TEXT -> {
+                        val message = dropText ?: "You’re near a dropped message. Tap to open."
+                        "Note nearby" to message
+                    }
+                    DropContentType.PHOTO -> {
+                        val message = dropText?.takeIf { it.isNotBlank() }
+                            ?: "A photo drop is nearby. Tap to view it."
+                        "Photo drop nearby" to message
+                    }
+                    DropContentType.AUDIO -> {
+                        val message = dropText?.takeIf { it.isNotBlank() }
+                            ?: "An audio drop is nearby. Tap to listen."
+                        "Audio drop nearby" to message
+                    }
+                }
                 val notif = NotificationCompat.Builder(context, CHANNEL_NEARBY)
                     .setSmallIcon(R.drawable.ic_notification)
-                    .setContentTitle("Note nearby")
+                    .setContentTitle(title)
                     .setContentText(body)
                     .setStyle(NotificationCompat.BigTextStyle().bigText(body))
                     .setAutoCancel(true)
