@@ -1,6 +1,7 @@
 package com.e3hi.geodrop.data
 
 import android.webkit.MimeTypeMap
+import com.google.firebase.FirebaseApp
 import com.google.firebase.ktx.Firebase
 import com.google.firebase.storage.FirebaseStorage
 import com.google.firebase.storage.StorageMetadata
@@ -9,7 +10,7 @@ import kotlinx.coroutines.tasks.await
 import java.util.UUID
 
 class MediaStorageRepo(
-    private val storage: FirebaseStorage = Firebase.storage
+    private val storage: FirebaseStorage = defaultStorage()
 ) {
     suspend fun uploadMedia(
         contentType: DropContentType,
@@ -35,5 +36,17 @@ class MediaStorageRepo(
 
         ref.putBytes(data, metadata).await()
         return ref.downloadUrl.await().toString()
+    }
+
+    companion object {
+        private fun defaultStorage(): FirebaseStorage {
+            val app = FirebaseApp.getInstance()
+            val bucket = app.options.storageBucket
+            return if (bucket.isNullOrBlank()) {
+                Firebase.storage(app)
+            } else {
+                Firebase.storage(app, "gs://$bucket")
+            }
+        }
     }
 }
