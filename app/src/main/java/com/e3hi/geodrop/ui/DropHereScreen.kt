@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
@@ -71,6 +72,7 @@ fun DropHereScreen() {
     val ctx = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val scrollState = rememberScrollState()
 
     val fused = remember { LocationServices.getFusedLocationProviderClient(ctx) }
     val repo = remember { FirestoreRepo() }
@@ -349,13 +351,15 @@ fun DropHereScreen() {
     }
 
 
-    Column(
-        Modifier
-            .fillMaxSize()
-            .padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
+    Box(Modifier.fillMaxSize()) {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .verticalScroll(scrollState)
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
         Text("Drop something at your current location", style = MaterialTheme.typography.titleMedium)
 
         Column(
@@ -717,10 +721,18 @@ fun DropHereScreen() {
             modifier = Modifier.fillMaxWidth()
         ) { Text("Manage my drops") }
 
-        status?.let { Text(it) }
+            status?.let { Text(it) }
 
-        Spacer(Modifier.weight(1f))
-        SnackbarHost(hostState = snackbar, modifier = Modifier.fillMaxWidth())
+            Spacer(Modifier.height(80.dp))
+        }
+
+        SnackbarHost(
+            hostState = snackbar,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 16.dp)
+        )
     }
 
     if (showMap) {
