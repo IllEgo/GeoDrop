@@ -12,11 +12,16 @@ import com.e3hi.geodrop.ui.DropHereScreen
 import com.e3hi.geodrop.util.GroupPreferences
 import com.e3hi.geodrop.util.createNotificationChannelIfNeeded
 import com.e3hi.geodrop.geo.NearbyDropRegistrar
-import com.google.firebase.auth.FirebaseAuth
 import android.util.Log
 import com.google.firebase.FirebaseApp
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseAuth.AuthStateListener
 
 class MainActivity : ComponentActivity() {
+
+    private val auth: FirebaseAuth by lazy { FirebaseAuth.getInstance() }
+    private var authListener: AuthStateListener? = null
+    private val registrar = NearbyDropRegistrar()
 
     private val requiredPermissions = buildList {
         add(Manifest.permission.ACCESS_FINE_LOCATION)
@@ -36,27 +41,16 @@ class MainActivity : ComponentActivity() {
         ensureRuntimePermissions()
 
         val groupPrefs = GroupPreferences(this)
-        val joinedGroups = groupPrefs.getJoinedGroups().toSet()
 
-        // Anonymous sign-in (PLAIN API, no ktx)
-        val auth = FirebaseAuth.getInstance()
-        if (auth.currentUser == null) {
-            auth.signInAnonymously()
-                .addOnCompleteListener {
-                    // After we have a UID, try registering nearby geofences
-                    NearbyDropRegistrar().registerNearby(
-                        this,
-                        maxMeters = 300.0,
-                        groupCodes = joinedGroups
-                    )
-                }
-        } else {
-            NearbyDropRegistrar().registerNearby(
+        authListener = AuthStateListener { firebaseAuth ->
+            if (firebaseAuth.currentUser == null) return@AuthStateListener
+            registrar.registerNearby(
                 this,
                 maxMeters = 300.0,
-                groupCodes = joinedGroups
+                groupCodes = groupPrefs.getJoinedGroups().toSet()
             )
         }
+        authListener?.let { auth.addAuthStateListener(it) }
 
         setContent { DropHereScreen() }
 
@@ -70,5 +64,11 @@ class MainActivity : ComponentActivity() {
             ContextCompat.checkSelfPermission(this, it) != PermissionChecker.PERMISSION_GRANTED
         }
         if (need) permissionLauncher.launch(requiredPermissions)
+    }
+
+    override fun onDestroy() {
+        authListener?.let { auth.removeAuthStateListener(it) }
+        authListener = null
+        super.onDestroy()
     }
 }

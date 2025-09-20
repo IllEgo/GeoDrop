@@ -70,6 +70,48 @@ import java.io.IOException
 @Composable
 fun DropHereScreen() {
     val ctx = LocalContext.current
+    val auth = remember { FirebaseAuth.getInstance() }
+    var currentUser by remember { mutableStateOf(auth.currentUser) }
+    var signingIn by remember { mutableStateOf(false) }
+    var signInError by remember { mutableStateOf<String?>(null) }
+
+    DisposableEffect(auth) {
+        val listener = FirebaseAuth.AuthStateListener { firebaseAuth ->
+            currentUser = firebaseAuth.currentUser
+        }
+        auth.addAuthStateListener(listener)
+        onDispose { auth.removeAuthStateListener(listener) }
+    }
+
+    if (currentUser == null) {
+        SignInRequiredScreen(
+            isSigningIn = signingIn,
+            error = signInError,
+            onSignInClick = {
+                if (signingIn) return@SignInRequiredScreen
+                signInError = null
+                signingIn = true
+                runCatching {
+                    auth.signInAnonymously()
+                        .addOnCompleteListener { task ->
+                            signingIn = false
+                            if (!task.isSuccessful) {
+                                val message = task.exception?.localizedMessage?.takeIf { it.isNotBlank() }
+                                    ?: "Couldn't sign you in. Check your connection and try again."
+                                signInError = message
+                            }
+                        }
+                }.onFailure { throwable ->
+                    signingIn = false
+                    val message = throwable.localizedMessage?.takeIf { it.isNotBlank() }
+                        ?: "Couldn't sign you in. Check your connection and try again."
+                    signInError = message
+                }
+            }
+        )
+        return
+    }
+
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
@@ -1382,6 +1424,66 @@ private fun ContentTypeOption(
         selected = selected,
         onClick = onClick
     )
+}
+
+@Composable
+private fun SignInRequiredScreen(
+    isSigningIn: Boolean,
+    error: String?,
+    onSignInClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = "Sign in to continue",
+                style = MaterialTheme.typography.headlineSmall,
+                textAlign = TextAlign.Center
+            )
+            Spacer(Modifier.height(12.dp))
+            Text(
+                text = "Sign in to drop notes, photos, and audio. This keeps your uploads secure.",
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.Center,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            error?.let {
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error,
+                    textAlign = TextAlign.Center
+                )
+            }
+            Spacer(Modifier.height(24.dp))
+            Button(
+                onClick = onSignInClick,
+                enabled = !isSigningIn,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                if (isSigningIn) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text("Signing in…")
+                } else {
+                    Text("Sign in")
+                }
+            }
+        }
+    }
 }
 
 @Composable
