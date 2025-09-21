@@ -6,6 +6,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
+import com.e3hi.geodrop.util.GroupPreferences
 import kotlinx.coroutines.tasks.await
 
 /**
@@ -65,6 +66,31 @@ class FirestoreRepo(
         }
     }
 
+    suspend fun getVisibleDropsForUser(
+        userId: String?,
+        allowedGroups: Set<String>
+    ): List<Drop> {
+        val normalizedGroups = allowedGroups
+            .mapNotNull { GroupPreferences.normalizeGroupCode(it) }
+            .toSet()
+
+        val snapshot = drops
+            .whereEqualTo("isDeleted", false)
+            .get()
+            .await()
+
+        return snapshot.documents.mapNotNull { doc ->
+            val drop = doc.toObject(Drop::class.java)?.copy(id = doc.id)
+                ?: Drop(id = doc.id)
+
+            if (drop.isDeleted) return@mapNotNull null
+
+            if (!drop.isVisibleTo(userId, normalizedGroups)) return@mapNotNull null
+
+            drop
+        }
+    }
+
     suspend fun deleteDrop(dropId: String) {
         if (dropId.isBlank()) return
 
@@ -102,4 +128,10 @@ class FirestoreRepo(
             "mediaUrl" to sanitized.mediaUrl
         )
     }
+}
+
+private fun Drop.isVisibleTo(userId: String?, allowedGroups: Set<String>): Boolean {
+    if (userId != null && createdBy == userId) return false
+    val dropGroup = GroupPreferences.normalizeGroupCode(groupCode)
+    return dropGroup == null || dropGroup in allowedGroups
 }

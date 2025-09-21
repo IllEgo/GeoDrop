@@ -101,6 +101,7 @@ fun DropHereScreen() {
 
     val noteInventory = remember { NoteInventory(ctx) }
     var collectedNotes by remember { mutableStateOf(noteInventory.getCollectedNotes()) }
+    val collectedIds = remember(collectedNotes) { collectedNotes.map { it.id }.toSet() }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -188,6 +189,12 @@ fun DropHereScreen() {
     var mapDrops by remember { mutableStateOf<List<Drop>>(emptyList()) }
     var mapRefreshToken by remember { mutableStateOf(0) }
     var mapCurrentLocation by remember { mutableStateOf<LatLng?>(null) }
+    var showOtherDropsMap by remember { mutableStateOf(false) }
+    var otherMapDrops by remember { mutableStateOf<List<Drop>>(emptyList()) }
+    var otherMapLoading by remember { mutableStateOf(false) }
+    var otherMapError by remember { mutableStateOf<String?>(null) }
+    var otherMapRefreshToken by remember { mutableStateOf(0) }
+    var otherMapCurrentLocation by remember { mutableStateOf<LatLng?>(null) }
     var showManageDrops by remember { mutableStateOf(false) }
     var manageDrops by remember { mutableStateOf<List<Drop>>(emptyList()) }
     var manageLoading by remember { mutableStateOf(false) }
@@ -414,6 +421,37 @@ fun DropHereScreen() {
             mapError = null
             mapLoading = false
             mapCurrentLocation = null
+        }
+    }
+
+    LaunchedEffect(showOtherDropsMap, otherMapRefreshToken, joinedGroups) {
+        if (showOtherDropsMap) {
+            otherMapLoading = true
+            otherMapError = null
+            otherMapCurrentLocation = null
+            val uid = FirebaseAuth.getInstance().currentUser?.uid
+            if (uid == null) {
+                otherMapLoading = false
+                otherMapError = "Sign-in is still in progress. Try again in a moment."
+            } else {
+                try {
+                    val allowedGroups = joinedGroups.toSet()
+                    val drops = repo.getVisibleDropsForUser(uid, allowedGroups)
+                        .filterNot { noteInventory.isIgnored(it.id) }
+                        .sortedByDescending { it.createdAt }
+                    otherMapDrops = drops
+                    otherMapCurrentLocation = getLatestLocation()?.let { (lat, lng) -> LatLng(lat, lng) }
+                } catch (e: Exception) {
+                    otherMapError = e.message ?: "Failed to load other drops."
+                } finally {
+                    otherMapLoading = false
+                }
+            }
+        } else {
+            otherMapDrops = emptyList()
+            otherMapError = null
+            otherMapLoading = false
+            otherMapCurrentLocation = null
         }
     }
 
@@ -800,6 +838,17 @@ fun DropHereScreen() {
         ) { Text("View my drops on map") }
 
         Button(
+            onClick = {
+                if (FirebaseAuth.getInstance().currentUser == null) {
+                    snackbar.showMessage(scope, "Signing you in… please try again shortly.")
+                } else {
+                    showOtherDropsMap = true
+                }
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) { Text("View other drops on map") }
+
+        Button(
             onClick = { showManageGroups = true },
             modifier = Modifier.fillMaxWidth()
         ) { Text("Manage group codes") }
@@ -844,12 +893,32 @@ fun DropHereScreen() {
 
     if (showMap) {
         DropsMapDialog(
+            title = "My drops on map",
             loading = mapLoading,
             drops = mapDrops,
             currentLocation = mapCurrentLocation,
             error = mapError,
+            emptyMessage = "You haven't dropped anything yet.",
+            redactedDropIds = emptySet(),
             onDismiss = { showMap = false },
             onRetry = { mapRefreshToken += 1 }
+        )
+    }
+
+    if (showOtherDropsMap) {
+        val redactedIds = otherMapDrops
+            .mapNotNull { drop -> drop.id.takeIf { it !in collectedIds } }
+            .toSet()
+        DropsMapDialog(
+            title = "Other drops on map",
+            loading = otherMapLoading,
+            drops = otherMapDrops,
+            currentLocation = otherMapCurrentLocation,
+            error = otherMapError,
+            emptyMessage = "No drops from other users are available right now.",
+            redactedDropIds = redactedIds,
+            onDismiss = { showOtherDropsMap = false },
+            onRetry = { otherMapRefreshToken += 1 }
         )
     }
 
@@ -934,10 +1003,13 @@ fun DropHereScreen() {
 
 @Composable
 private fun DropsMapDialog(
+    title: String,
     loading: Boolean,
     drops: List<Drop>,
     currentLocation: LatLng?,
     error: String?,
+    emptyMessage: String,
+    redactedDropIds: Set<String>,
     onDismiss: () -> Unit,
     onRetry: () -> Unit
 ) {
@@ -953,7 +1025,7 @@ private fun DropsMapDialog(
             Scaffold(
                 topBar = {
                     TopAppBar(
-                        title = { Text("My drops on map") },
+                        title = { Text(title) },
                         navigationIcon = {
                             IconButton(onClick = onDismiss) {
                                 Icon(
@@ -986,7 +1058,7 @@ private fun DropsMapDialog(
 
                         drops.isEmpty() -> {
                             DialogMessageContent(
-                                message = "You haven't dropped anything yet.",
+                                message = emptyMessage,
                                 primaryLabel = null,
                                 onPrimary = null,
                                 onDismiss = onDismiss
@@ -994,7 +1066,7 @@ private fun DropsMapDialog(
                         }
 
                         else -> {
-                            DropsMapContent(drops, currentLocation)
+                            DropsMapContent(drops, currentLocation, redactedDropIds)
                         }
                     }
                 }
@@ -1593,7 +1665,11 @@ private fun ManageDropRow(
 }
 
 @Composable
-private fun DropsMapContent(drops: List<Drop>, currentLocation: LatLng?) {
+private fun DropsMapContent(
+    drops: List<Drop>,
+    currentLocation: LatLng?,
+    redactedDropIds: Set<String>
+) {
     val cameraPositionState = rememberCameraPositionState()
     val uiSettings = remember { MapUiSettings(zoomControlsEnabled = true) }
 
@@ -1641,22 +1717,36 @@ private fun DropsMapContent(drops: List<Drop>, currentLocation: LatLng?) {
 
             drops.forEach { drop ->
                 val position = LatLng(drop.lat, drop.lng)
-                val snippetParts = mutableListOf(
-                    "Lat: %.5f, Lng: %.5f".format(drop.lat, drop.lng)
-                )
+                val isRedacted = redactedDropIds.contains(drop.id)
+                val snippetParts = mutableListOf<String>()
                 val typeLabel = when (drop.contentType) {
                     DropContentType.TEXT -> "Text note"
                     DropContentType.PHOTO -> "Photo drop"
                     DropContentType.AUDIO -> "Audio drop"
                 }
-                snippetParts.add(0, "Type: $typeLabel")
-                formatTimestamp(drop.createdAt)?.let { snippetParts.add(0, "Dropped $it") }
+                snippetParts.add("Type: $typeLabel")
+                formatTimestamp(drop.createdAt)?.let { snippetParts.add("Dropped $it") }
                 drop.groupCode?.takeIf { !it.isNullOrBlank() }?.let { snippetParts.add("Group $it") }
-                drop.mediaLabel()?.let { snippetParts.add("Link: $it") }
+                snippetParts.add("Lat: %.5f, Lng: %.5f".format(drop.lat, drop.lng))
+                if (isRedacted) {
+                    snippetParts.add("Move closer to unlock this drop.")
+                } else {
+                    drop.mediaLabel()?.let { snippetParts.add("Link: $it") }
+                }
+
+                val markerTitle = if (isRedacted) {
+                    when (drop.contentType) {
+                        DropContentType.TEXT -> "Locked text drop"
+                        DropContentType.PHOTO -> "Locked photo drop"
+                        DropContentType.AUDIO -> "Locked audio drop"
+                    }
+                } else {
+                    drop.displayTitle()
+                }
 
                 Marker(
                     state = MarkerState(position),
-                    title = drop.displayTitle(),
+                    title = markerTitle,
                     snippet = snippetParts.joinToString("\n")
                 )
             }
