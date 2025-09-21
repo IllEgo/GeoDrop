@@ -900,6 +900,7 @@ fun DropHereScreen() {
             error = mapError,
             emptyMessage = "You haven't dropped anything yet.",
             redactedDropIds = emptySet(),
+            collectedDropIds = emptySet(),
             onDismiss = { showMap = false },
             onRetry = { mapRefreshToken += 1 }
         )
@@ -917,6 +918,7 @@ fun DropHereScreen() {
             error = otherMapError,
             emptyMessage = "No drops from other users are available right now.",
             redactedDropIds = redactedIds,
+            collectedDropIds = collectedIds,
             onDismiss = { showOtherDropsMap = false },
             onRetry = { otherMapRefreshToken += 1 }
         )
@@ -1010,6 +1012,7 @@ private fun DropsMapDialog(
     error: String?,
     emptyMessage: String,
     redactedDropIds: Set<String>,
+    collectedDropIds: Set<String>,
     onDismiss: () -> Unit,
     onRetry: () -> Unit
 ) {
@@ -1066,7 +1069,12 @@ private fun DropsMapDialog(
                         }
 
                         else -> {
-                            DropsMapContent(drops, currentLocation, redactedDropIds)
+                            DropsMapContent(
+                                drops = drops,
+                                currentLocation = currentLocation,
+                                redactedDropIds = redactedDropIds,
+                                collectedDropIds = collectedDropIds
+                            )
                         }
                     }
                 }
@@ -1668,7 +1676,8 @@ private fun ManageDropRow(
 private fun DropsMapContent(
     drops: List<Drop>,
     currentLocation: LatLng?,
-    redactedDropIds: Set<String>
+    redactedDropIds: Set<String>,
+    collectedDropIds: Set<String>
 ) {
     val cameraPositionState = rememberCameraPositionState()
     val uiSettings = remember { MapUiSettings(zoomControlsEnabled = true) }
@@ -1718,6 +1727,7 @@ private fun DropsMapContent(
             drops.forEach { drop ->
                 val position = LatLng(drop.lat, drop.lng)
                 val isRedacted = redactedDropIds.contains(drop.id)
+                val isCollected = drop.id.isNotBlank() && collectedDropIds.contains(drop.id)
                 val snippetParts = mutableListOf<String>()
                 val typeLabel = when (drop.contentType) {
                     DropContentType.TEXT -> "Text note"
@@ -1744,10 +1754,17 @@ private fun DropsMapContent(
                     drop.displayTitle()
                 }
 
+                val markerIcon = if (isCollected) {
+                    BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN)
+                } else {
+                    null
+                }
+
                 Marker(
                     state = MarkerState(position),
                     title = markerTitle,
-                    snippet = snippetParts.joinToString("\n")
+                    snippet = snippetParts.joinToString("\n"),
+                    icon = markerIcon
                 )
             }
         }
