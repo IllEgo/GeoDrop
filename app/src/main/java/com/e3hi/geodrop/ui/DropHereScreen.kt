@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -27,7 +28,9 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
@@ -38,6 +41,8 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.e3hi.geodrop.data.CollectedNote
 import com.e3hi.geodrop.data.Drop
 import com.e3hi.geodrop.data.DropContentType
@@ -1495,8 +1500,31 @@ private fun ManageDropRow(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
-            drop.mediaLabel()?.let { link ->
-                Spacer(Modifier.height(4.dp))
+            val mediaUrl = drop.mediaLabel()
+            if (drop.contentType == DropContentType.PHOTO && mediaUrl != null) {
+                Spacer(Modifier.height(12.dp))
+
+                val context = LocalContext.current
+                val imageRequest = remember(mediaUrl) {
+                    ImageRequest.Builder(context)
+                        .data(mediaUrl)
+                        .crossfade(true)
+                        .build()
+                }
+
+                AsyncImage(
+                    model = imageRequest,
+                    contentDescription = drop.displayTitle(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 160.dp, max = 280.dp)
+                        .clip(RoundedCornerShape(12.dp)),
+                    contentScale = ContentScale.Crop
+                )
+            }
+
+            mediaUrl?.let { link ->
+                Spacer(Modifier.height(8.dp))
                 Text(
                     text = "Link: $link",
                     style = MaterialTheme.typography.bodySmall,
