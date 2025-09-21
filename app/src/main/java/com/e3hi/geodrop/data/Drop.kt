@@ -34,3 +34,15 @@ fun Drop.displayTitle(): String = when (contentType) {
 }
 
 fun Drop.mediaLabel(): String? = mediaUrl?.takeIf { it.isNotBlank() }
+
+fun Drop.discoveryTitle(): String = when (contentType) {
+    DropContentType.TEXT -> "Hidden note"
+    DropContentType.PHOTO -> "Hidden photo drop"
+    DropContentType.AUDIO -> "Hidden audio drop"
+}
+
+fun Drop.discoveryDescription(): String = when (contentType) {
+    DropContentType.TEXT -> "Collect this drop to read the message inside."
+    DropContentType.PHOTO -> "Pick up this drop to reveal the photo."
+    DropContentType.AUDIO -> "Collect this drop to listen to the recording."
+}

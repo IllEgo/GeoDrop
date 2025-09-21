@@ -46,6 +46,8 @@ import com.e3hi.geodrop.data.CollectedNote
 import com.e3hi.geodrop.data.Drop
 import com.e3hi.geodrop.data.DropContentType
 import com.e3hi.geodrop.data.displayTitle
+import com.e3hi.geodrop.data.discoveryDescription
+import com.e3hi.geodrop.data.discoveryTitle
 import com.e3hi.geodrop.data.mediaLabel
 import com.e3hi.geodrop.data.FirestoreRepo
 import com.e3hi.geodrop.data.MediaStorageRepo
@@ -1197,6 +1199,15 @@ private fun OtherDropsMapDialog(
                             Column(
                                 modifier = Modifier.fillMaxSize()
                             ) {
+                                Text(
+                                    text = "Collect a drop to reveal its contents.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                                )
+
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -1865,12 +1876,20 @@ private fun OtherDropRow(
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                text = drop.displayTitle(),
+                text = drop.discoveryTitle(),
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.SemiBold
             )
 
             Spacer(Modifier.height(4.dp))
+
+            Text(
+                text = drop.discoveryDescription(),
+                style = MaterialTheme.typography.bodyMedium,
+                color = supportingColor
+            )
+
+            Spacer(Modifier.height(8.dp))
 
             val typeLabel = when (drop.contentType) {
                 DropContentType.TEXT -> "Text note"
@@ -1908,15 +1927,6 @@ private fun OtherDropRow(
                 style = MaterialTheme.typography.bodySmall,
                 color = supportingColor
             )
-
-            drop.mediaLabel()?.let { link ->
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    text = "Link: $link",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
         }
     }
 }
@@ -1958,16 +1968,10 @@ private fun OtherDropsMap(
         drops.forEach { drop ->
             val position = LatLng(drop.lat, drop.lng)
             val snippetParts = mutableListOf<String>()
-            val typeLabel = when (drop.contentType) {
-                DropContentType.TEXT -> "Text note"
-                DropContentType.PHOTO -> "Photo drop"
-                DropContentType.AUDIO -> "Audio drop"
-            }
-            snippetParts.add("Type: $typeLabel")
+            snippetParts.add(drop.discoveryDescription())
             formatTimestamp(drop.createdAt)?.let { snippetParts.add("Dropped $it") }
             drop.groupCode?.takeIf { !it.isNullOrBlank() }?.let { snippetParts.add("Group $it") }
             snippetParts.add("Lat: %.5f, Lng: %.5f".format(drop.lat, drop.lng))
-            drop.mediaLabel()?.let { snippetParts.add("Link: $it") }
 
             val isSelected = drop.id == selectedDropId
             val markerIcon = if (isSelected) {
@@ -1978,7 +1982,7 @@ private fun OtherDropsMap(
 
             Marker(
                 state = MarkerState(position),
-                title = drop.displayTitle(),
+                title = drop.discoveryTitle(),
                 snippet = snippetParts.joinToString("\n"),
                 icon = markerIcon,
                 zIndex = if (isSelected) 2f else 0f
