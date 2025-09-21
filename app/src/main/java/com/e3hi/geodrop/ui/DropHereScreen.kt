@@ -2718,8 +2718,8 @@ private fun DropContentTypeSection(
             options.forEachIndexed { index, option ->
                 SegmentedButton(
                     shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
-                    onCheckedChange = { onSelect(option.type) },
-                    checked = option.type == selected,
+                    onClick = { onSelect(option.type) },
+                    selected = option.type == selected,
                     label = { Text(option.title) },
                     icon = {
                         Icon(
