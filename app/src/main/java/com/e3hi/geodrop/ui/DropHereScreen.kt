@@ -1314,21 +1314,21 @@ private fun CollectedDropsMap(
                         DropContentType.AUDIO -> "Collected audio drop"
                     }
                 }
-            }
 
-            val markerColor = if (note.id == highlightedId) {
-                BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ORANGE)
-            } else {
-                BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN)
-            }
+                val markerColor = if (note.id == highlightedId) {
+                    BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ORANGE)
+                } else {
+                    BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN)
+                }
 
-            Marker(
-                state = MarkerState(position),
-                title = title,
-                snippet = snippetParts.joinToString("\n"),
-                icon = markerColor,
-                zIndex = if (note.id == highlightedId) 1f else 0f
-            )
+                Marker(
+                    state = MarkerState(position),
+                    title = title,
+                    snippet = snippetParts.joinToString("\n"),
+                    icon = markerColor,
+                    zIndex = if (note.id == highlightedId) 1f else 0f
+                )
+            }
         }
     }
 }
