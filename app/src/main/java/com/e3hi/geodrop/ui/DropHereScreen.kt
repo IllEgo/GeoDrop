@@ -183,24 +183,20 @@ fun DropHereScreen() {
     var groupCodeInput by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
     var isSubmitting by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
-    var showMap by remember { mutableStateOf(false) }
-    var mapError by remember { mutableStateOf<String?>(null) }
-    var mapLoading by remember { mutableStateOf(false) }
-    var mapDrops by remember { mutableStateOf<List<Drop>>(emptyList()) }
-    var mapRefreshToken by remember { mutableStateOf(0) }
-    var mapCurrentLocation by remember { mutableStateOf<LatLng?>(null) }
+    var showMyDrops by remember { mutableStateOf(false) }
+    var myDrops by remember { mutableStateOf<List<Drop>>(emptyList()) }
+    var myDropsLoading by remember { mutableStateOf(false) }
+    var myDropsError by remember { mutableStateOf<String?>(null) }
+    var myDropsRefreshToken by remember { mutableStateOf(0) }
+    var myDropsCurrentLocation by remember { mutableStateOf<LatLng?>(null) }
+    var myDropsDeletingId by remember { mutableStateOf<String?>(null) }
+    var myDropsSelectedId by remember { mutableStateOf<String?>(null) }
     var showOtherDropsMap by remember { mutableStateOf(false) }
     var otherMapDrops by remember { mutableStateOf<List<Drop>>(emptyList()) }
     var otherMapLoading by remember { mutableStateOf(false) }
     var otherMapError by remember { mutableStateOf<String?>(null) }
     var otherMapRefreshToken by remember { mutableStateOf(0) }
     var otherMapCurrentLocation by remember { mutableStateOf<LatLng?>(null) }
-    var showManageDrops by remember { mutableStateOf(false) }
-    var manageDrops by remember { mutableStateOf<List<Drop>>(emptyList()) }
-    var manageLoading by remember { mutableStateOf(false) }
-    var manageError by remember { mutableStateOf<String?>(null) }
-    var manageRefreshToken by remember { mutableStateOf(0) }
-    var manageDeletingId by remember { mutableStateOf<String?>(null) }
     var showManageGroups by remember { mutableStateOf(false) }
     var showCollectedNotes by remember { mutableStateOf(false) }
 
@@ -396,34 +392,6 @@ fun DropHereScreen() {
         uiDone(lat, lng, groupCode, contentType)
     }
 
-    LaunchedEffect(showMap, mapRefreshToken) {
-        if (showMap) {
-            mapLoading = true
-            mapError = null
-            mapCurrentLocation = null
-            val uid = FirebaseAuth.getInstance().currentUser?.uid
-            if (uid == null) {
-                mapLoading = false
-                mapError = "Sign-in is still in progress. Try again in a moment."
-            } else {
-                try {
-                    mapDrops = repo.getDropsForUser(uid)
-                        .sortedByDescending { it.createdAt }
-                    mapCurrentLocation = getLatestLocation()?.let { (lat, lng) -> LatLng(lat, lng) }
-                } catch (e: Exception) {
-                    mapError = e.message ?: "Failed to load your drops."
-                } finally {
-                    mapLoading = false
-                }
-            }
-        } else {
-            mapDrops = emptyList()
-            mapError = null
-            mapLoading = false
-            mapCurrentLocation = null
-        }
-    }
-
     LaunchedEffect(showOtherDropsMap, otherMapRefreshToken, joinedGroups) {
         if (showOtherDropsMap) {
             otherMapLoading = true
@@ -455,30 +423,37 @@ fun DropHereScreen() {
         }
     }
 
-    LaunchedEffect(showManageDrops, manageRefreshToken) {
-        if (showManageDrops) {
-            manageLoading = true
-            manageError = null
-            manageDeletingId = null
+    LaunchedEffect(showMyDrops, myDropsRefreshToken) {
+        if (showMyDrops) {
+            myDropsLoading = true
+            myDropsError = null
+            myDropsDeletingId = null
+            myDropsCurrentLocation = null
             val uid = FirebaseAuth.getInstance().currentUser?.uid
             if (uid == null) {
-                manageLoading = false
-                manageError = "Sign-in is still in progress. Try again in a moment."
+                myDropsLoading = false
+                myDropsError = "Sign-in is still in progress. Try again in a moment."
             } else {
                 try {
-                    manageDrops = repo.getDropsForUser(uid)
+                    val drops = repo.getDropsForUser(uid)
                         .sortedByDescending { it.createdAt }
+                    myDrops = drops
+                    myDropsCurrentLocation = getLatestLocation()?.let { (lat, lng) -> LatLng(lat, lng) }
+                    myDropsSelectedId = myDropsSelectedId?.takeIf { id -> drops.any { it.id == id } }
+                        ?: drops.firstOrNull()?.id
                 } catch (e: Exception) {
-                    manageError = e.message ?: "Failed to load your drops."
+                    myDropsError = e.message ?: "Failed to load your drops."
                 } finally {
-                    manageLoading = false
+                    myDropsLoading = false
                 }
             }
         } else {
-            manageDrops = emptyList()
-            manageError = null
-            manageLoading = false
-            manageDeletingId = null
+            myDrops = emptyList()
+            myDropsError = null
+            myDropsLoading = false
+            myDropsDeletingId = null
+            myDropsCurrentLocation = null
+            myDropsSelectedId = null
         }
     }
 
@@ -831,17 +806,6 @@ fun DropHereScreen() {
                 if (FirebaseAuth.getInstance().currentUser == null) {
                     snackbar.showMessage(scope, "Signing you in… please try again shortly.")
                 } else {
-                    showMap = true
-                }
-            },
-            modifier = Modifier.fillMaxWidth()
-        ) { Text("View my drops on map") }
-
-        Button(
-            onClick = {
-                if (FirebaseAuth.getInstance().currentUser == null) {
-                    snackbar.showMessage(scope, "Signing you in… please try again shortly.")
-                } else {
                     showOtherDropsMap = true
                 }
             },
@@ -858,11 +822,11 @@ fun DropHereScreen() {
                 if (FirebaseAuth.getInstance().currentUser == null) {
                     snackbar.showMessage(scope, "Signing you in… please try again shortly.")
                 } else {
-                    showManageDrops = true
+                    showMyDrops = true
                 }
             },
             modifier = Modifier.fillMaxWidth()
-        ) { Text("Manage my drops") }
+        ) { Text("View my drops") }
 
             Button(
                 onClick = {
@@ -891,21 +855,6 @@ fun DropHereScreen() {
         )
     }
 
-    if (showMap) {
-        DropsMapDialog(
-            title = "My drops on map",
-            loading = mapLoading,
-            drops = mapDrops,
-            currentLocation = mapCurrentLocation,
-            error = mapError,
-            emptyMessage = "You haven't dropped anything yet.",
-            redactedDropIds = emptySet(),
-            collectedDropIds = emptySet(),
-            onDismiss = { showMap = false },
-            onRetry = { mapRefreshToken += 1 }
-        )
-    }
-
     if (showOtherDropsMap) {
         val redactedIds = otherMapDrops
             .mapNotNull { drop -> drop.id.takeIf { it !in collectedIds } }
@@ -924,30 +873,37 @@ fun DropHereScreen() {
         )
     }
 
-    if (showManageDrops) {
-        ManageDropsDialog(
-            loading = manageLoading,
-            drops = manageDrops,
-            deletingId = manageDeletingId,
-            error = manageError,
-            onDismiss = { showManageDrops = false },
-            onRetry = { manageRefreshToken += 1 },
+    if (showMyDrops) {
+        MyDropsDialog(
+            loading = myDropsLoading,
+            drops = myDrops,
+            currentLocation = myDropsCurrentLocation,
+            deletingId = myDropsDeletingId,
+            error = myDropsError,
+            selectedId = myDropsSelectedId,
+            onSelect = { drop -> myDropsSelectedId = drop.id },
+            onDismiss = { showMyDrops = false },
+            onRetry = { myDropsRefreshToken += 1 },
             onDelete = { drop ->
                 if (drop.id.isBlank()) {
                     snackbar.showMessage(scope, "Unable to delete this drop.")
-                    return@ManageDropsDialog
+                    return@MyDropsDialog
                 }
 
-                manageDeletingId = drop.id
+                myDropsDeletingId = drop.id
                 scope.launch {
                     try {
                         repo.deleteDrop(drop.id)
-                        manageDrops = manageDrops.filterNot { it.id == drop.id }
+                        val updated = myDrops.filterNot { it.id == drop.id }
+                        myDrops = updated
+                        if (myDropsSelectedId == drop.id) {
+                            myDropsSelectedId = updated.firstOrNull()?.id
+                        }
                         snackbar.showMessage(scope, "Drop deleted.")
                     } catch (e: Exception) {
                         snackbar.showMessage(scope, "Error: ${e.message}")
                     } finally {
-                        manageDeletingId = null
+                        myDropsDeletingId = null
                     }
                 }
             }
@@ -1385,11 +1341,14 @@ private fun ManageGroupsDialog(
 }
 
 @Composable
-private fun ManageDropsDialog(
+private fun MyDropsDialog(
     loading: Boolean,
     drops: List<Drop>,
+    currentLocation: LatLng?,
     deletingId: String?,
     error: String?,
+    selectedId: String?,
+    onSelect: (Drop) -> Unit,
     onDismiss: () -> Unit,
     onRetry: () -> Unit,
     onDelete: (Drop) -> Unit
@@ -1406,7 +1365,7 @@ private fun ManageDropsDialog(
             Scaffold(
                 topBar = {
                     TopAppBar(
-                        title = { Text("Manage my drops") },
+                        title = { Text("My drops") },
                         navigationIcon = {
                             IconButton(onClick = onDismiss) {
                                 Icon(
@@ -1447,18 +1406,54 @@ private fun ManageDropsDialog(
                         }
 
                         else -> {
-                            LazyColumn(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            Column(
+                                modifier = Modifier.fillMaxSize()
                             ) {
-                                items(drops, key = { it.id }) { drop ->
-                                    ManageDropRow(
-                                        drop = drop,
-                                        isDeleting = deletingId == drop.id,
-                                        onDelete = { onDelete(drop) }
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .weight(1f)
+                                ) {
+                                    MyDropsMap(
+                                        drops = drops,
+                                        selectedDropId = selectedId,
+                                        currentLocation = currentLocation
                                     )
+                                }
+
+                                Divider()
+
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .weight(1f)
+                                ) {
+                                    Text(
+                                        text = "Select a drop to focus on the map.",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 16.dp, vertical = 12.dp)
+                                    )
+
+                                    LazyColumn(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .weight(1f),
+                                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        items(drops, key = { it.id }) { drop ->
+                                            ManageDropRow(
+                                                drop = drop,
+                                                isDeleting = deletingId == drop.id,
+                                                isSelected = drop.id == selectedId,
+                                                onSelect = { onSelect(drop) },
+                                                onDelete = { onDelete(drop) }
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -1551,14 +1546,102 @@ private fun MediaCaptureCard(
 }
 
 @Composable
+private fun MyDropsMap(
+    drops: List<Drop>,
+    selectedDropId: String?,
+    currentLocation: LatLng?
+) {
+    val cameraPositionState = rememberCameraPositionState()
+    val uiSettings = remember { MapUiSettings(zoomControlsEnabled = true) }
+
+    LaunchedEffect(drops, selectedDropId, currentLocation) {
+        val targetDrop = drops.firstOrNull { it.id == selectedDropId }
+        val target = targetDrop?.let { LatLng(it.lat, it.lng) }
+            ?: currentLocation
+            ?: drops.firstOrNull()?.let { LatLng(it.lat, it.lng) }
+        if (target != null) {
+            val update = CameraUpdateFactory.newLatLngZoom(target, 15f)
+            cameraPositionState.animate(update)
+        }
+    }
+
+    GoogleMap(
+        modifier = Modifier.fillMaxSize(),
+        cameraPositionState = cameraPositionState,
+        uiSettings = uiSettings
+    ) {
+        currentLocation?.let { location ->
+            Marker(
+                state = MarkerState(location),
+                title = "Your current location",
+                icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE),
+                zIndex = 1f
+            )
+        }
+
+        drops.forEach { drop ->
+            val position = LatLng(drop.lat, drop.lng)
+            val snippetParts = mutableListOf<String>()
+            val typeLabel = when (drop.contentType) {
+                DropContentType.TEXT -> "Text note"
+                DropContentType.PHOTO -> "Photo drop"
+                DropContentType.AUDIO -> "Audio drop"
+            }
+            snippetParts.add("Type: $typeLabel")
+            formatTimestamp(drop.createdAt)?.let { snippetParts.add("Dropped $it") }
+            drop.groupCode?.takeIf { !it.isNullOrBlank() }?.let { snippetParts.add("Group $it") }
+            snippetParts.add("Lat: %.5f, Lng: %.5f".format(drop.lat, drop.lng))
+            drop.mediaLabel()?.let { snippetParts.add("Link: $it") }
+
+            val isSelected = drop.id == selectedDropId
+            val markerIcon = if (isSelected) {
+                BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ORANGE)
+            } else {
+                null
+            }
+
+            Marker(
+                state = MarkerState(position),
+                title = drop.displayTitle(),
+                snippet = snippetParts.joinToString("\n"),
+                icon = markerIcon,
+                zIndex = if (isSelected) 2f else 0f
+            )
+        }
+    }
+}
+
+@Composable
 private fun ManageDropRow(
     drop: Drop,
     isDeleting: Boolean,
+    isSelected: Boolean,
+    onSelect: () -> Unit,
     onDelete: () -> Unit
 ) {
+    val containerColor = if (isSelected) {
+        MaterialTheme.colorScheme.primaryContainer
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant
+    }
+    val contentColor = if (isSelected) {
+        MaterialTheme.colorScheme.onPrimaryContainer
+    } else {
+        MaterialTheme.colorScheme.onSurface
+    }
+    val supportingColor = if (isSelected) {
+        MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        onClick = onSelect,
+        colors = CardDefaults.cardColors(
+            containerColor = containerColor,
+            contentColor = contentColor
+        )
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
@@ -1577,7 +1660,7 @@ private fun ManageDropRow(
             Text(
                 text = "Type: $typeLabel",
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = supportingColor
             )
 
             val mediaUrl = drop.mediaLabel()
@@ -1618,7 +1701,7 @@ private fun ManageDropRow(
                 Text(
                     text = it,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = supportingColor
                 )
             }
 
@@ -1630,7 +1713,7 @@ private fun ManageDropRow(
             Text(
                 text = visibilityLabel,
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = supportingColor
             )
 
             Spacer(Modifier.height(4.dp))
@@ -1638,7 +1721,7 @@ private fun ManageDropRow(
             Text(
                 text = "Lat: %.5f, Lng: %.5f".format(drop.lat, drop.lng),
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = supportingColor
             )
 
             Spacer(Modifier.height(12.dp))
