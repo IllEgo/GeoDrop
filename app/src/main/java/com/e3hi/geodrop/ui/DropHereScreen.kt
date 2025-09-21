@@ -180,6 +180,13 @@ fun DropHereScreen() {
     var groupCodeInput by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
     var isSubmitting by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
+    var showOtherDropsMap by remember { mutableStateOf(false) }
+    var otherDrops by remember { mutableStateOf<List<Drop>>(emptyList()) }
+    var otherDropsLoading by remember { mutableStateOf(false) }
+    var otherDropsError by remember { mutableStateOf<String?>(null) }
+    var otherDropsCurrentLocation by remember { mutableStateOf<LatLng?>(null) }
+    var otherDropsSelectedId by remember { mutableStateOf<String?>(null) }
+    var otherDropsRefreshToken by remember { mutableStateOf(0) }
     var showMyDrops by remember { mutableStateOf(false) }
     var myDrops by remember { mutableStateOf<List<Drop>>(emptyList()) }
     var myDropsLoading by remember { mutableStateOf(false) }
@@ -381,6 +388,40 @@ fun DropHereScreen() {
             joinedGroups = groupPrefs.getJoinedGroups()
         }
         uiDone(lat, lng, groupCode, contentType)
+    }
+
+    LaunchedEffect(showOtherDropsMap, joinedGroups, otherDropsRefreshToken) {
+        if (showOtherDropsMap) {
+            otherDropsLoading = true
+            otherDropsError = null
+            otherDropsCurrentLocation = null
+            val uid = FirebaseAuth.getInstance().currentUser?.uid
+            if (uid == null) {
+                otherDrops = emptyList()
+                otherDropsError = "Sign-in is still in progress. Try again in a moment."
+                otherDropsLoading = false
+            } else {
+                try {
+                    val drops = repo.getVisibleDropsForUser(uid, joinedGroups.toSet())
+                        .sortedByDescending { it.createdAt }
+                    otherDrops = drops
+                    otherDropsCurrentLocation = getLatestLocation()?.let { (lat, lng) -> LatLng(lat, lng) }
+                    otherDropsSelectedId = otherDropsSelectedId?.takeIf { id -> drops.any { it.id == id } }
+                        ?: drops.firstOrNull()?.id
+                } catch (e: Exception) {
+                    otherDrops = emptyList()
+                    otherDropsError = e.message ?: "Failed to load nearby drops."
+                } finally {
+                    otherDropsLoading = false
+                }
+            }
+        } else {
+            otherDrops = emptyList()
+            otherDropsError = null
+            otherDropsLoading = false
+            otherDropsCurrentLocation = null
+            otherDropsSelectedId = null
+        }
     }
 
     LaunchedEffect(showMyDrops, myDropsRefreshToken) {
@@ -815,6 +856,19 @@ fun DropHereScreen() {
         )
     }
 
+    if (showOtherDropsMap) {
+        OtherDropsMapDialog(
+            loading = otherDropsLoading,
+            drops = otherDrops,
+            currentLocation = otherDropsCurrentLocation,
+            error = otherDropsError,
+            selectedId = otherDropsSelectedId,
+            onSelect = { drop -> otherDropsSelectedId = drop.id },
+            onDismiss = { showOtherDropsMap = false },
+            onRetry = { otherDropsRefreshToken += 1 }
+        )
+    }
+
     if (showMyDrops) {
         MyDropsDialog(
             loading = myDropsLoading,
@@ -1066,6 +1120,126 @@ private fun CollectedDropsDialog(
                                             onRemove(note)
                                         }
                                     )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun OtherDropsMapDialog(
+    loading: Boolean,
+    drops: List<Drop>,
+    currentLocation: LatLng?,
+    error: String?,
+    selectedId: String?,
+    onSelect: (Drop) -> Unit,
+    onDismiss: () -> Unit,
+    onRetry: () -> Unit
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background
+        ) {
+            @OptIn(ExperimentalMaterial3Api::class)
+            Scaffold(
+                topBar = {
+                    TopAppBar(
+                        title = { Text("Nearby drops") },
+                        navigationIcon = {
+                            IconButton(onClick = onDismiss) {
+                                Icon(
+                                    Icons.Filled.ArrowBack,
+                                    contentDescription = "Back to main page"
+                                )
+                            }
+                        }
+                    )
+                }
+            ) { padding ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                ) {
+                    when {
+                        loading -> {
+                            CircularProgressIndicator(Modifier.align(Alignment.Center))
+                        }
+
+                        error != null -> {
+                            DialogMessageContent(
+                                message = error,
+                                primaryLabel = "Retry",
+                                onPrimary = onRetry,
+                                onDismiss = onDismiss
+                            )
+                        }
+
+                        drops.isEmpty() -> {
+                            DialogMessageContent(
+                                message = "No drops from other users are available right now.",
+                                primaryLabel = null,
+                                onPrimary = null,
+                                onDismiss = onDismiss
+                            )
+                        }
+
+                        else -> {
+                            Column(
+                                modifier = Modifier.fillMaxSize()
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .weight(1f)
+                                ) {
+                                    OtherDropsMap(
+                                        drops = drops,
+                                        selectedDropId = selectedId,
+                                        currentLocation = currentLocation
+                                    )
+                                }
+
+                                Divider()
+
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .weight(1f)
+                                ) {
+                                    Text(
+                                        text = "Select a drop to focus on the map.",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 16.dp, vertical = 12.dp)
+                                    )
+
+                                    LazyColumn(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .weight(1f),
+                                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        items(drops, key = { it.id }) { drop ->
+                                            OtherDropRow(
+                                                drop = drop,
+                                                isSelected = drop.id == selectedId,
+                                                onSelect = { onSelect(drop) }
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -1646,6 +1820,160 @@ private fun MyDropsMap(
                 BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ORANGE)
             } else {
                 null
+            }
+
+            Marker(
+                state = MarkerState(position),
+                title = drop.displayTitle(),
+                snippet = snippetParts.joinToString("\n"),
+                icon = markerIcon,
+                zIndex = if (isSelected) 2f else 0f
+            )
+        }
+    }
+}
+
+@Composable
+private fun OtherDropRow(
+    drop: Drop,
+    isSelected: Boolean,
+    onSelect: () -> Unit
+) {
+    val containerColor = if (isSelected) {
+        MaterialTheme.colorScheme.primaryContainer
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant
+    }
+    val contentColor = if (isSelected) {
+        MaterialTheme.colorScheme.onPrimaryContainer
+    } else {
+        MaterialTheme.colorScheme.onSurface
+    }
+    val supportingColor = if (isSelected) {
+        MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        onClick = onSelect,
+        colors = CardDefaults.cardColors(
+            containerColor = containerColor,
+            contentColor = contentColor
+        )
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = drop.displayTitle(),
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold
+            )
+
+            Spacer(Modifier.height(4.dp))
+
+            val typeLabel = when (drop.contentType) {
+                DropContentType.TEXT -> "Text note"
+                DropContentType.PHOTO -> "Photo drop"
+                DropContentType.AUDIO -> "Audio drop"
+            }
+            Text(
+                text = "Type: $typeLabel",
+                style = MaterialTheme.typography.bodySmall,
+                color = supportingColor
+            )
+
+            formatTimestamp(drop.createdAt)?.let {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = supportingColor
+                )
+            }
+
+            drop.groupCode?.takeIf { !it.isNullOrBlank() }?.let { groupCode ->
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = "Group $groupCode",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = supportingColor
+                )
+            }
+
+            Spacer(Modifier.height(4.dp))
+
+            Text(
+                text = "Lat: ${formatCoordinate(drop.lat)}, Lng: ${formatCoordinate(drop.lng)}",
+                style = MaterialTheme.typography.bodySmall,
+                color = supportingColor
+            )
+
+            drop.mediaLabel()?.let { link ->
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = "Link: $link",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun OtherDropsMap(
+    drops: List<Drop>,
+    selectedDropId: String?,
+    currentLocation: LatLng?
+) {
+    val cameraPositionState = rememberCameraPositionState()
+    val uiSettings = remember { MapUiSettings(zoomControlsEnabled = true) }
+
+    LaunchedEffect(drops, selectedDropId, currentLocation) {
+        val targetDrop = drops.firstOrNull { it.id == selectedDropId }
+        val target = targetDrop?.let { LatLng(it.lat, it.lng) }
+            ?: currentLocation
+            ?: drops.firstOrNull()?.let { LatLng(it.lat, it.lng) }
+        if (target != null) {
+            val update = CameraUpdateFactory.newLatLngZoom(target, 15f)
+            cameraPositionState.animate(update)
+        }
+    }
+
+    GoogleMap(
+        modifier = Modifier.fillMaxSize(),
+        cameraPositionState = cameraPositionState,
+        uiSettings = uiSettings
+    ) {
+        currentLocation?.let { location ->
+            Marker(
+                state = MarkerState(location),
+                title = "Your current location",
+                icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE),
+                zIndex = 1f
+            )
+        }
+
+        drops.forEach { drop ->
+            val position = LatLng(drop.lat, drop.lng)
+            val snippetParts = mutableListOf<String>()
+            val typeLabel = when (drop.contentType) {
+                DropContentType.TEXT -> "Text note"
+                DropContentType.PHOTO -> "Photo drop"
+                DropContentType.AUDIO -> "Audio drop"
+            }
+            snippetParts.add("Type: $typeLabel")
+            formatTimestamp(drop.createdAt)?.let { snippetParts.add("Dropped $it") }
+            drop.groupCode?.takeIf { !it.isNullOrBlank() }?.let { snippetParts.add("Group $it") }
+            snippetParts.add("Lat: %.5f, Lng: %.5f".format(drop.lat, drop.lng))
+            drop.mediaLabel()?.let { snippetParts.add("Link: $it") }
+
+            val isSelected = drop.id == selectedDropId
+            val markerIcon = if (isSelected) {
+                BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ORANGE)
+            } else {
+                BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED)
             }
 
             Marker(
