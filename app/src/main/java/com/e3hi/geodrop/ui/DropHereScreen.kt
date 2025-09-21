@@ -412,7 +412,7 @@ fun DropHereScreen() {
         val sanitizedMime = mediaMimeType?.takeIf { it.isNotBlank() }
         val sanitizedData = mediaData?.takeIf { it.isNotBlank() }
         val sanitizedText = when (contentType) {
-            DropContentType.TEXT -> noteText.ifBlank { "New drop" }
+            DropContentType.TEXT -> noteText.trim()
             DropContentType.PHOTO, DropContentType.AUDIO -> noteText.trim()
         }
         val d = Drop(
@@ -456,9 +456,17 @@ fun DropHereScreen() {
                 var mediaUrlResult: String? = null
                 var mediaMimeTypeResult: String? = null
                 var mediaDataResult: String? = null
+                var dropNoteText = note.text
 
                 when (dropContentType) {
                     DropContentType.TEXT -> {
+                        val trimmed = note.text.trim()
+                        if (trimmed.isEmpty()) {
+                            isSubmitting = false
+                            snackbar.showMessage(scope, "Enter a note before dropping.")
+                            return@launch
+                        }
+                        dropNoteText = trimmed
                         mediaUrlResult = null
                         mediaMimeTypeResult = null
                         mediaDataResult = null
@@ -466,6 +474,7 @@ fun DropHereScreen() {
 
                     DropContentType.PHOTO -> {
                         val path = capturedPhotoPath ?: run {
+                            dropNoteText = note.text.trim()
                             isSubmitting = false
                             snackbar.showMessage(scope, "Capture a photo before dropping.")
                             return@launch
