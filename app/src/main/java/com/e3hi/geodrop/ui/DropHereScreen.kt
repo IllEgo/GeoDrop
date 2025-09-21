@@ -9,7 +9,6 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.net.Uri
-import android.provider.MediaStore
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -236,11 +235,11 @@ fun DropHereScreen() {
         when (dropContentType) {
             DropContentType.TEXT -> {
                 capturedPhotoPath = null
-                capturedAudioUri = null
+                clearAudio()
             }
 
             DropContentType.PHOTO -> {
-                capturedAudioUri = null
+                clearAudio()
             }
 
             DropContentType.AUDIO -> {
@@ -324,15 +323,22 @@ fun DropHereScreen() {
     fun ensureAudioAndLaunch() {
         val permission = Manifest.permission.RECORD_AUDIO
         if (ContextCompat.checkSelfPermission(ctx, permission) == PackageManager.PERMISSION_GRANTED) {
-            val intent = Intent(MediaStore.Audio.Media.RECORD_SOUND_ACTION)
-            if (intent.resolveActivity(ctx.packageManager) != null) {
-                recordAudioLauncher.launch(intent)
-            } else {
-                snackbar.showMessage(scope, "No recorder app available on this device.")
-            }
+            val intent = Intent(ctx, AudioRecorderActivity::class.java)
+            recordAudioLauncher.launch(intent)
         } else {
             pendingAudioPermissionAction = { ensureAudioAndLaunch() }
             audioPermissionLauncher.launch(permission)
+        }
+    }
+
+    fun clearAudio() {
+        val uriString = capturedAudioUri
+        capturedAudioUri = null
+        if (uriString != null) {
+            val uri = Uri.parse(uriString)
+            scope.launch(Dispatchers.IO) {
+                runCatching { ctx.contentResolver.delete(uri, null, null) }
+            }
         }
     }
 
@@ -340,7 +346,7 @@ fun DropHereScreen() {
         isSubmitting = false
         note = TextFieldValue("")
         capturedPhotoPath = null
-        capturedAudioUri = null
+        clearAudio()
         val baseStatus = "Dropped at (%.5f, %.5f)".format(lat, lng)
         val typeSummary = when (contentType) {
             DropContentType.TEXT -> "note"
@@ -570,13 +576,13 @@ fun DropHereScreen() {
                     primaryLabel = if (hasAudio) "Record again" else "Record audio",
                     onPrimary = {
                         if (hasAudio) {
-                            capturedAudioUri = null
+                            clearAudio()
                         }
                         ensureAudioAndLaunch()
                     },
                     secondaryLabel = if (hasAudio) "Remove audio" else null,
                     onSecondary = if (hasAudio) {
-                        { capturedAudioUri = null }
+                        { clearAudio() }
                     } else {
                         null
                     }
