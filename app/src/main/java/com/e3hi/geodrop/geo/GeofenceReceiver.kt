@@ -88,6 +88,7 @@ class GeofenceReceiver : BroadcastReceiver() {
                     dropMediaUrl?.let { putExtra("dropMediaUrl", it) }
                     dropMediaMimeType?.let { putExtra("dropMediaMimeType", it) }
                     dropMediaData?.let { putExtra("dropMediaData", it) }
+                    putExtra(DropDetailActivity.EXTRA_SHOW_DECISION_OPTIONS, true)
                 }
 
 

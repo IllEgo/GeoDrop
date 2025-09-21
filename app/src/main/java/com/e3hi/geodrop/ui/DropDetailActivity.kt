@@ -12,6 +12,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -20,6 +21,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.LaunchedEffect
@@ -32,9 +34,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.FileProvider
 import com.e3hi.geodrop.MainActivity
 import com.e3hi.geodrop.data.DropContentType
+import com.e3hi.geodrop.data.NoteInventory
+import com.e3hi.geodrop.geo.DropDecisionReceiver
 import com.e3hi.geodrop.util.formatTimestamp
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
@@ -58,6 +63,7 @@ class DropDetailActivity : ComponentActivity() {
         val initialMediaUrl = intent.getStringExtra("dropMediaUrl")?.takeIf { it.isNotBlank() }
         val initialMediaMimeType = intent.getStringExtra("dropMediaMimeType")?.takeIf { it.isNotBlank() }
         val initialMediaData = intent.getStringExtra("dropMediaData")?.takeIf { it.isNotBlank() }
+        val showDecisionOptions = intent.getBooleanExtra(EXTRA_SHOW_DECISION_OPTIONS, false)
         setContent {
             val context = LocalContext.current
 
@@ -324,6 +330,26 @@ class DropDetailActivity : ComponentActivity() {
                     }
                 }
 
+                val appContext = context.applicationContext
+                val noteInventory = remember(appContext) { NoteInventory(appContext) }
+                var decisionHandled by remember(dropId) { mutableStateOf(false) }
+                var decisionStatusMessage by remember(dropId) { mutableStateOf<String?>(null) }
+                var decisionProcessing by remember(dropId) { mutableStateOf(false) }
+                val isAlreadyCollected = remember(dropId) {
+                    dropId.isNotBlank() && noteInventory.isCollected(dropId)
+                }
+                val isAlreadyIgnored = remember(dropId) {
+                    dropId.isNotBlank() && noteInventory.isIgnored(dropId)
+                }
+                val shouldShowDecisionPrompt =
+                    showDecisionOptions && dropId.isNotBlank() && !isAlreadyCollected && !isAlreadyIgnored && !decisionHandled
+                val defaultDecisionMessage = when {
+                    showDecisionOptions && isAlreadyCollected -> "You've already picked up this drop."
+                    showDecisionOptions && isAlreadyIgnored -> "You've already ignored this drop."
+                    else -> null
+                }
+                val decisionMessage = decisionStatusMessage ?: defaultDecisionMessage
+
                 Spacer(Modifier.height(8.dp))
 
                 val visibilityText = when (val current = state) {
@@ -365,6 +391,92 @@ class DropDetailActivity : ComponentActivity() {
                 Text("Lat: $latText")
                 Text("Lng: $lngText")
 
+                if (shouldShowDecisionPrompt) {
+                    Spacer(Modifier.height(16.dp))
+                    val decisionPrompt = when (loadedState?.contentType) {
+                        DropContentType.TEXT -> "Would you like to pick up this note?"
+                        DropContentType.PHOTO -> "Would you like to pick up this photo?"
+                        DropContentType.AUDIO -> "Would you like to pick up this audio drop?"
+                        null -> "Would you like to pick up this drop?"
+                    }
+                    Text(decisionPrompt, style = MaterialTheme.typography.titleMedium)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Button(
+                            onClick = {
+                                val current = loadedState ?: return@Button
+                                decisionProcessing = true
+                                val pickupIntent = Intent(appContext, DropDecisionReceiver::class.java).apply {
+                                    action = DropDecisionReceiver.ACTION_PICK_UP
+                                    putExtra(DropDecisionReceiver.EXTRA_DROP_ID, dropId)
+                                    current.text?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_TEXT, it) }
+                                    current.lat?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_LAT, it) }
+                                    current.lng?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_LNG, it) }
+                                    current.createdAt?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_CREATED_AT, it) }
+                                    current.groupCode?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_GROUP, it) }
+                                    putExtra(DropDecisionReceiver.EXTRA_DROP_CONTENT_TYPE, current.contentType.name)
+                                    current.mediaUrl?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_MEDIA_URL, it) }
+                                    current.mediaMimeType?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_MEDIA_MIME_TYPE, it) }
+                                    current.mediaData?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_MEDIA_DATA, it) }
+                                }
+                                val result = runCatching {
+                                    appContext.sendBroadcast(pickupIntent)
+                                    NotificationManagerCompat.from(appContext).cancel(dropId.hashCode())
+                                }
+                                decisionProcessing = false
+                                if (result.isSuccess) {
+                                    decisionHandled = true
+                                    decisionStatusMessage = "Drop added to your collection."
+                                    Toast.makeText(context, "Drop added to your collection.", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    Toast.makeText(context, "Couldn't pick up this drop.", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            enabled = !decisionProcessing && loadedState != null,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Pick up")
+                        }
+
+                        OutlinedButton(
+                            onClick = {
+                                decisionProcessing = true
+                                val ignoreIntent = Intent(appContext, DropDecisionReceiver::class.java).apply {
+                                    action = DropDecisionReceiver.ACTION_IGNORE
+                                    putExtra(DropDecisionReceiver.EXTRA_DROP_ID, dropId)
+                                }
+                                val result = runCatching {
+                                    appContext.sendBroadcast(ignoreIntent)
+                                    NotificationManagerCompat.from(appContext).cancel(dropId.hashCode())
+                                }
+                                decisionProcessing = false
+                                if (result.isSuccess) {
+                                    decisionHandled = true
+                                    decisionStatusMessage = "Drop ignored. You won't be notified about it again."
+                                    Toast.makeText(context, "Drop ignored.", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    Toast.makeText(context, "Couldn't ignore this drop.", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            enabled = !decisionProcessing,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Ignore")
+                        }
+                    }
+                }
+
+                decisionMessage?.let {
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        text = it,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+
                 Spacer(Modifier.weight(1f))
 
                 Button(
@@ -386,6 +498,10 @@ class DropDetailActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    companion object {
+        const val EXTRA_SHOW_DECISION_OPTIONS = "showDecisionOptions"
     }
 }
 
