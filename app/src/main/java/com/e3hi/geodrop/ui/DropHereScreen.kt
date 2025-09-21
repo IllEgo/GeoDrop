@@ -10,6 +10,8 @@ import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.util.Base64
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -25,13 +27,24 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.rounded.Bookmark
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.Inbox
+import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Map
+import androidx.compose.material.icons.rounded.Mic
+import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.material.icons.rounded.Place
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material3.*
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -1134,6 +1147,7 @@ private fun DropComposerDialog(
     onSubmit: () -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val context = LocalContext.current
     Dialog(
         onDismissRequest = {
             if (!isSubmitting) {
@@ -1178,33 +1192,10 @@ private fun DropComposerDialog(
                     }
                 }
 
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text("Drop content", style = MaterialTheme.typography.titleSmall)
-
-                    ContentTypeOption(
-                        title = "Text note",
-                        description = "Share a written message for people nearby.",
-                        selected = dropContentType == DropContentType.TEXT,
-                        onClick = { onDropContentTypeChange(DropContentType.TEXT) }
-                    )
-
-                    ContentTypeOption(
-                        title = "Photo drop",
-                        description = "Capture a photo with your camera that others can open.",
-                        selected = dropContentType == DropContentType.PHOTO,
-                        onClick = { onDropContentTypeChange(DropContentType.PHOTO) }
-                    )
-
-                    ContentTypeOption(
-                        title = "Audio drop",
-                        description = "Record a quick voice message for nearby explorers.",
-                        selected = dropContentType == DropContentType.AUDIO,
-                        onClick = { onDropContentTypeChange(DropContentType.AUDIO) }
-                    )
-                }
+                DropContentTypeSection(
+                    selected = dropContentType,
+                    onSelect = onDropContentTypeChange
+                )
 
                 val noteLabel = when (dropContentType) {
                     DropContentType.TEXT -> "Your note"
@@ -1232,11 +1223,29 @@ private fun DropComposerDialog(
                 when (dropContentType) {
                     DropContentType.PHOTO -> {
                         val hasPhoto = capturedPhotoPath != null
+                        val photoPreview: (@Composable () -> Unit)? = capturedPhotoPath?.let { path ->
+                            {
+                                AsyncImage(
+                                    model = ImageRequest.Builder(context)
+                                        .data(File(path))
+                                        .crossfade(true)
+                                        .build(),
+                                    contentDescription = "Captured photo preview",
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .heightIn(min = 160.dp, max = 240.dp)
+                                        .clip(RoundedCornerShape(16.dp)),
+                                    contentScale = ContentScale.Crop
+                                )
+                            }
+                        }
                         MediaCaptureCard(
                             title = "Attach a photo",
                             description = "Snap a picture with your camera to pin at this location.",
                             status = if (hasPhoto) "Photo ready to upload." else "No photo captured yet.",
+                            isReady = hasPhoto,
                             primaryLabel = if (hasPhoto) "Retake photo" else "Open camera",
+                            primaryIcon = Icons.Rounded.PhotoCamera,
                             onPrimary = {
                                 if (hasPhoto) {
                                     onClearPhoto()
@@ -1248,17 +1257,58 @@ private fun DropComposerDialog(
                                 { onClearPhoto() }
                             } else {
                                 null
-                            }
+                            },
+                            previewContent = photoPreview
                         )
                     }
 
                     DropContentType.AUDIO -> {
                         val hasAudio = capturedAudioUri != null
+                        val audioPreview: (@Composable () -> Unit)? = if (hasAudio) {
+                            {
+                                Surface(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.Start
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.PlayArrow,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                        Spacer(Modifier.width(12.dp))
+                                        Column {
+                                            Text(
+                                                text = "Audio attached",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                            Text(
+                                                text = "Ready to drop your voice note.",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            null
+                        }
                         MediaCaptureCard(
                             title = "Record audio",
                             description = "Capture a short voice note for anyone who discovers this drop.",
                             status = if (hasAudio) "Audio message ready to upload." else "No recording yet.",
+                            isReady = hasAudio,
                             primaryLabel = if (hasAudio) "Record again" else "Record audio",
+                            primaryIcon = Icons.Rounded.Mic,
                             onPrimary = {
                                 if (hasAudio) {
                                     onClearAudio()
@@ -1270,85 +1320,33 @@ private fun DropComposerDialog(
                                 { onClearAudio() }
                             } else {
                                 null
-                            }
+                            },
+                            previewContent = audioPreview
                         )
                     }
 
                     DropContentType.TEXT -> Unit
                 }
 
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text("Drop visibility", style = MaterialTheme.typography.titleSmall)
-
-                    VisibilityOption(
-                        title = "Public drop",
-                        description = "Anyone nearby can discover this note.",
-                        selected = dropVisibility == DropVisibility.Public,
-                        onClick = { onDropVisibilityChange(DropVisibility.Public) }
-                    )
-
-                    VisibilityOption(
-                        title = "Group-only drop",
-                        description = "Limit discovery to people who share your group code.",
-                        selected = dropVisibility == DropVisibility.GroupOnly,
-                        onClick = { onDropVisibilityChange(DropVisibility.GroupOnly) }
-                    )
-
-                    if (dropVisibility == DropVisibility.GroupOnly) {
-                        OutlinedTextField(
-                            value = groupCodeInput,
-                            onValueChange = onGroupCodeInputChange,
-                            label = { Text("Group code") },
-                            modifier = Modifier.fillMaxWidth(),
-                            supportingText = {
-                                Text("Codes stay on this device. Share them with your crew or guests.")
-                            }
-                        )
-
-                        if (joinedGroups.isNotEmpty()) {
-                            Text(
-                                text = "Tap a saved code to reuse it:",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .horizontalScroll(rememberScrollState()),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                joinedGroups.forEach { code ->
-                                    AssistChip(
-                                        onClick = { onSelectGroupCode(code) },
-                                        label = { Text(code) }
-                                    )
-                                }
-                            }
-                        }
-                    } else {
-                        val visibilityMessage = if (joinedGroups.isEmpty()) {
-                            "Add a group code to keep drops private for weddings, crew ops, or hunts."
-                        } else {
-                            "Active group codes: ${joinedGroups.joinToString()}."
-                        }
-
-                        Text(
-                            text = visibilityMessage,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
+                DropVisibilitySection(
+                    visibility = dropVisibility,
+                    onVisibilityChange = onDropVisibilityChange,
+                    groupCodeInput = groupCodeInput,
+                    onGroupCodeInputChange = onGroupCodeInputChange,
+                    joinedGroups = joinedGroups,
+                    onSelectGroupCode = onSelectGroupCode
+                )
 
                 OutlinedButton(
                     onClick = onManageGroupCodes,
                     enabled = !isSubmitting,
                     modifier = Modifier.fillMaxWidth()
                 ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Groups,
+                        contentDescription = null
+                    )
+                    Spacer(Modifier.width(8.dp))
                     Text("Manage group codes")
                 }
 
@@ -1357,7 +1355,18 @@ private fun DropComposerDialog(
                     onClick = onSubmit,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(if (isSubmitting) "Dropping…" else "Drop content")
+                    if (isSubmitting) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Text("Dropping…")
+                    } else {
+                        Icon(Icons.Rounded.Place, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Drop content")
+                    }
                 }
             }
         }
@@ -2163,33 +2172,87 @@ private fun MediaCaptureCard(
     title: String,
     description: String,
     status: String,
+    isReady: Boolean,
     primaryLabel: String,
+    primaryIcon: ImageVector? = null,
     onPrimary: () -> Unit,
     secondaryLabel: String? = null,
-    onSecondary: (() -> Unit)? = null
+    onSecondary: (() -> Unit)? = null,
+    previewContent: (@Composable () -> Unit)? = null
 ) {
+    val containerColor by animateColorAsState(
+        targetValue = if (isReady) {
+            MaterialTheme.colorScheme.primaryContainer
+        } else {
+            MaterialTheme.colorScheme.surfaceVariant
+        },
+        label = "mediaContainer"
+    )
+    val contentColor = if (isReady) {
+        MaterialTheme.colorScheme.onPrimaryContainer
+    } else {
+        MaterialTheme.colorScheme.onSurface
+    }
+    val supportingColor = if (isReady) {
+        MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    val statusIcon = if (isReady) Icons.Rounded.CheckCircle else Icons.Rounded.Info
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        colors = CardDefaults.cardColors(
+            containerColor = containerColor,
+            contentColor = contentColor
+        )
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(title, style = MaterialTheme.typography.titleMedium)
-            Text(
-                text = description,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Text(
-                text = status,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Button(onClick = onPrimary, modifier = Modifier.fillMaxWidth()) { Text(primaryLabel) }
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(title, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = supportingColor
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = statusIcon,
+                    contentDescription = null,
+                    tint = if (isReady) MaterialTheme.colorScheme.primary else supportingColor
+                )
+                Text(
+                    text = status,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = supportingColor,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            previewContent?.let {
+                it()
+            }
+
+            Button(
+                onClick = onPrimary,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                if (primaryIcon != null) {
+                    Icon(primaryIcon, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                }
+                Text(primaryLabel)
+            }
             if (secondaryLabel != null && onSecondary != null) {
                 TextButton(onClick = onSecondary) {
                     Text(secondaryLabel)
@@ -2557,21 +2620,6 @@ private fun ManageDropRow(
 }
 
 @Composable
-private fun ContentTypeOption(
-    title: String,
-    description: String,
-    selected: Boolean,
-    onClick: () -> Unit
-) {
-    SelectionOption(
-        title = title,
-        description = description,
-        selected = selected,
-        onClick = onClick
-    )
-}
-
-@Composable
 private fun SignInRequiredScreen(
     isSigningIn: Boolean,
     error: String?,
@@ -2631,51 +2679,250 @@ private fun SignInRequiredScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun VisibilityOption(
-    title: String,
-    description: String,
-    selected: Boolean,
-    onClick: () -> Unit
+private fun DropContentTypeSection(
+    selected: DropContentType,
+    onSelect: (DropContentType) -> Unit
 ) {
-    SelectionOption(
-        title = title,
-        description = description,
-        selected = selected,
-        onClick = onClick
-    )
-}
-
-@Composable
-private fun SelectionOption(
-    title: String,
-    description: String,
-    selected: Boolean,
-    onClick: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        RadioButton(selected = selected, onClick = onClick)
-        Spacer(Modifier.width(8.dp))
-        Column {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
+    val options = remember {
+        listOf(
+            DropContentTypeOption(
+                type = DropContentType.TEXT,
+                title = "Text note",
+                description = "Share a written message for people nearby.",
+                icon = Icons.Rounded.Edit
+            ),
+            DropContentTypeOption(
+                type = DropContentType.PHOTO,
+                title = "Photo drop",
+                description = "Capture a photo with your camera that others can open.",
+                icon = Icons.Rounded.PhotoCamera
+            ),
+            DropContentTypeOption(
+                type = DropContentType.AUDIO,
+                title = "Audio drop",
+                description = "Record a quick voice message for nearby explorers.",
+                icon = Icons.Rounded.Mic
             )
+        )
+    }
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text("Drop content", style = MaterialTheme.typography.titleSmall)
+
+        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+            options.forEachIndexed { index, option ->
+                SegmentedButton(
+                    shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
+                    onCheckedChange = { onSelect(option.type) },
+                    checked = option.type == selected,
+                    label = { Text(option.title) },
+                    icon = {
+                        Icon(
+                            imageVector = option.icon,
+                            contentDescription = null
+                        )
+                    }
+                )
+            }
+        }
+
+        Crossfade(targetState = selected, label = "dropContentDescription") { type ->
+            val message = options.firstOrNull { it.type == type }?.description ?: ""
             Text(
-                text = description,
+                text = message,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
 }
+
+@Composable
+private fun DropVisibilitySection(
+    visibility: DropVisibility,
+    onVisibilityChange: (DropVisibility) -> Unit,
+    groupCodeInput: TextFieldValue,
+    onGroupCodeInputChange: (TextFieldValue) -> Unit,
+    joinedGroups: List<String>,
+    onSelectGroupCode: (String) -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text("Drop visibility", style = MaterialTheme.typography.titleSmall)
+
+        DropVisibilityOptionCard(
+            title = "Public drop",
+            description = "Anyone nearby can discover this note.",
+            icon = Icons.Rounded.Public,
+            selected = visibility == DropVisibility.Public,
+            onClick = { onVisibilityChange(DropVisibility.Public) }
+        )
+
+        DropVisibilityOptionCard(
+            title = "Group-only drop",
+            description = "Limit discovery to people who share your group code.",
+            icon = Icons.Rounded.Lock,
+            selected = visibility == DropVisibility.GroupOnly,
+            onClick = { onVisibilityChange(DropVisibility.GroupOnly) }
+        )
+
+        if (visibility == DropVisibility.GroupOnly) {
+            OutlinedTextField(
+                value = groupCodeInput,
+                onValueChange = onGroupCodeInputChange,
+                label = { Text("Group code") },
+                modifier = Modifier.fillMaxWidth(),
+                supportingText = {
+                    Text("Codes stay on this device. Share them with your crew or guests.")
+                }
+            )
+
+            if (joinedGroups.isNotEmpty()) {
+                Text(
+                    text = "Tap a saved code to reuse it:",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    joinedGroups.forEach { code ->
+                        AssistChip(
+                            onClick = { onSelectGroupCode(code) },
+                            label = { Text(code) }
+                        )
+                    }
+                }
+            }
+        } else {
+            val visibilityMessage = if (joinedGroups.isEmpty()) {
+                "Add a group code to keep drops private for weddings, crew ops, or hunts."
+            } else {
+                "Active group codes: ${joinedGroups.joinToString()}."
+            }
+            Text(
+                text = visibilityMessage,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DropVisibilityOptionCard(
+    title: String,
+    description: String,
+    icon: ImageVector,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    val containerColor by animateColorAsState(
+        targetValue = if (selected) {
+            MaterialTheme.colorScheme.primaryContainer
+        } else {
+            MaterialTheme.colorScheme.surfaceVariant
+        },
+        label = "visibilityContainer"
+    )
+    val contentColor = if (selected) {
+        MaterialTheme.colorScheme.onPrimaryContainer
+    } else {
+        MaterialTheme.colorScheme.onSurface
+    }
+    val supportingColor = if (selected) {
+        MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    val border = if (selected) {
+        null
+    } else {
+        BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    }
+
+    ElevatedCard(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = containerColor,
+            contentColor = contentColor
+        ),
+        border = border
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Surface(
+                modifier = Modifier.size(40.dp),
+                shape = CircleShape,
+                color = if (selected) {
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                } else {
+                    MaterialTheme.colorScheme.surface
+                }
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = if (selected) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+                    )
+                }
+            }
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium
+                )
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = supportingColor
+                )
+            }
+
+            Icon(
+                imageVector = if (selected) Icons.Rounded.CheckCircle else Icons.Rounded.Info,
+                contentDescription = null,
+                tint = if (selected) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                }
+            )
+        }
+    }
+}
+
+private data class DropContentTypeOption(
+    val type: DropContentType,
+    val title: String,
+    val description: String,
+    val icon: ImageVector
+)
 
 private enum class DropVisibility { Public, GroupOnly }
 
