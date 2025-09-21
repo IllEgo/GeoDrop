@@ -782,6 +782,21 @@ fun DropHereScreen() {
             onSelect = { drop -> myDropsSelectedId = drop.id },
             onDismiss = { showMyDrops = false },
             onRetry = { myDropsRefreshToken += 1 },
+            onView = { drop ->
+                val intent = Intent(ctx, DropDetailActivity::class.java).apply {
+                    putExtra("dropId", drop.id)
+                    if (drop.text.isNotBlank()) putExtra("dropText", drop.text)
+                    putExtra("dropContentType", drop.contentType.name)
+                    putExtra("dropLat", drop.lat)
+                    putExtra("dropLng", drop.lng)
+                    putExtra("dropCreatedAt", drop.createdAt)
+                    drop.groupCode?.let { putExtra("dropGroupCode", it) }
+                    drop.mediaUrl?.let { putExtra("dropMediaUrl", it) }
+                    drop.mediaMimeType?.let { putExtra("dropMediaMimeType", it) }
+                    drop.mediaData?.let { putExtra("dropMediaData", it) }
+                }
+                ctx.startActivity(intent)
+            },
             onDelete = { drop ->
                 if (drop.id.isBlank()) {
                     snackbar.showMessage(scope, "Unable to delete this drop.")
@@ -1751,6 +1766,7 @@ private fun MyDropsDialog(
     onSelect: (Drop) -> Unit,
     onDismiss: () -> Unit,
     onRetry: () -> Unit,
+    onView: (Drop) -> Unit,
     onDelete: (Drop) -> Unit
 ) {
     Dialog(
@@ -1850,6 +1866,7 @@ private fun MyDropsDialog(
                                                 isDeleting = deletingId == drop.id,
                                                 isSelected = drop.id == selectedId,
                                                 onSelect = { onSelect(drop) },
+                                                onView = { onView(drop) },
                                                 onDelete = { onDelete(drop) }
                                             )
                                         }
@@ -2163,6 +2180,7 @@ private fun ManageDropRow(
     isDeleting: Boolean,
     isSelected: Boolean,
     onSelect: () -> Unit,
+    onView: () -> Unit,
     onDelete: () -> Unit
 ) {
     val containerColor = if (isSelected) {
@@ -2266,8 +2284,16 @@ private fun ManageDropRow(
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
+                TextButton(
+                    onClick = onView,
+                    enabled = !isDeleting
+                ) {
+                    Text("View details")
+                }
+
                 TextButton(
                     onClick = onDelete,
                     enabled = !isDeleting
