@@ -10,6 +10,7 @@ import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.util.Base64
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -17,12 +18,20 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.rounded.Bookmark
+import androidx.compose.material.icons.rounded.Groups
+import androidx.compose.material.icons.rounded.Inbox
+import androidx.compose.material.icons.rounded.Map
+import androidx.compose.material.icons.rounded.Place
+import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material3.*
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -32,6 +41,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
@@ -82,6 +92,7 @@ import java.io.IOException
 import java.util.Locale
 
 @SuppressLint("MissingPermission")
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DropHereScreen() {
     val ctx = LocalContext.current
@@ -169,7 +180,6 @@ fun DropHereScreen() {
 
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    val scrollState = rememberScrollState()
 
     val fused = remember { LocationServices.getFusedLocationProviderClient(ctx) }
     val repo = remember { FirestoreRepo() }
@@ -621,112 +631,153 @@ fun DropHereScreen() {
     }
 
 
-    Box(Modifier.fillMaxSize()) {
-        Column(
-            Modifier
+    val collectedCount = collectedNotes.size
+
+    Scaffold(
+        modifier = Modifier.fillMaxSize(),
+        topBar = {
+            TopAppBar(
+                title = { Text("GeoDrop") },
+                actions = {
+                    IconButton(onClick = { showManageGroups = true }) {
+                        Icon(
+                            imageVector = Icons.Rounded.Groups,
+                            contentDescription = "Manage group codes"
+                        )
+                    }
+                }
+            )
+        },
+        floatingActionButton = {
+            ExtendedFloatingActionButton(
+                onClick = {
+                    if (!isSubmitting) {
+                        showDropComposer = true
+                    }
+                },
+                icon = { Icon(Icons.Rounded.Place, contentDescription = null) },
+                text = { Text(if (isSubmitting) "Dropping…" else "Drop something") }
+            )
+        },
+        snackbarHost = {
+            SnackbarHost(
+                hostState = snackbar,
+                modifier = Modifier.padding(bottom = 16.dp)
+            )
+        }
+    ) { innerPadding ->
+        LazyColumn(
+            modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(scrollState)
-                .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .padding(innerPadding),
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 24.dp, bottom = 128.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            Text("Drop something at your current location", style = MaterialTheme.typography.titleMedium)
-
-            Button(
-                enabled = !isSubmitting,
-                onClick = { showDropComposer = true },
-                modifier = Modifier.fillMaxWidth()
-            ) { Text("Drop content") }
-
-            // Handy for testing: re-scan & register geofences without restarting
-            Button(
-                onClick = {
-                    registrar.registerNearby(
-                        ctx,
-                        maxMeters = 300.0,
-                        groupCodes = joinedGroups.toSet()
-                    ) { statusResult ->
-                        when (statusResult) {
-                            is NearbySyncStatus.Success -> {
-                                val msg = if (statusResult.count > 0) {
-                                    val base = "Found ${statusResult.count} drop" +
-                                            if (statusResult.count == 1) " nearby from another user." else "s nearby from other users."
-                                    "$base You'll be notified when you're close."
-                                } else {
-                                    "No nearby drops from other users right now."
-                                }
-
-                                status = msg
-                                snackbar.showMessage(scope, msg)
-                            }
-                            NearbySyncStatus.MissingPermission -> {
-                                val msg = "Location permission is required to sync nearby drops."
-                                status = msg
-                                snackbar.showMessage(scope, msg)
-                            }
-                            NearbySyncStatus.NoLocation -> {
-                                val msg = "Couldn't get your current location. Turn on GPS and try again."
-                                status = msg
-                                snackbar.showMessage(scope, msg)
-                            }
-                            is NearbySyncStatus.Error -> {
-                                val msg = statusResult.message
-                                status = msg
-                                snackbar.showMessage(scope, msg)
-                            }
-                        }
-                    }
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) { Text("Sync nearby drops") }
-
-            Button(
-                onClick = {
-                    if (FirebaseAuth.getInstance().currentUser == null) {
-                        snackbar.showMessage(scope, "Signing you in… please try again shortly.")
-                    } else {
-                        showOtherDropsMap = true
-                    }
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) { Text("View other drops on map") }
-
-            Button(
-                onClick = {
-                    if (FirebaseAuth.getInstance().currentUser == null) {
-                        snackbar.showMessage(scope, "Signing you in… please try again shortly.")
-                    } else {
-                        showMyDrops = true
-                    }
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) { Text("View my drops") }
-
-            Button(
-                onClick = {
-                    collectedNotes = noteInventory.getCollectedNotes()
-                    showCollectedDrops = true
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                val count = collectedNotes.size
-                Text(
-                    text = if (count == 0) "View collected drops" else "View collected drops ($count)"
+            item {
+                HeroCard(
+                    joinedGroups = joinedGroups,
+                    onManageGroups = { showManageGroups = true }
                 )
             }
 
-            status?.let { Text(it) }
+            item { SectionHeader(text = "Quick actions") }
 
-            Spacer(Modifier.height(80.dp))
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    ActionCard(
+                        icon = Icons.Rounded.Sync,
+                        title = "Sync nearby drops",
+                        description = "Refresh geofences and check for new surprises nearby.",
+                        onClick = {
+                            registrar.registerNearby(
+                                ctx,
+                                maxMeters = 300.0,
+                                groupCodes = joinedGroups.toSet()
+                            ) { statusResult ->
+                                when (statusResult) {
+                                    is NearbySyncStatus.Success -> {
+                                        val msg = if (statusResult.count > 0) {
+                                            val base = "Found ${statusResult.count} drop" +
+                                                    if (statusResult.count == 1) " nearby from another user." else "s nearby from other users."
+                                            "$base You'll be notified when you're close."
+                                        } else {
+                                            "No nearby drops from other users right now."
+                                        }
+
+                                        status = msg
+                                        snackbar.showMessage(scope, msg)
+                                    }
+                                    NearbySyncStatus.MissingPermission -> {
+                                        val msg = "Location permission is required to sync nearby drops."
+                                        status = msg
+                                        snackbar.showMessage(scope, msg)
+                                    }
+                                    NearbySyncStatus.NoLocation -> {
+                                        val msg = "Couldn't get your current location. Turn on GPS and try again."
+                                        status = msg
+                                        snackbar.showMessage(scope, msg)
+                                    }
+                                    is NearbySyncStatus.Error -> {
+                                        val msg = statusResult.message
+                                        status = msg
+                                        snackbar.showMessage(scope, msg)
+                                    }
+                                }
+                            }
+                        }
+                    )
+
+                    ActionCard(
+                        icon = Icons.Rounded.Map,
+                        title = "Browse map",
+                        description = "See every drop you can currently unlock.",
+                        onClick = {
+                            if (FirebaseAuth.getInstance().currentUser == null) {
+                                snackbar.showMessage(scope, "Signing you in… please try again shortly.")
+                            } else {
+                                showOtherDropsMap = true
+                            }
+                        }
+                    )
+
+                    ActionCard(
+                        icon = Icons.Rounded.Inbox,
+                        title = "My drops",
+                        description = "Review, open, and manage the drops you've shared.",
+                        onClick = {
+                            if (FirebaseAuth.getInstance().currentUser == null) {
+                                snackbar.showMessage(scope, "Signing you in… please try again shortly.")
+                            } else {
+                                showMyDrops = true
+                            }
+                        }
+                    )
+
+                    ActionCard(
+                        icon = Icons.Rounded.Bookmark,
+                        title = "Collected drops",
+                        description = if (collectedCount == 0) {
+                            "Open the drops you've saved for later."
+                        } else {
+                            "Open the $collectedCount drop" + if (collectedCount == 1) " you've saved." else "s you've saved."
+                        },
+                        onClick = {
+                            collectedNotes = noteInventory.getCollectedNotes()
+                            showCollectedDrops = true
+                        },
+                        trailingContent = {
+                            if (collectedCount > 0) {
+                                CountBadge(count = collectedCount)
+                            }
+                        }
+                    )
+                }
+            }
+
+            status?.let { message ->
+                item { StatusCard(message = message) }
+            }
         }
-
-        SnackbarHost(
-            hostState = snackbar,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 16.dp)
-        )
     }
 
     if (showDropComposer) {
@@ -871,6 +922,192 @@ fun DropHereScreen() {
                 snackbar.showMessage(scope, "Removed group $code")
             }
         )
+    }
+}
+
+@Composable
+private fun HeroCard(
+    joinedGroups: List<String>,
+    onManageGroups: () -> Unit,
+) {
+    ElevatedCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(28.dp),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = "Drop something at your spot",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+
+            Text(
+                text = "Leave voice notes, photos, or text that unlock when explorers arrive nearby.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
+            )
+
+            if (joinedGroups.isEmpty()) {
+                Text(
+                    text = "Add a group code to share privately with teammates, friends, or events.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
+                )
+            } else {
+                Text(
+                    text = "Active group codes",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+
+                Row(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    joinedGroups.forEach { code ->
+                        AssistChip(
+                            onClick = {},
+                            label = { Text(code) },
+                            colors = AssistChipDefaults.assistChipColors(
+                                containerColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.12f),
+                                labelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        )
+                    }
+                }
+            }
+
+            OutlinedButton(
+                onClick = onManageGroups,
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                ),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.5f))
+            ) {
+                Text("Manage group codes")
+            }
+        }
+    }
+}
+
+@Composable
+private fun SectionHeader(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.titleMedium,
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier.fillMaxWidth()
+    )
+}
+
+@Composable
+private fun ActionCard(
+    icon: ImageVector,
+    title: String,
+    description: String,
+    onClick: () -> Unit,
+    trailingContent: (@Composable () -> Unit)? = null,
+) {
+    ElevatedCard(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .background(
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                        shape = CircleShape
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
+
+            Spacer(Modifier.width(16.dp))
+
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            trailingContent?.let {
+                Spacer(Modifier.width(16.dp))
+                it()
+            }
+        }
+    }
+}
+
+@Composable
+private fun CountBadge(count: Int) {
+    Surface(
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+    ) {
+        Text(
+            text = count.toString(),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.primary,
+            fontWeight = FontWeight.SemiBold
+        )
+    }
+}
+
+@Composable
+private fun StatusCard(message: String) {
+    ElevatedCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = "Latest status",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSecondaryContainer
+            )
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSecondaryContainer
+            )
+        }
     }
 }
 
