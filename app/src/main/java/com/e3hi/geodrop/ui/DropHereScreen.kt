@@ -220,6 +220,17 @@ fun DropHereScreen() {
         loc?.let { it.latitude to it.longitude }
     }
 
+    fun clearAudio() {
+        val uriString = capturedAudioUri
+        capturedAudioUri = null
+        if (uriString != null) {
+            val uri = Uri.parse(uriString)
+            scope.launch(Dispatchers.IO) {
+                runCatching { ctx.contentResolver.delete(uri, null, null) }
+            }
+        }
+    }
+
     // Optional: also sync nearby on first open if already signed in
     LaunchedEffect(joinedGroups) {
         if (FirebaseAuth.getInstance().currentUser != null) {
@@ -328,17 +339,6 @@ fun DropHereScreen() {
         } else {
             pendingAudioPermissionAction = { ensureAudioAndLaunch() }
             audioPermissionLauncher.launch(permission)
-        }
-    }
-
-    fun clearAudio() {
-        val uriString = capturedAudioUri
-        capturedAudioUri = null
-        if (uriString != null) {
-            val uri = Uri.parse(uriString)
-            scope.launch(Dispatchers.IO) {
-                runCatching { ctx.contentResolver.delete(uri, null, null) }
-            }
         }
     }
 
