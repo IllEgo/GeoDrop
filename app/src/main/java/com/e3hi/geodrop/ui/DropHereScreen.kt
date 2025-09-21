@@ -1337,7 +1337,6 @@ private fun CollectedDropsMap(
                 }
                 snippetParts.add("Lat: ${formatCoordinate(lat)}, Lng: ${formatCoordinate(lng)}")
                 note.groupCode?.let { snippetParts.add("Group $it") }
-                note.mediaUrl?.let { snippetParts.add("Link: $it") }
 
                 val title = note.text.ifBlank {
                     when (note.contentType) {
@@ -1425,6 +1424,27 @@ private fun CollectedNoteCard(
                 style = MaterialTheme.typography.bodyLarge
             )
 
+            val mediaUrl = note.mediaUrl?.takeIf { it.isNotBlank() }
+            if (note.contentType == DropContentType.PHOTO && mediaUrl != null) {
+                val context = LocalContext.current
+                val imageRequest = remember(mediaUrl) {
+                    ImageRequest.Builder(context)
+                        .data(mediaUrl)
+                        .crossfade(true)
+                        .build()
+                }
+
+                AsyncImage(
+                    model = imageRequest,
+                    contentDescription = note.text.ifBlank { "Photo drop" },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 160.dp, max = 280.dp)
+                        .clip(RoundedCornerShape(12.dp)),
+                    contentScale = ContentScale.Crop
+                )
+            }
+
             Text(
                 text = "Collected: ${formatTimestamp(note.collectedAt)}",
                 style = MaterialTheme.typography.bodyMedium,
@@ -1458,14 +1478,6 @@ private fun CollectedNoteCard(
                     text = "Location: Unknown",
                     style = MaterialTheme.typography.bodyMedium,
                     color = supportingColor
-                )
-            }
-
-            note.mediaUrl?.let { link ->
-                Text(
-                    text = "Media: $link",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.primary
                 )
             }
 
@@ -1845,7 +1857,6 @@ private fun MyDropsMap(
             formatTimestamp(drop.createdAt)?.let { snippetParts.add("Dropped $it") }
             drop.groupCode?.takeIf { !it.isNullOrBlank() }?.let { snippetParts.add("Group $it") }
             snippetParts.add("Lat: %.5f, Lng: %.5f".format(drop.lat, drop.lng))
-            drop.mediaLabel()?.let { snippetParts.add("Link: $it") }
 
             val isSelected = drop.id == selectedDropId
             val markerIcon = if (isSelected) {
@@ -2085,15 +2096,7 @@ private fun ManageDropRow(
                         .clip(RoundedCornerShape(12.dp)),
                     contentScale = ContentScale.Crop
                 )
-            }
-
-            mediaUrl?.let { link ->
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    text = "Link: $link",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary,
-                )
+                Spacer(Modifier.height(12.dp))
             }
 
             Spacer(Modifier.height(4.dp))
