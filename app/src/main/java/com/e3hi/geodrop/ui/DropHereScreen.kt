@@ -202,6 +202,7 @@ fun DropHereScreen() {
     var myDropsSelectedId by remember { mutableStateOf<String?>(null) }
     var showCollectedDrops by remember { mutableStateOf(false) }
     var showManageGroups by remember { mutableStateOf(false) }
+    var showDropComposer by remember { mutableStateOf(false) }
 
     suspend fun getLatestLocation(): Pair<Double, Double>? = withContext(Dispatchers.IO) {
         val fresh = try {
@@ -347,6 +348,7 @@ fun DropHereScreen() {
         note = TextFieldValue("")
         capturedPhotoPath = null
         clearAudio()
+        showDropComposer = false
         val baseStatus = "Dropped at (%.5f, %.5f)".format(lat, lng)
         val typeSummary = when (contentType) {
             DropContentType.TEXT -> "note"
@@ -400,6 +402,122 @@ fun DropHereScreen() {
             joinedGroups = groupPrefs.getJoinedGroups()
         }
         uiDone(lat, lng, groupCode, contentType)
+    }
+
+    fun submitDrop() {
+        if (isSubmitting) return
+        isSubmitting = true
+        scope.launch {
+            try {
+                val selectedGroupCode = if (dropVisibility == DropVisibility.GroupOnly) {
+                    GroupPreferences.normalizeGroupCode(groupCodeInput.text)
+                        ?: run {
+                            isSubmitting = false
+                            snackbar.showMessage(
+                                scope,
+                                "Enter a group code to make this drop private."
+                            )
+                            return@launch
+                        }
+                } else {
+                    null
+                }
+                val mediaUrlResult = when (dropContentType) {
+                    DropContentType.TEXT -> null
+
+                    DropContentType.PHOTO -> {
+                        val path = capturedPhotoPath ?: run {
+                            isSubmitting = false
+                            snackbar.showMessage(scope, "Capture a photo before dropping.")
+                            return@launch
+                        }
+
+                        val photoBytes = withContext(Dispatchers.IO) {
+                            try {
+                                File(path).takeIf { it.exists() }?.readBytes()
+                            } catch (e: IOException) {
+                                null
+                            }
+                        } ?: run {
+                            isSubmitting = false
+                            snackbar.showMessage(
+                                scope,
+                                "Couldn't read the captured photo. Retake it and try again."
+                            )
+                            return@launch
+                        }
+
+                        val uploaded = mediaStorage.uploadMedia(
+                            DropContentType.PHOTO,
+                            photoBytes,
+                            "image/jpeg",
+                        )
+
+                        withContext(Dispatchers.IO) {
+                            runCatching { File(path).delete() }
+                        }
+
+                        uploaded
+                    }
+
+                    DropContentType.AUDIO -> {
+                        val uriString = capturedAudioUri ?: run {
+                            isSubmitting = false
+                            snackbar.showMessage(scope, "Record an audio message before dropping.")
+                            return@launch
+                        }
+                        val uri = Uri.parse(uriString)
+
+                        val audioBytes = withContext(Dispatchers.IO) {
+                            try {
+                                ctx.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                            } catch (e: IOException) {
+                                null
+                            }
+                        } ?: run {
+                            isSubmitting = false
+                            snackbar.showMessage(
+                                scope,
+                                "Couldn't read the audio recording. Record again and try once more."
+                            )
+                            return@launch
+                        }
+
+                        val mimeType = ctx.contentResolver.getType(uri) ?: "audio/mpeg"
+
+                        val uploaded = mediaStorage.uploadMedia(
+                            DropContentType.AUDIO,
+                            audioBytes,
+                            mimeType
+                        )
+
+                        withContext(Dispatchers.IO) {
+                            runCatching { ctx.contentResolver.delete(uri, null, null) }
+                        }
+
+                        uploaded
+                    }
+                }
+
+                val (lat, lng) = getLatestLocation() ?: run {
+                    isSubmitting = false
+                    snackbar.showMessage(scope, "No location available. Turn on GPS & try again.")
+                    return@launch
+                }
+
+                addDropAt(
+                    lat = lat,
+                    lng = lng,
+                    groupCode = selectedGroupCode,
+                    contentType = dropContentType,
+                    noteText = note.text,
+                    mediaInput = mediaUrlResult
+                )
+            } catch (e: Exception) {
+                isSubmitting = false
+                snackbar.showMessage(scope, "Error: ${e.message}")
+            }
+        }
     }
 
 
@@ -491,366 +609,77 @@ fun DropHereScreen() {
             verticalArrangement = Arrangement.spacedBy(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-        Text("Drop something at your current location", style = MaterialTheme.typography.titleMedium)
+            Text("Drop something at your current location", style = MaterialTheme.typography.titleMedium)
 
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Text("Drop content", style = MaterialTheme.typography.titleSmall)
+            Button(
+                enabled = !isSubmitting,
+                onClick = { showDropComposer = true },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("Drop content") }
 
-            ContentTypeOption(
-                title = "Text note",
-                description = "Share a written message for people nearby.",
-                selected = dropContentType == DropContentType.TEXT,
-                onClick = { dropContentType = DropContentType.TEXT }
-            )
+            // Handy for testing: re-scan & register geofences without restarting
+            Button(
+                onClick = {
+                    registrar.registerNearby(
+                        ctx,
+                        maxMeters = 300.0,
+                        groupCodes = joinedGroups.toSet()
+                    ) { statusResult ->
+                        when (statusResult) {
+                            is NearbySyncStatus.Success -> {
+                                val msg = if (statusResult.count > 0) {
+                                    val base = "Found ${statusResult.count} drop" +
+                                            if (statusResult.count == 1) " nearby from another user." else "s nearby from other users."
+                                    "$base You'll be notified when you're close."
+                                } else {
+                                    "No nearby drops from other users right now."
+                                }
 
-            ContentTypeOption(
-                title = "Photo drop",
-                description = "Capture a photo with your camera that others can open.",
-                selected = dropContentType == DropContentType.PHOTO,
-                onClick = { dropContentType = DropContentType.PHOTO }
-            )
-
-            ContentTypeOption(
-                title = "Audio drop",
-                description = "Record a quick voice message for nearby explorers.",
-                selected = dropContentType == DropContentType.AUDIO,
-                onClick = { dropContentType = DropContentType.AUDIO }
-            )
-        }
-
-        val noteLabel = when (dropContentType) {
-            DropContentType.TEXT -> "Your note"
-            DropContentType.PHOTO, DropContentType.AUDIO -> "Caption (optional)"
-        }
-        val noteSupporting = when (dropContentType) {
-            DropContentType.TEXT -> null
-            DropContentType.PHOTO -> "Add a short caption to go with your photo."
-            DropContentType.AUDIO -> "Add a short caption to go with your audio clip."
-        }
-        val noteMinLines = if (dropContentType == DropContentType.TEXT) 3 else 1
-        val supportingTextContent: (@Composable () -> Unit)? = noteSupporting?.let { helper ->
-            { Text(helper) }
-        }
-
-        OutlinedTextField(
-            value = note,
-            onValueChange = { note = it },
-            label = { Text(noteLabel) },
-            minLines = noteMinLines,
-            modifier = Modifier.fillMaxWidth(),
-            supportingText = supportingTextContent
-        )
-
-        when (dropContentType) {
-            DropContentType.PHOTO -> {
-                val hasPhoto = capturedPhotoPath != null
-                MediaCaptureCard(
-                    title = "Attach a photo",
-                    description = "Snap a picture with your camera to pin at this location.",
-                    status = if (hasPhoto) "Photo ready to upload." else "No photo captured yet.",
-                    primaryLabel = if (hasPhoto) "Retake photo" else "Open camera",
-                    onPrimary = {
-                        if (hasPhoto) {
-                            clearPhoto()
+                                status = msg
+                                snackbar.showMessage(scope, msg)
+                            }
+                            NearbySyncStatus.MissingPermission -> {
+                                val msg = "Location permission is required to sync nearby drops."
+                                status = msg
+                                snackbar.showMessage(scope, msg)
+                            }
+                            NearbySyncStatus.NoLocation -> {
+                                val msg = "Couldn't get your current location. Turn on GPS and try again."
+                                status = msg
+                                snackbar.showMessage(scope, msg)
+                            }
+                            is NearbySyncStatus.Error -> {
+                                val msg = statusResult.message
+                                status = msg
+                                snackbar.showMessage(scope, msg)
+                            }
                         }
-                        ensureCameraAndLaunch()
-                    },
-                    secondaryLabel = if (hasPhoto) "Remove photo" else null,
-                    onSecondary = if (hasPhoto) {
-                        { clearPhoto() }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("Sync nearby drops") }
+
+            Button(
+                onClick = {
+                    if (FirebaseAuth.getInstance().currentUser == null) {
+                        snackbar.showMessage(scope, "Signing you in… please try again shortly.")
                     } else {
-                        null
+                        showOtherDropsMap = true
                     }
-                )
-            }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("View other drops on map") }
 
-            DropContentType.AUDIO -> {
-                val hasAudio = capturedAudioUri != null
-                MediaCaptureCard(
-                    title = "Record audio",
-                    description = "Capture a short voice note for anyone who discovers this drop.",
-                    status = if (hasAudio) "Audio message ready to upload." else "No recording yet.",
-                    primaryLabel = if (hasAudio) "Record again" else "Record audio",
-                    onPrimary = {
-                        if (hasAudio) {
-                            clearAudio()
-                        }
-                        ensureAudioAndLaunch()
-                    },
-                    secondaryLabel = if (hasAudio) "Remove audio" else null,
-                    onSecondary = if (hasAudio) {
-                        { clearAudio() }
+            Button(
+                onClick = {
+                    if (FirebaseAuth.getInstance().currentUser == null) {
+                        snackbar.showMessage(scope, "Signing you in… please try again shortly.")
                     } else {
-                        null
+                        showMyDrops = true
                     }
-                )
-            }
-
-            DropContentType.TEXT -> Unit
-        }
-
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Text("Drop visibility", style = MaterialTheme.typography.titleSmall)
-
-            VisibilityOption(
-                title = "Public drop",
-                description = "Anyone nearby can discover this note.",
-                selected = dropVisibility == DropVisibility.Public,
-                onClick = { dropVisibility = DropVisibility.Public }
-            )
-
-            VisibilityOption(
-                title = "Group-only drop",
-                description = "Limit discovery to people who share your group code.",
-                selected = dropVisibility == DropVisibility.GroupOnly,
-                onClick = { dropVisibility = DropVisibility.GroupOnly }
-            )
-
-            if (dropVisibility == DropVisibility.GroupOnly) {
-                OutlinedTextField(
-                    value = groupCodeInput,
-                    onValueChange = { groupCodeInput = it },
-                    label = { Text("Group code") },
-                    modifier = Modifier.fillMaxWidth(),
-                    supportingText = {
-                        Text("Codes stay on this device. Share them with your crew or guests.")
-                    }
-                )
-
-                if (joinedGroups.isNotEmpty()) {
-                    Text(
-                        text = "Tap a saved code to reuse it:",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        joinedGroups.forEach { code ->
-                            AssistChip(
-                                onClick = { groupCodeInput = TextFieldValue(code) },
-                                label = { Text(code) }
-                            )
-                        }
-                    }
-                }
-            } else {
-                val visibilityMessage = if (joinedGroups.isEmpty()) {
-                    "Add a group code to keep drops private for weddings, crew ops, or hunts."
-                } else {
-                    "Active group codes: ${joinedGroups.joinToString()}."
-                }
-
-                Text(
-                    text = visibilityMessage,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-
-        Button(
-            enabled = !isSubmitting,
-            onClick = {
-                isSubmitting = true
-                scope.launch {
-                    try {
-                        val selectedGroupCode = if (dropVisibility == DropVisibility.GroupOnly) {
-                            GroupPreferences.normalizeGroupCode(groupCodeInput.text)
-                                ?: run {
-                                    isSubmitting = false
-                                    snackbar.showMessage(
-                                        scope,
-                                        "Enter a group code to make this drop private."
-                                    )
-                                    return@launch
-                                }
-                        } else {
-                            null
-                        }
-                        val mediaUrlResult = when (dropContentType) {
-                            DropContentType.TEXT -> null
-
-                            DropContentType.PHOTO -> {
-                                val path = capturedPhotoPath ?: run {
-                                    isSubmitting = false
-                                    snackbar.showMessage(scope, "Capture a photo before dropping.")
-                                    return@launch
-                                }
-
-                                val photoBytes = withContext(Dispatchers.IO) {
-                                    try {
-                                        File(path).takeIf { it.exists() }?.readBytes()
-                                    } catch (e: IOException) {
-                                        null
-                                    }
-                                } ?: run {
-                                    isSubmitting = false
-                                    snackbar.showMessage(scope, "Couldn't read the captured photo. Retake it and try again.")
-                                    return@launch
-                                }
-
-                                val uploaded = mediaStorage.uploadMedia(
-                                    DropContentType.PHOTO,
-                                    photoBytes,
-                                    "image/jpeg"
-                                )
-
-                                withContext(Dispatchers.IO) {
-                                    runCatching { File(path).delete() }
-                                }
-
-                                uploaded
-                            }
-
-                            DropContentType.AUDIO -> {
-                                val uriString = capturedAudioUri ?: run {
-                                    isSubmitting = false
-                                    snackbar.showMessage(scope, "Record an audio message before dropping.")
-                                    return@launch
-                                }
-                                val uri = Uri.parse(uriString)
-
-                                val audioBytes = withContext(Dispatchers.IO) {
-                                    try {
-                                        ctx.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                                    } catch (e: IOException) {
-                                        null
-                                    }
-                                } ?: run {
-                                    isSubmitting = false
-                                    snackbar.showMessage(scope, "Couldn't read the audio recording. Record again and try once more.")
-                                    return@launch
-                                }
-
-                                val mimeType = ctx.contentResolver.getType(uri) ?: "audio/mpeg"
-
-                                val uploaded = mediaStorage.uploadMedia(
-                                    DropContentType.AUDIO,
-                                    audioBytes,
-                                    mimeType
-                                )
-
-                                withContext(Dispatchers.IO) {
-                                    runCatching { ctx.contentResolver.delete(uri, null, null) }
-                                }
-
-                                uploaded
-                            }
-                        }
-//                        val (lat, lng) = withContext(Dispatchers.IO) {
-//                            // Try fresh high-accuracy first
-//                            val fresh = try {
-//                                val cts = CancellationTokenSource()
-//                                Tasks.await(fused.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cts.token))
-//                            } catch (_: Exception) { null }
-//
-//                            val loc = fresh ?: try {
-//                                Tasks.await(fused.lastLocation)
-//                            } catch (_: Exception) { null }
-//
-//                            if (loc == null) null else loc.latitude to loc.longitude
-//                        } ?: run {
-                        val (lat, lng) = getLatestLocation() ?: run {
-                            isSubmitting = false
-                            snackbar.showMessage(scope, "No location available. Turn on GPS & try again.")
-                            return@launch
-                        }
-
-                        addDropAt(
-                            lat = lat,
-                            lng = lng,
-                            groupCode = selectedGroupCode,
-                            contentType = dropContentType,
-                            noteText = note.text,
-                            mediaInput = mediaUrlResult
-                        )
-                    } catch (e: Exception) {
-                        isSubmitting = false
-                        snackbar.showMessage(scope, "Error: ${e.message}")
-                    }
-                }
-            },
-            modifier = Modifier.fillMaxWidth()
-        ) { Text(if (isSubmitting) "Dropping…" else "Drop here") }
-
-        // Handy for testing: re-scan & register geofences without restarting
-        Button(
-            onClick = {
-                registrar.registerNearby(
-                    ctx,
-                    maxMeters = 300.0,
-                    groupCodes = joinedGroups.toSet()
-                ) { statusResult ->
-                    when (statusResult) {
-                        is NearbySyncStatus.Success -> {
-                            val msg = if (statusResult.count > 0) {
-                                val base = "Found ${statusResult.count} drop" +
-                                        if (statusResult.count == 1) " nearby from another user." else "s nearby from other users."
-                                "$base You'll be notified when you're close."
-                            } else {
-                                "No nearby drops from other users right now."
-                            }
-                            status = msg
-                            snackbar.showMessage(scope, msg)
-                        }
-                        NearbySyncStatus.MissingPermission -> {
-                            val msg = "Location permission is required to sync nearby drops."
-                            status = msg
-                            snackbar.showMessage(scope, msg)
-                        }
-                        NearbySyncStatus.NoLocation -> {
-                            val msg = "Couldn't get your current location. Turn on GPS and try again."
-                            status = msg
-                            snackbar.showMessage(scope, msg)
-                        }
-                        is NearbySyncStatus.Error -> {
-                            val msg = statusResult.message
-                            status = msg
-                            snackbar.showMessage(scope, msg)
-                        }
-                    }
-                }
-            },
-            modifier = Modifier.fillMaxWidth()
-        ) { Text("Sync nearby drops") }
-
-        Button(
-            onClick = {
-                if (FirebaseAuth.getInstance().currentUser == null) {
-                    snackbar.showMessage(scope, "Signing you in… please try again shortly.")
-                } else {
-                    showOtherDropsMap = true
-                }
-            },
-            modifier = Modifier.fillMaxWidth()
-        ) { Text("View other drops on map") }
-
-        Button(
-            onClick = { showManageGroups = true },
-            modifier = Modifier.fillMaxWidth()
-        ) { Text("Manage group codes") }
-
-        Button(
-            onClick = {
-                if (FirebaseAuth.getInstance().currentUser == null) {
-                    snackbar.showMessage(scope, "Signing you in… please try again shortly.")
-                } else {
-                    showMyDrops = true
-                }
-            },
-            modifier = Modifier.fillMaxWidth()
-        ) { Text("View my drops") }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("View my drops") }
 
             Button(
                 onClick = {
@@ -876,6 +705,35 @@ fun DropHereScreen() {
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp, vertical = 16.dp)
+        )
+    }
+
+    if (showDropComposer) {
+        DropComposerDialog(
+            isSubmitting = isSubmitting,
+            dropContentType = dropContentType,
+            onDropContentTypeChange = { dropContentType = it },
+            note = note,
+            onNoteChange = { note = it },
+            capturedPhotoPath = capturedPhotoPath,
+            onCapturePhoto = { ensureCameraAndLaunch() },
+            onClearPhoto = { clearPhoto() },
+            capturedAudioUri = capturedAudioUri,
+            onRecordAudio = { ensureAudioAndLaunch() },
+            onClearAudio = { clearAudio() },
+            dropVisibility = dropVisibility,
+            onDropVisibilityChange = { dropVisibility = it },
+            groupCodeInput = groupCodeInput,
+            onGroupCodeInputChange = { groupCodeInput = it },
+            joinedGroups = joinedGroups,
+            onSelectGroupCode = { code -> groupCodeInput = TextFieldValue(code) },
+            onManageGroupCodes = { showManageGroups = true },
+            onSubmit = { submitDrop() },
+            onDismiss = {
+                if (!isSubmitting) {
+                    showDropComposer = false
+                }
+            }
         )
     }
 
@@ -975,6 +833,259 @@ fun DropHereScreen() {
                 snackbar.showMessage(scope, "Removed group $code")
             }
         )
+    }
+}
+
+@Composable
+private fun DropComposerDialog(
+    isSubmitting: Boolean,
+    dropContentType: DropContentType,
+    onDropContentTypeChange: (DropContentType) -> Unit,
+    note: TextFieldValue,
+    onNoteChange: (TextFieldValue) -> Unit,
+    capturedPhotoPath: String?,
+    onCapturePhoto: () -> Unit,
+    onClearPhoto: () -> Unit,
+    capturedAudioUri: String?,
+    onRecordAudio: () -> Unit,
+    onClearAudio: () -> Unit,
+    dropVisibility: DropVisibility,
+    onDropVisibilityChange: (DropVisibility) -> Unit,
+    groupCodeInput: TextFieldValue,
+    onGroupCodeInputChange: (TextFieldValue) -> Unit,
+    joinedGroups: List<String>,
+    onSelectGroupCode: (String) -> Unit,
+    onManageGroupCodes: () -> Unit,
+    onSubmit: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    Dialog(
+        onDismissRequest = {
+            if (!isSubmitting) {
+                onDismiss()
+            }
+        },
+        properties = DialogProperties(
+            dismissOnBackPress = !isSubmitting,
+            dismissOnClickOutside = !isSubmitting,
+            usePlatformDefaultWidth = false
+        )
+    ) {
+        Surface(
+            shape = MaterialTheme.shapes.large,
+            tonalElevation = 6.dp,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            val scrollState = rememberScrollState()
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(scrollState)
+                    .padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Create a drop",
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(
+                        onClick = onDismiss,
+                        enabled = !isSubmitting
+                    ) {
+                        Text("Cancel")
+                    }
+                }
+
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text("Drop content", style = MaterialTheme.typography.titleSmall)
+
+                    ContentTypeOption(
+                        title = "Text note",
+                        description = "Share a written message for people nearby.",
+                        selected = dropContentType == DropContentType.TEXT,
+                        onClick = { onDropContentTypeChange(DropContentType.TEXT) }
+                    )
+
+                    ContentTypeOption(
+                        title = "Photo drop",
+                        description = "Capture a photo with your camera that others can open.",
+                        selected = dropContentType == DropContentType.PHOTO,
+                        onClick = { onDropContentTypeChange(DropContentType.PHOTO) }
+                    )
+
+                    ContentTypeOption(
+                        title = "Audio drop",
+                        description = "Record a quick voice message for nearby explorers.",
+                        selected = dropContentType == DropContentType.AUDIO,
+                        onClick = { onDropContentTypeChange(DropContentType.AUDIO) }
+                    )
+                }
+
+                val noteLabel = when (dropContentType) {
+                    DropContentType.TEXT -> "Your note"
+                    DropContentType.PHOTO, DropContentType.AUDIO -> "Caption (optional)"
+                }
+                val noteSupporting = when (dropContentType) {
+                    DropContentType.TEXT -> null
+                    DropContentType.PHOTO -> "Add a short caption to go with your photo."
+                    DropContentType.AUDIO -> "Add a short caption to go with your audio clip."
+                }
+                val noteMinLines = if (dropContentType == DropContentType.TEXT) 3 else 1
+                val supportingTextContent: (@Composable () -> Unit)? = noteSupporting?.let { helper ->
+                    { Text(helper) }
+                }
+
+                OutlinedTextField(
+                    value = note,
+                    onValueChange = onNoteChange,
+                    label = { Text(noteLabel) },
+                    minLines = noteMinLines,
+                    modifier = Modifier.fillMaxWidth(),
+                    supportingText = supportingTextContent
+                )
+
+                when (dropContentType) {
+                    DropContentType.PHOTO -> {
+                        val hasPhoto = capturedPhotoPath != null
+                        MediaCaptureCard(
+                            title = "Attach a photo",
+                            description = "Snap a picture with your camera to pin at this location.",
+                            status = if (hasPhoto) "Photo ready to upload." else "No photo captured yet.",
+                            primaryLabel = if (hasPhoto) "Retake photo" else "Open camera",
+                            onPrimary = {
+                                if (hasPhoto) {
+                                    onClearPhoto()
+                                }
+                                onCapturePhoto()
+                            },
+                            secondaryLabel = if (hasPhoto) "Remove photo" else null,
+                            onSecondary = if (hasPhoto) {
+                                { onClearPhoto() }
+                            } else {
+                                null
+                            }
+                        )
+                    }
+
+                    DropContentType.AUDIO -> {
+                        val hasAudio = capturedAudioUri != null
+                        MediaCaptureCard(
+                            title = "Record audio",
+                            description = "Capture a short voice note for anyone who discovers this drop.",
+                            status = if (hasAudio) "Audio message ready to upload." else "No recording yet.",
+                            primaryLabel = if (hasAudio) "Record again" else "Record audio",
+                            onPrimary = {
+                                if (hasAudio) {
+                                    onClearAudio()
+                                }
+                                onRecordAudio()
+                            },
+                            secondaryLabel = if (hasAudio) "Remove audio" else null,
+                            onSecondary = if (hasAudio) {
+                                { onClearAudio() }
+                            } else {
+                                null
+                            }
+                        )
+                    }
+
+                    DropContentType.TEXT -> Unit
+                }
+
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text("Drop visibility", style = MaterialTheme.typography.titleSmall)
+
+                    VisibilityOption(
+                        title = "Public drop",
+                        description = "Anyone nearby can discover this note.",
+                        selected = dropVisibility == DropVisibility.Public,
+                        onClick = { onDropVisibilityChange(DropVisibility.Public) }
+                    )
+
+                    VisibilityOption(
+                        title = "Group-only drop",
+                        description = "Limit discovery to people who share your group code.",
+                        selected = dropVisibility == DropVisibility.GroupOnly,
+                        onClick = { onDropVisibilityChange(DropVisibility.GroupOnly) }
+                    )
+
+                    if (dropVisibility == DropVisibility.GroupOnly) {
+                        OutlinedTextField(
+                            value = groupCodeInput,
+                            onValueChange = onGroupCodeInputChange,
+                            label = { Text("Group code") },
+                            modifier = Modifier.fillMaxWidth(),
+                            supportingText = {
+                                Text("Codes stay on this device. Share them with your crew or guests.")
+                            }
+                        )
+
+                        if (joinedGroups.isNotEmpty()) {
+                            Text(
+                                text = "Tap a saved code to reuse it:",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                joinedGroups.forEach { code ->
+                                    AssistChip(
+                                        onClick = { onSelectGroupCode(code) },
+                                        label = { Text(code) }
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        val visibilityMessage = if (joinedGroups.isEmpty()) {
+                            "Add a group code to keep drops private for weddings, crew ops, or hunts."
+                        } else {
+                            "Active group codes: ${joinedGroups.joinToString()}."
+                        }
+
+                        Text(
+                            text = visibilityMessage,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                OutlinedButton(
+                    onClick = onManageGroupCodes,
+                    enabled = !isSubmitting,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Manage group codes")
+                }
+
+                Button(
+                    enabled = !isSubmitting,
+                    onClick = onSubmit,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(if (isSubmitting) "Dropping…" else "Drop content")
+                }
+            }
+        }
     }
 }
 
