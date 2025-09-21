@@ -87,21 +87,11 @@ class GeofenceReceiver : BroadcastReceiver() {
                 } ?: PendingIntent.getActivity(context, 2001, open, PendingIntentFlagsCompat)
 
 
-                val (title, body) = when (dropContentType) {
-                    DropContentType.TEXT -> {
-                        val message = dropText ?: "You’re near a dropped message. Tap to open."
-                        "Note nearby" to message
-                    }
-                    DropContentType.PHOTO -> {
-                        val message = dropText?.takeIf { it.isNotBlank() }
-                            ?: "A photo drop is nearby. Tap to view it."
-                        "Photo drop nearby" to message
-                    }
-                    DropContentType.AUDIO -> {
-                        val message = dropText?.takeIf { it.isNotBlank() }
-                            ?: "An audio drop is nearby. Tap to listen."
-                        "Audio drop nearby" to message
-                    }
+
+                val title = when (dropContentType) {
+                    DropContentType.TEXT -> "Note nearby"
+                    DropContentType.PHOTO -> "Photo drop nearby"
+                    DropContentType.AUDIO -> "Audio drop nearby"
                 }
                 val pickupIntent = Intent(context, DropDecisionReceiver::class.java).apply {
                     action = DropDecisionReceiver.ACTION_PICK_UP
@@ -143,12 +133,8 @@ class GeofenceReceiver : BroadcastReceiver() {
                 val notif = NotificationCompat.Builder(context, CHANNEL_NEARBY)
                     .setSmallIcon(R.drawable.ic_notification)
                     .setContentTitle(title)
-                    .setContentText(body)
-                    .setStyle(
-                        NotificationCompat.BigTextStyle().bigText(
-                            listOfNotNull(body, prompt).joinToString("\n")
-                        )
-                    )
+                    .setContentText(prompt)
+                    .setStyle(NotificationCompat.BigTextStyle().bigText(prompt))
                     .setAutoCancel(true)
                     .setContentIntent(contentIntent)
                     .addAction(R.drawable.ic_notification, "Pick up", pickupPending)

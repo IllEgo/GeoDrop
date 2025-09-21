@@ -67,6 +67,11 @@ class NoteInventory(context: Context) {
         return stored.contains(id)
     }
 
+    fun getIgnoredDropIds(): Set<String> {
+        val stored = prefs.getStringSet(KEY_IGNORED, emptySet()) ?: emptySet()
+        return stored.toSet()
+    }
+
     private fun persistCollected(notes: List<CollectedNote>) {
         val array = JSONArray()
         val ids = mutableSetOf<String>()

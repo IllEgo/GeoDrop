@@ -101,11 +101,14 @@ fun DropHereScreen() {
 
     val noteInventory = remember { NoteInventory(ctx) }
     var collectedNotes by remember { mutableStateOf(noteInventory.getCollectedNotes()) }
+    var ignoredDropIds by remember { mutableStateOf(noteInventory.getIgnoredDropIds()) }
+    val collectedDropIds = remember(collectedNotes) { collectedNotes.map { it.id }.toSet() }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 collectedNotes = noteInventory.getCollectedNotes()
+                ignoredDropIds = noteInventory.getIgnoredDropIds()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -117,6 +120,7 @@ fun DropHereScreen() {
             override fun onReceive(context: Context?, intent: Intent?) {
                 if (intent?.action == NoteInventory.ACTION_INVENTORY_CHANGED) {
                     collectedNotes = noteInventory.getCollectedNotes()
+                    ignoredDropIds = noteInventory.getIgnoredDropIds()
                 }
             }
         }
@@ -392,7 +396,14 @@ fun DropHereScreen() {
         uiDone(lat, lng, groupCode, contentType)
     }
 
-    LaunchedEffect(showOtherDropsMap, joinedGroups, otherDropsRefreshToken) {
+
+    LaunchedEffect(
+        showOtherDropsMap,
+        joinedGroups,
+        otherDropsRefreshToken,
+        collectedDropIds,
+        ignoredDropIds
+    ) {
         if (showOtherDropsMap) {
             otherDropsLoading = true
             otherDropsError = null
@@ -406,10 +417,14 @@ fun DropHereScreen() {
                 try {
                     val drops = repo.getVisibleDropsForUser(uid, joinedGroups.toSet())
                         .sortedByDescending { it.createdAt }
-                    otherDrops = drops
+                    val filteredDrops = drops.filterNot { drop ->
+                        val id = drop.id
+                        id in collectedDropIds || id in ignoredDropIds
+                    }
+                    otherDrops = filteredDrops
                     otherDropsCurrentLocation = getLatestLocation()?.let { (lat, lng) -> LatLng(lat, lng) }
-                    otherDropsSelectedId = otherDropsSelectedId?.takeIf { id -> drops.any { it.id == id } }
-                        ?: drops.firstOrNull()?.id
+                    otherDropsSelectedId = otherDropsSelectedId?.takeIf { id -> filteredDrops.any { it.id == id } }
+                        ?: filteredDrops.firstOrNull()?.id
                 } catch (e: Exception) {
                     otherDrops = emptyList()
                     otherDropsError = e.message ?: "Failed to load nearby drops."
