@@ -13,6 +13,7 @@ import android.util.Base64
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -2847,21 +2848,29 @@ private fun DropVisibilityOptionCard(
     } else {
         MaterialTheme.colorScheme.onSurfaceVariant
     }
-    val border = if (selected) {
-        null
-    } else {
-        BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-    }
+    val cardShape = CardDefaults.elevatedShape
+    val cardModifier = Modifier
+        .fillMaxWidth()
+        .then(
+            if (selected) {
+                Modifier
+            } else {
+                Modifier.border(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outlineVariant,
+                    shape = cardShape
+                )
+            }
+        )
+        .clickable(onClick = onClick)
 
     ElevatedCard(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
+        modifier = cardModifier,
         colors = CardDefaults.elevatedCardColors(
             containerColor = containerColor,
             contentColor = contentColor
         ),
-        border = border
+        shape = cardShape
     ) {
         Row(
             modifier = Modifier
