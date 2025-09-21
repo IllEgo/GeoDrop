@@ -43,6 +43,8 @@ class DropDecisionReceiver : BroadcastReceiver() {
         val text = intent.getStringExtra(EXTRA_DROP_TEXT) ?: ""
         val contentType = DropContentType.fromRaw(intent.getStringExtra(EXTRA_DROP_CONTENT_TYPE))
         val mediaUrl = intent.getStringExtra(EXTRA_DROP_MEDIA_URL)
+        val mediaMimeType = intent.getStringExtra(EXTRA_DROP_MEDIA_MIME_TYPE)
+        val mediaData = intent.getStringExtra(EXTRA_DROP_MEDIA_DATA)
         val lat = if (intent.hasExtra(EXTRA_DROP_LAT)) intent.getDoubleExtra(EXTRA_DROP_LAT, 0.0) else null
         val lng = if (intent.hasExtra(EXTRA_DROP_LNG)) intent.getDoubleExtra(EXTRA_DROP_LNG, 0.0) else null
         val createdAt = intent.getLongExtra(EXTRA_DROP_CREATED_AT, -1L).takeIf { it > 0 }
@@ -54,6 +56,8 @@ class DropDecisionReceiver : BroadcastReceiver() {
             text = text,
             contentType = contentType,
             mediaUrl = mediaUrl,
+            mediaMimeType = mediaMimeType,
+            mediaData = mediaData,
             lat = lat,
             lng = lng,
             groupCode = groupCode,
@@ -91,6 +95,8 @@ class DropDecisionReceiver : BroadcastReceiver() {
         const val EXTRA_DROP_TEXT = "extra_drop_text"
         const val EXTRA_DROP_CONTENT_TYPE = "extra_drop_content_type"
         const val EXTRA_DROP_MEDIA_URL = "extra_drop_media_url"
+        const val EXTRA_DROP_MEDIA_MIME_TYPE = "extra_drop_media_mime_type"
+        const val EXTRA_DROP_MEDIA_DATA = "extra_drop_media_data"
         const val EXTRA_DROP_LAT = "extra_drop_lat"
         const val EXTRA_DROP_LNG = "extra_drop_lng"
         const val EXTRA_DROP_CREATED_AT = "extra_drop_created_at"

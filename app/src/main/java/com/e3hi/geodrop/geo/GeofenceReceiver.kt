@@ -6,6 +6,7 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.util.Base64
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.TaskStackBuilder
@@ -67,6 +68,13 @@ class GeofenceReceiver : BroadcastReceiver() {
                 val dropContentType = doc.getString("contentType")?.let { DropContentType.fromRaw(it) }
                     ?: DropContentType.TEXT
                 val dropMediaUrl = doc.getString("mediaUrl")?.takeIf { it.isNotBlank() }
+                val dropMediaMimeType = doc.getString("mediaMimeType")?.takeIf { it.isNotBlank() }
+                val dropMediaData = (
+                        doc.getString("mediaData")?.takeIf { it.isNotBlank() }
+                            ?: doc.getString("audioFile")?.takeIf { it.isNotBlank() }
+                            ?: doc.getBlob("mediaData")?.toBytes()?.let { Base64.encodeToString(it, Base64.NO_WRAP) }
+                            ?: doc.getBlob("audioFile")?.toBytes()?.let { Base64.encodeToString(it, Base64.NO_WRAP) }
+                        )
 
 
                 val open = Intent(context, DropDetailActivity::class.java).apply {
@@ -78,6 +86,8 @@ class GeofenceReceiver : BroadcastReceiver() {
                     dropGroupCode?.let { putExtra("dropGroupCode", it) }
                     putExtra("dropContentType", dropContentType.name)
                     dropMediaUrl?.let { putExtra("dropMediaUrl", it) }
+                    dropMediaMimeType?.let { putExtra("dropMediaMimeType", it) }
+                    dropMediaData?.let { putExtra("dropMediaData", it) }
                 }
 
 
@@ -103,6 +113,8 @@ class GeofenceReceiver : BroadcastReceiver() {
                     dropGroupCode?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_GROUP, it) }
                     putExtra(DropDecisionReceiver.EXTRA_DROP_CONTENT_TYPE, dropContentType.name)
                     dropMediaUrl?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_MEDIA_URL, it) }
+                    dropMediaMimeType?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_MEDIA_MIME_TYPE, it) }
+                    dropMediaData?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_MEDIA_DATA, it) }
                 }
 
                 val pickupPending = PendingIntent.getBroadcast(

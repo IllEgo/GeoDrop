@@ -2,10 +2,12 @@
 package com.e3hi.geodrop.ui
 
 import android.app.Activity
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.widget.Toast
+import android.util.Base64
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
@@ -30,6 +32,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
 import com.e3hi.geodrop.MainActivity
 import com.e3hi.geodrop.data.DropContentType
 import com.e3hi.geodrop.util.formatTimestamp
@@ -37,6 +40,10 @@ import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import java.io.File
+import java.io.FileOutputStream
+import java.io.IOException
+import android.webkit.MimeTypeMap
 
 class DropDetailActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -49,6 +56,8 @@ class DropDetailActivity : ComponentActivity() {
         val initialGroupCode = intent.getStringExtra("dropGroupCode")?.takeIf { it.isNotBlank() }
         val initialContentType = DropContentType.fromRaw(intent.getStringExtra("dropContentType"))
         val initialMediaUrl = intent.getStringExtra("dropMediaUrl")?.takeIf { it.isNotBlank() }
+        val initialMediaMimeType = intent.getStringExtra("dropMediaMimeType")?.takeIf { it.isNotBlank() }
+        val initialMediaData = intent.getStringExtra("dropMediaData")?.takeIf { it.isNotBlank() }
         setContent {
             val context = LocalContext.current
 
@@ -59,7 +68,8 @@ class DropDetailActivity : ComponentActivity() {
                     initialLng != null ||
                     initialCreatedAt != null ||
                     initialGroupCode != null ||
-                    initialMediaUrl != null
+                    initialMediaUrl != null ||
+                    initialMediaData != null
                 ) {
                     DropDetailUiState.Loaded(
                         text = initialText,
@@ -68,7 +78,9 @@ class DropDetailActivity : ComponentActivity() {
                         createdAt = initialCreatedAt,
                         groupCode = initialGroupCode,
                         contentType = initialContentType,
-                        mediaUrl = initialMediaUrl
+                        mediaUrl = initialMediaUrl,
+                        mediaMimeType = initialMediaMimeType,
+                        mediaData = initialMediaData
                     )
                 } else {
                     DropDetailUiState.NotFound
@@ -79,7 +91,8 @@ class DropDetailActivity : ComponentActivity() {
                 initialLng != null ||
                 initialCreatedAt != null ||
                 initialGroupCode != null ||
-                initialMediaUrl != null
+                initialMediaUrl != null ||
+                initialMediaData != null
             ) {
                 DropDetailUiState.Loaded(
                     text = initialText,
@@ -88,7 +101,9 @@ class DropDetailActivity : ComponentActivity() {
                     createdAt = initialCreatedAt,
                     groupCode = initialGroupCode,
                     contentType = initialContentType,
-                    mediaUrl = initialMediaUrl
+                    mediaUrl = initialMediaUrl,
+                    mediaMimeType = initialMediaMimeType,
+                    mediaData = initialMediaData
                 )
             } else {
                 DropDetailUiState.Loading
@@ -141,7 +156,18 @@ class DropDetailActivity : ComponentActivity() {
                         ?: initialContentType,
                     mediaUrl = doc.getString("mediaUrl")?.takeIf { it.isNotBlank() }
                         ?: previousLoaded?.mediaUrl
-                        ?: initialMediaUrl
+                        ?: initialMediaUrl,
+                    mediaMimeType = doc.getString("mediaMimeType")?.takeIf { it.isNotBlank() }
+                        ?: previousLoaded?.mediaMimeType
+                        ?: initialMediaMimeType,
+                    mediaData = (
+                            doc.getString("mediaData")?.takeIf { it.isNotBlank() }
+                                ?: doc.getString("audioFile")?.takeIf { it.isNotBlank() }
+                                ?: doc.getBlob("mediaData")?.toBytes()?.let { Base64.encodeToString(it, Base64.NO_WRAP) }
+                                ?: doc.getBlob("audioFile")?.toBytes()?.let { Base64.encodeToString(it, Base64.NO_WRAP) }
+                            )
+                        ?: previousLoaded?.mediaData
+                        ?: initialMediaData
                 )
             }
 
@@ -194,57 +220,107 @@ class DropDetailActivity : ComponentActivity() {
                     style = MaterialTheme.typography.bodyMedium
                 )
 
+                val loadedState = state as? DropDetailUiState.Loaded
+                val mediaAttachment = when (loadedState) {
+                    null -> null
+                    else -> remember(
+                        loadedState.mediaUrl,
+                        loadedState.mediaData,
+                        loadedState.mediaMimeType,
+                        loadedState.contentType
+                    ) {
+                        resolveMediaAttachment(context, loadedState)
+                    }
+                }
 
-                (state as? DropDetailUiState.Loaded)?.let { current ->
-                    current.mediaUrl?.let { link ->
-                        if (current.contentType == DropContentType.PHOTO) {
-                            val imageRequest = remember(link) {
-                                ImageRequest.Builder(context)
-                                    .data(link)
-                                    .crossfade(true)
-                                    .build()
-                            }
-
-                            AsyncImage(
-                                model = imageRequest,
-                                contentDescription = current.text ?: "Photo drop",
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .heightIn(min = 180.dp, max = 360.dp)
-                                    .clip(RoundedCornerShape(12.dp)),
-                                contentScale = ContentScale.Crop
-                            )
-
-                            Spacer(Modifier.height(8.dp))
+                if (loadedState?.contentType == DropContentType.PHOTO) {
+                    val link = loadedState.mediaUrl
+                    if (!link.isNullOrBlank()) {
+                        val imageRequest = remember(link) {
+                            ImageRequest.Builder(context)
+                                .data(link)
+                                .crossfade(true)
+                                .build()
                         }
 
-                        val buttonLabel = when (current.contentType) {
-                            DropContentType.TEXT -> "Open attachment"
-                            DropContentType.PHOTO -> "View photo"
-                            DropContentType.AUDIO -> "Play audio"
-                        }
-                        Button(
-                            onClick = {
-                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(link))
-                                runCatching { context.startActivity(intent) }
-                                    .onFailure {
-                                        Toast.makeText(
-                                            context,
-                                            "No app found to open this media.",
-                                            Toast.LENGTH_SHORT
-                                        ).show()
-                                    }
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(buttonLabel)
-                        }
-
-                        Text(
-                            text = link,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        AsyncImage(
+                            model = imageRequest,
+                            contentDescription = loadedState.text ?: "Photo drop",
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 180.dp, max = 360.dp)
+                                .clip(RoundedCornerShape(12.dp)),
+                            contentScale = ContentScale.Crop
                         )
+
+                        Spacer(Modifier.height(8.dp))
+                    }
+                }
+
+                if (loadedState != null && mediaAttachment != null) {
+                    val buttonLabel = when (loadedState.contentType) {
+                        DropContentType.TEXT -> "Open attachment"
+                        DropContentType.PHOTO -> "View photo"
+                        DropContentType.AUDIO -> "Play audio"
+                    }
+                    Button(
+                        onClick = {
+                            when (mediaAttachment) {
+                                is MediaAttachment.Link -> {
+                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(mediaAttachment.url))
+                                    runCatching { context.startActivity(intent) }
+                                        .onFailure {
+                                            Toast.makeText(
+                                                context,
+                                                "No app found to open this media.",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                        }
+                                }
+
+                                is MediaAttachment.Local -> {
+                                    val viewIntent = Intent(Intent.ACTION_VIEW).apply {
+                                        setDataAndType(mediaAttachment.uri, mediaAttachment.mimeType)
+                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    }
+                                    context.grantUriPermission(
+                                        context.packageName,
+                                        mediaAttachment.uri,
+                                        Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                    )
+                                    runCatching { context.startActivity(viewIntent) }
+                                        .onFailure {
+                                            Toast.makeText(
+                                                context,
+                                                "No app found to open this media.",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                        }
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(buttonLabel)
+                    }
+
+                    when (mediaAttachment) {
+                        is MediaAttachment.Link -> {
+                            Text(
+                                text = mediaAttachment.url,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        is MediaAttachment.Local -> {
+                            loadedState.mediaMimeType?.let { mime ->
+                                Text(
+                                    text = mime,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
                     }
                 }
 
@@ -319,6 +395,66 @@ private suspend fun <T> com.google.android.gms.tasks.Task<T>.awaitOrNull(): T? =
 
 private fun formatCoordinate(value: Double): String = "%.5f".format(value)
 
+private fun resolveMediaAttachment(
+    context: Context,
+    state: DropDetailUiState.Loaded
+): MediaAttachment? {
+    if (state.contentType == DropContentType.AUDIO) {
+        val data = state.mediaData?.takeIf { it.isNotBlank() }
+        if (data != null) {
+            val preferredMime = state.mediaMimeType?.takeIf { it.isNotBlank() }
+            val decoded = decodeBase64ToTempFile(
+                context = context,
+                base64Data = data,
+                mimeType = preferredMime,
+                subDir = "audio",
+                defaultMime = preferredMime ?: "audio/mpeg",
+                defaultExtension = "m4a"
+            )
+            if (decoded != null) {
+                return MediaAttachment.Local(decoded.uri, decoded.mimeType)
+            }
+        }
+    }
+
+    val url = state.mediaUrl?.takeIf { it.isNotBlank() }
+    return url?.let { MediaAttachment.Link(it) }
+}
+
+private data class DecodedMedia(val uri: Uri, val mimeType: String)
+
+private fun decodeBase64ToTempFile(
+    context: Context,
+    base64Data: String,
+    mimeType: String?,
+    subDir: String,
+    defaultMime: String,
+    defaultExtension: String
+): DecodedMedia? {
+    return try {
+        val bytes = Base64.decode(base64Data, Base64.DEFAULT)
+        val resolvedMime = mimeType?.takeIf { it.isNotBlank() } ?: defaultMime
+        val extension = MimeTypeMap.getSingleton().getExtensionFromMimeType(resolvedMime)?.takeIf { it.isNotBlank() }
+            ?: defaultExtension
+        val dir = File(context.cacheDir, subDir).apply { if (!exists()) mkdirs() }
+        val file = File.createTempFile("geodrop_media_", ".${extension}", dir)
+        FileOutputStream(file).use { output ->
+            output.write(bytes)
+        }
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        DecodedMedia(uri, resolvedMime)
+    } catch (_: IllegalArgumentException) {
+        null
+    } catch (_: IOException) {
+        null
+    }
+}
+
+private sealed class MediaAttachment {
+    data class Link(val url: String) : MediaAttachment()
+    data class Local(val uri: Uri, val mimeType: String) : MediaAttachment()
+}
+
 private sealed interface DropDetailUiState {
     data class Loaded(
         val text: String?,
@@ -327,7 +463,9 @@ private sealed interface DropDetailUiState {
         val createdAt: Long?,
         val groupCode: String?,
         val contentType: DropContentType = DropContentType.TEXT,
-        val mediaUrl: String? = null
+        val mediaUrl: String? = null,
+        val mediaMimeType: String? = null,
+        val mediaData: String? = null
     ) : DropDetailUiState
 
     object Loading : DropDetailUiState

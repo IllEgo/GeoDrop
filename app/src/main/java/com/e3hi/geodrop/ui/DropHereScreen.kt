@@ -9,6 +9,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.util.Base64
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -378,10 +379,14 @@ fun DropHereScreen() {
         groupCode: String?,
         contentType: DropContentType,
         noteText: String,
-        mediaInput: String?
+        mediaInput: String?,
+        mediaMimeType: String?,
+        mediaData: String?
     ) {
         val uid = FirebaseAuth.getInstance().currentUser?.uid ?: "anon"
         val sanitizedMedia = mediaInput?.takeIf { it.isNotBlank() }
+        val sanitizedMime = mediaMimeType?.takeIf { it.isNotBlank() }
+        val sanitizedData = mediaData?.takeIf { it.isNotBlank() }
         val sanitizedText = when (contentType) {
             DropContentType.TEXT -> noteText.ifBlank { "New drop" }
             DropContentType.PHOTO, DropContentType.AUDIO -> noteText.trim()
@@ -394,7 +399,9 @@ fun DropHereScreen() {
             createdAt = System.currentTimeMillis(),
             groupCode = groupCode,
             contentType = contentType,
-            mediaUrl = sanitizedMedia
+            mediaUrl = sanitizedMedia,
+            mediaMimeType = sanitizedMime,
+            mediaData = sanitizedData
         )
         repo.addDrop(d) // suspend (uses Firestore .await() internally)
         if (groupCode != null) {
@@ -422,8 +429,16 @@ fun DropHereScreen() {
                 } else {
                     null
                 }
-                val mediaUrlResult = when (dropContentType) {
-                    DropContentType.TEXT -> null
+                var mediaUrlResult: String? = null
+                var mediaMimeTypeResult: String? = null
+                var mediaDataResult: String? = null
+
+                when (dropContentType) {
+                    DropContentType.TEXT -> {
+                        mediaUrlResult = null
+                        mediaMimeTypeResult = null
+                        mediaDataResult = null
+                    }
 
                     DropContentType.PHOTO -> {
                         val path = capturedPhotoPath ?: run {
@@ -457,7 +472,9 @@ fun DropHereScreen() {
                             runCatching { File(path).delete() }
                         }
 
-                        uploaded
+                        mediaUrlResult = uploaded
+                        mediaMimeTypeResult = "image/jpeg"
+                        mediaDataResult = null
                     }
 
                     DropContentType.AUDIO -> {
@@ -495,7 +512,9 @@ fun DropHereScreen() {
                             runCatching { ctx.contentResolver.delete(uri, null, null) }
                         }
 
-                        uploaded
+                        mediaUrlResult = uploaded
+                        mediaMimeTypeResult = mimeType
+                        mediaDataResult = Base64.encodeToString(audioBytes, Base64.NO_WRAP)
                     }
                 }
 
@@ -511,7 +530,9 @@ fun DropHereScreen() {
                     groupCode = selectedGroupCode,
                     contentType = dropContentType,
                     noteText = note.text,
-                    mediaInput = mediaUrlResult
+                    mediaInput = mediaUrlResult,
+                    mediaMimeType = mediaMimeTypeResult,
+                    mediaData = mediaDataResult
                 )
             } catch (e: Exception) {
                 isSubmitting = false
@@ -801,6 +822,8 @@ fun DropHereScreen() {
                     note.groupCode?.let { putExtra("dropGroupCode", it) }
                     putExtra("dropContentType", note.contentType.name)
                     note.mediaUrl?.let { putExtra("dropMediaUrl", it) }
+                    note.mediaMimeType?.let { putExtra("dropMediaMimeType", it) }
+                    note.mediaData?.let { putExtra("dropMediaData", it) }
                 }
                 ctx.startActivity(intent)
             },

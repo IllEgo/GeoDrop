@@ -112,7 +112,9 @@ class FirestoreRepo(
         val withTimestamp = if (createdAt > 0L) this else copy(createdAt = System.currentTimeMillis())
         val sanitized = withTimestamp.copy(
             text = withTimestamp.text.trim(),
-            mediaUrl = withTimestamp.mediaUrl?.trim()?.takeIf { it.isNotEmpty() }
+            mediaUrl = withTimestamp.mediaUrl?.trim()?.takeIf { it.isNotEmpty() },
+            mediaMimeType = withTimestamp.mediaMimeType?.trim()?.takeIf { it.isNotEmpty() },
+            mediaData = withTimestamp.mediaData?.trim()?.takeIf { it.isNotEmpty() }
         )
 
         return hashMapOf(
@@ -125,7 +127,9 @@ class FirestoreRepo(
             "deletedAt" to null,
             "groupCode" to sanitized.groupCode?.takeIf { it.isNotBlank() },
             "contentType" to sanitized.contentType.name,
-            "mediaUrl" to sanitized.mediaUrl
+            "mediaUrl" to sanitized.mediaUrl,
+            "mediaMimeType" to sanitized.mediaMimeType,
+            "mediaData" to sanitized.mediaData
         )
     }
 }

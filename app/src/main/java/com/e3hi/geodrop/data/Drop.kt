@@ -11,7 +11,9 @@ data class Drop(
     val deletedAt: Long? = null,
     val groupCode: String? = null,
     val contentType: DropContentType = DropContentType.TEXT,
-    val mediaUrl: String? = null
+    val mediaUrl: String? = null,
+    val mediaMimeType: String? = null,
+    val mediaData: String? = null
 )
 
 enum class DropContentType {

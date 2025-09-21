@@ -11,6 +11,8 @@ data class CollectedNote(
     val text: String,
     val contentType: DropContentType,
     val mediaUrl: String?,
+    val mediaMimeType: String?,
+    val mediaData: String?,
     val lat: Double?,
     val lng: Double?,
     val groupCode: String?,
@@ -23,6 +25,8 @@ data class CollectedNote(
             put(KEY_TEXT, text)
             put(KEY_CONTENT_TYPE, contentType.name)
             putOpt(KEY_MEDIA_URL, mediaUrl)
+            putOpt(KEY_MEDIA_MIME, mediaMimeType)
+            putOpt(KEY_MEDIA_DATA, mediaData)
             putOpt(KEY_LAT, lat)
             putOpt(KEY_LNG, lng)
             putOpt(KEY_GROUP_CODE, groupCode)
@@ -36,6 +40,8 @@ data class CollectedNote(
         private const val KEY_TEXT = "text"
         private const val KEY_CONTENT_TYPE = "contentType"
         private const val KEY_MEDIA_URL = "mediaUrl"
+        private const val KEY_MEDIA_MIME = "mediaMimeType"
+        private const val KEY_MEDIA_DATA = "mediaData"
         private const val KEY_LAT = "lat"
         private const val KEY_LNG = "lng"
         private const val KEY_GROUP_CODE = "groupCode"
@@ -47,6 +53,8 @@ data class CollectedNote(
             val text = json.optString(KEY_TEXT)
             val contentType = DropContentType.fromRaw(json.optString(KEY_CONTENT_TYPE))
             val mediaUrl = json.optString(KEY_MEDIA_URL).takeIf { it.isNotBlank() }
+            val mediaMimeType = json.optString(KEY_MEDIA_MIME).takeIf { it.isNotBlank() }
+            val mediaData = json.optString(KEY_MEDIA_DATA).takeIf { it.isNotBlank() }
             val lat = json.optDouble(KEY_LAT).takeIf { json.has(KEY_LAT) }
             val lng = json.optDouble(KEY_LNG).takeIf { json.has(KEY_LNG) }
             val groupCode = json.optString(KEY_GROUP_CODE).takeIf { it.isNotBlank() }
@@ -58,6 +66,8 @@ data class CollectedNote(
                 text = text,
                 contentType = contentType,
                 mediaUrl = mediaUrl,
+                mediaMimeType = mediaMimeType,
+                mediaData = mediaData,
                 lat = lat,
                 lng = lng,
                 groupCode = groupCode,
