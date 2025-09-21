@@ -10,6 +10,7 @@ import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.provider.MediaStore
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -21,8 +22,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.RadioButtonChecked
-import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -63,7 +62,6 @@ import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.LatLng
 import com.google.firebase.auth.FirebaseAuth
-import com.google.maps.android.compose.Circle
 import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.MapUiSettings
 import com.google.maps.android.compose.Marker
@@ -101,7 +99,6 @@ fun DropHereScreen() {
 
     val noteInventory = remember { NoteInventory(ctx) }
     var collectedNotes by remember { mutableStateOf(noteInventory.getCollectedNotes()) }
-    val collectedIds = remember(collectedNotes) { collectedNotes.map { it.id }.toSet() }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -191,14 +188,8 @@ fun DropHereScreen() {
     var myDropsCurrentLocation by remember { mutableStateOf<LatLng?>(null) }
     var myDropsDeletingId by remember { mutableStateOf<String?>(null) }
     var myDropsSelectedId by remember { mutableStateOf<String?>(null) }
-    var showOtherDropsMap by remember { mutableStateOf(false) }
-    var otherMapDrops by remember { mutableStateOf<List<Drop>>(emptyList()) }
-    var otherMapLoading by remember { mutableStateOf(false) }
-    var otherMapError by remember { mutableStateOf<String?>(null) }
-    var otherMapRefreshToken by remember { mutableStateOf(0) }
-    var otherMapCurrentLocation by remember { mutableStateOf<LatLng?>(null) }
+    var showCollectedDrops by remember { mutableStateOf(false) }
     var showManageGroups by remember { mutableStateOf(false) }
-    var showCollectedNotes by remember { mutableStateOf(false) }
 
     suspend fun getLatestLocation(): Pair<Double, Double>? = withContext(Dispatchers.IO) {
         val fresh = try {
@@ -390,37 +381,6 @@ fun DropHereScreen() {
             joinedGroups = groupPrefs.getJoinedGroups()
         }
         uiDone(lat, lng, groupCode, contentType)
-    }
-
-    LaunchedEffect(showOtherDropsMap, otherMapRefreshToken, joinedGroups) {
-        if (showOtherDropsMap) {
-            otherMapLoading = true
-            otherMapError = null
-            otherMapCurrentLocation = null
-            val uid = FirebaseAuth.getInstance().currentUser?.uid
-            if (uid == null) {
-                otherMapLoading = false
-                otherMapError = "Sign-in is still in progress. Try again in a moment."
-            } else {
-                try {
-                    val allowedGroups = joinedGroups.toSet()
-                    val drops = repo.getVisibleDropsForUser(uid, allowedGroups)
-                        .filterNot { noteInventory.isIgnored(it.id) }
-                        .sortedByDescending { it.createdAt }
-                    otherMapDrops = drops
-                    otherMapCurrentLocation = getLatestLocation()?.let { (lat, lng) -> LatLng(lat, lng) }
-                } catch (e: Exception) {
-                    otherMapError = e.message ?: "Failed to load other drops."
-                } finally {
-                    otherMapLoading = false
-                }
-            }
-        } else {
-            otherMapDrops = emptyList()
-            otherMapError = null
-            otherMapLoading = false
-            otherMapCurrentLocation = null
-        }
     }
 
     LaunchedEffect(showMyDrops, myDropsRefreshToken) {
@@ -831,13 +791,13 @@ fun DropHereScreen() {
             Button(
                 onClick = {
                     collectedNotes = noteInventory.getCollectedNotes()
-                    showCollectedNotes = true
+                    showCollectedDrops = true
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {
                 val count = collectedNotes.size
                 Text(
-                    text = if (count == 0) "View collected notes" else "View collected notes ($count)"
+                    text = if (count == 0) "View collected drops" else "View collected drops ($count)"
                 )
             }
 
@@ -852,24 +812,6 @@ fun DropHereScreen() {
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp, vertical = 16.dp)
-        )
-    }
-
-    if (showOtherDropsMap) {
-        val redactedIds = otherMapDrops
-            .mapNotNull { drop -> drop.id.takeIf { it !in collectedIds } }
-            .toSet()
-        DropsMapDialog(
-            title = "Other drops on map",
-            loading = otherMapLoading,
-            drops = otherMapDrops,
-            currentLocation = otherMapCurrentLocation,
-            error = otherMapError,
-            emptyMessage = "No drops from other users are available right now.",
-            redactedDropIds = redactedIds,
-            collectedDropIds = collectedIds,
-            onDismiss = { showOtherDropsMap = false },
-            onRetry = { otherMapRefreshToken += 1 }
         )
     }
 
@@ -910,10 +852,10 @@ fun DropHereScreen() {
         )
     }
 
-    if (showCollectedNotes) {
-        CollectedNotesDialog(
+    if (showCollectedDrops) {
+        CollectedDropsDialog(
             notes = collectedNotes,
-            onDismiss = { showCollectedNotes = false },
+            onDismiss = { showCollectedDrops = false },
             onView = { note ->
                 val intent = Intent(ctx, DropDetailActivity::class.java).apply {
                     putExtra("dropId", note.id)
@@ -960,86 +902,6 @@ fun DropHereScreen() {
 }
 
 @Composable
-private fun DropsMapDialog(
-    title: String,
-    loading: Boolean,
-    drops: List<Drop>,
-    currentLocation: LatLng?,
-    error: String?,
-    emptyMessage: String,
-    redactedDropIds: Set<String>,
-    collectedDropIds: Set<String>,
-    onDismiss: () -> Unit,
-    onRetry: () -> Unit
-) {
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        Surface(
-            modifier = Modifier.fillMaxSize(),
-            color = MaterialTheme.colorScheme.background
-        ) {
-            @OptIn(ExperimentalMaterial3Api::class)
-            Scaffold(
-                topBar = {
-                    TopAppBar(
-                        title = { Text(title) },
-                        navigationIcon = {
-                            IconButton(onClick = onDismiss) {
-                                Icon(
-                                    Icons.Filled.ArrowBack,
-                                    contentDescription = "Back to main page"
-                                )
-                            }
-                        }
-                    )
-                }
-            ) { padding ->
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding)
-                ) {
-                    when {
-                        loading -> {
-                            CircularProgressIndicator(Modifier.align(Alignment.Center))
-                        }
-
-                        error != null -> {
-                            DialogMessageContent(
-                                message = error,
-                                primaryLabel = "Retry",
-                                onPrimary = onRetry,
-                                onDismiss = onDismiss
-                            )
-                        }
-
-                        drops.isEmpty() -> {
-                            DialogMessageContent(
-                                message = emptyMessage,
-                                primaryLabel = null,
-                                onPrimary = null,
-                                onDismiss = onDismiss
-                            )
-                        }
-
-                        else -> {
-                            DropsMapContent(
-                                drops = drops,
-                                currentLocation = currentLocation,
-                                redactedDropIds = redactedDropIds,
-                                collectedDropIds = collectedDropIds
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
 private fun DialogMessageContent(
     message: String,
     primaryLabel: String?,
@@ -1074,8 +936,13 @@ private fun DialogMessageContent(
     }
 }
 
+private fun formatCoordinate(value: Double): String {
+    return String.format(Locale.US, "%.5f", value)
+}
+
+
 @Composable
-private fun CollectedNotesDialog(
+private fun CollectedDropsDialog(
     notes: List<CollectedNote>,
     onDismiss: () -> Unit,
     onView: (CollectedNote) -> Unit,
@@ -1093,44 +960,113 @@ private fun CollectedNotesDialog(
             Scaffold(
                 topBar = {
                     TopAppBar(
-                        title = { Text("Collected notes") },
+                        title = { Text("Collected drops") },
                         navigationIcon = {
                             IconButton(onClick = onDismiss) {
                                 Icon(
                                     Icons.Filled.ArrowBack,
-                                    contentDescription = "Back to main page"
+                                    contentDescription = "Back to main page",
                                 )
                             }
                         }
                     )
                 }
             ) { padding ->
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding)
-                ) {
-                    if (notes.isEmpty()) {
+                if (notes.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(padding)
+                    ) {
                         DialogMessageContent(
-                            message = "You haven't collected any notes yet.",
+                            message = "You haven't collected any drops yet.",
                             primaryLabel = null,
                             onPrimary = null,
                             onDismiss = onDismiss
                         )
-                    } else {
-                        LazyColumn(
+                    }
+                } else {
+                    var highlightedId by rememberSaveable { mutableStateOf<String?>(null) }
+
+                    LaunchedEffect(notes) {
+                        if (notes.isEmpty()) {
+                            highlightedId = null
+                        } else if (highlightedId == null || notes.none { it.id == highlightedId }) {
+                            highlightedId = notes.firstOrNull { it.lat != null && it.lng != null }?.id
+                                ?: notes.firstOrNull()?.id
+                        }
+                    }
+
+                    val highlightedNote = notes.firstOrNull { it.id == highlightedId }
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(padding)
+                    ) {
+                        Box(
                             modifier = Modifier
-                                .fillMaxSize()
-                                .padding(horizontal = 16.dp),
-                            contentPadding = PaddingValues(vertical = 16.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                                .fillMaxWidth()
+                                .weight(1f)
                         ) {
-                            items(notes, key = { it.id }) { note ->
-                                CollectedNoteCard(
-                                    note = note,
-                                    onView = { onView(note) },
-                                    onRemove = { onRemove(note) }
+                            CollectedDropsMap(
+                                notes = notes,
+                                highlightedId = highlightedId
+                            )
+
+                            if (highlightedNote != null && (highlightedNote.lat == null || highlightedNote.lng == null)) {
+                                Text(
+                                    text = "Location unavailable for the selected drop.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier
+                                        .align(Alignment.TopCenter)
+                                        .padding(16.dp)
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.9f))
+                                        .padding(horizontal = 16.dp, vertical = 8.dp)
                                 )
+                            }
+                        }
+
+                        Divider()
+
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f)
+                        ) {
+                            Text(
+                                text = "Select a drop to focus on the map.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 12.dp)
+                            )
+
+                            LazyColumn(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .weight(1f),
+                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                items(notes, key = { it.id }) { note ->
+                                    CollectedNoteCard(
+                                        note = note,
+                                        selected = note.id == highlightedId,
+                                        onSelect = { highlightedId = note.id },
+                                        onView = {
+                                            highlightedId = note.id
+                                            onView(note)
+                                        },
+                                        onRemove = {
+                                            highlightedId = null
+                                            onRemove(note)
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
@@ -1141,13 +1077,118 @@ private fun CollectedNotesDialog(
 }
 
 @Composable
+private fun CollectedDropsMap(
+    notes: List<CollectedNote>,
+    highlightedId: String?,
+    modifier: Modifier = Modifier
+) {
+    val notesWithLocation = remember(notes) { notes.filter { it.lat != null && it.lng != null } }
+    val cameraPositionState = rememberCameraPositionState()
+    val uiSettings = remember { MapUiSettings(zoomControlsEnabled = true) }
+
+    val highlightedNote = notesWithLocation.firstOrNull { it.id == highlightedId }
+    val fallbackNote = notesWithLocation.firstOrNull()
+
+    LaunchedEffect(notesWithLocation, highlightedNote?.id) {
+        val target = highlightedNote ?: fallbackNote
+        if (target != null) {
+            val lat = target.lat ?: return@LaunchedEffect
+            val lng = target.lng ?: return@LaunchedEffect
+            val zoom = if (highlightedNote != null) 15f else 12f
+            val update = CameraUpdateFactory.newLatLngZoom(LatLng(lat, lng), zoom)
+            cameraPositionState.animate(update)
+        }
+    }
+
+    if (notesWithLocation.isEmpty()) {
+        Box(modifier.fillMaxSize()) {
+            Text(
+                text = "No location data for collected drops yet.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.align(Alignment.Center)
+            )
+        }
+    } else {
+        GoogleMap(
+            modifier = modifier.fillMaxSize(),
+            cameraPositionState = cameraPositionState,
+            uiSettings = uiSettings
+        ) {
+            notesWithLocation.forEach { note ->
+                val lat = note.lat ?: return@forEach
+                val lng = note.lng ?: return@forEach
+                val position = LatLng(lat, lng)
+                val typeLabel = when (note.contentType) {
+                    DropContentType.TEXT -> "Text note"
+                    DropContentType.PHOTO -> "Photo drop"
+                    DropContentType.AUDIO -> "Audio drop"
+                }
+                val snippetParts = mutableListOf<String>()
+                snippetParts.add("Type: $typeLabel")
+                note.dropCreatedAt?.let { created ->
+                    formatTimestamp(created)?.let { snippetParts.add("Dropped $it") }
+                }
+                snippetParts.add("Lat: ${formatCoordinate(lat)}, Lng: ${formatCoordinate(lng)}")
+                note.groupCode?.let { snippetParts.add("Group $it") }
+                note.mediaUrl?.let { snippetParts.add("Link: $it") }
+
+                val title = note.text.ifBlank {
+                    when (note.contentType) {
+                        DropContentType.TEXT -> "Collected text drop"
+                        DropContentType.PHOTO -> "Collected photo drop"
+                        DropContentType.AUDIO -> "Collected audio drop"
+                    }
+                }
+            }
+
+            val markerColor = if (note.id == highlightedId) {
+                BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ORANGE)
+            } else {
+                BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN)
+            }
+
+            Marker(
+                state = MarkerState(position),
+                title = title,
+                snippet = snippetParts.joinToString("\n"),
+                icon = markerColor,
+                zIndex = if (note.id == highlightedId) 1f else 0f
+            )
+        }
+    }
+}
+
+@Composable
 private fun CollectedNoteCard(
     note: CollectedNote,
+    selected: Boolean,
+    onSelect: () -> Unit,
     onView: () -> Unit,
     onRemove: () -> Unit
 ) {
+    val containerColor = if (selected) {
+        MaterialTheme.colorScheme.primaryContainer
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant
+    }
+    val contentColor = if (selected) {
+        MaterialTheme.colorScheme.onPrimaryContainer
+    } else {
+        MaterialTheme.colorScheme.onSurface
+    }
+    val supportingColor = if (selected) {
+        MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
     Card(
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier.fillMaxWidth(),
+        onClick = onSelect,
+        colors = CardDefaults.cardColors(
+            containerColor = containerColor,
+            contentColor = contentColor
+        )
     ) {
         Column(
             modifier = Modifier
@@ -1180,27 +1221,37 @@ private fun CollectedNoteCard(
 
             Text(
                 text = "Collected: ${formatTimestamp(note.collectedAt)}",
-                style = MaterialTheme.typography.bodyMedium
+                style = MaterialTheme.typography.bodyMedium,
+                color = supportingColor
             )
 
             note.dropCreatedAt?.let {
                 Text(
                     text = "Dropped: ${formatTimestamp(it)}",
-                    style = MaterialTheme.typography.bodyMedium
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = supportingColor
                 )
             }
 
             note.groupCode?.let { group ->
                 Text(
                     text = "Group: $group",
-                    style = MaterialTheme.typography.bodyMedium
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = supportingColor
                 )
             }
 
             if (note.lat != null && note.lng != null) {
                 Text(
                     text = "Location: ${formatCoordinate(note.lat)}, ${formatCoordinate(note.lng)}",
-                    style = MaterialTheme.typography.bodyMedium
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = supportingColor
+                )
+            } else {
+                Text(
+                    text = "Location: Unknown",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = supportingColor
                 )
             }
 
@@ -1228,9 +1279,6 @@ private fun CollectedNoteCard(
     }
 }
 
-private fun formatCoordinate(value: Double): String {
-    return String.format(Locale.US, "%.5f", value)
-}
 
 @Composable
 private fun ManageGroupsDialog(
@@ -1750,122 +1798,6 @@ private fun ManageDropRow(
                         Text("Delete")
                     }
                 }
-            }
-        }
-    }
-}
-
-@Composable
-private fun DropsMapContent(
-    drops: List<Drop>,
-    currentLocation: LatLng?,
-    redactedDropIds: Set<String>,
-    collectedDropIds: Set<String>
-) {
-    val cameraPositionState = rememberCameraPositionState()
-    val uiSettings = remember { MapUiSettings(zoomControlsEnabled = true) }
-
-    var showRadius by rememberSaveable { mutableStateOf(false) }
-
-    LaunchedEffect(drops, currentLocation) {
-        val target = currentLocation ?: drops.firstOrNull()?.let { LatLng(it.lat, it.lng) }
-        if (target != null) {
-            val update = CameraUpdateFactory.newLatLngZoom(target, 13f)
-            cameraPositionState.animate(update)
-        }
-    }
-
-
-    LaunchedEffect(currentLocation) {
-        if (currentLocation == null) {
-            showRadius = false
-        }
-    }
-
-    Box(Modifier.fillMaxSize()) {
-        GoogleMap(
-            modifier = Modifier.fillMaxSize(),
-            cameraPositionState = cameraPositionState,
-            uiSettings = uiSettings
-        ) {
-            currentLocation?.let { location ->
-                if (showRadius) {
-                    Circle(
-                        center = location,
-                        radius = 300.0,
-                        strokeColor = Color(0xFF1E88E5),
-                        strokeWidth = 2f,
-                        fillColor = Color(0x331E88E5)
-                    )
-                }
-
-                Marker(
-                    state = MarkerState(location),
-                    title = "Your current location",
-                    icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE),
-                    zIndex = 1f
-                )
-            }
-
-            drops.forEach { drop ->
-                val position = LatLng(drop.lat, drop.lng)
-                val isRedacted = redactedDropIds.contains(drop.id)
-                val isCollected = drop.id.isNotBlank() && collectedDropIds.contains(drop.id)
-                val snippetParts = mutableListOf<String>()
-                val typeLabel = when (drop.contentType) {
-                    DropContentType.TEXT -> "Text note"
-                    DropContentType.PHOTO -> "Photo drop"
-                    DropContentType.AUDIO -> "Audio drop"
-                }
-                snippetParts.add("Type: $typeLabel")
-                formatTimestamp(drop.createdAt)?.let { snippetParts.add("Dropped $it") }
-                drop.groupCode?.takeIf { !it.isNullOrBlank() }?.let { snippetParts.add("Group $it") }
-                snippetParts.add("Lat: %.5f, Lng: %.5f".format(drop.lat, drop.lng))
-                if (isRedacted) {
-                    snippetParts.add("Move closer to unlock this drop.")
-                } else {
-                    drop.mediaLabel()?.let { snippetParts.add("Link: $it") }
-                }
-
-                val markerTitle = if (isRedacted) {
-                    when (drop.contentType) {
-                        DropContentType.TEXT -> "Locked text drop"
-                        DropContentType.PHOTO -> "Locked photo drop"
-                        DropContentType.AUDIO -> "Locked audio drop"
-                    }
-                } else {
-                    drop.displayTitle()
-                }
-
-                val markerIcon = if (isCollected) {
-                    BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN)
-                } else {
-                    null
-                }
-
-                Marker(
-                    state = MarkerState(position),
-                    title = markerTitle,
-                    snippet = snippetParts.joinToString("\n"),
-                    icon = markerIcon
-                )
-            }
-        }
-
-
-        if (currentLocation != null) {
-            ExtendedFloatingActionButton(
-                onClick = { showRadius = !showRadius },
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(16.dp)
-            ) {
-                Icon(
-                    imageVector = if (showRadius) Icons.Filled.RadioButtonChecked else Icons.Filled.RadioButtonUnchecked,
-                    contentDescription = null
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(if (showRadius) "Hide 300 m radius" else "Show 300 m radius")
             }
         }
     }
