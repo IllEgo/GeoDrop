@@ -69,6 +69,7 @@ import com.e3hi.geodrop.data.NoteInventory
 import com.e3hi.geodrop.geo.DropDecisionReceiver
 import com.e3hi.geodrop.ui.theme.GeoDropTheme
 import com.e3hi.geodrop.util.formatTimestamp
+import com.e3hi.geodrop.util.EXTRA_SHOW_DECISION_OPTIONS
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
 import coil.compose.AsyncImage
@@ -635,10 +636,6 @@ class DropDetailActivity : ComponentActivity() {
                 }
             }
         }
-    }
-
-    companion object {
-        const val EXTRA_SHOW_DECISION_OPTIONS = "showDecisionOptions"
     }
 }
 
