@@ -6,33 +6,58 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
-import android.widget.Toast
 import android.util.Base64
+import android.webkit.MimeTypeMap
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Article
+import androidx.compose.material.icons.rounded.Block
+import androidx.compose.material.icons.rounded.DeleteForever
+import androidx.compose.material.icons.rounded.Event
+import androidx.compose.material.icons.rounded.GraphicEq
+import androidx.compose.material.icons.rounded.Groups
+import androidx.compose.material.icons.rounded.HourglassEmpty
+import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.PhotoCamera
+import androidx.compose.material.icons.rounded.Place
+import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material3.Button
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -42,6 +67,7 @@ import com.e3hi.geodrop.MainActivity
 import com.e3hi.geodrop.data.DropContentType
 import com.e3hi.geodrop.data.NoteInventory
 import com.e3hi.geodrop.geo.DropDecisionReceiver
+import com.e3hi.geodrop.ui.theme.GeoDropTheme
 import com.e3hi.geodrop.util.formatTimestamp
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
@@ -50,9 +76,10 @@ import coil.request.ImageRequest
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
-import android.webkit.MimeTypeMap
 
 class DropDetailActivity : ComponentActivity() {
+
+    @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val dropId = intent.getStringExtra("dropId").orEmpty()
@@ -66,268 +93,122 @@ class DropDetailActivity : ComponentActivity() {
         val initialMediaMimeType = intent.getStringExtra("dropMediaMimeType")?.takeIf { it.isNotBlank() }
         val initialMediaData = intent.getStringExtra("dropMediaData")?.takeIf { it.isNotBlank() }
         val showDecisionOptions = intent.getBooleanExtra(EXTRA_SHOW_DECISION_OPTIONS, false)
+
         setContent {
-            val context = LocalContext.current
+            GeoDropTheme {
+                Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                    val context = LocalContext.current
 
-            val initialState = if (dropId.isBlank()) {
-                if (
-                    initialText != null ||
-                    initialLat != null ||
-                    initialLng != null ||
-                    initialCreatedAt != null ||
-                    initialGroupCode != null ||
-                    initialMediaUrl != null ||
-                    initialMediaData != null
-                ) {
-                    DropDetailUiState.Loaded(
-                        text = initialText,
-                        lat = initialLat,
-                        lng = initialLng,
-                        createdAt = initialCreatedAt,
-                        groupCode = initialGroupCode,
-                        contentType = initialContentType,
-                        mediaUrl = initialMediaUrl,
-                        mediaMimeType = initialMediaMimeType,
-                        mediaData = initialMediaData
-                    )
-                } else {
-                    DropDetailUiState.NotFound
-                }
-            } else if (
-                initialText != null ||
-                initialLat != null ||
-                initialLng != null ||
-                initialCreatedAt != null ||
-                initialGroupCode != null ||
-                initialMediaUrl != null ||
-                initialMediaData != null
-            ) {
-                DropDetailUiState.Loaded(
-                    text = initialText,
-                    lat = initialLat,
-                    lng = initialLng,
-                    createdAt = initialCreatedAt,
-                    groupCode = initialGroupCode,
-                    contentType = initialContentType,
-                    mediaUrl = initialMediaUrl,
-                    mediaMimeType = initialMediaMimeType,
-                    mediaData = initialMediaData
-                )
-            } else {
-                DropDetailUiState.Loading
-            }
-
-            var state by remember { mutableStateOf(initialState) }
-
-            LaunchedEffect(dropId) {
-                if (dropId.isBlank()) return@LaunchedEffect
-                val previousLoaded = state as? DropDetailUiState.Loaded
-                if (previousLoaded == null) {
-                    state = DropDetailUiState.Loading
-                }
-                val doc = Firebase.firestore.collection("drops").document(dropId).get().awaitOrNull()
-
-                if (doc == null) {
-                    previousLoaded?.let {
-                        Toast.makeText(
-                            context,
-                            "Couldn't refresh drop details. Showing saved info.",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                        state = it
-                    } ?: run {
-                        state = DropDetailUiState.NotFound
-                    }
-                    return@LaunchedEffect
-                }
-
-                val isDeleted = doc.getBoolean("isDeleted") == true
-                if (isDeleted) {
-                    state = DropDetailUiState.Deleted
-                    return@LaunchedEffect
-                }
-
-                state = DropDetailUiState.Loaded(
-                    text = doc.getString("text")?.takeIf { it.isNotBlank() }
-                        ?: previousLoaded?.text
-                        ?: initialText,
-                    lat = doc.getDouble("lat") ?: previousLoaded?.lat ?: initialLat,
-                    lng = doc.getDouble("lng") ?: previousLoaded?.lng ?: initialLng,
-                    createdAt = doc.getLong("createdAt")?.takeIf { it > 0L }
-                        ?: previousLoaded?.createdAt
-                        ?: initialCreatedAt,
-                    groupCode = doc.getString("groupCode")?.takeIf { it.isNotBlank() }
-                        ?: previousLoaded?.groupCode
-                        ?: initialGroupCode,
-                    contentType = doc.getString("contentType")?.let { DropContentType.fromRaw(it) }
-                        ?: previousLoaded?.contentType
-                        ?: initialContentType,
-                    mediaUrl = doc.getString("mediaUrl")?.takeIf { it.isNotBlank() }
-                        ?: previousLoaded?.mediaUrl
-                        ?: initialMediaUrl,
-                    mediaMimeType = doc.getString("mediaMimeType")?.takeIf { it.isNotBlank() }
-                        ?: previousLoaded?.mediaMimeType
-                        ?: initialMediaMimeType,
-                    mediaData = (
-                            doc.getString("mediaData")?.takeIf { it.isNotBlank() }
-                                ?: doc.getString("audioFile")?.takeIf { it.isNotBlank() }
-                                ?: doc.getBlob("mediaData")?.toBytes()?.let { Base64.encodeToString(it, Base64.NO_WRAP) }
-                                ?: doc.getBlob("audioFile")?.toBytes()?.let { Base64.encodeToString(it, Base64.NO_WRAP) }
+                    val initialState = if (dropId.isBlank()) {
+                        if (
+                            initialText != null ||
+                            initialLat != null ||
+                            initialLng != null ||
+                            initialCreatedAt != null ||
+                            initialGroupCode != null ||
+                            initialMediaUrl != null ||
+                            initialMediaData != null
+                        ) {
+                            DropDetailUiState.Loaded(
+                                text = initialText,
+                                lat = initialLat,
+                                lng = initialLng,
+                                createdAt = initialCreatedAt,
+                                groupCode = initialGroupCode,
+                                contentType = initialContentType,
+                                mediaUrl = initialMediaUrl,
+                                mediaMimeType = initialMediaMimeType,
+                                mediaData = initialMediaData
                             )
-                        ?: previousLoaded?.mediaData
-                        ?: initialMediaData
-                )
-            }
-
-            val scrollState = rememberScrollState()
-
-            Column(
-                Modifier
-                    .fillMaxSize()
-                    .verticalScroll(scrollState)
-                    .padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Text("Drop detail", style = MaterialTheme.typography.titleLarge)
-
-                Text("Message", style = MaterialTheme.typography.titleMedium)
-                val message = when (val current = state) {
-                    is DropDetailUiState.Loaded -> {
-                        val fallback = when (current.contentType) {
-                            DropContentType.TEXT -> "Not available"
-                            DropContentType.PHOTO -> "Photo drop"
-                            DropContentType.AUDIO -> "Audio drop"
+                        } else {
+                            DropDetailUiState.NotFound
                         }
-                        current.text?.takeIf { it.isNotBlank() } ?: fallback
-                    }
-                    DropDetailUiState.Loading -> "Loading…"
-                    DropDetailUiState.Deleted -> "Not available"
-                    DropDetailUiState.NotFound -> "Not available"
-                }
-                Text(message, style = MaterialTheme.typography.bodyLarge)
-
-                if (state is DropDetailUiState.Deleted) {
-                    Text(
-                        "This drop has been deleted.",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                }
-
-                Spacer(Modifier.height(8.dp))
-
-                val typeText = when (val current = state) {
-                    is DropDetailUiState.Loaded -> when (current.contentType) {
-                        DropContentType.TEXT -> "Text note"
-                        DropContentType.PHOTO -> "Photo drop"
-                        DropContentType.AUDIO -> "Audio drop"
-                    }
-                    DropDetailUiState.Loading -> "Loading…"
-                    DropDetailUiState.Deleted -> "Not available"
-                    DropDetailUiState.NotFound -> "Not available"
-                }
-                Text(
-                    "Type: $typeText",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-
-                val loadedState = state as? DropDetailUiState.Loaded
-                val mediaAttachment = when (loadedState) {
-                    null -> null
-                    else -> remember(
-                        loadedState.mediaUrl,
-                        loadedState.mediaData,
-                        loadedState.mediaMimeType,
-                        loadedState.contentType
+                    } else if (
+                        initialText != null ||
+                        initialLat != null ||
+                        initialLng != null ||
+                        initialCreatedAt != null ||
+                        initialGroupCode != null ||
+                        initialMediaUrl != null ||
+                        initialMediaData != null
                     ) {
-                        resolveMediaAttachment(context, loadedState)
-                    }
-                }
-
-                if (loadedState?.contentType == DropContentType.PHOTO) {
-                    val link = loadedState.mediaUrl
-                    if (!link.isNullOrBlank()) {
-                        val imageRequest = remember(link) {
-                            ImageRequest.Builder(context)
-                                .data(link)
-                                .crossfade(true)
-                                .build()
-                        }
-
-                        AsyncImage(
-                            model = imageRequest,
-                            contentDescription = loadedState.text ?: "Photo drop",
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(min = 180.dp, max = 360.dp)
-                                .clip(RoundedCornerShape(12.dp)),
-                            contentScale = ContentScale.Crop
+                        DropDetailUiState.Loaded(
+                            text = initialText,
+                            lat = initialLat,
+                            lng = initialLng,
+                            createdAt = initialCreatedAt,
+                            groupCode = initialGroupCode,
+                            contentType = initialContentType,
+                            mediaUrl = initialMediaUrl,
+                            mediaMimeType = initialMediaMimeType,
+                            mediaData = initialMediaData
                         )
-
-                        Spacer(Modifier.height(8.dp))
-                    }
-                }
-
-                if (loadedState != null && mediaAttachment != null) {
-                    val buttonLabel = when (loadedState.contentType) {
-                        DropContentType.TEXT -> "Open attachment"
-                        DropContentType.PHOTO -> "View photo"
-                        DropContentType.AUDIO -> "Play audio"
-                    }
-                    Button(
-                        onClick = {
-                            when (mediaAttachment) {
-                                is MediaAttachment.Link -> {
-                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(mediaAttachment.url))
-                                    runCatching { context.startActivity(intent) }
-                                        .onFailure {
-                                            Toast.makeText(
-                                                context,
-                                                "No app found to open this media.",
-                                                Toast.LENGTH_SHORT
-                                            ).show()
-                                        }
-                                }
-
-                                is MediaAttachment.Local -> {
-                                    val viewIntent = Intent(Intent.ACTION_VIEW).apply {
-                                        setDataAndType(mediaAttachment.uri, mediaAttachment.mimeType)
-                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                    }
-                                    context.grantUriPermission(
-                                        context.packageName,
-                                        mediaAttachment.uri,
-                                        Intent.FLAG_GRANT_READ_URI_PERMISSION
-                                    )
-                                    runCatching { context.startActivity(viewIntent) }
-                                        .onFailure {
-                                            Toast.makeText(
-                                                context,
-                                                "No app found to open this media.",
-                                                Toast.LENGTH_SHORT
-                                            ).show()
-                                        }
-                                }
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(buttonLabel)
+                    } else {
+                        DropDetailUiState.Loading
                     }
 
-                    when (mediaAttachment) {
-                        is MediaAttachment.Link -> Unit
-                        is MediaAttachment.Local -> {
-                            loadedState.mediaMimeType?.let { mime ->
-                                Text(
-                                    text = mime,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
+                    var state by remember { mutableStateOf(initialState) }
+
+                    LaunchedEffect(dropId) {
+                        if (dropId.isBlank()) return@LaunchedEffect
+                        val previousLoaded = state as? DropDetailUiState.Loaded
+                        if (previousLoaded == null) {
+                            state = DropDetailUiState.Loading
                         }
+                        val doc = Firebase.firestore.collection("drops").document(dropId).get().awaitOrNull()
+
+                        if (doc == null) {
+                            previousLoaded?.let {
+                                Toast.makeText(
+                                    context,
+                                    "Couldn't refresh drop details. Showing saved info.",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                                state = it
+                            } ?: run {
+                                state = DropDetailUiState.NotFound
+                            }
+                            return@LaunchedEffect
+                        }
+
+                        val isDeleted = doc.getBoolean("isDeleted") == true
+                        if (isDeleted) {
+                            state = DropDetailUiState.Deleted
+                            return@LaunchedEffect
+                        }
+
+                        state = DropDetailUiState.Loaded(
+                            text = doc.getString("text")?.takeIf { it.isNotBlank() }
+                                ?: previousLoaded?.text
+                                ?: initialText,
+                            lat = doc.getDouble("lat") ?: previousLoaded?.lat ?: initialLat,
+                            lng = doc.getDouble("lng") ?: previousLoaded?.lng ?: initialLng,
+                            createdAt = doc.getLong("createdAt")?.takeIf { it > 0L }
+                                ?: previousLoaded?.createdAt
+                                ?: initialCreatedAt,
+                            groupCode = doc.getString("groupCode")?.takeIf { it.isNotBlank() }
+                                ?: previousLoaded?.groupCode
+                                ?: initialGroupCode,
+                            contentType = doc.getString("contentType")?.let { DropContentType.fromRaw(it) }
+                                ?: previousLoaded?.contentType
+                                ?: initialContentType,
+                            mediaUrl = doc.getString("mediaUrl")?.takeIf { it.isNotBlank() }
+                                ?: previousLoaded?.mediaUrl
+                                ?: initialMediaUrl,
+                            mediaMimeType = doc.getString("mediaMimeType")?.takeIf { it.isNotBlank() }
+                                ?: previousLoaded?.mediaMimeType
+                                ?: initialMediaMimeType,
+                            mediaData = (
+                                    doc.getString("mediaData")?.takeIf { it.isNotBlank() }
+                                        ?: doc.getString("audioFile")?.takeIf { it.isNotBlank() }
+                                        ?: doc.getBlob("mediaData")?.toBytes()?.let { Base64.encodeToString(it, Base64.NO_WRAP) }
+                                        ?: doc.getBlob("audioFile")?.toBytes()?.let { Base64.encodeToString(it, Base64.NO_WRAP) }
+                                    )
+                                ?: previousLoaded?.mediaData
+                                ?: initialMediaData
+                        )
                     }
                 }
-
                 val appContext = context.applicationContext
                 val noteInventory = remember(appContext) { NoteInventory(appContext) }
                 var decisionHandled by remember(dropId) { mutableStateOf(false) }
@@ -335,7 +216,7 @@ class DropDetailActivity : ComponentActivity() {
                 var decisionProcessing by remember(dropId) { mutableStateOf(false) }
                 val isAlreadyCollected = remember(dropId) {
                     dropId.isNotBlank() && noteInventory.isCollected(dropId)
-                }
+                    }
                 val isAlreadyIgnored = remember(dropId) {
                     dropId.isNotBlank() && noteInventory.isIgnored(dropId)
                 }
@@ -348,151 +229,409 @@ class DropDetailActivity : ComponentActivity() {
                 }
                 val decisionMessage = decisionStatusMessage ?: defaultDecisionMessage
 
-                Spacer(Modifier.height(8.dp))
-
-                val visibilityText = when (val current = state) {
-                    is DropDetailUiState.Loaded -> current.groupCode?.let { "Group-only · $it" } ?: "Public drop"
-                    DropDetailUiState.Loading -> "Loading…"
-                    DropDetailUiState.Deleted -> "Not available"
-                    DropDetailUiState.NotFound -> "Not available"
-                }
-                Text(
-                    "Visibility: $visibilityText",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-
-                val createdAtText = when (val current = state) {
-                    is DropDetailUiState.Loaded -> current.createdAt?.let { formatTimestamp(it) }
-                    DropDetailUiState.Loading -> "Loading…"
-                    DropDetailUiState.Deleted -> null
-                    DropDetailUiState.NotFound -> null
-                }
-                Text(
-                    "Dropped: ${createdAtText ?: "Not available"}",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-
-
-                val latText = when (val current = state) {
-                    is DropDetailUiState.Loaded -> current.lat?.let { formatCoordinate(it) } ?: "-"
-                    DropDetailUiState.Loading -> "Loading…"
-                    DropDetailUiState.Deleted -> "-"
-                    DropDetailUiState.NotFound -> "-"
-                }
-                val lngText = when (val current = state) {
-                    is DropDetailUiState.Loaded -> current.lng?.let { formatCoordinate(it) } ?: "-"
-                    DropDetailUiState.Loading -> "Loading…"
-                    DropDetailUiState.Deleted -> "-"
-                    DropDetailUiState.NotFound -> "-"
-                }
-
-                Text("Lat: $latText")
-                Text("Lng: $lngText")
-
-                if (shouldShowDecisionPrompt) {
-                    Spacer(Modifier.height(16.dp))
-                    val decisionPrompt = when (loadedState?.contentType) {
-                        DropContentType.TEXT -> "Would you like to pick up this note?"
-                        DropContentType.PHOTO -> "Would you like to pick up this photo?"
-                        DropContentType.AUDIO -> "Would you like to pick up this audio drop?"
-                        null -> "Would you like to pick up this drop?"
-                    }
-                    Text(decisionPrompt, style = MaterialTheme.typography.titleMedium)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Button(
-                            onClick = {
-                                val current = loadedState ?: return@Button
-                                decisionProcessing = true
-                                val pickupIntent = Intent(appContext, DropDecisionReceiver::class.java).apply {
-                                    action = DropDecisionReceiver.ACTION_PICK_UP
-                                    putExtra(DropDecisionReceiver.EXTRA_DROP_ID, dropId)
-                                    current.text?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_TEXT, it) }
-                                    current.lat?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_LAT, it) }
-                                    current.lng?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_LNG, it) }
-                                    current.createdAt?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_CREATED_AT, it) }
-                                    current.groupCode?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_GROUP, it) }
-                                    putExtra(DropDecisionReceiver.EXTRA_DROP_CONTENT_TYPE, current.contentType.name)
-                                    current.mediaUrl?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_MEDIA_URL, it) }
-                                    current.mediaMimeType?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_MEDIA_MIME_TYPE, it) }
-                                    current.mediaData?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_MEDIA_DATA, it) }
-                                }
-                                val result = runCatching {
-                                    appContext.sendBroadcast(pickupIntent)
-                                    NotificationManagerCompat.from(appContext).cancel(dropId.hashCode())
-                                }
-                                decisionProcessing = false
-                                if (result.isSuccess) {
-                                    decisionHandled = true
-                                    decisionStatusMessage = "Drop added to your collection."
-                                    Toast.makeText(context, "Drop added to your collection.", Toast.LENGTH_SHORT).show()
-                                } else {
-                                    Toast.makeText(context, "Couldn't pick up this drop.", Toast.LENGTH_SHORT).show()
-                                }
-                            },
-                            enabled = !decisionProcessing && loadedState != null,
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text("Pick up")
-                        }
-
-                        OutlinedButton(
-                            onClick = {
-                                decisionProcessing = true
-                                val ignoreIntent = Intent(appContext, DropDecisionReceiver::class.java).apply {
-                                    action = DropDecisionReceiver.ACTION_IGNORE
-                                    putExtra(DropDecisionReceiver.EXTRA_DROP_ID, dropId)
-                                }
-                                val result = runCatching {
-                                    appContext.sendBroadcast(ignoreIntent)
-                                    NotificationManagerCompat.from(appContext).cancel(dropId.hashCode())
-                                }
-                                decisionProcessing = false
-                                if (result.isSuccess) {
-                                    decisionHandled = true
-                                    decisionStatusMessage = "Drop ignored. You won't be notified about it again."
-                                    Toast.makeText(context, "Drop ignored.", Toast.LENGTH_SHORT).show()
-                                } else {
-                                    Toast.makeText(context, "Couldn't ignore this drop.", Toast.LENGTH_SHORT).show()
-                                }
-                            },
-                            enabled = !decisionProcessing,
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text("Ignore")
-                        }
-                    }
-                }
-
-                decisionMessage?.let {
-                    Spacer(Modifier.height(12.dp))
-                    Text(
-                        text = it,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-
-                Spacer(Modifier.height(24.dp))
-
-                Button(
-                    onClick = {
+                Scaffold(
+                    topBar = {
                         val activity = context as? Activity
-                        activity?.let {
-                            if (it.isTaskRoot) {
-                                val backIntent = Intent(it, MainActivity::class.java).apply {
-                                    addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
+                        CenterAlignedTopAppBar(
+                            title = { Text("Drop details") },
+                            navigationIcon = {
+                                IconButton(onClick = { activity?.onBackPressedDispatcher?.onBackPressed() }) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.ArrowBack,
+                                        contentDescription = "Back"
+                                    )
                                 }
-                                it.startActivity(backIntent)
                             }
-                            it.finish()
-                        }
+                        )
                     },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Back to GeoDrop")
+                    containerColor = MaterialTheme.colorScheme.surface
+                ) { paddingValues ->
+                    val scrollState = rememberScrollState()
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(scrollState)
+                            .padding(paddingValues)
+                            .padding(horizontal = 20.dp, vertical = 24.dp),
+                        verticalArrangement = Arrangement.spacedBy(20.dp)
+                    ) {
+                        val loadedState = state as? DropDetailUiState.Loaded
+                        val message = when (val current = state) {
+                            is DropDetailUiState.Loaded -> {
+                                val fallback = when (current.contentType) {
+                                    DropContentType.TEXT -> "Not available"
+                                    DropContentType.PHOTO -> "Photo drop"
+                                    DropContentType.AUDIO -> "Audio drop"
+                                    }
+                                current.text?.takeIf { it.isNotBlank() } ?: fallback
+                            }
+                            DropDetailUiState.Loading -> "Loading…"
+                            DropDetailUiState.Deleted -> "Not available"
+                            DropDetailUiState.NotFound -> "Not available"
+                        }
+
+                        val typeText = when (val current = state) {
+                            is DropDetailUiState.Loaded -> when (current.contentType) {
+                                DropContentType.TEXT -> "Text note"
+                                DropContentType.PHOTO -> "Photo drop"
+                                DropContentType.AUDIO -> "Audio drop"
+                            }
+                            DropDetailUiState.Loading -> "Loading…"
+                            DropDetailUiState.Deleted -> "Not available"
+                            DropDetailUiState.NotFound -> "Not available"
+                        }
+                        val typeIcon: ImageVector = when (loadedState?.contentType) {
+                            DropContentType.TEXT -> Icons.Rounded.Article
+                            DropContentType.PHOTO -> Icons.Rounded.PhotoCamera
+                            DropContentType.AUDIO -> Icons.Rounded.GraphicEq
+                            null -> Icons.Rounded.Info
+                        }
+
+                        val visibilityText = when (val current = state) {
+                            is DropDetailUiState.Loaded -> current.groupCode?.let { "Group-only · $it" } ?: "Public drop"
+                            DropDetailUiState.Loading -> "Loading…"
+                            DropDetailUiState.Deleted -> "Not available"
+                            DropDetailUiState.NotFound -> "Not available"
+                        }
+                        val visibilityIcon: ImageVector = if (loadedState?.groupCode != null) {
+                            Icons.Rounded.Groups
+                        } else {
+                            Icons.Rounded.Public
+                        }
+
+                        val statusTag: DropDetailTagData? = when (state) {
+                            DropDetailUiState.Deleted -> DropDetailTagData(
+                                label = "Deleted drop",
+                                icon = Icons.Rounded.DeleteForever,
+                                containerColor = MaterialTheme.colorScheme.errorContainer,
+                                contentColor = MaterialTheme.colorScheme.onErrorContainer
+                                )
+                            DropDetailUiState.NotFound -> DropDetailTagData(
+                                label = "Not available",
+                                icon = Icons.Rounded.Block,
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            DropDetailUiState.Loading -> DropDetailTagData(
+                                label = "Loading",
+                                icon = Icons.Rounded.HourglassEmpty,
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            else -> null
+                            }
+
+                        val mediaAttachment = when (loadedState) {
+                            null -> null
+                            else -> remember(
+                                loadedState.mediaUrl,
+                                loadedState.mediaData,
+                                loadedState.mediaMimeType,
+                                loadedState.contentType
+                            ) {
+                                resolveMediaAttachment(context, loadedState)
+                            }
+                        }
+
+                        val createdAtText = when (val current = state) {
+                            is DropDetailUiState.Loaded -> current.createdAt?.let { formatTimestamp(it) }
+                            DropDetailUiState.Loading -> "Loading…"
+                            DropDetailUiState.Deleted -> null
+                            DropDetailUiState.NotFound -> null
+                        }
+
+                        val latText = when (val current = state) {
+                            is DropDetailUiState.Loaded -> current.lat?.let { formatCoordinate(it) } ?: "-"
+                            DropDetailUiState.Loading -> "Loading…"
+                            DropDetailUiState.Deleted -> "-"
+                            DropDetailUiState.NotFound -> "-"
+                        }
+                        val lngText = when (val current = state) {
+                            is DropDetailUiState.Loaded -> current.lng?.let { formatCoordinate(it) } ?: "-"
+                            DropDetailUiState.Loading -> "Loading…"
+                            DropDetailUiState.Deleted -> "-"
+                            DropDetailUiState.NotFound -> "-"
+                        }
+                        val locationText = when {
+                            latText == "Loading…" || lngText == "Loading…" -> "Loading…"
+                            latText == "-" && lngText == "-" -> "Not available"
+                            else -> "$latText, $lngText"
+                        }
+
+                        ElevatedCard(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(20.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(20.dp),
+                                verticalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    DropDetailTag(text = typeText, icon = typeIcon)
+                                    DropDetailTag(text = visibilityText, icon = visibilityIcon)
+                                    statusTag?.let {
+                                        DropDetailTag(
+                                            text = it.label,
+                                            icon = it.icon,
+                                            containerColor = it.containerColor,
+                                            contentColor = it.contentColor
+                                        )
+                                    }
+                                }
+
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Text("Message", style = MaterialTheme.typography.titleMedium)
+                                    Text(message, style = MaterialTheme.typography.bodyLarge)
+                                }
+
+                                if (state is DropDetailUiState.Deleted) {
+                                    Text(
+                                        text = "This drop has been deleted.",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.error
+                                    )
+                                }
+
+                                if (loadedState?.contentType == DropContentType.PHOTO) {
+                                    val link = loadedState.mediaUrl
+                                    if (!link.isNullOrBlank()) {
+                                        val imageRequest = remember(link) {
+                                            ImageRequest.Builder(context)
+                                                .data(link)
+                                                .crossfade(true)
+                                                .build()
+                                        }
+
+                                        AsyncImage(
+                                            model = imageRequest,
+                                            contentDescription = loadedState.text ?: "Photo drop",
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .heightIn(min = 180.dp, max = 360.dp)
+                                                .clip(RoundedCornerShape(12.dp)),
+                                            contentScale = ContentScale.Crop
+                                        )
+                                    }
+                                }
+                                if (loadedState != null && mediaAttachment != null) {
+                                    val buttonLabel = when (loadedState.contentType) {
+                                        DropContentType.TEXT -> "Open attachment"
+                                        DropContentType.PHOTO -> "View photo"
+                                        DropContentType.AUDIO -> "Play audio"
+                                    }
+                                    Button(
+                                        onClick = {
+                                            when (mediaAttachment) {
+                                                is MediaAttachment.Link -> {
+                                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(mediaAttachment.url))
+                                                    runCatching { context.startActivity(intent) }
+                                                        .onFailure {
+                                                            Toast.makeText(
+                                                                context,
+                                                                "No app found to open this media.",
+                                                                Toast.LENGTH_SHORT
+                                                            ).show()
+                                                        }
+                                                }
+
+                                                is MediaAttachment.Local -> {
+                                                    val viewIntent = Intent(Intent.ACTION_VIEW).apply {
+                                                        setDataAndType(mediaAttachment.uri, mediaAttachment.mimeType)
+                                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                                    }
+                                                    context.grantUriPermission(
+                                                        context.packageName,
+                                                        mediaAttachment.uri,
+                                                        Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                                    )
+                                                    runCatching { context.startActivity(viewIntent) }
+                                                        .onFailure {
+                                                            Toast.makeText(
+                                                                context,
+                                                                "No app found to open this media.",
+                                                                Toast.LENGTH_SHORT
+                                                            ).show()
+                                                        }
+                                                }
+                                            }
+                                        },
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text(buttonLabel)
+                                    }
+
+                                    if (mediaAttachment is MediaAttachment.Local) {
+                                        loadedState.mediaMimeType?.let { mime ->
+                                            Text(
+                                                text = mime,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        ElevatedCard(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(20.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(20.dp),
+                                verticalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                Text("Drop info", style = MaterialTheme.typography.titleMedium)
+                                DropDetailInfoRow(
+                                    icon = typeIcon,
+                                    label = "Type",
+                                    value = typeText
+                                )
+                                DropDetailInfoRow(
+                                    icon = visibilityIcon,
+                                    label = "Visibility",
+                                    value = visibilityText
+                                )
+                                DropDetailInfoRow(
+                                    icon = Icons.Rounded.Event,
+                                    label = "Dropped",
+                                    value = createdAtText ?: "Not available"
+                                )
+                                DropDetailInfoRow(
+                                    icon = Icons.Rounded.Place,
+                                    label = "Location",
+                                    value = locationText
+                                )
+                            }
+                        }
+
+                        if (shouldShowDecisionPrompt) {
+                            ElevatedCard(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(20.dp)
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(20.dp),
+                                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                                ) {
+                                    val decisionPrompt = when (loadedState?.contentType) {
+                                        DropContentType.TEXT -> "Would you like to pick up this note?"
+                                        DropContentType.PHOTO -> "Would you like to pick up this photo?"
+                                        DropContentType.AUDIO -> "Would you like to pick up this audio drop?"
+                                        null -> "Would you like to pick up this drop?"
+                                    }
+                                    Text(decisionPrompt, style = MaterialTheme.typography.titleMedium)
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        Button(
+                                            onClick = {
+                                                val current = loadedState ?: return@Button
+                                                decisionProcessing = true
+                                                val pickupIntent = Intent(appContext, DropDecisionReceiver::class.java).apply {
+                                                    action = DropDecisionReceiver.ACTION_PICK_UP
+                                                    putExtra(DropDecisionReceiver.EXTRA_DROP_ID, dropId)
+                                                    current.text?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_TEXT, it) }
+                                                    current.lat?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_LAT, it) }
+                                                    current.lng?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_LNG, it) }
+                                                    current.createdAt?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_CREATED_AT, it) }
+                                                    current.groupCode?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_GROUP, it) }
+                                                    putExtra(DropDecisionReceiver.EXTRA_DROP_CONTENT_TYPE, current.contentType.name)
+                                                    current.mediaUrl?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_MEDIA_URL, it) }
+                                                    current.mediaMimeType?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_MEDIA_MIME_TYPE, it) }
+                                                    current.mediaData?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_MEDIA_DATA, it) }
+                                                }
+                                                val result = runCatching {
+                                                    appContext.sendBroadcast(pickupIntent)
+                                                    NotificationManagerCompat.from(appContext).cancel(dropId.hashCode())
+                                                }
+                                                decisionProcessing = false
+                                                if (result.isSuccess) {
+                                                    decisionHandled = true
+                                                    decisionStatusMessage = "Drop added to your collection."
+                                                    Toast.makeText(context, "Drop added to your collection.", Toast.LENGTH_SHORT).show()
+                                                } else {
+                                                    Toast.makeText(context, "Couldn't pick up this drop.", Toast.LENGTH_SHORT).show()
+                                                }
+                                            },
+                                            enabled = !decisionProcessing && loadedState != null,
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Text("Pick up")
+                                        }
+
+                                        OutlinedButton(
+                                            onClick = {
+                                                decisionProcessing = true
+                                                val ignoreIntent = Intent(appContext, DropDecisionReceiver::class.java).apply {
+                                                    action = DropDecisionReceiver.ACTION_IGNORE
+                                                    putExtra(DropDecisionReceiver.EXTRA_DROP_ID, dropId)
+                                                }
+                                                val result = runCatching {
+                                                    appContext.sendBroadcast(ignoreIntent)
+                                                    NotificationManagerCompat.from(appContext).cancel(dropId.hashCode())
+                                                }
+                                                decisionProcessing = false
+                                                if (result.isSuccess) {
+                                                    decisionHandled = true
+                                                    decisionStatusMessage = "Drop ignored. You won't be notified about it again."
+                                                    Toast.makeText(context, "Drop ignored.", Toast.LENGTH_SHORT).show()
+                                                } else {
+                                                    Toast.makeText(context, "Couldn't ignore this drop.", Toast.LENGTH_SHORT).show()
+                                                }
+                                            },
+                                            enabled = !decisionProcessing,
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Text("Ignore")
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        decisionMessage?.let { messageText ->
+                            Surface(
+                                color = MaterialTheme.colorScheme.secondaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                                shape = RoundedCornerShape(16.dp)
+                            ) {
+                                Text(
+                                    text = messageText,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                                )
+                                }
+                            }
+
+                        FilledTonalButton(
+                            onClick = {
+                                val activity = context as? Activity
+                                activity?.let {
+                                    if (it.isTaskRoot) {
+                                        val backIntent = Intent(it, MainActivity::class.java).apply {
+                                            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        }
+                                        it.startActivity(backIntent)
+                                    }
+                                    it.finish()
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Back to GeoDrop")
+                        }
+                        }
+                }
                 }
             }
         }
@@ -503,9 +642,82 @@ class DropDetailActivity : ComponentActivity() {
     }
 }
 
-// tiny helper
+private data class DropDetailTagData(
+    val label: String,
+    val icon: ImageVector,
+    val containerColor: Color,
+    val contentColor: Color
+)
+
+@Composable
+private fun DropDetailTag(
+    text: String,
+    icon: ImageVector,
+    modifier: Modifier = Modifier,
+    containerColor: Color = MaterialTheme.colorScheme.surfaceVariant,
+    contentColor: Color = MaterialTheme.colorScheme.onSurfaceVariant
+) {
+    Surface(
+        modifier = modifier,
+        color = containerColor,
+        contentColor = contentColor,
+        shape = RoundedCornerShape(50)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(18.dp))
+            Text(text, style = MaterialTheme.typography.labelMedium)
+        }
+    }
+}
+
+@Composable
+private fun DropDetailInfoRow(
+    icon: ImageVector,
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Surface(
+            color = MaterialTheme.colorScheme.primaryContainer,
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier
+                    .size(28.dp)
+                    .padding(6.dp)
+            )
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = value,
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+    }
+}
 private suspend fun <T> com.google.android.gms.tasks.Task<T>.awaitOrNull(): T? =
-    try { com.google.android.gms.tasks.Tasks.await(this) } catch (_: Exception) { null }
+    try {
+        com.google.android.gms.tasks.Tasks.await(this)
+    } catch (_: Exception) {
+        null
+    }
 
 private fun formatCoordinate(value: Double): String = "%.5f".format(value)
 
