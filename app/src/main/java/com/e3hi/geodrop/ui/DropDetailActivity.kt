@@ -208,15 +208,15 @@ class DropDetailActivity : ComponentActivity() {
                                 ?: initialMediaData
                         )
                     }
+                    val appContext = context.applicationContext
+                    val noteInventory = remember(appContext) { NoteInventory(appContext) }
+                    var decisionHandled by remember(dropId) { mutableStateOf(false) }
+                    var decisionStatusMessage by remember(dropId) { mutableStateOf<String?>(null) }
+                    var decisionProcessing by remember(dropId) { mutableStateOf(false) }
+                    val isAlreadyCollected = remember(dropId) {
+                        dropId.isNotBlank() && noteInventory.isCollected(dropId)
                 }
-                val appContext = context.applicationContext
-                val noteInventory = remember(appContext) { NoteInventory(appContext) }
-                var decisionHandled by remember(dropId) { mutableStateOf(false) }
-                var decisionStatusMessage by remember(dropId) { mutableStateOf<String?>(null) }
-                var decisionProcessing by remember(dropId) { mutableStateOf(false) }
-                val isAlreadyCollected = remember(dropId) {
-                    dropId.isNotBlank() && noteInventory.isCollected(dropId)
-                    }
+
                 val isAlreadyIgnored = remember(dropId) {
                     dropId.isNotBlank() && noteInventory.isIgnored(dropId)
                 }
@@ -319,7 +319,7 @@ class DropDetailActivity : ComponentActivity() {
                                 contentColor = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             else -> null
-                            }
+                        }
 
                         val mediaAttachment = when (loadedState) {
                             null -> null

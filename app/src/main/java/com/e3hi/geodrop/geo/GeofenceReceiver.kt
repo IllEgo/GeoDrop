@@ -15,6 +15,7 @@ import com.e3hi.geodrop.data.DropContentType
 import com.e3hi.geodrop.data.NoteInventory
 import com.e3hi.geodrop.geo.DropDecisionReceiver
 import com.e3hi.geodrop.ui.DropDetailActivity
+import com.e3hi.geodrop.util.EXTRA_SHOW_DECISION_OPTIONS
 import com.e3hi.geodrop.util.CHANNEL_NEARBY
 import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofencingEvent
@@ -88,7 +89,7 @@ class GeofenceReceiver : BroadcastReceiver() {
                     dropMediaUrl?.let { putExtra("dropMediaUrl", it) }
                     dropMediaMimeType?.let { putExtra("dropMediaMimeType", it) }
                     dropMediaData?.let { putExtra("dropMediaData", it) }
-                    putExtra(DropDetailActivity.EXTRA_SHOW_DECISION_OPTIONS, true)
+                    putExtra(EXTRA_SHOW_DECISION_OPTIONS, true)
                 }
 
 
