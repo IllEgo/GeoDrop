@@ -2,6 +2,7 @@ package com.e3hi.geodrop.data
 
 import android.util.Log
 import com.google.firebase.firestore.DocumentReference
+import com.google.firebase.firestore.FieldPath
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 import com.google.firebase.firestore.ktx.firestore
@@ -164,18 +165,35 @@ class FirestoreRepo(
     suspend fun markDropCollected(dropId: String, userId: String) {
         if (dropId.isBlank() || userId.isBlank()) return
 
-        val collectedField = "collectedBy.$userId"
+        val docRef = drops.document(dropId)
+        val collectedField = FieldPath.of("collectedBy", userId)
 
-        // We only update the collectedBy map so Firestore security rules that restrict writes
-        // to specific nested keys (collectedBy.{uid}) continue to pass. Updating unrelated
-        // fields (like collectorIds) triggers PERMISSION_DENIED errors for non-owners.
+        // Only update the collectedBy.{uid} entry so Firestore security rules that restrict
+        // writes to that nested key continue to pass. Updating unrelated fields (like
+        // collectorIds) triggers PERMISSION_DENIED errors for non-owners. We also skip writes if
+        // the drop is already marked as collected for this user so that follow-up sync attempts
+        // (for example, when opening the detail screen after collecting) remain idempotent and do
+        // not violate stricter security rules.
+        val updated = db.runTransaction { transaction ->
+            val snapshot = transaction.get(docRef)
+            if (!snapshot.exists()) {
+                return@runTransaction false
+            }
 
-        drops
-            .document(dropId)
-            .update(collectedField, true)
-            .await()
+            val alreadyCollected = snapshot.get(collectedField) as? Boolean ?: false
+            if (alreadyCollected) {
+                return@runTransaction false
+            }
 
-        Log.d("GeoDrop", "Marked drop $dropId as collected by $userId")
+            transaction.update(docRef, collectedField, true)
+            true
+        }.await()
+
+        if (updated) {
+            Log.d("GeoDrop", "Marked drop $dropId as collected by $userId")
+        } else {
+            Log.d("GeoDrop", "Drop $dropId already marked as collected by $userId")
+        }
     }
 
 
