@@ -18,6 +18,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -34,8 +36,11 @@ import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.material.icons.rounded.Place
 import androidx.compose.material.icons.rounded.Public
+import androidx.compose.material.icons.rounded.ThumbDown
+import androidx.compose.material.icons.rounded.ThumbUp
 import androidx.compose.material3.Button
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
@@ -48,9 +53,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -64,18 +71,24 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.FileProvider
 import com.e3hi.geodrop.MainActivity
 import com.e3hi.geodrop.data.DropContentType
+import com.e3hi.geodrop.data.Drop
+import com.e3hi.geodrop.data.DropVoteType
+import com.e3hi.geodrop.data.FirestoreRepo
 import com.e3hi.geodrop.data.NoteInventory
+import com.e3hi.geodrop.data.applyUserVote
 import com.e3hi.geodrop.geo.DropDecisionReceiver
 import com.e3hi.geodrop.ui.theme.GeoDropTheme
 import com.e3hi.geodrop.util.formatTimestamp
 import com.e3hi.geodrop.util.EXTRA_SHOW_DECISION_OPTIONS
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
+import com.google.firebase.auth.FirebaseAuth
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
+import kotlinx.coroutines.launch
 
 class DropDetailActivity : ComponentActivity() {
 
@@ -118,7 +131,10 @@ class DropDetailActivity : ComponentActivity() {
                                 contentType = initialContentType,
                                 mediaUrl = initialMediaUrl,
                                 mediaMimeType = initialMediaMimeType,
-                                mediaData = initialMediaData
+                                mediaData = initialMediaData,
+                                upvoteCount = 0,
+                                downvoteCount = 0,
+                                voteMap = emptyMap()
                             )
                         } else {
                             DropDetailUiState.NotFound
@@ -141,7 +157,10 @@ class DropDetailActivity : ComponentActivity() {
                             contentType = initialContentType,
                             mediaUrl = initialMediaUrl,
                             mediaMimeType = initialMediaMimeType,
-                            mediaData = initialMediaData
+                            mediaData = initialMediaData,
+                            upvoteCount = 0,
+                            downvoteCount = 0,
+                            voteMap = emptyMap()
                         )
                     } else {
                         DropDetailUiState.Loading
@@ -177,6 +196,8 @@ class DropDetailActivity : ComponentActivity() {
                             return@LaunchedEffect
                         }
 
+                        val initialLoaded = initialState as? DropDetailUiState.Loaded
+                        val sanitizedVoteMap = parseVoteMap(doc.get("voteMap"))
                         state = DropDetailUiState.Loaded(
                             text = doc.getString("text")?.takeIf { it.isNotBlank() }
                                 ?: previousLoaded?.text
@@ -205,14 +226,39 @@ class DropDetailActivity : ComponentActivity() {
                                         ?: doc.getBlob("audioFile")?.toBytes()?.let { Base64.encodeToString(it, Base64.NO_WRAP) }
                                     )
                                 ?: previousLoaded?.mediaData
-                                ?: initialMediaData
+                                ?: initialMediaData,
+                            upvoteCount = doc.getLong("upvoteCount")
+                                ?: previousLoaded?.upvoteCount
+                                ?: initialLoaded?.upvoteCount
+                                ?: 0L,
+                            downvoteCount = doc.getLong("downvoteCount")
+                                ?: previousLoaded?.downvoteCount
+                                ?: initialLoaded?.downvoteCount
+                                ?: 0L,
+                            voteMap = sanitizedVoteMap
+                                ?: previousLoaded?.voteMap
+                                ?: initialLoaded?.voteMap
+                                ?: emptyMap()
                         )
                     }
                     val appContext = context.applicationContext
                     val noteInventory = remember(appContext) { NoteInventory(appContext) }
+                    val auth = remember { FirebaseAuth.getInstance() }
+                    var currentUser by remember { mutableStateOf(auth.currentUser) }
+                    DisposableEffect(auth) {
+                        val listener = FirebaseAuth.AuthStateListener { firebaseAuth ->
+                            currentUser = firebaseAuth.currentUser
+                        }
+                        auth.addAuthStateListener(listener)
+                        onDispose { auth.removeAuthStateListener(listener) }
+                    }
+                    val currentUserId = currentUser?.uid
+                    val repo = remember { FirestoreRepo() }
+                    val scope = rememberCoroutineScope()
                     var decisionHandled by remember(dropId) { mutableStateOf(false) }
                     var decisionStatusMessage by remember(dropId) { mutableStateOf<String?>(null) }
                     var decisionProcessing by remember(dropId) { mutableStateOf(false) }
+                    var isVoting by remember(dropId) { mutableStateOf(false) }
                     val isAlreadyCollected = remember(dropId) {
                         dropId.isNotBlank() && noteInventory.isCollected(dropId)
                 }
@@ -394,6 +440,54 @@ class DropDetailActivity : ComponentActivity() {
                                         text = "This drop has been deleted.",
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.error
+                                    )
+                                }
+
+                                loadedState?.let {
+                                    DropVoteSection(
+                                        state = it,
+                                        currentUserId = currentUserId,
+                                        isVoting = isVoting,
+                                        onVote = { desiredVote ->
+                                            val currentLoaded = state as? DropDetailUiState.Loaded
+                                                ?: return@DropVoteSection
+                                            val userId = currentUserId
+                                            if (userId.isNullOrBlank()) {
+                                                Toast.makeText(
+                                                    context,
+                                                    "Sign in to vote on drops.",
+                                                    Toast.LENGTH_SHORT
+                                                ).show()
+                                                return@DropVoteSection
+                                            }
+                                            if (dropId.isBlank()) {
+                                                Toast.makeText(
+                                                    context,
+                                                    "Unable to vote on this drop.",
+                                                    Toast.LENGTH_SHORT
+                                                ).show()
+                                                return@DropVoteSection
+                                            }
+
+                                            val previous = currentLoaded
+                                            val updated = currentLoaded.applyUserVoteLocal(userId, desiredVote)
+                                            if (updated == previous) return@DropVoteSection
+
+                                            state = updated
+                                            isVoting = true
+                                            scope.launch {
+                                                try {
+                                                    repo.voteOnDrop(dropId, userId, desiredVote)
+                                                } catch (e: Exception) {
+                                                    state = previous
+                                                    val message = e.localizedMessage?.takeIf { it.isNotBlank() }
+                                                        ?: "Couldn't update your vote. Try again."
+                                                    Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                                                } finally {
+                                                    isVoting = false
+                                                }
+                                            }
+                                        }
                                     )
                                 }
 
@@ -629,13 +723,179 @@ class DropDetailActivity : ComponentActivity() {
                         ) {
                             Text("Back to GeoDrop")
                         }
-                        }
-                }
                 }
             }
         }
     }
 }
+
+        @Composable
+        private fun DropVoteSection(
+            state: DropDetailUiState.Loaded,
+            currentUserId: String?,
+            isVoting: Boolean,
+            onVote: (DropVoteType) -> Unit
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Community votes", style = MaterialTheme.typography.titleMedium)
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val userVote = state.userVote(currentUserId)
+
+                    VoteToggleButton(
+                        icon = Icons.Rounded.ThumbUp,
+                        label = state.upvoteCount.toString(),
+                        selected = userVote == DropVoteType.UPVOTE,
+                        enabled = !isVoting,
+                        onClick = {
+                            val nextVote = if (userVote == DropVoteType.UPVOTE) {
+                                DropVoteType.NONE
+                            } else {
+                                DropVoteType.UPVOTE
+                            }
+                            onVote(nextVote)
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    VoteToggleButton(
+                        icon = Icons.Rounded.ThumbDown,
+                        label = state.downvoteCount.toString(),
+                        selected = userVote == DropVoteType.DOWNVOTE,
+                        enabled = !isVoting,
+                        onClick = {
+                            val nextVote = if (userVote == DropVoteType.DOWNVOTE) {
+                                DropVoteType.NONE
+                            } else {
+                                DropVoteType.DOWNVOTE
+                            }
+                            onVote(nextVote)
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    if (isVoting) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp
+                        )
+                    }
+                }
+
+                Text(
+                    text = "Score: ${formatVoteScore(state.voteScore())} (↑${state.upvoteCount} / ↓${state.downvoteCount})",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                if (currentUserId.isNullOrBlank()) {
+                    Text(
+                        text = "Sign in to vote on drops.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+
+        @Composable
+        private fun VoteToggleButton(
+            icon: ImageVector,
+            label: String,
+            selected: Boolean,
+            enabled: Boolean,
+            onClick: () -> Unit,
+            modifier: Modifier = Modifier
+        ) {
+            if (selected) {
+                FilledTonalButton(
+                    onClick = onClick,
+                    enabled = enabled,
+                    modifier = modifier.heightIn(min = 40.dp)
+                ) {
+                    Icon(icon, contentDescription = null)
+                    Spacer(Modifier.width(6.dp))
+                    Text(label)
+                }
+            } else {
+                OutlinedButton(
+                    onClick = onClick,
+                    enabled = enabled,
+                    modifier = modifier.heightIn(min = 40.dp)
+                ) {
+                    Icon(icon, contentDescription = null)
+                    Spacer(Modifier.width(6.dp))
+                    Text(label)
+                }
+            }
+        }
+
+        private fun DropDetailUiState.Loaded.userVote(userId: String?): DropVoteType {
+            if (userId.isNullOrBlank()) return DropVoteType.NONE
+            return DropVoteType.fromRaw(voteMap[userId])
+        }
+
+        private fun DropDetailUiState.Loaded.applyUserVoteLocal(
+            userId: String,
+            vote: DropVoteType
+        ): DropDetailUiState.Loaded {
+            val updated = toDropForVoting().applyUserVote(userId, vote)
+            return copy(
+                upvoteCount = updated.upvoteCount,
+                downvoteCount = updated.downvoteCount,
+                voteMap = updated.voteMap
+            )
+        }
+
+        private fun DropDetailUiState.Loaded.toDropForVoting(): Drop {
+            return Drop(
+                text = text.orEmpty(),
+                lat = lat ?: 0.0,
+                lng = lng ?: 0.0,
+                createdAt = createdAt ?: 0L,
+                groupCode = groupCode,
+                contentType = contentType,
+                mediaUrl = mediaUrl,
+                mediaMimeType = mediaMimeType,
+                mediaData = mediaData,
+                upvoteCount = upvoteCount,
+                downvoteCount = downvoteCount,
+                voteMap = voteMap
+            )
+        }
+
+        private fun DropDetailUiState.Loaded.voteScore(): Long = upvoteCount - downvoteCount
+
+        private fun formatVoteScore(score: Long): String {
+            return when {
+                score > 0 -> "+$score"
+                score < 0 -> score.toString()
+                else -> "0"
+            }
+        }
+
+        private fun parseVoteMap(raw: Any?): Map<String, Long>? {
+            if (raw !is Map<*, *>) return null
+            if (raw.isEmpty()) return emptyMap()
+
+            val result = mutableMapOf<String, Long>()
+            raw.forEach { (key, value) ->
+                val keyString = key as? String ?: return@forEach
+                val longValue = when (value) {
+                    is Number -> value.toLong()
+                    is String -> value.toLongOrNull()
+                    else -> null
+                }
+                if (longValue != null) {
+                    result[keyString] = longValue
+                }
+            }
+            return result
+        }
 
 private data class DropDetailTagData(
     val label: String,
@@ -786,7 +1046,10 @@ private sealed interface DropDetailUiState {
         val contentType: DropContentType = DropContentType.TEXT,
         val mediaUrl: String? = null,
         val mediaMimeType: String? = null,
-        val mediaData: String? = null
+        val mediaData: String? = null,
+        val upvoteCount: Long = 0,
+        val downvoteCount: Long = 0,
+        val voteMap: Map<String, Long> = emptyMap()
     ) : DropDetailUiState
 
     object Loading : DropDetailUiState

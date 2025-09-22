@@ -342,6 +342,11 @@ fun DropHereScreen() {
         val dropId = drop.id
         if (dropId.isBlank()) return
 
+        if (!collectedDropIds.contains(dropId)) {
+            snackbar.showMessage(scope, "Collect this drop before voting on it.")
+            return
+        }
+
         val updatedDrop = drop.applyUserVote(userId, desiredVote)
         if (updatedDrop == drop) return
 
@@ -952,6 +957,7 @@ fun DropHereScreen() {
             onPickUp = { drop -> pickUpDrop(drop) },
             currentUserId = currentUserId,
             votingDropIds = votingDropIds,
+            collectedDropIds = collectedDropIds,
             onVote = { drop, vote -> submitVote(drop, vote) },
             onDismiss = { showOtherDropsMap = false },
             onRetry = { otherDropsRefreshToken += 1 }
@@ -1682,6 +1688,7 @@ private fun OtherDropsMapDialog(
     onPickUp: (Drop) -> Unit,
     currentUserId: String?,
     votingDropIds: Set<String>,
+    collectedDropIds: Set<String>,
     onVote: (Drop, DropVoteType) -> Unit,
     onDismiss: () -> Unit,
     onRetry: () -> Unit
@@ -1770,7 +1777,7 @@ private fun OtherDropsMapDialog(
                                         .fillMaxWidth()
                                         .weight(1f)
                                 ) {
-                                    val votingEnabled = !currentUserId.isNullOrBlank()
+                                    val isSignedIn = !currentUserId.isNullOrBlank()
                                     Text(
                                         text = "Select a drop to focus on the map. If you're close enough, pick it up here.",
                                         style = MaterialTheme.typography.bodyMedium,
@@ -1788,12 +1795,13 @@ private fun OtherDropsMapDialog(
                                         verticalArrangement = Arrangement.spacedBy(12.dp)
                                     ) {
                                         items(drops, key = { it.id }) { drop ->
+                                            val canVote = isSignedIn && collectedDropIds.contains(drop.id)
                                             OtherDropRow(
                                                 drop = drop,
                                                 isSelected = drop.id == selectedId,
                                                 currentLocation = currentLocation,
                                                 userVote = drop.userVote(currentUserId),
-                                                enableVoting = votingEnabled,
+                                                canVote = canVote,
                                                 isVoting = votingDropIds.contains(drop.id),
                                                 onSelect = { onSelect(drop) },
                                                 onVote = { vote -> onVote(drop, vote) },
@@ -2465,7 +2473,7 @@ private fun OtherDropRow(
     isSelected: Boolean,
     currentLocation: LatLng?,
     userVote: DropVoteType,
-    enableVoting: Boolean,
+    canVote: Boolean,
     isVoting: Boolean,
     onSelect: () -> Unit,
     onVote: (DropVoteType) -> Unit,
@@ -2574,7 +2582,7 @@ private fun OtherDropRow(
                         icon = Icons.Rounded.ThumbUp,
                         label = drop.upvoteCount.toString(),
                         selected = userVote == DropVoteType.UPVOTE,
-                        enabled = enableVoting && !isVoting,
+                        enabled = canVote && !isVoting,
                         onClick = {
                             val nextVote = if (userVote == DropVoteType.UPVOTE) {
                                 DropVoteType.NONE
@@ -2590,7 +2598,7 @@ private fun OtherDropRow(
                         icon = Icons.Rounded.ThumbDown,
                         label = drop.downvoteCount.toString(),
                         selected = userVote == DropVoteType.DOWNVOTE,
-                        enabled = enableVoting && !isVoting,
+                        enabled = canVote && !isVoting,
                         onClick = {
                             val nextVote = if (userVote == DropVoteType.DOWNVOTE) {
                                 DropVoteType.NONE
@@ -2612,6 +2620,15 @@ private fun OtherDropRow(
 
                 Text(
                     text = "Score: ${formatVoteScore(drop.voteScore())} (↑${drop.upvoteCount} / ↓${drop.downvoteCount})",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = supportingColor
+                )
+            }
+
+            if (!canVote) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = "Collect this drop to vote on it.",
                     style = MaterialTheme.typography.bodySmall,
                     color = supportingColor
                 )
