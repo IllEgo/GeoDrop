@@ -704,8 +704,8 @@ class DropDetailActivity : ComponentActivity() {
                                     style = MaterialTheme.typography.bodyMedium,
                                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
                                 )
-                                }
                             }
+                        }
 
                         FilledTonalButton(
                             onClick = {
@@ -723,179 +723,182 @@ class DropDetailActivity : ComponentActivity() {
                         ) {
                             Text("Back to GeoDrop")
                         }
+                    }
                 }
             }
         }
     }
 }
 
-        @Composable
-        private fun DropVoteSection(
-            state: DropDetailUiState.Loaded,
-            currentUserId: String?,
-            isVoting: Boolean,
-            onVote: (DropVoteType) -> Unit
+}
+
+@Composable
+private fun DropVoteSection(
+    state: DropDetailUiState.Loaded,
+    currentUserId: String?,
+    isVoting: Boolean,
+    onVote: (DropVoteType) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Community votes", style = MaterialTheme.typography.titleMedium)
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Community votes", style = MaterialTheme.typography.titleMedium)
+            val userVote = state.userVote(currentUserId)
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    val userVote = state.userVote(currentUserId)
-
-                    VoteToggleButton(
-                        icon = Icons.Rounded.ThumbUp,
-                        label = state.upvoteCount.toString(),
-                        selected = userVote == DropVoteType.UPVOTE,
-                        enabled = !isVoting,
-                        onClick = {
-                            val nextVote = if (userVote == DropVoteType.UPVOTE) {
-                                DropVoteType.NONE
-                            } else {
-                                DropVoteType.UPVOTE
-                            }
-                            onVote(nextVote)
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
-
-                    VoteToggleButton(
-                        icon = Icons.Rounded.ThumbDown,
-                        label = state.downvoteCount.toString(),
-                        selected = userVote == DropVoteType.DOWNVOTE,
-                        enabled = !isVoting,
-                        onClick = {
-                            val nextVote = if (userVote == DropVoteType.DOWNVOTE) {
-                                DropVoteType.NONE
-                            } else {
-                                DropVoteType.DOWNVOTE
-                            }
-                            onVote(nextVote)
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
-
-                    if (isVoting) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
-                            strokeWidth = 2.dp
-                        )
+            VoteToggleButton(
+                icon = Icons.Rounded.ThumbUp,
+                label = state.upvoteCount.toString(),
+                selected = userVote == DropVoteType.UPVOTE,
+                enabled = !isVoting,
+                onClick = {
+                    val nextVote = if (userVote == DropVoteType.UPVOTE) {
+                        DropVoteType.NONE
+                    } else {
+                        DropVoteType.UPVOTE
                     }
-                }
+                    onVote(nextVote)
+                },
+                modifier = Modifier.weight(1f)
+            )
 
-                Text(
-                    text = "Score: ${formatVoteScore(state.voteScore())} (↑${state.upvoteCount} / ↓${state.downvoteCount})",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+            VoteToggleButton(
+                icon = Icons.Rounded.ThumbDown,
+                label = state.downvoteCount.toString(),
+                selected = userVote == DropVoteType.DOWNVOTE,
+                enabled = !isVoting,
+                onClick = {
+                    val nextVote = if (userVote == DropVoteType.DOWNVOTE) {
+                        DropVoteType.NONE
+                    } else {
+                        DropVoteType.DOWNVOTE
+                    }
+                    onVote(nextVote)
+                },
+                modifier = Modifier.weight(1f)
+            )
+
+            if (isVoting) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    strokeWidth = 2.dp
                 )
-
-                if (currentUserId.isNullOrBlank()) {
-                    Text(
-                        text = "Sign in to vote on drops.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
             }
         }
 
-        @Composable
-        private fun VoteToggleButton(
-            icon: ImageVector,
-            label: String,
-            selected: Boolean,
-            enabled: Boolean,
-            onClick: () -> Unit,
-            modifier: Modifier = Modifier
+        Text(
+            text = "Score: ${formatVoteScore(state.voteScore())} (↑${state.upvoteCount} / ↓${state.downvoteCount})",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        if (currentUserId.isNullOrBlank()) {
+            Text(
+                text = "Sign in to vote on drops.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun VoteToggleButton(
+    icon: ImageVector,
+    label: String,
+    selected: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    if (selected) {
+        FilledTonalButton(
+            onClick = onClick,
+            enabled = enabled,
+            modifier = modifier.heightIn(min = 40.dp)
         ) {
-            if (selected) {
-                FilledTonalButton(
-                    onClick = onClick,
-                    enabled = enabled,
-                    modifier = modifier.heightIn(min = 40.dp)
-                ) {
-                    Icon(icon, contentDescription = null)
-                    Spacer(Modifier.width(6.dp))
-                    Text(label)
-                }
-            } else {
-                OutlinedButton(
-                    onClick = onClick,
-                    enabled = enabled,
-                    modifier = modifier.heightIn(min = 40.dp)
-                ) {
-                    Icon(icon, contentDescription = null)
-                    Spacer(Modifier.width(6.dp))
-                    Text(label)
-                }
-            }
+            Icon(icon, contentDescription = null)
+            Spacer(Modifier.width(6.dp))
+            Text(label)
         }
-
-        private fun DropDetailUiState.Loaded.userVote(userId: String?): DropVoteType {
-            if (userId.isNullOrBlank()) return DropVoteType.NONE
-            return DropVoteType.fromRaw(voteMap[userId])
+    } else {
+        OutlinedButton(
+            onClick = onClick,
+            enabled = enabled,
+            modifier = modifier.heightIn(min = 40.dp)
+        ) {
+            Icon(icon, contentDescription = null)
+            Spacer(Modifier.width(6.dp))
+            Text(label)
         }
+    }
+}
 
-        private fun DropDetailUiState.Loaded.applyUserVoteLocal(
-            userId: String,
-            vote: DropVoteType
-        ): DropDetailUiState.Loaded {
-            val updated = toDropForVoting().applyUserVote(userId, vote)
-            return copy(
-                upvoteCount = updated.upvoteCount,
-                downvoteCount = updated.downvoteCount,
-                voteMap = updated.voteMap
-            )
+private fun DropDetailUiState.Loaded.userVote(userId: String?): DropVoteType {
+    if (userId.isNullOrBlank()) return DropVoteType.NONE
+    return DropVoteType.fromRaw(voteMap[userId])
+}
+
+private fun DropDetailUiState.Loaded.applyUserVoteLocal(
+    userId: String,
+    vote: DropVoteType
+): DropDetailUiState.Loaded {
+    val updated = toDropForVoting().applyUserVote(userId, vote)
+    return copy(
+        upvoteCount = updated.upvoteCount,
+        downvoteCount = updated.downvoteCount,
+        voteMap = updated.voteMap
+    )
+}
+
+private fun DropDetailUiState.Loaded.toDropForVoting(): Drop {
+    return Drop(
+        text = text.orEmpty(),
+        lat = lat ?: 0.0,
+        lng = lng ?: 0.0,
+        createdAt = createdAt ?: 0L,
+        groupCode = groupCode,
+        contentType = contentType,
+        mediaUrl = mediaUrl,
+        mediaMimeType = mediaMimeType,
+        mediaData = mediaData,
+        upvoteCount = upvoteCount,
+        downvoteCount = downvoteCount,
+        voteMap = voteMap
+    )
+}
+
+private fun DropDetailUiState.Loaded.voteScore(): Long = upvoteCount - downvoteCount
+
+private fun formatVoteScore(score: Long): String {
+    return when {
+        score > 0 -> "+$score"
+        score < 0 -> score.toString()
+        else -> "0"
+    }
+}
+
+private fun parseVoteMap(raw: Any?): Map<String, Long>? {
+    if (raw !is Map<*, *>) return null
+    if (raw.isEmpty()) return emptyMap()
+
+    val result = mutableMapOf<String, Long>()
+    raw.forEach { (key, value) ->
+        val keyString = key as? String ?: return@forEach
+        val longValue = when (value) {
+            is Number -> value.toLong()
+            is String -> value.toLongOrNull()
+            else -> null
         }
-
-        private fun DropDetailUiState.Loaded.toDropForVoting(): Drop {
-            return Drop(
-                text = text.orEmpty(),
-                lat = lat ?: 0.0,
-                lng = lng ?: 0.0,
-                createdAt = createdAt ?: 0L,
-                groupCode = groupCode,
-                contentType = contentType,
-                mediaUrl = mediaUrl,
-                mediaMimeType = mediaMimeType,
-                mediaData = mediaData,
-                upvoteCount = upvoteCount,
-                downvoteCount = downvoteCount,
-                voteMap = voteMap
-            )
+        if (longValue != null) {
+            result[keyString] = longValue
         }
-
-        private fun DropDetailUiState.Loaded.voteScore(): Long = upvoteCount - downvoteCount
-
-        private fun formatVoteScore(score: Long): String {
-            return when {
-                score > 0 -> "+$score"
-                score < 0 -> score.toString()
-                else -> "0"
-            }
-        }
-
-        private fun parseVoteMap(raw: Any?): Map<String, Long>? {
-            if (raw !is Map<*, *>) return null
-            if (raw.isEmpty()) return emptyMap()
-
-            val result = mutableMapOf<String, Long>()
-            raw.forEach { (key, value) ->
-                val keyString = key as? String ?: return@forEach
-                val longValue = when (value) {
-                    is Number -> value.toLong()
-                    is String -> value.toLongOrNull()
-                    else -> null
-                }
-                if (longValue != null) {
-                    result[keyString] = longValue
-                }
-            }
-            return result
-        }
+    }
+    return result
+}
 
 private data class DropDetailTagData(
     val label: String,
