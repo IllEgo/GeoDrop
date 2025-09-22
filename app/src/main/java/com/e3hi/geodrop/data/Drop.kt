@@ -13,8 +13,25 @@ data class Drop(
     val contentType: DropContentType = DropContentType.TEXT,
     val mediaUrl: String? = null,
     val mediaMimeType: String? = null,
-    val mediaData: String? = null
+    val mediaData: String? = null,
+    val upvoteCount: Long = 0,
+    val downvoteCount: Long = 0,
+    val voteMap: Map<String, Long> = emptyMap()
 )
+
+enum class DropVoteType(val value: Int) {
+    NONE(0),
+    UPVOTE(1),
+    DOWNVOTE(-1);
+
+    companion object {
+        fun fromRaw(raw: Long?): DropVoteType = when (raw?.toInt()) {
+            1 -> UPVOTE
+            -1 -> DOWNVOTE
+            else -> NONE
+        }
+    }
+}
 
 enum class DropContentType {
     TEXT,
@@ -47,4 +64,44 @@ fun Drop.discoveryDescription(): String = when (contentType) {
     DropContentType.TEXT -> "Collect this drop to read the message inside."
     DropContentType.PHOTO -> "Pick up this drop to reveal the photo."
     DropContentType.AUDIO -> "Collect this drop to listen to the recording."
+}
+
+fun Drop.voteScore(): Long = upvoteCount - downvoteCount
+
+fun Drop.userVote(userId: String?): DropVoteType {
+    if (userId.isNullOrBlank()) return DropVoteType.NONE
+    return DropVoteType.fromRaw(voteMap[userId])
+}
+
+fun Drop.applyUserVote(userId: String, vote: DropVoteType): Drop {
+    val previousVote = voteMap[userId]?.toInt() ?: 0
+    val targetVote = vote.value
+    if (previousVote == targetVote) return this
+
+    var updatedUpvotes = upvoteCount
+    var updatedDownvotes = downvoteCount
+    val updatedMap = voteMap.toMutableMap()
+
+    when (previousVote) {
+        1 -> updatedUpvotes = (updatedUpvotes - 1).coerceAtLeast(0)
+        -1 -> updatedDownvotes = (updatedDownvotes - 1).coerceAtLeast(0)
+    }
+
+    when (vote) {
+        DropVoteType.UPVOTE -> {
+            updatedUpvotes += 1
+            updatedMap[userId] = 1L
+        }
+        DropVoteType.DOWNVOTE -> {
+            updatedDownvotes += 1
+            updatedMap[userId] = -1L
+        }
+        DropVoteType.NONE -> updatedMap.remove(userId)
+    }
+
+    return copy(
+        upvoteCount = updatedUpvotes,
+        downvoteCount = updatedDownvotes,
+        voteMap = updatedMap
+    )
 }

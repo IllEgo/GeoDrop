@@ -40,6 +40,8 @@ import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.material.icons.rounded.Place
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Public
+import androidx.compose.material.icons.rounded.ThumbDown
+import androidx.compose.material.icons.rounded.ThumbUp
 import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material3.*
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -74,8 +76,12 @@ import com.e3hi.geodrop.data.discoveryDescription
 import com.e3hi.geodrop.data.discoveryTitle
 import com.e3hi.geodrop.data.mediaLabel
 import com.e3hi.geodrop.data.FirestoreRepo
+import com.e3hi.geodrop.data.DropVoteType
 import com.e3hi.geodrop.data.MediaStorageRepo
 import com.e3hi.geodrop.data.NoteInventory
+import com.e3hi.geodrop.data.applyUserVote
+import com.e3hi.geodrop.data.userVote
+import com.e3hi.geodrop.data.voteScore
 import com.e3hi.geodrop.geo.DropDecisionReceiver
 import com.e3hi.geodrop.geo.NearbyDropRegistrar
 import com.e3hi.geodrop.geo.NearbyDropRegistrar.NearbySyncStatus
@@ -224,6 +230,7 @@ fun DropHereScreen() {
     var otherDropsCurrentLocation by remember { mutableStateOf<LatLng?>(null) }
     var otherDropsSelectedId by remember { mutableStateOf<String?>(null) }
     var otherDropsRefreshToken by remember { mutableStateOf(0) }
+    var votingDropIds by remember { mutableStateOf(setOf<String>()) }
     var showMyDrops by remember { mutableStateOf(false) }
     var myDrops by remember { mutableStateOf<List<Drop>>(emptyList()) }
     var myDropsLoading by remember { mutableStateOf(false) }
@@ -235,6 +242,8 @@ fun DropHereScreen() {
     var showCollectedDrops by remember { mutableStateOf(false) }
     var showManageGroups by remember { mutableStateOf(false) }
     var showDropComposer by remember { mutableStateOf(false) }
+
+    val currentUserId = currentUser?.uid
 
     suspend fun getLatestLocation(): Pair<Double, Double>? = withContext(Dispatchers.IO) {
         val fresh = try {
@@ -311,6 +320,49 @@ fun DropHereScreen() {
             snackbar.showMessage(scope, "Drop added to your collection.")
         } else {
             snackbar.showMessage(scope, "Couldn't pick up this drop.")
+        }
+    }
+
+    fun updateDropInLists(dropId: String, transform: (Drop) -> Drop) {
+        otherDrops = otherDrops.map { current ->
+            if (current.id == dropId) transform(current) else current
+        }
+        myDrops = myDrops.map { current ->
+            if (current.id == dropId) transform(current) else current
+        }
+    }
+
+    fun submitVote(drop: Drop, desiredVote: DropVoteType) {
+        val userId = currentUserId
+        if (userId.isNullOrBlank()) {
+            snackbar.showMessage(scope, "Sign in to vote on drops.")
+            return
+        }
+
+        val dropId = drop.id
+        if (dropId.isBlank()) return
+
+        val updatedDrop = drop.applyUserVote(userId, desiredVote)
+        if (updatedDrop == drop) return
+
+        val previousOtherDrops = otherDrops
+        val previousMyDrops = myDrops
+
+        votingDropIds = votingDropIds + dropId
+        updateDropInLists(dropId) { current -> current.applyUserVote(userId, desiredVote) }
+
+        scope.launch {
+            try {
+                repo.voteOnDrop(dropId, userId, desiredVote)
+            } catch (e: Exception) {
+                otherDrops = previousOtherDrops
+                myDrops = previousMyDrops
+                val message = e.message?.takeIf { it.isNotBlank() }
+                    ?: "Couldn't update your vote. Try again."
+                snackbar.showMessage(scope, message)
+            } finally {
+                votingDropIds = votingDropIds - dropId
+            }
         }
     }
 
@@ -898,6 +950,9 @@ fun DropHereScreen() {
             selectedId = otherDropsSelectedId,
             onSelect = { drop -> otherDropsSelectedId = drop.id },
             onPickUp = { drop -> pickUpDrop(drop) },
+            currentUserId = currentUserId,
+            votingDropIds = votingDropIds,
+            onVote = { drop, vote -> submitVote(drop, vote) },
             onDismiss = { showOtherDropsMap = false },
             onRetry = { otherDropsRefreshToken += 1 }
         )
@@ -1625,6 +1680,9 @@ private fun OtherDropsMapDialog(
     selectedId: String?,
     onSelect: (Drop) -> Unit,
     onPickUp: (Drop) -> Unit,
+    currentUserId: String?,
+    votingDropIds: Set<String>,
+    onVote: (Drop, DropVoteType) -> Unit,
     onDismiss: () -> Unit,
     onRetry: () -> Unit
 ) {
@@ -1712,6 +1770,7 @@ private fun OtherDropsMapDialog(
                                         .fillMaxWidth()
                                         .weight(1f)
                                 ) {
+                                    val votingEnabled = !currentUserId.isNullOrBlank()
                                     Text(
                                         text = "Select a drop to focus on the map. If you're close enough, pick it up here.",
                                         style = MaterialTheme.typography.bodyMedium,
@@ -1733,7 +1792,11 @@ private fun OtherDropsMapDialog(
                                                 drop = drop,
                                                 isSelected = drop.id == selectedId,
                                                 currentLocation = currentLocation,
+                                                userVote = drop.userVote(currentUserId),
+                                                enableVoting = votingEnabled,
+                                                isVoting = votingDropIds.contains(drop.id),
                                                 onSelect = { onSelect(drop) },
+                                                onVote = { vote -> onVote(drop, vote) },
                                                 onPickUp = { onPickUp(drop) }
                                             )
                                         }
@@ -2379,19 +2442,17 @@ private fun MyDropsMap(
             formatTimestamp(drop.createdAt)?.let { snippetParts.add("Dropped $it") }
             drop.groupCode?.takeIf { !it.isNullOrBlank() }?.let { snippetParts.add("Group $it") }
             snippetParts.add("Lat: %.5f, Lng: %.5f".format(drop.lat, drop.lng))
+            snippetParts.add("Score: ${formatVoteScore(drop.voteScore())} (↑${drop.upvoteCount} / ↓${drop.downvoteCount})")
 
             val isSelected = drop.id == selectedDropId
-            val markerIcon = if (isSelected) {
-                BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ORANGE)
-            } else {
-                null
-            }
+            val markerIcon = BitmapDescriptorFactory.defaultMarker(voteHueFor(drop.upvoteCount))
 
             Marker(
                 state = MarkerState(position),
                 title = drop.displayTitle(),
                 snippet = snippetParts.joinToString("\n"),
                 icon = markerIcon,
+                alpha = if (isSelected) 1f else 0.9f,
                 zIndex = if (isSelected) 2f else 0f
             )
         }
@@ -2403,7 +2464,11 @@ private fun OtherDropRow(
     drop: Drop,
     isSelected: Boolean,
     currentLocation: LatLng?,
+    userVote: DropVoteType,
+    enableVoting: Boolean,
+    isVoting: Boolean,
     onSelect: () -> Unit,
+    onVote: (DropVoteType) -> Unit,
     onPickUp: () -> Unit
 ) {
     val containerColor = if (isSelected) {
@@ -2497,6 +2562,61 @@ private fun OtherDropRow(
                 )
             }
 
+            Spacer(Modifier.height(12.dp))
+
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    VoteToggleButton(
+                        icon = Icons.Rounded.ThumbUp,
+                        label = drop.upvoteCount.toString(),
+                        selected = userVote == DropVoteType.UPVOTE,
+                        enabled = enableVoting && !isVoting,
+                        onClick = {
+                            val nextVote = if (userVote == DropVoteType.UPVOTE) {
+                                DropVoteType.NONE
+                            } else {
+                                DropVoteType.UPVOTE
+                            }
+                            onVote(nextVote)
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    VoteToggleButton(
+                        icon = Icons.Rounded.ThumbDown,
+                        label = drop.downvoteCount.toString(),
+                        selected = userVote == DropVoteType.DOWNVOTE,
+                        enabled = enableVoting && !isVoting,
+                        onClick = {
+                            val nextVote = if (userVote == DropVoteType.DOWNVOTE) {
+                                DropVoteType.NONE
+                            } else {
+                                DropVoteType.DOWNVOTE
+                            }
+                            onVote(nextVote)
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    if (isVoting) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp
+                        )
+                    }
+                }
+
+                Text(
+                    text = "Score: ${formatVoteScore(drop.voteScore())} (↑${drop.upvoteCount} / ↓${drop.downvoteCount})",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = supportingColor
+                )
+            }
+
             if (withinPickupRange) {
                 Spacer(Modifier.height(12.dp))
                 Button(
@@ -2551,19 +2671,18 @@ private fun OtherDropsMap(
             formatTimestamp(drop.createdAt)?.let { snippetParts.add("Dropped $it") }
             drop.groupCode?.takeIf { !it.isNullOrBlank() }?.let { snippetParts.add("Group $it") }
             snippetParts.add("Lat: %.5f, Lng: %.5f".format(drop.lat, drop.lng))
+            snippetParts.add("Score: ${formatVoteScore(drop.voteScore())} (↑${drop.upvoteCount} / ↓${drop.downvoteCount})")
 
             val isSelected = drop.id == selectedDropId
-            val markerIcon = if (isSelected) {
-                BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ORANGE)
-            } else {
-                BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED)
-            }
+
+            val markerIcon = BitmapDescriptorFactory.defaultMarker(voteHueFor(drop.upvoteCount))
 
             Marker(
                 state = MarkerState(position),
                 title = drop.discoveryTitle(),
                 snippet = snippetParts.joinToString("\n"),
                 icon = markerIcon,
+                alpha = if (isSelected) 1f else 0.9f,
                 zIndex = if (isSelected) 2f else 0f
             )
         }
@@ -2592,6 +2711,56 @@ private fun formatDistanceMeters(distance: Double): String {
         String.format(Locale.getDefault(), "%.2f km", distance / 1000.0)
     } else {
         "${distance.roundToInt()} m"
+    }
+}
+
+private fun voteHueFor(upvotes: Long): Float {
+    return when {
+        upvotes >= 25 -> BitmapDescriptorFactory.HUE_AZURE
+        upvotes >= 10 -> BitmapDescriptorFactory.HUE_GREEN
+        upvotes >= 5 -> BitmapDescriptorFactory.HUE_YELLOW
+        upvotes >= 1 -> BitmapDescriptorFactory.HUE_ORANGE
+        else -> BitmapDescriptorFactory.HUE_RED
+    }
+}
+
+private fun formatVoteScore(score: Long): String {
+    return when {
+        score > 0 -> "+$score"
+        score < 0 -> score.toString()
+        else -> "0"
+    }
+}
+
+@Composable
+private fun VoteToggleButton(
+    icon: ImageVector,
+    label: String,
+    selected: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    if (selected) {
+        FilledTonalButton(
+            onClick = onClick,
+            enabled = enabled,
+            modifier = modifier.heightIn(min = 40.dp)
+        ) {
+            Icon(icon, contentDescription = null)
+            Spacer(Modifier.width(6.dp))
+            Text(label)
+        }
+    } else {
+        OutlinedButton(
+            onClick = onClick,
+            enabled = enabled,
+            modifier = modifier.heightIn(min = 40.dp)
+        ) {
+            Icon(icon, contentDescription = null)
+            Spacer(Modifier.width(6.dp))
+            Text(label)
+        }
     }
 }
 
@@ -2697,6 +2866,14 @@ private fun ManageDropRow(
 
             Text(
                 text = "Lat: %.5f, Lng: %.5f".format(drop.lat, drop.lng),
+                style = MaterialTheme.typography.bodySmall,
+                color = supportingColor
+            )
+
+            Spacer(Modifier.height(4.dp))
+
+            Text(
+                text = "Score: ${formatVoteScore(drop.voteScore())} (↑${drop.upvoteCount} / ↓${drop.downvoteCount})",
                 style = MaterialTheme.typography.bodySmall,
                 color = supportingColor
             )

@@ -107,6 +107,60 @@ class FirestoreRepo(
         Log.d("GeoDrop", "Marked drop $dropId as deleted")
     }
 
+    suspend fun voteOnDrop(dropId: String, userId: String, vote: DropVoteType) {
+        if (dropId.isBlank() || userId.isBlank()) return
+
+        db.runTransaction { transaction ->
+            val docRef = drops.document(dropId)
+            val snapshot = transaction.get(docRef)
+            if (!snapshot.exists()) {
+                throw IllegalStateException("Drop $dropId does not exist")
+            }
+
+            val currentUpvotes = snapshot.getLong("upvoteCount") ?: 0L
+            val currentDownvotes = snapshot.getLong("downvoteCount") ?: 0L
+            @Suppress("UNCHECKED_CAST")
+            val currentMap = snapshot.get("voteMap") as? Map<String, Long> ?: emptyMap()
+
+            val previousVote = currentMap[userId]?.toInt() ?: 0
+            val targetVote = vote.value
+            if (previousVote == targetVote) {
+                return@runTransaction
+            }
+
+            var updatedUpvotes = currentUpvotes
+            var updatedDownvotes = currentDownvotes
+            val updatedMap = currentMap.toMutableMap()
+
+            when (previousVote) {
+                1 -> updatedUpvotes = (updatedUpvotes - 1).coerceAtLeast(0)
+                -1 -> updatedDownvotes = (updatedDownvotes - 1).coerceAtLeast(0)
+            }
+
+            when (vote) {
+                DropVoteType.UPVOTE -> {
+                    updatedUpvotes += 1
+                    updatedMap[userId] = 1L
+                }
+                DropVoteType.DOWNVOTE -> {
+                    updatedDownvotes += 1
+                    updatedMap[userId] = -1L
+                }
+                DropVoteType.NONE -> updatedMap.remove(userId)
+            }
+
+            val updateData = hashMapOf<String, Any?>(
+                "upvoteCount" to updatedUpvotes,
+                "downvoteCount" to updatedDownvotes,
+                "voteMap" to updatedMap
+            )
+
+            transaction.update(docRef, updateData)
+        }.await()
+
+        Log.d("GeoDrop", "Recorded ${vote.name.lowercase()} for drop $dropId by $userId")
+    }
+
 
     private fun Drop.prepareForSave(): Map<String, Any?> {
         val withTimestamp = if (createdAt > 0L) this else copy(createdAt = System.currentTimeMillis())
@@ -129,7 +183,10 @@ class FirestoreRepo(
             "contentType" to sanitized.contentType.name,
             "mediaUrl" to sanitized.mediaUrl,
             "mediaMimeType" to sanitized.mediaMimeType,
-            "mediaData" to sanitized.mediaData
+            "mediaData" to sanitized.mediaData,
+            "upvoteCount" to sanitized.upvoteCount,
+            "downvoteCount" to sanitized.downvoteCount,
+            "voteMap" to sanitized.voteMap
         )
     }
 }
