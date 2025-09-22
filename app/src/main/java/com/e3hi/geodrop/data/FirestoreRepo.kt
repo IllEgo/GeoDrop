@@ -2,7 +2,6 @@ package com.e3hi.geodrop.data
 
 import android.util.Log
 import com.google.firebase.firestore.DocumentReference
-import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 import com.google.firebase.firestore.ktx.firestore
@@ -165,14 +164,15 @@ class FirestoreRepo(
     suspend fun markDropCollected(dropId: String, userId: String) {
         if (dropId.isBlank() || userId.isBlank()) return
 
-        val updates = hashMapOf<String, Any>(
-            "collectorIds" to FieldValue.arrayUnion(userId),
-            "collectedBy.$userId" to true
-        )
+        val collectedField = "collectedBy.$userId"
+
+        // We only update the collectedBy map so Firestore security rules that restrict writes
+        // to specific nested keys (collectedBy.{uid}) continue to pass. Updating unrelated
+        // fields (like collectorIds) triggers PERMISSION_DENIED errors for non-owners.
 
         drops
             .document(dropId)
-            .set(updates, SetOptions.merge())
+            .update(collectedField, true)
             .await()
 
         Log.d("GeoDrop", "Marked drop $dropId as collected by $userId")
