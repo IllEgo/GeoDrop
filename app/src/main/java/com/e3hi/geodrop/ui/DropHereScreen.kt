@@ -76,6 +76,7 @@ import com.e3hi.geodrop.data.mediaLabel
 import com.e3hi.geodrop.data.FirestoreRepo
 import com.e3hi.geodrop.data.MediaStorageRepo
 import com.e3hi.geodrop.data.NoteInventory
+import com.e3hi.geodrop.geo.DropDecisionReceiver
 import com.e3hi.geodrop.geo.NearbyDropRegistrar
 import com.e3hi.geodrop.geo.NearbyDropRegistrar.NearbySyncStatus
 import com.e3hi.geodrop.util.GroupPreferences
@@ -104,6 +105,12 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
 import java.util.Locale
+import kotlin.math.asin
+import kotlin.math.cos
+import kotlin.math.min
+import kotlin.math.roundToInt
+import kotlin.math.sin
+import kotlin.math.sqrt
 
 @SuppressLint("MissingPermission")
 @OptIn(ExperimentalMaterial3Api::class)
@@ -254,6 +261,56 @@ fun DropHereScreen() {
             scope.launch(Dispatchers.IO) {
                 runCatching { ctx.contentResolver.delete(uri, null, null) }
             }
+        }
+    }
+
+    fun pickUpDrop(drop: Drop) {
+        val currentLocation = otherDropsCurrentLocation
+        val withinRange = currentLocation?.let {
+            distanceBetweenMeters(it.latitude, it.longitude, drop.lat, drop.lng) <= 10.0
+        } ?: false
+        if (!withinRange) {
+            snackbar.showMessage(scope, "Move closer to pick up this drop.")
+            return
+        }
+
+        val appContext = ctx.applicationContext
+        val intent = Intent(appContext, DropDecisionReceiver::class.java).apply {
+            action = DropDecisionReceiver.ACTION_PICK_UP
+            putExtra(DropDecisionReceiver.EXTRA_DROP_ID, drop.id)
+            if (drop.text.isNotBlank()) {
+                putExtra(DropDecisionReceiver.EXTRA_DROP_TEXT, drop.text)
+            }
+            putExtra(DropDecisionReceiver.EXTRA_DROP_CONTENT_TYPE, drop.contentType.name)
+            drop.mediaUrl?.takeIf { it.isNotBlank() }?.let {
+                putExtra(DropDecisionReceiver.EXTRA_DROP_MEDIA_URL, it)
+            }
+            drop.mediaMimeType?.takeIf { it.isNotBlank() }?.let {
+                putExtra(DropDecisionReceiver.EXTRA_DROP_MEDIA_MIME_TYPE, it)
+            }
+            drop.mediaData?.takeIf { it.isNotBlank() }?.let {
+                putExtra(DropDecisionReceiver.EXTRA_DROP_MEDIA_DATA, it)
+            }
+            putExtra(DropDecisionReceiver.EXTRA_DROP_LAT, drop.lat)
+            putExtra(DropDecisionReceiver.EXTRA_DROP_LNG, drop.lng)
+            if (drop.createdAt > 0) {
+                putExtra(DropDecisionReceiver.EXTRA_DROP_CREATED_AT, drop.createdAt)
+            }
+            drop.groupCode?.takeIf { it.isNotBlank() }?.let {
+                putExtra(DropDecisionReceiver.EXTRA_DROP_GROUP, it)
+            }
+        }
+
+        val result = runCatching { appContext.sendBroadcast(intent) }
+        if (result.isSuccess) {
+            val remaining = otherDrops.filterNot { it.id == drop.id }
+            otherDrops = remaining
+            if (otherDropsSelectedId == drop.id) {
+                otherDropsSelectedId = remaining.firstOrNull()?.id
+            }
+            snackbar.showMessage(scope, "Drop added to your collection.")
+        } else {
+            snackbar.showMessage(scope, "Couldn't pick up this drop.")
         }
     }
 
@@ -840,6 +897,7 @@ fun DropHereScreen() {
             error = otherDropsError,
             selectedId = otherDropsSelectedId,
             onSelect = { drop -> otherDropsSelectedId = drop.id },
+            onPickUp = { drop -> pickUpDrop(drop) },
             onDismiss = { showOtherDropsMap = false },
             onRetry = { otherDropsRefreshToken += 1 }
         )
@@ -1566,6 +1624,7 @@ private fun OtherDropsMapDialog(
     error: String?,
     selectedId: String?,
     onSelect: (Drop) -> Unit,
+    onPickUp: (Drop) -> Unit,
     onDismiss: () -> Unit,
     onRetry: () -> Unit
 ) {
@@ -1654,7 +1713,7 @@ private fun OtherDropsMapDialog(
                                         .weight(1f)
                                 ) {
                                     Text(
-                                        text = "Select a drop to focus on the map.",
+                                        text = "Select a drop to focus on the map. If you're close enough, pick it up here.",
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         modifier = Modifier
@@ -1673,7 +1732,9 @@ private fun OtherDropsMapDialog(
                                             OtherDropRow(
                                                 drop = drop,
                                                 isSelected = drop.id == selectedId,
-                                                onSelect = { onSelect(drop) }
+                                                currentLocation = currentLocation,
+                                                onSelect = { onSelect(drop) },
+                                                onPickUp = { onPickUp(drop) }
                                             )
                                         }
                                     }
@@ -2341,7 +2402,9 @@ private fun MyDropsMap(
 private fun OtherDropRow(
     drop: Drop,
     isSelected: Boolean,
-    onSelect: () -> Unit
+    currentLocation: LatLng?,
+    onSelect: () -> Unit,
+    onPickUp: () -> Unit
 ) {
     val containerColor = if (isSelected) {
         MaterialTheme.colorScheme.primaryContainer
@@ -2358,6 +2421,10 @@ private fun OtherDropRow(
     } else {
         MaterialTheme.colorScheme.onSurfaceVariant
     }
+    val distanceMeters = currentLocation?.let { location ->
+        distanceBetweenMeters(location.latitude, location.longitude, drop.lat, drop.lng)
+    }
+    val withinPickupRange = distanceMeters != null && distanceMeters <= 10.0
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -2420,6 +2487,25 @@ private fun OtherDropRow(
                 style = MaterialTheme.typography.bodySmall,
                 color = supportingColor
             )
+
+            distanceMeters?.let { distance ->
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = "You're ${formatDistanceMeters(distance)} away.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = supportingColor
+                )
+            }
+
+            if (withinPickupRange) {
+                Spacer(Modifier.height(12.dp))
+                Button(
+                    onClick = onPickUp,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Pick up drop")
+                }
+            }
         }
     }
 }
@@ -2481,6 +2567,31 @@ private fun OtherDropsMap(
                 zIndex = if (isSelected) 2f else 0f
             )
         }
+    }
+}
+
+private fun distanceBetweenMeters(
+    startLat: Double,
+    startLng: Double,
+    endLat: Double,
+    endLng: Double
+): Double {
+    val radius = 6371000.0
+    val dLat = Math.toRadians(endLat - startLat)
+    val dLng = Math.toRadians(endLng - startLng)
+    val originLat = Math.toRadians(startLat)
+    val targetLat = Math.toRadians(endLat)
+    val sinLat = sin(dLat / 2)
+    val sinLng = sin(dLng / 2)
+    val h = sinLat * sinLat + cos(originLat) * cos(targetLat) * sinLng * sinLng
+    return 2 * radius * asin(min(1.0, sqrt(h)))
+}
+
+private fun formatDistanceMeters(distance: Double): String {
+    return if (distance >= 1000) {
+        String.format(Locale.getDefault(), "%.2f km", distance / 1000.0)
+    } else {
+        "${distance.roundToInt()} m"
     }
 }
 
