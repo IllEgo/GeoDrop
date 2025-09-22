@@ -238,7 +238,10 @@ class DropDetailActivity : ComponentActivity() {
                             voteMap = sanitizedVoteMap
                                 ?: previousLoaded?.voteMap
                                 ?: initialLoaded?.voteMap
-                                ?: emptyMap()
+                                ?: emptyMap(),
+                            createdBy = doc.getString("createdBy")?.takeIf { it.isNotBlank() }
+                                ?: previousLoaded?.createdBy
+                                ?: initialLoaded?.createdBy
                         )
                     }
                     val appContext = context.applicationContext
@@ -259,21 +262,21 @@ class DropDetailActivity : ComponentActivity() {
                     var decisionStatusMessage by remember(dropId) { mutableStateOf<String?>(null) }
                     var decisionProcessing by remember(dropId) { mutableStateOf(false) }
                     var isVoting by remember(dropId) { mutableStateOf(false) }
-                    val isAlreadyCollected = remember(dropId) {
-                        dropId.isNotBlank() && noteInventory.isCollected(dropId)
-                }
+                    var hasCollected by remember(dropId) {
+                        mutableStateOf(dropId.isNotBlank() && noteInventory.isCollected(dropId))
+                    }
 
-                val isAlreadyIgnored = remember(dropId) {
-                    dropId.isNotBlank() && noteInventory.isIgnored(dropId)
-                }
-                val shouldShowDecisionPrompt =
-                    showDecisionOptions && dropId.isNotBlank() && !isAlreadyCollected && !isAlreadyIgnored && !decisionHandled
-                val defaultDecisionMessage = when {
-                    showDecisionOptions && isAlreadyCollected -> "You've already picked up this drop."
-                    showDecisionOptions && isAlreadyIgnored -> "You've already ignored this drop."
-                    else -> null
-                }
-                val decisionMessage = decisionStatusMessage ?: defaultDecisionMessage
+                    val isAlreadyIgnored = remember(dropId) {
+                        dropId.isNotBlank() && noteInventory.isIgnored(dropId)
+                    }
+                    val shouldShowDecisionPrompt =
+                        showDecisionOptions && dropId.isNotBlank() && !hasCollected && !isAlreadyIgnored && !decisionHandled
+                    val defaultDecisionMessage = when {
+                        showDecisionOptions && hasCollected -> "You've already picked up this drop."
+                        showDecisionOptions && isAlreadyIgnored -> "You've already ignored this drop."
+                        else -> null
+                    }
+                    val decisionMessage = decisionStatusMessage ?: defaultDecisionMessage
 
                 Scaffold(
                     topBar = {
@@ -443,14 +446,34 @@ class DropDetailActivity : ComponentActivity() {
                                     )
                                 }
 
+                                val isDropOwner = loadedState?.createdBy == currentUserId
+                                val voteRestrictionMessage = when {
+                                    currentUserId.isNullOrBlank() -> "Sign in to vote on drops."
+                                    isDropOwner -> "You can't vote on your own drop."
+                                    !hasCollected -> "Collect this drop to vote on it."
+                                    else -> null
+                                }
+                                val canVote = voteRestrictionMessage == null
+
                                 loadedState?.let {
                                     DropVoteSection(
                                         state = it,
                                         currentUserId = currentUserId,
+                                        canVote = canVote,
+                                        restrictionMessage = voteRestrictionMessage,
                                         isVoting = isVoting,
                                         onVote = { desiredVote ->
                                             val currentLoaded = state as? DropDetailUiState.Loaded
                                                 ?: return@DropVoteSection
+                                            if (!canVote) {
+                                                Toast.makeText(
+                                                    context,
+                                                    voteRestrictionMessage
+                                                        ?: "Collect this drop before voting on it.",
+                                                    Toast.LENGTH_SHORT
+                                                ).show()
+                                                return@DropVoteSection
+                                            }
                                             val userId = currentUserId
                                             if (userId.isNullOrBlank()) {
                                                 Toast.makeText(
@@ -652,6 +675,7 @@ class DropDetailActivity : ComponentActivity() {
                                                 if (result.isSuccess) {
                                                     decisionHandled = true
                                                     decisionStatusMessage = "Drop added to your collection."
+                                                    hasCollected = true
                                                     Toast.makeText(context, "Drop added to your collection.", Toast.LENGTH_SHORT).show()
                                                 } else {
                                                     Toast.makeText(context, "Couldn't pick up this drop.", Toast.LENGTH_SHORT).show()
@@ -736,6 +760,8 @@ class DropDetailActivity : ComponentActivity() {
 private fun DropVoteSection(
     state: DropDetailUiState.Loaded,
     currentUserId: String?,
+    canVote: Boolean,
+    restrictionMessage: String?,
     isVoting: Boolean,
     onVote: (DropVoteType) -> Unit
 ) {
@@ -753,7 +779,7 @@ private fun DropVoteSection(
                 icon = Icons.Rounded.ThumbUp,
                 label = state.upvoteCount.toString(),
                 selected = userVote == DropVoteType.UPVOTE,
-                enabled = !isVoting,
+                enabled = canVote && !isVoting,
                 onClick = {
                     val nextVote = if (userVote == DropVoteType.UPVOTE) {
                         DropVoteType.NONE
@@ -769,7 +795,7 @@ private fun DropVoteSection(
                 icon = Icons.Rounded.ThumbDown,
                 label = state.downvoteCount.toString(),
                 selected = userVote == DropVoteType.DOWNVOTE,
-                enabled = !isVoting,
+                enabled = canVote && !isVoting,
                 onClick = {
                     val nextVote = if (userVote == DropVoteType.DOWNVOTE) {
                         DropVoteType.NONE
@@ -795,9 +821,9 @@ private fun DropVoteSection(
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
-        if (currentUserId.isNullOrBlank()) {
+        restrictionMessage?.let { message ->
             Text(
-                text = "Sign in to vote on drops.",
+                text = message,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -1052,7 +1078,8 @@ private sealed interface DropDetailUiState {
         val mediaData: String? = null,
         val upvoteCount: Long = 0,
         val downvoteCount: Long = 0,
-        val voteMap: Map<String, Long> = emptyMap()
+        val voteMap: Map<String, Long> = emptyMap(),
+        val createdBy: String? = null
     ) : DropDetailUiState
 
     object Loading : DropDetailUiState
