@@ -189,7 +189,6 @@ class DropDetailActivity : ComponentActivity() {
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text("Drop detail", style = MaterialTheme.typography.titleLarge)
-                Text("ID: $dropId", style = MaterialTheme.typography.bodyMedium)
 
                 Text("Message", style = MaterialTheme.typography.titleMedium)
                 val message = when (val current = state) {
@@ -316,13 +315,7 @@ class DropDetailActivity : ComponentActivity() {
                     }
 
                     when (mediaAttachment) {
-                        is MediaAttachment.Link -> {
-                            Text(
-                                text = mediaAttachment.url,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
+                        is MediaAttachment.Link -> Unit
                         is MediaAttachment.Local -> {
                             loadedState.mediaMimeType?.let { mime ->
                                 Text(
