@@ -1,7 +1,6 @@
 // ui/DropDetailActivity.kt
 package com.e3hi.geodrop.ui
 
-import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -232,7 +231,7 @@ class DropDetailActivity : ComponentActivity() {
 
                 Scaffold(
                     topBar = {
-                        val activity = context as? Activity
+                        val activity = context as? ComponentActivity
                         CenterAlignedTopAppBar(
                             title = { Text("Drop details") },
                             navigationIcon = {
@@ -616,13 +615,12 @@ class DropDetailActivity : ComponentActivity() {
 
                         FilledTonalButton(
                             onClick = {
-                                val activity = context as? Activity
+                                val activity = context as? ComponentActivity
                                 activity?.let {
                                     if (it.isTaskRoot) {
                                         val backIntent = Intent(it, MainActivity::class.java).apply {
                                             addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
                                         }
-                                        it.startActivity(backIntent)
                                     }
                                     it.finish()
                                 }
