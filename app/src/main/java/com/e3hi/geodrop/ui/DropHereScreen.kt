@@ -10,6 +10,7 @@ import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.util.Base64
+import android.util.Log
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.BorderStroke
@@ -318,6 +319,17 @@ fun DropHereScreen() {
                 otherDropsSelectedId = remaining.firstOrNull()?.id
             }
             snackbar.showMessage(scope, "Drop added to your collection.")
+
+            val userId = currentUserId
+            if (!userId.isNullOrBlank()) {
+                scope.launch {
+                    try {
+                        repo.markDropCollected(drop.id, userId)
+                    } catch (error: Exception) {
+                        Log.w("DropHere", "Failed to sync collected drop ${drop.id}", error)
+                    }
+                }
+            }
         } else {
             snackbar.showMessage(scope, "Couldn't pick up this drop.")
         }

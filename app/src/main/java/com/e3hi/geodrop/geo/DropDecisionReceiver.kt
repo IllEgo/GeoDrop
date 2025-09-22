@@ -7,8 +7,10 @@ import android.util.Log
 import androidx.core.app.NotificationManagerCompat
 import com.e3hi.geodrop.data.CollectedNote
 import com.e3hi.geodrop.data.DropContentType
+import com.e3hi.geodrop.data.FirestoreRepo
 import com.e3hi.geodrop.data.NoteInventory
 import com.google.android.gms.location.LocationServices
+import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -19,6 +21,8 @@ import kotlinx.coroutines.withContext
  * Handles user's response to a nearby drop notification (pick up vs ignore).
  */
 class DropDecisionReceiver : BroadcastReceiver() {
+    private val repo by lazy { FirestoreRepo() }
+
     override fun onReceive(context: Context, intent: Intent) {
         val action = intent.action ?: return
         val dropId = intent.getStringExtra(EXTRA_DROP_ID) ?: return
@@ -65,6 +69,15 @@ class DropDecisionReceiver : BroadcastReceiver() {
             collectedAt = System.currentTimeMillis()
         )
         inventory.saveCollected(note)
+
+        val userId = FirebaseAuth.getInstance().currentUser?.uid
+        if (!userId.isNullOrBlank()) {
+            try {
+                repo.markDropCollected(dropId, userId)
+            } catch (error: Exception) {
+                Log.w(TAG, "Failed to mark drop $dropId as collected for $userId", error)
+            }
+        }
 
         removeGeofence(context, dropId)
         Log.d(TAG, "Collected drop $dropId and added to inventory")

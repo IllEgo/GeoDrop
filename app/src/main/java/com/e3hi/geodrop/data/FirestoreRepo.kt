@@ -2,6 +2,7 @@ package com.e3hi.geodrop.data
 
 import android.util.Log
 import com.google.firebase.firestore.DocumentReference
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 import com.google.firebase.firestore.ktx.firestore
@@ -159,6 +160,22 @@ class FirestoreRepo(
         }.await()
 
         Log.d("GeoDrop", "Recorded ${vote.name.lowercase()} for drop $dropId by $userId")
+    }
+
+    suspend fun markDropCollected(dropId: String, userId: String) {
+        if (dropId.isBlank() || userId.isBlank()) return
+
+        val updates = hashMapOf<String, Any>(
+            "collectorIds" to FieldValue.arrayUnion(userId),
+            "collectedBy.$userId" to true
+        )
+
+        drops
+            .document(dropId)
+            .set(updates, SetOptions.merge())
+            .await()
+
+        Log.d("GeoDrop", "Marked drop $dropId as collected by $userId")
     }
 
 

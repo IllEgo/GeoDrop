@@ -6,6 +6,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.util.Base64
+import android.util.Log
 import android.webkit.MimeTypeMap
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -264,6 +265,17 @@ class DropDetailActivity : ComponentActivity() {
                     var isVoting by remember(dropId) { mutableStateOf(false) }
                     var hasCollected by remember(dropId) {
                         mutableStateOf(dropId.isNotBlank() && noteInventory.isCollected(dropId))
+                    }
+
+                    LaunchedEffect(hasCollected, currentUserId, dropId) {
+                        val userId = currentUserId
+                        if (hasCollected && !dropId.isBlank() && !userId.isNullOrBlank()) {
+                            try {
+                                repo.markDropCollected(dropId, userId)
+                            } catch (error: Exception) {
+                                Log.w("DropDetail", "Failed to sync collected status for $dropId", error)
+                            }
+                        }
                     }
 
                     val isAlreadyIgnored = remember(dropId) {
