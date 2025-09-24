@@ -11,6 +11,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.util.Base64
 import android.util.Log
+import android.util.Patterns
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.BorderStroke
@@ -22,6 +23,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -65,6 +67,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -191,7 +196,143 @@ fun DropHereScreen() {
         }
     }
 
+    fun resetBusinessAuthFields(clearEmail: Boolean) {
+        if (clearEmail) {
+            businessEmail = TextFieldValue("")
+        }
+        businessPassword = TextFieldValue("")
+        businessConfirmPassword = TextFieldValue("")
+        businessAuthError = null
+        businessAuthStatus = null
+    }
+
+    fun dismissBusinessAuthDialog() {
+        if (businessAuthSubmitting) return
+        showBusinessSignIn = false
+        resetBusinessAuthFields(clearEmail = false)
+        businessAuthMode = BusinessAuthMode.SIGN_IN
+    }
+
+    fun performBusinessAuth() {
+        if (businessAuthSubmitting) return
+
+        val email = businessEmail.text.trim()
+        val password = businessPassword.text
+        val confirm = businessConfirmPassword.text
+
+        when {
+            email.isEmpty() -> {
+                businessAuthError = "Enter your email address."
+                return
+            }
+
+            !Patterns.EMAIL_ADDRESS.matcher(email).matches() -> {
+                businessAuthError = "Enter a valid email address."
+                return
+            }
+
+            password.length < 6 -> {
+                businessAuthError = "Password must be at least 6 characters."
+                return
+            }
+
+            businessAuthMode == BusinessAuthMode.REGISTER && confirm != password -> {
+                businessAuthError = "Passwords do not match."
+                return
+            }
+        }
+
+        businessAuthSubmitting = true
+        businessAuthError = null
+        businessAuthStatus = null
+
+        val selectedMode = businessAuthMode
+        val task = try {
+            when (selectedMode) {
+                BusinessAuthMode.SIGN_IN -> auth.signInWithEmailAndPassword(email, password)
+                BusinessAuthMode.REGISTER -> auth.createUserWithEmailAndPassword(email, password)
+            }
+        } catch (error: Exception) {
+            businessAuthSubmitting = false
+            businessAuthError = error.localizedMessage?.takeIf { it.isNotBlank() }
+                ?: if (selectedMode == BusinessAuthMode.REGISTER) {
+                    "Couldn't create your business account. Try again."
+                } else {
+                    "Couldn't sign you in. Check your email and password."
+                }
+            return
+        }
+
+        task.addOnCompleteListener { authTask ->
+            businessAuthSubmitting = false
+            if (authTask.isSuccessful) {
+                resetBusinessAuthFields(clearEmail = true)
+                showBusinessSignIn = false
+                if (selectedMode == BusinessAuthMode.REGISTER) {
+                    showBusinessOnboarding = true
+                }
+            } else {
+                val message = authTask.exception?.localizedMessage?.takeIf { it.isNotBlank() }
+                    ?: if (selectedMode == BusinessAuthMode.REGISTER) {
+                        "Couldn't create your business account. Try again."
+                    } else {
+                        "Couldn't sign you in. Check your email and password."
+                    }
+                businessAuthError = message
+            }
+        }
+    }
+
+    fun sendBusinessPasswordReset() {
+        if (businessAuthSubmitting) return
+
+        val email = businessEmail.text.trim()
+        if (!Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+            businessAuthError = "Enter a valid email address to reset your password."
+            return
+        }
+
+        businessAuthSubmitting = true
+        businessAuthError = null
+        businessAuthStatus = null
+
+        auth.sendPasswordResetEmail(email)
+            .addOnCompleteListener { task ->
+                businessAuthSubmitting = false
+                if (task.isSuccessful) {
+                    businessAuthStatus = "Password reset email sent to $email."
+                } else {
+                    val message = task.exception?.localizedMessage?.takeIf { it.isNotBlank() }
+                        ?: "Couldn't send reset email. Try again."
+                    businessAuthError = message
+                }
+            }
+    }
+
     if (currentUser == null) {
+        if (showBusinessSignIn) {
+            BusinessSignInDialog(
+                mode = businessAuthMode,
+                onModeChange = { mode ->
+                    if (businessAuthSubmitting) return@BusinessSignInDialog
+                    businessAuthMode = mode
+                    businessAuthError = null
+                    businessAuthStatus = null
+                },
+                email = businessEmail,
+                onEmailChange = { businessEmail = it },
+                password = businessPassword,
+                onPasswordChange = { businessPassword = it },
+                confirmPassword = businessConfirmPassword,
+                onConfirmPasswordChange = { businessConfirmPassword = it },
+                isSubmitting = businessAuthSubmitting,
+                error = businessAuthError,
+                status = businessAuthStatus,
+                onSubmit = { performBusinessAuth() },
+                onDismiss = { dismissBusinessAuthDialog() },
+                onForgotPassword = { sendBusinessPasswordReset() }
+            )
+        }
         SignInRequiredScreen(
             isSigningIn = signingIn,
             error = signInError,
@@ -215,6 +356,16 @@ fun DropHereScreen() {
                         ?: "Couldn't sign you in. Check your connection and try again."
                     signInError = message
                 }
+            },
+            onBusinessSignInClick = {
+                if (signingIn || businessAuthSubmitting) return@SignInRequiredScreen
+                businessAuthMode = BusinessAuthMode.SIGN_IN
+                businessAuthError = null
+                businessAuthStatus = null
+                businessEmail = TextFieldValue("")
+                businessPassword = TextFieldValue("")
+                businessConfirmPassword = TextFieldValue("")
+                showBusinessSignIn = true
             }
         )
         return
@@ -262,6 +413,14 @@ fun DropHereScreen() {
     var showDropComposer by remember { mutableStateOf(false) }
     var showBusinessDashboard by remember { mutableStateOf(false) }
     var showBusinessOnboarding by remember { mutableStateOf(false) }
+    var showBusinessSignIn by remember { mutableStateOf(false) }
+    var businessAuthMode by remember { mutableStateOf(BusinessAuthMode.SIGN_IN) }
+    var businessEmail by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
+    var businessPassword by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
+    var businessConfirmPassword by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
+    var businessAuthSubmitting by remember { mutableStateOf(false) }
+    var businessAuthError by remember { mutableStateOf<String?>(null) }
+    var businessAuthStatus by remember { mutableStateOf<String?>(null) }
     var businessDrops by remember { mutableStateOf<List<Drop>>(emptyList()) }
     var businessDashboardLoading by remember { mutableStateOf(false) }
     var businessDashboardError by remember { mutableStateOf<String?>(null) }
@@ -1995,6 +2154,171 @@ private fun CollectedDropsDialog(
 }
 
 @Composable
+private fun BusinessSignInDialog(
+    mode: BusinessAuthMode,
+    onModeChange: (BusinessAuthMode) -> Unit,
+    email: TextFieldValue,
+    onEmailChange: (TextFieldValue) -> Unit,
+    password: TextFieldValue,
+    onPasswordChange: (TextFieldValue) -> Unit,
+    confirmPassword: TextFieldValue,
+    onConfirmPasswordChange: (TextFieldValue) -> Unit,
+    isSubmitting: Boolean,
+    error: String?,
+    status: String?,
+    onSubmit: () -> Unit,
+    onDismiss: () -> Unit,
+    onForgotPassword: () -> Unit
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            dismissOnBackPress = !isSubmitting,
+            dismissOnClickOutside = !isSubmitting
+        )
+    ) {
+        Surface(
+            shape = MaterialTheme.shapes.large,
+            tonalElevation = 6.dp,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = "Business account",
+                    style = MaterialTheme.typography.titleLarge
+                )
+
+                SingleChoiceSegmentedButtonRow {
+                    BusinessAuthMode.entries.forEachIndexed { index, option ->
+                        SegmentedButton(
+                            shape = SegmentedButtonDefaults.itemShape(index = index, count = BusinessAuthMode.entries.size),
+                            selected = mode == option,
+                            onClick = { onModeChange(option) }
+                        ) {
+                            Text(
+                                text = when (option) {
+                                    BusinessAuthMode.SIGN_IN -> "Sign in"
+                                    BusinessAuthMode.REGISTER -> "Create account"
+                                }
+                            )
+                        }
+                    }
+                }
+
+                val isRegister = mode == BusinessAuthMode.REGISTER
+
+                OutlinedTextField(
+                    value = email,
+                    onValueChange = onEmailChange,
+                    label = { Text("Email address") },
+                    enabled = !isSubmitting,
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Email,
+                        imeAction = ImeAction.Next
+                    )
+                )
+
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = onPasswordChange,
+                    label = { Text("Password") },
+                    enabled = !isSubmitting,
+                    modifier = Modifier.fillMaxWidth(),
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Password,
+                        imeAction = if (isRegister) ImeAction.Next else ImeAction.Done
+                    )
+                )
+
+                if (isRegister) {
+                    OutlinedTextField(
+                        value = confirmPassword,
+                        onValueChange = onConfirmPasswordChange,
+                        label = { Text("Confirm password") },
+                        enabled = !isSubmitting,
+                        modifier = Modifier.fillMaxWidth(),
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Password,
+                            imeAction = ImeAction.Done
+                        )
+                    )
+                }
+
+                error?.let { message ->
+                    Text(
+                        text = message,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+
+                status?.let { message ->
+                    Text(
+                        text = message,
+                        color = MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+
+                if (!isRegister) {
+                    TextButton(
+                        onClick = onForgotPassword,
+                        enabled = !isSubmitting,
+                        modifier = Modifier.align(Alignment.End)
+                    ) {
+                        Text("Forgot password?")
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        enabled = !isSubmitting,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Cancel")
+                    }
+
+                    Button(
+                        onClick = onSubmit,
+                        enabled = !isSubmitting,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        if (isSubmitting) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text("Working…")
+                        } else {
+                            Text(
+                                text = when (mode) {
+                                    BusinessAuthMode.SIGN_IN -> "Sign in"
+                                    BusinessAuthMode.REGISTER -> "Create account"
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun BusinessOnboardingDialog(
     name: TextFieldValue,
     onNameChange: (TextFieldValue) -> Unit,
@@ -3553,7 +3877,8 @@ private fun ManageDropRow(
 private fun SignInRequiredScreen(
     isSigningIn: Boolean,
     error: String?,
-    onSignInClick: () -> Unit
+    onSignInClick: () -> Unit,
+    onBusinessSignInClick: () -> Unit
 ) {
     Box(
         modifier = Modifier
@@ -3576,6 +3901,13 @@ private fun SignInRequiredScreen(
             Text(
                 text = "Sign in to drop notes, photos, and audio. This keeps your uploads secure.",
                 style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.Center,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = "Business partners can sign in to manage offers and analytics.",
+                style = MaterialTheme.typography.bodySmall,
                 textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -3602,8 +3934,16 @@ private fun SignInRequiredScreen(
                     Spacer(Modifier.width(8.dp))
                     Text("Signing in…")
                 } else {
-                    Text("Sign in")
+                    Text("Continue as explorer")
                 }
+            }
+            Spacer(Modifier.height(12.dp))
+            OutlinedButton(
+                onClick = onBusinessSignInClick,
+                enabled = !isSigningIn,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Business account sign in")
             }
         }
     }
@@ -3965,6 +4305,11 @@ private data class BusinessDropTypeOption(
     val description: String,
     val icon: ImageVector
 )
+
+private enum class BusinessAuthMode {
+    SIGN_IN,
+    REGISTER
+}
 
 private enum class DropVisibility { Public, GroupOnly }
 
