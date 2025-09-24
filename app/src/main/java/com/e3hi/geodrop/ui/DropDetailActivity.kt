@@ -339,9 +339,10 @@ class DropDetailActivity : ComponentActivity() {
                     var hasCollected by remember(dropId) {
                         mutableStateOf(dropId.isNotBlank() && noteInventory.isCollected(dropId))
                     }
-                    var redemptionCodeInput by rememberSaveable(dropId, saver = TextFieldValue.Saver) {
+                    val redemptionCodeInputState = rememberSaveable(dropId, saver = TextFieldValue.Saver) {
                         mutableStateOf(TextFieldValue(""))
                     }
+                    val redemptionCodeInput = redemptionCodeInputState.value
                     var redemptionError by remember(dropId) { mutableStateOf<String?>(null) }
                     var redemptionSuccessMessage by remember(dropId) { mutableStateOf<String?>(null) }
                     var redeeming by remember(dropId) { mutableStateOf(false) }
@@ -533,7 +534,7 @@ class DropDetailActivity : ComponentActivity() {
                                         alreadyRedeemed = alreadyRedeemed,
                                         redemptionCode = redemptionCodeInput,
                                         onRedemptionCodeChange = {
-                                            redemptionCodeInput = it
+                                            redemptionCodeInputState.value = it
                                             redemptionError = null
                                             redemptionSuccessMessage = null
                                         },
@@ -577,7 +578,7 @@ class DropDetailActivity : ComponentActivity() {
                                                                 redeemedAt = result.redeemedAt,
                                                                 isRedeemed = true
                                                             )
-                                                            redemptionCodeInput = TextFieldValue("")
+                                                            redemptionCodeInputState.value = TextFieldValue("")
                                                             redemptionSuccessMessage = "Offer redeemed! Show this confirmation to the business."
                                                         }
 
