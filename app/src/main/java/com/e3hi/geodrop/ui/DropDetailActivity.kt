@@ -352,7 +352,7 @@ class DropDetailActivity : ComponentActivity() {
                             try {
                                 repo.markDropCollected(dropId, userId)
                             } catch (error: Exception) {
-                                Log.w("DropDetail", "Failed to sync collected status for $dropId", error)
+                                Log.w("DropDetail", "Failed to sync collected statuse for $dropId", error)
                             }
                         }
                     }
