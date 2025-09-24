@@ -2153,6 +2153,7 @@ private fun CollectedDropsDialog(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun BusinessSignInDialog(
     mode: BusinessAuthMode,
