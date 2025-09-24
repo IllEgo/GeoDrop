@@ -60,6 +60,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -67,16 +68,22 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.FileProvider
 import com.e3hi.geodrop.MainActivity
 import com.e3hi.geodrop.data.DropContentType
 import com.e3hi.geodrop.data.Drop
+import com.e3hi.geodrop.data.DropType
 import com.e3hi.geodrop.data.DropVoteType
 import com.e3hi.geodrop.data.FirestoreRepo
 import com.e3hi.geodrop.data.NoteInventory
+import com.e3hi.geodrop.data.RedemptionResult
 import com.e3hi.geodrop.data.applyUserVote
+import com.e3hi.geodrop.data.remainingRedemptions
+import com.e3hi.geodrop.data.requiresRedemption
+import com.e3hi.geodrop.data.isRedeemedBy
 import com.e3hi.geodrop.geo.DropDecisionReceiver
 import com.e3hi.geodrop.ui.theme.GeoDropTheme
 import com.e3hi.geodrop.util.formatTimestamp
@@ -106,6 +113,18 @@ class DropDetailActivity : ComponentActivity() {
         val initialMediaUrl = intent.getStringExtra("dropMediaUrl")?.takeIf { it.isNotBlank() }
         val initialMediaMimeType = intent.getStringExtra("dropMediaMimeType")?.takeIf { it.isNotBlank() }
         val initialMediaData = intent.getStringExtra("dropMediaData")?.takeIf { it.isNotBlank() }
+        val initialDropType = DropType.fromRaw(intent.getStringExtra("dropType"))
+        val initialBusinessName = intent.getStringExtra("dropBusinessName")?.takeIf { it.isNotBlank() }
+        val initialBusinessId = intent.getStringExtra("dropBusinessId")?.takeIf { it.isNotBlank() }
+        val initialRedemptionLimit = if (intent.hasExtra("dropRedemptionLimit")) {
+            intent.getIntExtra("dropRedemptionLimit", 0).takeIf { it > 0 }
+        } else {
+            null
+        }
+        val initialRedemptionCount = intent.getIntExtra("dropRedemptionCount", 0)
+        val initialCollectedAt = intent.getLongExtra("dropCollectedAt", -1L).takeIf { it > 0L }
+        val initialRedeemedAt = intent.getLongExtra("dropRedeemedAt", -1L).takeIf { it > 0L }
+        val initialIsRedeemed = intent.getBooleanExtra("dropIsRedeemed", false)
         val showDecisionOptions = intent.getBooleanExtra(EXTRA_SHOW_DECISION_OPTIONS, false)
 
         setContent {
@@ -135,7 +154,17 @@ class DropDetailActivity : ComponentActivity() {
                                 mediaData = initialMediaData,
                                 upvoteCount = 0,
                                 downvoteCount = 0,
-                                voteMap = emptyMap()
+                                voteMap = emptyMap(),
+                                createdBy = null,
+                                dropType = initialDropType,
+                                businessName = initialBusinessName,
+                                businessId = initialBusinessId,
+                                redemptionLimit = initialRedemptionLimit,
+                                redemptionCount = initialRedemptionCount,
+                                redeemedBy = emptyMap(),
+                                collectedAt = initialCollectedAt,
+                                isRedeemed = initialIsRedeemed,
+                                redeemedAt = initialRedeemedAt
                             )
                         } else {
                             DropDetailUiState.NotFound
@@ -161,7 +190,17 @@ class DropDetailActivity : ComponentActivity() {
                             mediaData = initialMediaData,
                             upvoteCount = 0,
                             downvoteCount = 0,
-                            voteMap = emptyMap()
+                            voteMap = emptyMap(),
+                            createdBy = null,
+                            dropType = initialDropType,
+                            businessName = initialBusinessName,
+                            businessId = initialBusinessId,
+                            redemptionLimit = initialRedemptionLimit,
+                            redemptionCount = initialRedemptionCount,
+                            redeemedBy = emptyMap(),
+                            collectedAt = initialCollectedAt,
+                            isRedeemed = initialIsRedeemed,
+                            redeemedAt = initialRedeemedAt
                         )
                     } else {
                         DropDetailUiState.Loading
@@ -199,6 +238,7 @@ class DropDetailActivity : ComponentActivity() {
 
                         val initialLoaded = initialState as? DropDetailUiState.Loaded
                         val sanitizedVoteMap = parseVoteMap(doc.get("voteMap"))
+                        val sanitizedRedeemedMap = parseRedeemedMap(doc.get("redeemedBy"))
                         state = DropDetailUiState.Loaded(
                             text = doc.getString("text")?.takeIf { it.isNotBlank() }
                                 ?: previousLoaded?.text
@@ -242,7 +282,40 @@ class DropDetailActivity : ComponentActivity() {
                                 ?: emptyMap(),
                             createdBy = doc.getString("createdBy")?.takeIf { it.isNotBlank() }
                                 ?: previousLoaded?.createdBy
-                                ?: initialLoaded?.createdBy
+                                ?: initialLoaded?.createdBy,
+                            dropType = doc.getString("dropType")?.let { DropType.fromRaw(it) }
+                                ?: previousLoaded?.dropType
+                                ?: initialLoaded?.dropType
+                                ?: initialDropType,
+                            businessName = doc.getString("businessName")?.takeIf { it.isNotBlank() }
+                                ?: previousLoaded?.businessName
+                                ?: initialLoaded?.businessName
+                                ?: initialBusinessName,
+                            businessId = doc.getString("businessId")?.takeIf { it.isNotBlank() }
+                                ?: previousLoaded?.businessId
+                                ?: initialLoaded?.businessId
+                                ?: initialBusinessId,
+                            redemptionLimit = doc.getLong("redemptionLimit")?.toInt()
+                                ?: previousLoaded?.redemptionLimit
+                                ?: initialLoaded?.redemptionLimit
+                                ?: initialRedemptionLimit,
+                            redemptionCount = doc.getLong("redemptionCount")?.toInt()
+                                ?: previousLoaded?.redemptionCount
+                                ?: initialLoaded?.redemptionCount
+                                ?: initialRedemptionCount,
+                            redeemedBy = sanitizedRedeemedMap
+                                ?: previousLoaded?.redeemedBy
+                                ?: initialLoaded?.redeemedBy
+                                ?: emptyMap(),
+                            collectedAt = previousLoaded?.collectedAt
+                                ?: initialLoaded?.collectedAt
+                                ?: initialCollectedAt,
+                            isRedeemed = previousLoaded?.isRedeemed
+                                ?: initialLoaded?.isRedeemed
+                                ?: initialIsRedeemed,
+                            redeemedAt = previousLoaded?.redeemedAt
+                                ?: initialLoaded?.redeemedAt
+                                ?: initialRedeemedAt
                         )
                     }
                     val appContext = context.applicationContext
@@ -266,6 +339,12 @@ class DropDetailActivity : ComponentActivity() {
                     var hasCollected by remember(dropId) {
                         mutableStateOf(dropId.isNotBlank() && noteInventory.isCollected(dropId))
                     }
+                    var redemptionCodeInput by rememberSaveable(dropId, saver = TextFieldValue.Saver) {
+                        mutableStateOf(TextFieldValue(""))
+                    }
+                    var redemptionError by remember(dropId) { mutableStateOf<String?>(null) }
+                    var redemptionSuccessMessage by remember(dropId) { mutableStateOf<String?>(null) }
+                    var redeeming by remember(dropId) { mutableStateOf(false) }
 
                     LaunchedEffect(hasCollected, currentUserId, dropId) {
                         val userId = currentUserId
@@ -443,6 +522,99 @@ class DropDetailActivity : ComponentActivity() {
                                             contentColor = it.contentColor
                                         )
                                     }
+                                }
+
+                                loadedState?.let { detail ->
+                                    val alreadyRedeemed = detail.redeemedBy.containsKey(currentUserId)
+                                            || detail.isRedeemed
+                                    BusinessDetailSection(
+                                        state = detail,
+                                        hasCollected = hasCollected,
+                                        alreadyRedeemed = alreadyRedeemed,
+                                        redemptionCode = redemptionCodeInput,
+                                        onRedemptionCodeChange = {
+                                            redemptionCodeInput = it
+                                            redemptionError = null
+                                            redemptionSuccessMessage = null
+                                        },
+                                        redeeming = redeeming,
+                                        redemptionError = redemptionError,
+                                        redemptionSuccess = redemptionSuccessMessage,
+                                        onRedeem = {
+                                            val trimmed = redemptionCodeInput.text.trim()
+                                            if (trimmed.isEmpty()) {
+                                                redemptionError = "Enter the code shared by the business."
+                                                return@BusinessDetailSection
+                                            }
+                                            val userId = currentUserId
+                                            if (userId.isNullOrBlank()) {
+                                                redemptionError = "Sign in to redeem this offer."
+                                                return@BusinessDetailSection
+                                            }
+                                            if (dropId.isBlank()) {
+                                                redemptionError = "Drop information is missing."
+                                                return@BusinessDetailSection
+                                            }
+                                            redemptionError = null
+                                            redemptionSuccessMessage = null
+                                            redeeming = true
+                                            scope.launch {
+                                                try {
+                                                    when (val result = repo.redeemDrop(dropId, userId, trimmed)) {
+                                                        is RedemptionResult.Success -> {
+                                                            val currentLoaded = state as? DropDetailUiState.Loaded ?: detail
+                                                            val updatedMap = currentLoaded.redeemedBy.toMutableMap()
+                                                            updatedMap[userId] = result.redeemedAt
+                                                            state = currentLoaded.copy(
+                                                                redemptionCount = result.redemptionCount,
+                                                                redeemedBy = updatedMap,
+                                                                isRedeemed = true,
+                                                                redeemedAt = result.redeemedAt
+                                                            )
+                                                            noteInventory.updateRedemptionStatus(
+                                                                id = dropId,
+                                                                redemptionCount = result.redemptionCount,
+                                                                redeemedAt = result.redeemedAt,
+                                                                isRedeemed = true
+                                                            )
+                                                            redemptionCodeInput = TextFieldValue("")
+                                                            redemptionSuccessMessage = "Offer redeemed! Show this confirmation to the business."
+                                                        }
+
+                                                        RedemptionResult.InvalidCode -> {
+                                                            redemptionError = "That code didn't match. Try again."
+                                                        }
+
+                                                        RedemptionResult.AlreadyRedeemed -> {
+                                                            val currentLoaded = state as? DropDetailUiState.Loaded ?: detail
+                                                            state = currentLoaded.copy(isRedeemed = true)
+                                                            noteInventory.updateRedemptionStatus(
+                                                                id = dropId,
+                                                                redemptionCount = currentLoaded.redemptionCount,
+                                                                redeemedAt = currentLoaded.redeemedAt,
+                                                                isRedeemed = true
+                                                            )
+                                                            redemptionError = "This offer was already redeemed for your account."
+                                                        }
+
+                                                        RedemptionResult.OutOfRedemptions -> {
+                                                            redemptionError = "This offer has reached its redemption limit."
+                                                        }
+
+                                                        RedemptionResult.NotEligible -> {
+                                                            redemptionError = "This drop cannot be redeemed."
+                                                        }
+
+                                                        is RedemptionResult.Error -> {
+                                                            redemptionError = result.message ?: "Couldn't complete redemption."
+                                                        }
+                                                    }
+                                                } finally {
+                                                    redeeming = false
+                                                }
+                                            }
+                                        }
+                                    )
                                 }
 
                                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -905,7 +1077,14 @@ private fun DropDetailUiState.Loaded.toDropForVoting(): Drop {
         mediaData = mediaData,
         upvoteCount = upvoteCount,
         downvoteCount = downvoteCount,
-        voteMap = voteMap
+        voteMap = voteMap,
+        createdBy = createdBy.orEmpty(),
+        dropType = dropType,
+        businessId = businessId,
+        businessName = businessName,
+        redemptionLimit = redemptionLimit,
+        redemptionCount = redemptionCount,
+        redeemedBy = redeemedBy
     )
 }
 
@@ -933,6 +1112,25 @@ private fun parseVoteMap(raw: Any?): Map<String, Long>? {
         }
         if (longValue != null) {
             result[keyString] = longValue
+        }
+    }
+    return result
+}
+
+private fun parseRedeemedMap(raw: Any?): Map<String, Long>? {
+    if (raw !is Map<*, *>) return null
+    if (raw.isEmpty()) return emptyMap()
+
+    val result = mutableMapOf<String, Long>()
+    raw.forEach { (key, value) ->
+        val keyString = key as? String ?: return@forEach
+        val timestamp = when (value) {
+            is Number -> value.toLong()
+            is String -> value.toLongOrNull()
+            else -> null
+        }
+        if (timestamp != null) {
+            result[keyString] = timestamp
         }
     }
     return result
@@ -966,6 +1164,117 @@ private fun DropDetailTag(
         ) {
             Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(18.dp))
             Text(text, style = MaterialTheme.typography.labelMedium)
+        }
+    }
+}
+
+@Composable
+private fun BusinessDetailSection(
+    state: DropDetailUiState.Loaded,
+    hasCollected: Boolean,
+    alreadyRedeemed: Boolean,
+    redemptionCode: TextFieldValue,
+    onRedemptionCodeChange: (TextFieldValue) -> Unit,
+    redeeming: Boolean,
+    redemptionError: String?,
+    redemptionSuccess: String?,
+    onRedeem: () -> Unit
+) {
+    if (state.dropType == DropType.COMMUNITY && state.businessName.isNullOrBlank()) return
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        state.businessName?.let { name ->
+            Text(
+                text = "Shared by $name",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+
+        val typeDescription = when (state.dropType) {
+            DropType.RESTAURANT_COUPON -> "Business offer"
+            DropType.TOUR_STOP -> "Tour stop"
+            DropType.COMMUNITY -> "Community drop"
+        }
+        Text(
+            text = typeDescription,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        if (state.dropType == DropType.RESTAURANT_COUPON) {
+            val redemptionLabel = buildString {
+                append("Redemptions: ${state.redemptionCount}")
+                state.redemptionLimit?.let { limit ->
+                    append(" / $limit")
+                    state.remainingRedemptions()?.let { remaining ->
+                        append(" · $remaining left")
+                    }
+                }
+            }
+            Text(redemptionLabel, style = MaterialTheme.typography.bodyMedium)
+
+            when {
+                !hasCollected -> {
+                    Text(
+                        text = "Collect this drop in the field to unlock the redemption code.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                alreadyRedeemed -> {
+                    val redeemedAtText = state.redeemedAt?.let { formatTimestamp(it) }
+                    Text(
+                        text = redeemedAtText?.let { "Redeemed on $it." } ?: "You've already redeemed this offer.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.tertiary
+                    )
+                }
+
+                else -> {
+                    OutlinedTextField(
+                        value = redemptionCode,
+                        onValueChange = onRedemptionCodeChange,
+                        label = { Text("Redemption code") },
+                        enabled = !redeeming,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    redemptionError?.let { message ->
+                        Text(
+                            text = message,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+
+                    redemptionSuccess?.let { message ->
+                        Text(
+                            text = message,
+                            color = MaterialTheme.colorScheme.tertiary,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+
+                    Button(
+                        onClick = onRedeem,
+                        enabled = !redeeming,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        if (redeeming) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text("Redeeming…")
+                        } else {
+                            Text("Redeem offer")
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -1091,7 +1400,16 @@ private sealed interface DropDetailUiState {
         val upvoteCount: Long = 0,
         val downvoteCount: Long = 0,
         val voteMap: Map<String, Long> = emptyMap(),
-        val createdBy: String? = null
+        val createdBy: String? = null,
+        val dropType: DropType = DropType.COMMUNITY,
+        val businessName: String? = null,
+        val businessId: String? = null,
+        val redemptionLimit: Int? = null,
+        val redemptionCount: Int = 0,
+        val redeemedBy: Map<String, Long> = emptyMap(),
+        val collectedAt: Long? = null,
+        val isRedeemed: Boolean = false,
+        val redeemedAt: Long? = null
     ) : DropDetailUiState
 
     object Loading : DropDetailUiState

@@ -7,6 +7,7 @@ import android.util.Log
 import androidx.core.app.NotificationManagerCompat
 import com.e3hi.geodrop.data.CollectedNote
 import com.e3hi.geodrop.data.DropContentType
+import com.e3hi.geodrop.data.DropType
 import com.e3hi.geodrop.data.FirestoreRepo
 import com.e3hi.geodrop.data.NoteInventory
 import com.google.android.gms.location.LocationServices
@@ -53,6 +54,15 @@ class DropDecisionReceiver : BroadcastReceiver() {
         val lng = if (intent.hasExtra(EXTRA_DROP_LNG)) intent.getDoubleExtra(EXTRA_DROP_LNG, 0.0) else null
         val createdAt = intent.getLongExtra(EXTRA_DROP_CREATED_AT, -1L).takeIf { it > 0 }
         val groupCode = intent.getStringExtra(EXTRA_DROP_GROUP)
+        val dropType = DropType.fromRaw(intent.getStringExtra(EXTRA_DROP_TYPE))
+        val businessId = intent.getStringExtra(EXTRA_DROP_BUSINESS_ID)
+        val businessName = intent.getStringExtra(EXTRA_DROP_BUSINESS_NAME)
+        val redemptionLimit = if (intent.hasExtra(EXTRA_DROP_REDEMPTION_LIMIT)) {
+            intent.getIntExtra(EXTRA_DROP_REDEMPTION_LIMIT, 0)
+        } else {
+            null
+        }
+        val redemptionCount = intent.getIntExtra(EXTRA_DROP_REDEMPTION_COUNT, 0)
 
         val inventory = NoteInventory(context)
         val note = CollectedNote(
@@ -66,6 +76,11 @@ class DropDecisionReceiver : BroadcastReceiver() {
             lng = lng,
             groupCode = groupCode,
             dropCreatedAt = createdAt,
+            dropType = dropType,
+            businessId = businessId,
+            businessName = businessName,
+            redemptionLimit = redemptionLimit,
+            redemptionCount = redemptionCount,
             collectedAt = System.currentTimeMillis()
         )
         inventory.saveCollected(note)
@@ -114,6 +129,11 @@ class DropDecisionReceiver : BroadcastReceiver() {
         const val EXTRA_DROP_LNG = "extra_drop_lng"
         const val EXTRA_DROP_CREATED_AT = "extra_drop_created_at"
         const val EXTRA_DROP_GROUP = "extra_drop_group"
+        const val EXTRA_DROP_TYPE = "extra_drop_type"
+        const val EXTRA_DROP_BUSINESS_ID = "extra_drop_business_id"
+        const val EXTRA_DROP_BUSINESS_NAME = "extra_drop_business_name"
+        const val EXTRA_DROP_REDEMPTION_LIMIT = "extra_drop_redemption_limit"
+        const val EXTRA_DROP_REDEMPTION_COUNT = "extra_drop_redemption_count"
 
         private const val TAG = "DropDecisionReceiver"
     }

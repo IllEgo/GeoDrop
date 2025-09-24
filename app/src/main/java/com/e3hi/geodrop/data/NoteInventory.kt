@@ -57,6 +57,27 @@ class NoteInventory(context: Context) {
         }
     }
 
+    fun updateRedemptionStatus(
+        id: String,
+        redemptionCount: Int?,
+        redeemedAt: Long?,
+        isRedeemed: Boolean
+    ) {
+        val current = getCollectedNotes().toMutableList()
+        val idx = current.indexOfFirst { it.id == id }
+        if (idx < 0) return
+
+        val existing = current[idx]
+        val updated = existing.copy(
+            redemptionCount = redemptionCount ?: existing.redemptionCount,
+            redeemedAt = redeemedAt ?: existing.redeemedAt,
+            isRedeemed = isRedeemed
+        )
+        current[idx] = updated
+        persistCollected(current)
+        broadcastChange(changeType = CHANGE_COLLECTED, dropId = id)
+    }
+
     fun isCollected(id: String): Boolean {
         val stored = prefs.getStringSet(KEY_COLLECTED_IDS, emptySet()) ?: emptySet()
         return stored.contains(id)

@@ -20,6 +20,7 @@ class FirestoreRepo(
     private val db: FirebaseFirestore = Firebase.firestore
 ) {
     private val drops = db.collection("drops")
+    private val users = db.collection("users")
 
     /**
      * NEW: Suspend API. Writes a drop and returns the new document id.
@@ -52,9 +53,85 @@ class FirestoreRepo(
             }
     }
 
+    suspend fun ensureUserProfile(userId: String, displayName: String? = null): UserProfile {
+        if (userId.isBlank()) return UserProfile()
+
+        val docRef = users.document(userId)
+        val snapshot = docRef.get().await()
+
+        val existingRole = if (snapshot.exists()) {
+            UserRole.fromRaw(snapshot.getString("role"))
+        } else {
+            UserRole.EXPLORER
+        }
+        val existingBusinessName = snapshot.getString("businessName")?.takeIf { it.isNotBlank() }
+        val storedDisplayName = snapshot.getString("displayName")?.takeIf { it.isNotBlank() }
+        val resolvedDisplayName = storedDisplayName ?: displayName?.takeIf { it.isNotBlank() }
+
+        val updates = hashMapOf<String, Any?>()
+        if (!snapshot.exists()) {
+            updates["role"] = existingRole.name
+            updates["businessName"] = existingBusinessName
+            updates["displayName"] = resolvedDisplayName
+        } else {
+            if (snapshot.getString("role").isNullOrBlank()) {
+                updates["role"] = existingRole.name
+            }
+            if (resolvedDisplayName != null && resolvedDisplayName != storedDisplayName) {
+                updates["displayName"] = resolvedDisplayName
+            }
+        }
+
+        if (updates.isNotEmpty()) {
+            docRef.set(updates, SetOptions.merge()).await()
+        }
+
+        return UserProfile(
+            id = userId,
+            displayName = resolvedDisplayName,
+            role = existingRole,
+            businessName = existingBusinessName
+        )
+    }
+
+    suspend fun updateBusinessProfile(userId: String, businessName: String): UserProfile {
+        val profile = ensureUserProfile(userId)
+        if (userId.isBlank()) return profile
+
+        val sanitizedName = businessName.trim()
+        if (sanitizedName.isEmpty()) {
+            throw IllegalArgumentException("Business name cannot be empty")
+        }
+
+        val updates = hashMapOf<String, Any?>(
+            "businessName" to sanitizedName,
+            "role" to UserRole.BUSINESS.name
+        )
+        users.document(userId).set(updates, SetOptions.merge()).await()
+
+        return profile.copy(role = UserRole.BUSINESS, businessName = sanitizedName)
+    }
+
     suspend fun getDropsForUser(uid: String): List<Drop> {
         val snapshot = drops
             .whereEqualTo("createdBy", uid)
+            .whereEqualTo("isDeleted", false)
+            .get()
+            .await()
+
+        return snapshot.documents.mapNotNull { doc ->
+            val drop = doc.toObject(Drop::class.java)?.copy(id = doc.id)
+                ?: Drop(id = doc.id)
+
+            if (drop.isDeleted) null else drop
+        }
+    }
+
+    suspend fun getBusinessDrops(businessId: String): List<Drop> {
+        if (businessId.isBlank()) return emptyList()
+
+        val snapshot = drops
+            .whereEqualTo("businessId", businessId)
             .whereEqualTo("isDeleted", false)
             .get()
             .await()
@@ -196,6 +273,69 @@ class FirestoreRepo(
         }
     }
 
+    suspend fun redeemDrop(
+        dropId: String,
+        userId: String,
+        providedCode: String
+    ): RedemptionResult {
+        if (dropId.isBlank() || userId.isBlank()) return RedemptionResult.Error("Missing identifiers")
+        val trimmedCode = providedCode.trim()
+        if (trimmedCode.isEmpty()) return RedemptionResult.InvalidCode
+
+        return try {
+            db.runTransaction { transaction ->
+                val docRef = drops.document(dropId)
+                val snapshot = transaction.get(docRef)
+                if (!snapshot.exists()) {
+                    return@runTransaction RedemptionResult.NotEligible
+                }
+
+                val dropType = DropType.fromRaw(snapshot.getString("dropType"))
+                if (dropType != DropType.RESTAURANT_COUPON) {
+                    return@runTransaction RedemptionResult.NotEligible
+                }
+
+                val storedCode = snapshot.getString("redemptionCode")?.takeIf { it.isNotBlank() }
+                if (storedCode.isNullOrBlank()) {
+                    return@runTransaction RedemptionResult.NotEligible
+                }
+
+                if (storedCode != trimmedCode) {
+                    return@runTransaction RedemptionResult.InvalidCode
+                }
+
+                @Suppress("UNCHECKED_CAST")
+                val redeemedMap = snapshot.get("redeemedBy") as? Map<String, Long> ?: emptyMap()
+                if (redeemedMap.containsKey(userId)) {
+                    return@runTransaction RedemptionResult.AlreadyRedeemed
+                }
+
+                val limit = snapshot.getLong("redemptionLimit")?.toInt()
+                val currentCount = snapshot.getLong("redemptionCount")?.toInt() ?: 0
+                if (limit != null && currentCount >= limit) {
+                    return@runTransaction RedemptionResult.OutOfRedemptions
+                }
+
+                val newCount = currentCount + 1
+                val timestamp = System.currentTimeMillis()
+                val updateData = hashMapOf<String, Any>(
+                    "redemptionCount" to newCount,
+                    "redeemedBy.$userId" to timestamp
+                )
+                transaction.update(docRef, updateData as Map<String, Any>)
+
+                RedemptionResult.Success(
+                    redemptionCount = newCount,
+                    redemptionLimit = limit,
+                    redeemedAt = timestamp
+                )
+            }.await()
+        } catch (error: Exception) {
+            Log.e("GeoDrop", "Redeem drop failed", error)
+            RedemptionResult.Error(error.localizedMessage)
+        }
+    }
+
 
     private fun Drop.prepareForSave(): Map<String, Any?> {
         val withTimestamp = if (createdAt > 0L) this else copy(createdAt = System.currentTimeMillis())
@@ -203,7 +343,13 @@ class FirestoreRepo(
             text = withTimestamp.text.trim(),
             mediaUrl = withTimestamp.mediaUrl?.trim()?.takeIf { it.isNotEmpty() },
             mediaMimeType = withTimestamp.mediaMimeType?.trim()?.takeIf { it.isNotEmpty() },
-            mediaData = withTimestamp.mediaData?.trim()?.takeIf { it.isNotEmpty() }
+            mediaData = withTimestamp.mediaData?.trim()?.takeIf { it.isNotEmpty() },
+            businessId = withTimestamp.businessId?.takeIf { it.isNotBlank() },
+            businessName = withTimestamp.businessName?.trim()?.takeIf { it.isNotEmpty() },
+            redemptionCode = withTimestamp.redemptionCode?.trim()?.takeIf { it.isNotEmpty() },
+            redemptionLimit = withTimestamp.redemptionLimit?.takeIf { it > 0 },
+            redemptionCount = withTimestamp.redemptionCount.coerceAtLeast(0),
+            redeemedBy = withTimestamp.redeemedBy.filterKeys { it.isNotBlank() }
         )
 
         return hashMapOf(
@@ -215,15 +361,36 @@ class FirestoreRepo(
             "isDeleted" to false,
             "deletedAt" to null,
             "groupCode" to sanitized.groupCode?.takeIf { it.isNotBlank() },
+            "dropType" to sanitized.dropType.name,
+            "businessId" to sanitized.businessId,
+            "businessName" to sanitized.businessName,
             "contentType" to sanitized.contentType.name,
             "mediaUrl" to sanitized.mediaUrl,
             "mediaMimeType" to sanitized.mediaMimeType,
             "mediaData" to sanitized.mediaData,
             "upvoteCount" to sanitized.upvoteCount,
             "downvoteCount" to sanitized.downvoteCount,
-            "voteMap" to sanitized.voteMap
+            "voteMap" to sanitized.voteMap,
+            "redemptionCode" to sanitized.redemptionCode,
+            "redemptionLimit" to sanitized.redemptionLimit,
+            "redemptionCount" to sanitized.redemptionCount,
+            "redeemedBy" to sanitized.redeemedBy
         )
     }
+}
+
+sealed class RedemptionResult {
+    data class Success(
+        val redemptionCount: Int,
+        val redemptionLimit: Int?,
+        val redeemedAt: Long
+    ) : RedemptionResult()
+
+    object InvalidCode : RedemptionResult()
+    object AlreadyRedeemed : RedemptionResult()
+    object OutOfRedemptions : RedemptionResult()
+    object NotEligible : RedemptionResult()
+    data class Error(val message: String?) : RedemptionResult()
 }
 
 private fun Drop.isVisibleTo(userId: String?, allowedGroups: Set<String>): Boolean {

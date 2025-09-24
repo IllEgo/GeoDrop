@@ -10,14 +10,51 @@ data class Drop(
     val isDeleted: Boolean = false,
     val deletedAt: Long? = null,
     val groupCode: String? = null,
+    val dropType: DropType = DropType.COMMUNITY,
+    val businessId: String? = null,
+    val businessName: String? = null,
     val contentType: DropContentType = DropContentType.TEXT,
     val mediaUrl: String? = null,
     val mediaMimeType: String? = null,
     val mediaData: String? = null,
     val upvoteCount: Long = 0,
     val downvoteCount: Long = 0,
-    val voteMap: Map<String, Long> = emptyMap()
+    val voteMap: Map<String, Long> = emptyMap(),
+    val redemptionCode: String? = null,
+    val redemptionLimit: Int? = null,
+    val redemptionCount: Int = 0,
+    val redeemedBy: Map<String, Long> = emptyMap()
 )
+
+enum class DropType {
+    COMMUNITY,
+    RESTAURANT_COUPON,
+    TOUR_STOP;
+
+    companion object {
+        fun fromRaw(raw: String?): DropType {
+            if (raw.isNullOrBlank()) return COMMUNITY
+            return entries.firstOrNull { it.name.equals(raw, ignoreCase = true) } ?: COMMUNITY
+        }
+    }
+}
+
+fun Drop.requiresRedemption(): Boolean {
+    if (dropType != DropType.RESTAURANT_COUPON) return false
+    return !redemptionCode.isNullOrBlank()
+}
+
+fun Drop.remainingRedemptions(): Int? {
+    val limit = redemptionLimit ?: return null
+    return (limit - redemptionCount).coerceAtLeast(0)
+}
+
+fun Drop.isBusinessDrop(): Boolean = dropType != DropType.COMMUNITY
+
+fun Drop.isRedeemedBy(userId: String?): Boolean {
+    if (userId.isNullOrBlank()) return false
+    return redeemedBy.containsKey(userId)
+}
 
 enum class DropVoteType(val value: Int) {
     NONE(0),
@@ -46,24 +83,36 @@ enum class DropContentType {
     }
 }
 
-fun Drop.displayTitle(): String = when (contentType) {
-    DropContentType.TEXT -> text.ifBlank { "(No message)" }
-    DropContentType.PHOTO -> text.ifBlank { "Photo drop" }
-    DropContentType.AUDIO -> text.ifBlank { "Audio drop" }
+fun Drop.displayTitle(): String = when (dropType) {
+    DropType.RESTAURANT_COUPON -> text.ifBlank { "Special offer" }
+    DropType.TOUR_STOP -> text.ifBlank { "Tour stop" }
+    DropType.COMMUNITY -> when (contentType) {
+        DropContentType.TEXT -> text.ifBlank { "(No message)" }
+        DropContentType.PHOTO -> text.ifBlank { "Photo drop" }
+        DropContentType.AUDIO -> text.ifBlank { "Audio drop" }
+    }
 }
 
 fun Drop.mediaLabel(): String? = mediaUrl?.takeIf { it.isNotBlank() }
 
-fun Drop.discoveryTitle(): String = when (contentType) {
-    DropContentType.TEXT -> "Hidden note"
-    DropContentType.PHOTO -> "Hidden photo drop"
-    DropContentType.AUDIO -> "Hidden audio drop"
+fun Drop.discoveryTitle(): String = when (dropType) {
+    DropType.RESTAURANT_COUPON -> "Local business offer"
+    DropType.TOUR_STOP -> "Guided tour stop"
+    DropType.COMMUNITY -> when (contentType) {
+        DropContentType.TEXT -> "Hidden note"
+        DropContentType.PHOTO -> "Hidden photo drop"
+        DropContentType.AUDIO -> "Hidden audio drop"
+    }
 }
 
-fun Drop.discoveryDescription(): String = when (contentType) {
-    DropContentType.TEXT -> "Collect this drop to read the message inside."
-    DropContentType.PHOTO -> "Pick up this drop to reveal the photo."
-    DropContentType.AUDIO -> "Collect this drop to listen to the recording."
+fun Drop.discoveryDescription(): String = when (dropType) {
+    DropType.RESTAURANT_COUPON -> "Unlock the details to redeem this business offer nearby."
+    DropType.TOUR_STOP -> "Pick up this stop to access the guided story or directions."
+    DropType.COMMUNITY -> when (contentType) {
+        DropContentType.TEXT -> "Collect this drop to read the message inside."
+        DropContentType.PHOTO -> "Pick up this drop to reveal the photo."
+        DropContentType.AUDIO -> "Collect this drop to listen to the recording."
+    }
 }
 
 fun Drop.voteScore(): Long = upvoteCount - downvoteCount

@@ -41,6 +41,10 @@ import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.material.icons.rounded.Place
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Public
+import androidx.compose.material.icons.rounded.Storefront
+import androidx.compose.material.icons.rounded.Flag
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.ThumbDown
 import androidx.compose.material.icons.rounded.ThumbUp
 import androidx.compose.material.icons.rounded.Sync
@@ -49,6 +53,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -80,9 +85,18 @@ import com.e3hi.geodrop.data.FirestoreRepo
 import com.e3hi.geodrop.data.DropVoteType
 import com.e3hi.geodrop.data.MediaStorageRepo
 import com.e3hi.geodrop.data.NoteInventory
+import com.e3hi.geodrop.data.DropType
+import com.e3hi.geodrop.data.UserProfile
+import com.e3hi.geodrop.data.UserRole
+import com.e3hi.geodrop.data.RedemptionResult
 import com.e3hi.geodrop.data.applyUserVote
+import com.e3hi.geodrop.data.isBusinessDrop
+import com.e3hi.geodrop.data.isRedeemedBy
+import com.e3hi.geodrop.data.remainingRedemptions
+import com.e3hi.geodrop.data.requiresRedemption
 import com.e3hi.geodrop.data.userVote
 import com.e3hi.geodrop.data.voteScore
+import com.e3hi.geodrop.data.isBusiness
 import com.e3hi.geodrop.geo.DropDecisionReceiver
 import com.e3hi.geodrop.geo.NearbyDropRegistrar
 import com.e3hi.geodrop.geo.NearbyDropRegistrar.NearbySyncStatus
@@ -218,10 +232,13 @@ fun DropHereScreen() {
     var joinedGroups by remember { mutableStateOf(groupPrefs.getJoinedGroups()) }
     var dropVisibility by remember { mutableStateOf(DropVisibility.Public) }
     var dropContentType by remember { mutableStateOf(DropContentType.TEXT) }
+    var dropType by remember { mutableStateOf(DropType.COMMUNITY) }
     var note by remember { mutableStateOf(TextFieldValue("")) }
     var capturedPhotoPath by rememberSaveable { mutableStateOf<String?>(null) }
     var capturedAudioUri by rememberSaveable { mutableStateOf<String?>(null) }
     var groupCodeInput by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
+    var redemptionCodeInput by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
+    var redemptionLimitInput by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
     var isSubmitting by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
     var showOtherDropsMap by remember { mutableStateOf(false) }
@@ -243,6 +260,16 @@ fun DropHereScreen() {
     var showCollectedDrops by remember { mutableStateOf(false) }
     var showManageGroups by remember { mutableStateOf(false) }
     var showDropComposer by remember { mutableStateOf(false) }
+    var showBusinessDashboard by remember { mutableStateOf(false) }
+    var showBusinessOnboarding by remember { mutableStateOf(false) }
+    var businessDrops by remember { mutableStateOf<List<Drop>>(emptyList()) }
+    var businessDashboardLoading by remember { mutableStateOf(false) }
+    var businessDashboardError by remember { mutableStateOf<String?>(null) }
+    var businessDashboardRefreshToken by remember { mutableStateOf(0) }
+
+    var userProfile by remember { mutableStateOf<UserProfile?>(null) }
+    var userProfileLoading by remember { mutableStateOf(false) }
+    var userProfileError by remember { mutableStateOf<String?>(null) }
 
     val currentUserId = currentUser?.uid
 
@@ -309,6 +336,15 @@ fun DropHereScreen() {
             drop.groupCode?.takeIf { it.isNotBlank() }?.let {
                 putExtra(DropDecisionReceiver.EXTRA_DROP_GROUP, it)
             }
+            putExtra(DropDecisionReceiver.EXTRA_DROP_TYPE, drop.dropType.name)
+            drop.businessId?.takeIf { it.isNotBlank() }?.let {
+                putExtra(DropDecisionReceiver.EXTRA_DROP_BUSINESS_ID, it)
+            }
+            drop.businessName?.takeIf { it.isNotBlank() }?.let {
+                putExtra(DropDecisionReceiver.EXTRA_DROP_BUSINESS_NAME, it)
+            }
+            drop.redemptionLimit?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_REDEMPTION_LIMIT, it) }
+            putExtra(DropDecisionReceiver.EXTRA_DROP_REDEMPTION_COUNT, drop.redemptionCount)
         }
 
         val result = runCatching { appContext.sendBroadcast(intent) }
@@ -394,6 +430,32 @@ fun DropHereScreen() {
         }
     }
 
+    LaunchedEffect(currentUser) {
+        val uid = currentUser?.uid
+        if (uid.isNullOrBlank()) {
+            userProfile = null
+            userProfileError = null
+            userProfileLoading = false
+            dropType = DropType.COMMUNITY
+        } else {
+            userProfileLoading = true
+            userProfileError = null
+            try {
+                userProfile = repo.ensureUserProfile(uid, currentUser?.displayName)
+            } catch (error: Exception) {
+                userProfileError = error.localizedMessage ?: "Failed to load your profile."
+            } finally {
+                userProfileLoading = false
+            }
+        }
+    }
+
+    LaunchedEffect(userProfile?.role) {
+        if (userProfile?.isBusiness() != true) {
+            dropType = DropType.COMMUNITY
+        }
+    }
+
     LaunchedEffect(dropContentType) {
         when (dropContentType) {
             DropContentType.TEXT -> {
@@ -408,6 +470,34 @@ fun DropHereScreen() {
             DropContentType.AUDIO -> {
                 capturedPhotoPath = null
             }
+        }
+    }
+
+    LaunchedEffect(dropType) {
+        if (dropType != DropType.RESTAURANT_COUPON) {
+            redemptionCodeInput = TextFieldValue("")
+            redemptionLimitInput = TextFieldValue("")
+        }
+    }
+
+    LaunchedEffect(showBusinessDashboard, businessDashboardRefreshToken, currentUserId) {
+        if (showBusinessDashboard) {
+            if (userProfile?.isBusiness() == true && !currentUserId.isNullOrBlank()) {
+                businessDashboardLoading = true
+                businessDashboardError = null
+                try {
+                    businessDrops = repo.getBusinessDrops(currentUserId)
+                } catch (error: Exception) {
+                    businessDashboardError = error.localizedMessage ?: "Couldn't load your dashboard."
+                } finally {
+                    businessDashboardLoading = false
+                }
+            } else {
+                businessDrops = emptyList()
+            }
+        } else {
+            businessDashboardLoading = false
+            businessDashboardError = null
         }
     }
 
@@ -494,27 +584,42 @@ fun DropHereScreen() {
         }
     }
 
-    fun uiDone(lat: Double, lng: Double, groupCode: String?, contentType: DropContentType) {
+    fun uiDone(
+        lat: Double,
+        lng: Double,
+        groupCode: String?,
+        contentType: DropContentType,
+        dropType: DropType
+    ) {
         isSubmitting = false
         note = TextFieldValue("")
         capturedPhotoPath = null
         clearAudio()
         showDropComposer = false
+        if (dropType == DropType.RESTAURANT_COUPON) {
+            redemptionCodeInput = TextFieldValue("")
+            redemptionLimitInput = TextFieldValue("")
+        }
         val baseStatus = "Dropped at (%.5f, %.5f)".format(lat, lng)
-        val typeSummary = when (contentType) {
-            DropContentType.TEXT -> "note"
-            DropContentType.PHOTO -> "photo drop"
-            DropContentType.AUDIO -> "audio drop"
+        val typeSummary = when (dropType) {
+            DropType.RESTAURANT_COUPON -> "business offer"
+            DropType.TOUR_STOP -> "tour stop"
+            DropType.COMMUNITY -> when (contentType) {
+                DropContentType.TEXT -> "note"
+                DropContentType.PHOTO -> "photo drop"
+                DropContentType.AUDIO -> "audio drop"
+            }
         }
         status = if (groupCode != null) {
             "$baseStatus for group $groupCode ($typeSummary)"
         } else {
             "$baseStatus ($typeSummary)"
         }
-        val snackbarMessage = if (groupCode != null) {
-            "Group drop saved!"
-        } else {
-            when (contentType) {
+        val snackbarMessage = when {
+            groupCode != null -> "Group drop saved!"
+            dropType == DropType.RESTAURANT_COUPON -> "Offer published!"
+            dropType == DropType.TOUR_STOP -> "Tour stop saved!"
+            else -> when (contentType) {
                 DropContentType.TEXT -> "Note dropped!"
                 DropContentType.PHOTO -> "Photo drop saved!"
                 DropContentType.AUDIO -> "Audio drop saved!"
@@ -528,14 +633,19 @@ fun DropHereScreen() {
         lng: Double,
         groupCode: String?,
         contentType: DropContentType,
+        dropType: DropType,
         noteText: String,
         mediaInput: String?,
         mediaMimeType: String?,
-        mediaData: String?
+        mediaData: String?,
+        redemptionCode: String?,
+        redemptionLimit: Int?
     ) {
         val uid = FirebaseAuth.getInstance().currentUser?.uid ?: "anon"
         val sanitizedMedia = mediaInput?.takeIf { it.isNotBlank() }
         val sanitizedMime = mediaMimeType?.takeIf { it.isNotBlank() }
+        val sanitizedRedemptionCode = redemptionCode?.trim()?.takeIf { it.isNotEmpty() }
+        val sanitizedRedemptionLimit = redemptionLimit?.takeIf { it > 0 }
         val sanitizedData = mediaData?.takeIf { it.isNotBlank() }
         val sanitizedText = when (contentType) {
             DropContentType.TEXT -> noteText.trim()
@@ -548,17 +658,22 @@ fun DropHereScreen() {
             createdBy = uid,
             createdAt = System.currentTimeMillis(),
             groupCode = groupCode,
+            dropType = dropType,
+            businessId = if (dropType != DropType.COMMUNITY) uid else null,
+            businessName = if (dropType != DropType.COMMUNITY) userProfile?.businessName else null,
             contentType = contentType,
             mediaUrl = sanitizedMedia,
             mediaMimeType = sanitizedMime,
-            mediaData = sanitizedData
+            mediaData = sanitizedData,
+            redemptionCode = if (dropType == DropType.RESTAURANT_COUPON) sanitizedRedemptionCode else null,
+            redemptionLimit = if (dropType == DropType.RESTAURANT_COUPON) sanitizedRedemptionLimit else null
         )
         repo.addDrop(d) // suspend (uses Firestore .await() internally)
         if (groupCode != null) {
             groupPrefs.addGroup(groupCode)
             joinedGroups = groupPrefs.getJoinedGroups()
         }
-        uiDone(lat, lng, groupCode, contentType)
+        uiDone(lat, lng, groupCode, contentType, dropType)
     }
 
     fun submitDrop() {
@@ -583,6 +698,8 @@ fun DropHereScreen() {
                 var mediaMimeTypeResult: String? = null
                 var mediaDataResult: String? = null
                 var dropNoteText = note.text
+                var redemptionCodeResult: String? = null
+                var redemptionLimitResult: Int? = null
 
                 when (dropContentType) {
                     DropContentType.TEXT -> {
@@ -677,6 +794,27 @@ fun DropHereScreen() {
                     }
                 }
 
+                if (dropType == DropType.RESTAURANT_COUPON) {
+                    val trimmedCode = redemptionCodeInput.text.trim()
+                    if (trimmedCode.isEmpty()) {
+                        isSubmitting = false
+                        snackbar.showMessage(scope, "Enter a redemption code for your offer.")
+                        return@launch
+                    }
+                    redemptionCodeResult = trimmedCode
+
+                    val limitText = redemptionLimitInput.text.trim()
+                    if (limitText.isNotEmpty()) {
+                        val parsed = limitText.toIntOrNull()
+                        if (parsed == null || parsed <= 0) {
+                            isSubmitting = false
+                            snackbar.showMessage(scope, "Enter a valid redemption limit or leave it blank.")
+                            return@launch
+                        }
+                        redemptionLimitResult = parsed
+                    }
+                }
+
                 val (lat, lng) = getLatestLocation() ?: run {
                     isSubmitting = false
                     snackbar.showMessage(scope, "No location available. Turn on GPS & try again.")
@@ -688,10 +826,13 @@ fun DropHereScreen() {
                     lng = lng,
                     groupCode = selectedGroupCode,
                     contentType = dropContentType,
-                    noteText = note.text,
+                    dropType = dropType,
+                    noteText = dropNoteText,
                     mediaInput = mediaUrlResult,
                     mediaMimeType = mediaMimeTypeResult,
-                    mediaData = mediaDataResult
+                    mediaData = mediaDataResult,
+                    redemptionCode = redemptionCodeResult,
+                    redemptionLimit = redemptionLimitResult
                 )
             } catch (e: Exception) {
                 isSubmitting = false
@@ -923,6 +1064,49 @@ fun DropHereScreen() {
                 }
             }
 
+            if (userProfile?.isBusiness() == true) {
+                item { SectionHeader(text = "Business tools") }
+
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        ActionCard(
+                            icon = Icons.Rounded.Storefront,
+                            title = "Business dashboard",
+                            description = "See how many explorers discovered and redeemed your drops.",
+                            onClick = {
+                                if (!userProfileLoading) {
+                                    showBusinessDashboard = true
+                                }
+                            }
+                        )
+
+                        ActionCard(
+                            icon = Icons.Rounded.Edit,
+                            title = "Update business name",
+                            description = "Adjust how your brand appears on offers and tour stops.",
+                            onClick = {
+                                showBusinessOnboarding = true
+                            }
+                        )
+                    }
+                }
+            } else {
+                item {
+                    ActionCard(
+                        icon = Icons.Rounded.Storefront,
+                        title = "Grow with GeoDrop",
+                        description = "Set up a business profile to share coupons or guided tours.",
+                        onClick = {
+                            if (FirebaseAuth.getInstance().currentUser == null) {
+                                snackbar.showMessage(scope, "Sign in to unlock business tools.")
+                            } else {
+                                showBusinessOnboarding = true
+                            }
+                        }
+                    )
+                }
+            }
+
             status?.let { message ->
                 item { StatusCard(message = message) }
             }
@@ -932,6 +1116,12 @@ fun DropHereScreen() {
     if (showDropComposer) {
         DropComposerDialog(
             isSubmitting = isSubmitting,
+            isBusinessUser = userProfile?.isBusiness() == true,
+            businessName = userProfile?.businessName,
+            userProfileLoading = userProfileLoading,
+            userProfileError = userProfileError,
+            dropType = dropType,
+            onDropTypeChange = { dropType = it },
             dropContentType = dropContentType,
             onDropContentTypeChange = { dropContentType = it },
             note = note,
@@ -948,6 +1138,10 @@ fun DropHereScreen() {
             onGroupCodeInputChange = { groupCodeInput = it },
             joinedGroups = joinedGroups,
             onSelectGroupCode = { code -> groupCodeInput = TextFieldValue(code) },
+            redemptionCodeInput = redemptionCodeInput,
+            onRedemptionCodeChange = { redemptionCodeInput = it },
+            redemptionLimitInput = redemptionLimitInput,
+            onRedemptionLimitChange = { redemptionLimitInput = it },
             onManageGroupCodes = { showManageGroups = true },
             onSubmit = { submitDrop() },
             onDismiss = {
@@ -999,6 +1193,11 @@ fun DropHereScreen() {
                     drop.mediaUrl?.let { putExtra("dropMediaUrl", it) }
                     drop.mediaMimeType?.let { putExtra("dropMediaMimeType", it) }
                     drop.mediaData?.let { putExtra("dropMediaData", it) }
+                    putExtra("dropType", drop.dropType.name)
+                    drop.businessName?.let { putExtra("dropBusinessName", it) }
+                    drop.businessId?.let { putExtra("dropBusinessId", it) }
+                    drop.redemptionLimit?.let { putExtra("dropRedemptionLimit", it) }
+                    putExtra("dropRedemptionCount", drop.redemptionCount)
                 }
                 ctx.startActivity(intent)
             },
@@ -1044,6 +1243,14 @@ fun DropHereScreen() {
                     note.mediaUrl?.let { putExtra("dropMediaUrl", it) }
                     note.mediaMimeType?.let { putExtra("dropMediaMimeType", it) }
                     note.mediaData?.let { putExtra("dropMediaData", it) }
+                    putExtra("dropType", note.dropType.name)
+                    note.businessName?.let { putExtra("dropBusinessName", it) }
+                    note.businessId?.let { putExtra("dropBusinessId", it) }
+                    note.redemptionLimit?.let { putExtra("dropRedemptionLimit", it) }
+                    putExtra("dropRedemptionCount", note.redemptionCount)
+                    putExtra("dropCollectedAt", note.collectedAt)
+                    putExtra("dropIsRedeemed", note.isRedeemed)
+                    note.redeemedAt?.let { putExtra("dropRedeemedAt", it) }
                 }
                 ctx.startActivity(intent)
             },
@@ -1051,6 +1258,62 @@ fun DropHereScreen() {
                 noteInventory.removeCollected(note.id)
                 collectedNotes = noteInventory.getCollectedNotes()
             }
+        )
+    }
+
+    if (showBusinessOnboarding) {
+        var businessNameField by rememberSaveable(userProfile?.businessName, saver = TextFieldValue.Saver) {
+            mutableStateOf(TextFieldValue(userProfile?.businessName.orEmpty()))
+        }
+        var onboardingError by remember { mutableStateOf<String?>(null) }
+        var onboardingSubmitting by remember { mutableStateOf(false) }
+
+        BusinessOnboardingDialog(
+            name = businessNameField,
+            onNameChange = { businessNameField = it },
+            isSubmitting = onboardingSubmitting,
+            error = onboardingError,
+            onSubmit = {
+                val trimmed = businessNameField.text.trim()
+                if (trimmed.isEmpty()) {
+                    onboardingError = "Enter your business name."
+                    return@BusinessOnboardingDialog
+                }
+                val uid = currentUserId
+                if (uid.isNullOrBlank()) {
+                    onboardingError = "Sign-in is required."
+                    return@BusinessOnboardingDialog
+                }
+                onboardingSubmitting = true
+                onboardingError = null
+                scope.launch {
+                    try {
+                        val updated = repo.updateBusinessProfile(uid, trimmed)
+                        userProfile = updated
+                        showBusinessOnboarding = false
+                        snackbar.showMessage(scope, "Business profile saved.")
+                    } catch (error: Exception) {
+                        onboardingError = error.localizedMessage ?: "Couldn't save business info."
+                    } finally {
+                        onboardingSubmitting = false
+                    }
+                }
+            },
+            onDismiss = {
+                if (!onboardingSubmitting) {
+                    showBusinessOnboarding = false
+                }
+            }
+        )
+    }
+
+    if (showBusinessDashboard) {
+        BusinessDashboardDialog(
+            drops = businessDrops,
+            loading = businessDashboardLoading,
+            error = businessDashboardError,
+            onDismiss = { showBusinessDashboard = false },
+            onRefresh = { businessDashboardRefreshToken += 1 }
         )
     }
 
@@ -1268,6 +1531,12 @@ private fun StatusCard(message: String) {
 @Composable
 private fun DropComposerDialog(
     isSubmitting: Boolean,
+    isBusinessUser: Boolean,
+    businessName: String?,
+    userProfileLoading: Boolean,
+    userProfileError: String?,
+    dropType: DropType,
+    onDropTypeChange: (DropType) -> Unit,
     dropContentType: DropContentType,
     onDropContentTypeChange: (DropContentType) -> Unit,
     note: TextFieldValue,
@@ -1284,6 +1553,10 @@ private fun DropComposerDialog(
     onGroupCodeInputChange: (TextFieldValue) -> Unit,
     joinedGroups: List<String>,
     onSelectGroupCode: (String) -> Unit,
+    redemptionCodeInput: TextFieldValue,
+    onRedemptionCodeChange: (TextFieldValue) -> Unit,
+    redemptionLimitInput: TextFieldValue,
+    onRedemptionLimitChange: (TextFieldValue) -> Unit,
     onManageGroupCodes: () -> Unit,
     onSubmit: () -> Unit,
     onDismiss: () -> Unit,
@@ -1333,10 +1606,39 @@ private fun DropComposerDialog(
                     }
                 }
 
+                if (userProfileLoading) {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                }
+
+                userProfileError?.let { errorMessage ->
+                    Text(
+                        text = errorMessage,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+
+                if (isBusinessUser) {
+                    BusinessDropTypeSection(
+                        dropType = dropType,
+                        onDropTypeChange = onDropTypeChange,
+                        businessName = businessName
+                    )
+                }
+
                 DropContentTypeSection(
                     selected = dropContentType,
                     onSelect = onDropContentTypeChange
                 )
+
+                if (isBusinessUser && dropType == DropType.RESTAURANT_COUPON) {
+                    BusinessRedemptionSection(
+                        redemptionCode = redemptionCodeInput,
+                        onRedemptionCodeChange = onRedemptionCodeChange,
+                        redemptionLimit = redemptionLimitInput,
+                        onRedemptionLimitChange = onRedemptionLimitChange
+                    )
+                }
 
                 val noteLabel = when (dropContentType) {
                     DropContentType.TEXT -> "Your note"
@@ -1685,6 +1987,304 @@ private fun CollectedDropsDialog(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun BusinessOnboardingDialog(
+    name: TextFieldValue,
+    onNameChange: (TextFieldValue) -> Unit,
+    isSubmitting: Boolean,
+    error: String?,
+    onSubmit: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    Dialog(
+        onDismissRequest = {
+            if (!isSubmitting) onDismiss()
+        }
+    ) {
+        Surface(
+            shape = MaterialTheme.shapes.large,
+            tonalElevation = 6.dp,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = "Business profile",
+                    style = MaterialTheme.typography.titleLarge
+                )
+
+                Text(
+                    text = "Add a display name so explorers know which business dropped this content.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = onNameChange,
+                    label = { Text("Business or brand name") },
+                    enabled = !isSubmitting,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                error?.let { message ->
+                    Text(
+                        text = message,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        enabled = !isSubmitting,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Cancel")
+                    }
+
+                    Button(
+                        onClick = onSubmit,
+                        enabled = !isSubmitting,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        if (isSubmitting) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text("Saving…")
+                        } else {
+                            Text("Save")
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BusinessDashboardDialog(
+    drops: List<Drop>,
+    loading: Boolean,
+    error: String?,
+    onDismiss: () -> Unit,
+    onRefresh: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            shape = MaterialTheme.shapes.large,
+            tonalElevation = 6.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Business dashboard",
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Rounded.Close, contentDescription = "Close dashboard")
+                    }
+                }
+
+                Button(
+                    onClick = onRefresh,
+                    enabled = !loading,
+                    modifier = Modifier.align(Alignment.End)
+                ) {
+                    if (loading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text("Refreshing…")
+                    } else {
+                        Icon(Icons.Rounded.Refresh, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Refresh")
+                    }
+                }
+
+                when {
+                    loading -> {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 32.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator()
+                        }
+                    }
+
+                    error != null -> {
+                        Text(
+                            text = error,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+
+                    drops.isEmpty() -> {
+                        Text(
+                            text = "You haven't shared any business drops yet. Create one to see analytics here.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    else -> {
+                        val sorted = drops.sortedByDescending { it.createdAt }
+                        val totalRedemptions = sorted.sumOf { it.redemptionCount }
+                        val uniqueRedeemers = sorted.flatMap { it.redeemedBy.keys }.toSet().size
+                        val activeOffers = sorted.count { it.dropType == DropType.RESTAURANT_COUPON }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            DashboardMetricCard(
+                                value = sorted.size.toString(),
+                                label = "Live drops",
+                                modifier = Modifier.weight(1f)
+                            )
+                            DashboardMetricCard(
+                                value = totalRedemptions.toString(),
+                                label = "Total redemptions",
+                                modifier = Modifier.weight(1f)
+                            )
+                            DashboardMetricCard(
+                                value = uniqueRedeemers.toString(),
+                                label = "Unique redeemers",
+                                modifier = Modifier.weight(1f)
+                            )
+                            DashboardMetricCard(
+                                value = activeOffers.toString(),
+                                label = "Active offers",
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 360.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            items(sorted, key = { it.id }) { drop ->
+                                BusinessDropAnalyticsCard(drop = drop)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DashboardMetricCard(value: String, label: String, modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier,
+        tonalElevation = 3.dp,
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                text = value,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun BusinessDropAnalyticsCard(drop: Drop) {
+    ElevatedCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = drop.displayTitle(),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+
+            Text(
+                text = when (drop.dropType) {
+                    DropType.RESTAURANT_COUPON -> "Offer · ${drop.businessName ?: "Your business"}"
+                    DropType.TOUR_STOP -> "Tour stop"
+                    DropType.COMMUNITY -> "Community drop"
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            val redemptionStatus = if (drop.dropType == DropType.RESTAURANT_COUPON) {
+                val remaining = drop.remainingRedemptions()
+                buildString {
+                    append("Redemptions: ${drop.redemptionCount}")
+                    drop.redemptionLimit?.let { limit ->
+                        append(" / $limit")
+                        remaining?.let { append(" · $it left") }
+                    }
+                }
+            } else {
+                "Redemptions: n/a"
+            }
+
+            Text(
+                text = redemptionStatus,
+                style = MaterialTheme.typography.bodyMedium
+            )
+
+            val voteSummary = "Votes: ${drop.voteScore()} (↑${drop.upvoteCount} / ↓${drop.downvoteCount})"
+            Text(
+                text = voteSummary,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
@@ -3069,6 +3669,102 @@ private fun DropContentTypeSection(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun BusinessDropTypeSection(
+    dropType: DropType,
+    onDropTypeChange: (DropType) -> Unit,
+    businessName: String?
+) {
+    val options = remember {
+        listOf(
+            BusinessDropTypeOption(
+                type = DropType.COMMUNITY,
+                title = "Community drop",
+                description = "Share something fun or helpful for anyone nearby.",
+                icon = Icons.Rounded.Public
+            ),
+            BusinessDropTypeOption(
+                type = DropType.RESTAURANT_COUPON,
+                title = "Business offer",
+                description = "Reward visitors with a code they must show to redeem.",
+                icon = Icons.Rounded.Storefront
+            ),
+            BusinessDropTypeOption(
+                type = DropType.TOUR_STOP,
+                title = "Tour stop",
+                description = "Create guided stops that highlight key locations.",
+                icon = Icons.Rounded.Flag
+            )
+        )
+    }
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        val header = businessName?.takeIf { it.isNotBlank() }?.let { "Business tools for $it" }
+            ?: "Business tools"
+        Text(header, style = MaterialTheme.typography.titleSmall)
+
+        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+            options.forEachIndexed { index, option ->
+                SegmentedButton(
+                    shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
+                    onClick = { onDropTypeChange(option.type) },
+                    selected = option.type == dropType,
+                    label = { Text(option.title) },
+                    icon = { Icon(option.icon, contentDescription = null) }
+                )
+            }
+        }
+
+        Crossfade(targetState = dropType, label = "businessDropTypeDescription") { current ->
+            val message = options.firstOrNull { it.type == current }?.description ?: ""
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun BusinessRedemptionSection(
+    redemptionCode: TextFieldValue,
+    onRedemptionCodeChange: (TextFieldValue) -> Unit,
+    redemptionLimit: TextFieldValue,
+    onRedemptionLimitChange: (TextFieldValue) -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text("Offer security", style = MaterialTheme.typography.titleSmall)
+
+        OutlinedTextField(
+            value = redemptionCode,
+            onValueChange = onRedemptionCodeChange,
+            label = { Text("Redemption code") },
+            supportingText = {
+                Text("Share this code in person so each guest redeems only once.")
+            },
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        OutlinedTextField(
+            value = redemptionLimit,
+            onValueChange = onRedemptionLimitChange,
+            label = { Text("Optional redemption limit") },
+            supportingText = {
+                Text("Set a maximum number of redemptions (leave blank for unlimited).")
+            },
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
 @Composable
 private fun DropVisibilitySection(
     visibility: DropVisibility,
@@ -3255,6 +3951,13 @@ private fun DropVisibilityOptionCard(
 
 private data class DropContentTypeOption(
     val type: DropContentType,
+    val title: String,
+    val description: String,
+    val icon: ImageVector
+)
+
+private data class BusinessDropTypeOption(
+    val type: DropType,
     val title: String,
     val description: String,
     val icon: ImageVector

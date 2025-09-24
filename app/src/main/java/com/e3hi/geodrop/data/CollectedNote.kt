@@ -1,6 +1,5 @@
 package com.e3hi.geodrop.data
 
-import com.e3hi.geodrop.data.DropContentType
 import org.json.JSONObject
 
 /**
@@ -17,6 +16,13 @@ data class CollectedNote(
     val lng: Double?,
     val groupCode: String?,
     val dropCreatedAt: Long?,
+    val dropType: DropType = DropType.COMMUNITY,
+    val businessId: String? = null,
+    val businessName: String? = null,
+    val redemptionLimit: Int? = null,
+    val redemptionCount: Int = 0,
+    val isRedeemed: Boolean = false,
+    val redeemedAt: Long? = null,
     val collectedAt: Long
 ) {
     fun toJson(): JSONObject {
@@ -31,6 +37,13 @@ data class CollectedNote(
             putOpt(KEY_LNG, lng)
             putOpt(KEY_GROUP_CODE, groupCode)
             putOpt(KEY_DROP_CREATED_AT, dropCreatedAt)
+            put(KEY_DROP_TYPE, dropType.name)
+            putOpt(KEY_BUSINESS_ID, businessId)
+            putOpt(KEY_BUSINESS_NAME, businessName)
+            putOpt(KEY_REDEMPTION_LIMIT, redemptionLimit)
+            put(KEY_REDEMPTION_COUNT, redemptionCount)
+            put(KEY_IS_REDEEMED, isRedeemed)
+            putOpt(KEY_REDEEMED_AT, redeemedAt)
             put(KEY_COLLECTED_AT, collectedAt)
         }
     }
@@ -46,6 +59,13 @@ data class CollectedNote(
         private const val KEY_LNG = "lng"
         private const val KEY_GROUP_CODE = "groupCode"
         private const val KEY_DROP_CREATED_AT = "dropCreatedAt"
+        private const val KEY_DROP_TYPE = "dropType"
+        private const val KEY_BUSINESS_ID = "businessId"
+        private const val KEY_BUSINESS_NAME = "businessName"
+        private const val KEY_REDEMPTION_LIMIT = "redemptionLimit"
+        private const val KEY_REDEMPTION_COUNT = "redemptionCount"
+        private const val KEY_IS_REDEEMED = "isRedeemed"
+        private const val KEY_REDEEMED_AT = "redeemedAt"
         private const val KEY_COLLECTED_AT = "collectedAt"
 
         fun fromJson(json: JSONObject): CollectedNote {
@@ -59,6 +79,13 @@ data class CollectedNote(
             val lng = json.optDouble(KEY_LNG).takeIf { json.has(KEY_LNG) }
             val groupCode = json.optString(KEY_GROUP_CODE).takeIf { it.isNotBlank() }
             val dropCreatedAt = json.optLong(KEY_DROP_CREATED_AT).takeIf { json.has(KEY_DROP_CREATED_AT) }
+            val dropType = DropType.fromRaw(json.optString(KEY_DROP_TYPE))
+            val businessId = json.optString(KEY_BUSINESS_ID).takeIf { it.isNotBlank() }
+            val businessName = json.optString(KEY_BUSINESS_NAME).takeIf { it.isNotBlank() }
+            val redemptionLimit = json.optInt(KEY_REDEMPTION_LIMIT).takeIf { json.has(KEY_REDEMPTION_LIMIT) }
+            val redemptionCount = json.optInt(KEY_REDEMPTION_COUNT)
+            val isRedeemed = json.optBoolean(KEY_IS_REDEEMED)
+            val redeemedAt = json.optLong(KEY_REDEEMED_AT).takeIf { json.has(KEY_REDEEMED_AT) }
             val collectedAt = json.optLong(KEY_COLLECTED_AT)
 
             return CollectedNote(
@@ -72,6 +99,13 @@ data class CollectedNote(
                 lng = lng,
                 groupCode = groupCode,
                 dropCreatedAt = dropCreatedAt,
+                dropType = dropType,
+                businessId = businessId,
+                businessName = businessName,
+                redemptionLimit = redemptionLimit,
+                redemptionCount = redemptionCount,
+                isRedeemed = isRedeemed,
+                redeemedAt = redeemedAt,
                 collectedAt = collectedAt
             )
         }
