@@ -1262,23 +1262,22 @@ fun DropHereScreen() {
     }
 
     if (showBusinessOnboarding) {
-        val businessNameFieldState = rememberSaveable(
+        var businessNameField by rememberSaveable(
             userProfile?.businessName,
-            saver = TextFieldValue.Saver
+            stateSaver = TextFieldValue.Saver
         ) {
             mutableStateOf(TextFieldValue(userProfile?.businessName.orEmpty()))
         }
-        val businessNameField = businessNameFieldState.value
         var onboardingError by remember { mutableStateOf<String?>(null) }
         var onboardingSubmitting by remember { mutableStateOf(false) }
 
         BusinessOnboardingDialog(
             name = businessNameField,
-            onNameChange = { businessNameFieldState.value = it },
+            onNameChange = { businessNameField = it },
             isSubmitting = onboardingSubmitting,
             error = onboardingError,
             onSubmit = {
-                val trimmed = businessNameFieldState.value.text.trim()
+                val trimmed = businessNameField.text.trim()
                 if (trimmed.isEmpty()) {
                     onboardingError = "Enter your business name."
                     return@BusinessOnboardingDialog
