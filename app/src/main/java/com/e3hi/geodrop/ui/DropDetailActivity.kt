@@ -82,7 +82,6 @@ import com.e3hi.geodrop.data.FirestoreRepo
 import com.e3hi.geodrop.data.NoteInventory
 import com.e3hi.geodrop.data.RedemptionResult
 import com.e3hi.geodrop.data.applyUserVote
-import com.e3hi.geodrop.data.remainingRedemptions
 import com.e3hi.geodrop.data.requiresRedemption
 import com.e3hi.geodrop.data.isRedeemedBy
 import com.e3hi.geodrop.geo.DropDecisionReceiver
@@ -1091,6 +1090,11 @@ private fun DropDetailUiState.Loaded.toDropForVoting(): Drop {
 }
 
 private fun DropDetailUiState.Loaded.voteScore(): Long = upvoteCount - downvoteCount
+
+private fun DropDetailUiState.Loaded.remainingRedemptions(): Int? {
+    val limit = redemptionLimit ?: return null
+    return (limit - redemptionCount).coerceAtLeast(0)
+}
 
 private fun formatVoteScore(score: Long): String {
     return when {
