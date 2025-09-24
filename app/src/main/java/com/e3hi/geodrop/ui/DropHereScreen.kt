@@ -148,6 +148,14 @@ fun DropHereScreen() {
     var currentUser by remember { mutableStateOf(auth.currentUser) }
     var signingIn by remember { mutableStateOf(false) }
     var signInError by remember { mutableStateOf<String?>(null) }
+    var showBusinessSignIn by remember { mutableStateOf(false) }
+    var businessAuthMode by remember { mutableStateOf(BusinessAuthMode.SIGN_IN) }
+    var businessEmail by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
+    var businessPassword by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
+    var businessConfirmPassword by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
+    var businessAuthSubmitting by remember { mutableStateOf(false) }
+    var businessAuthError by remember { mutableStateOf<String?>(null) }
+    var businessAuthStatus by remember { mutableStateOf<String?>(null) }
 
     DisposableEffect(auth) {
         val listener = FirebaseAuth.AuthStateListener { firebaseAuth ->
@@ -300,14 +308,6 @@ fun DropHereScreen() {
     var showDropComposer by remember { mutableStateOf(false) }
     var showBusinessDashboard by remember { mutableStateOf(false) }
     var showBusinessOnboarding by remember { mutableStateOf(false) }
-    var showBusinessSignIn by remember { mutableStateOf(false) }
-    var businessAuthMode by remember { mutableStateOf(BusinessAuthMode.SIGN_IN) }
-    var businessEmail by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
-    var businessPassword by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
-    var businessConfirmPassword by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
-    var businessAuthSubmitting by remember { mutableStateOf(false) }
-    var businessAuthError by remember { mutableStateOf<String?>(null) }
-    var businessAuthStatus by remember { mutableStateOf<String?>(null) }
     var businessDrops by remember { mutableStateOf<List<Drop>>(emptyList()) }
     var businessDashboardLoading by remember { mutableStateOf(false) }
     var businessDashboardError by remember { mutableStateOf<String?>(null) }
