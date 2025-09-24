@@ -339,7 +339,7 @@ class DropDetailActivity : ComponentActivity() {
                     var hasCollected by remember(dropId) {
                         mutableStateOf(dropId.isNotBlank() && noteInventory.isCollected(dropId))
                     }
-                    val redemptionCodeInputState = rememberSaveable(dropId, saver = TextFieldValue.Saver) {
+                    val redemptionCodeInputState = rememberSaveable(dropId, stateSaver = TextFieldValue.Saver) {
                         mutableStateOf(TextFieldValue(""))
                     }
                     val redemptionCodeInput = redemptionCodeInputState.value
