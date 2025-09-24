@@ -196,119 +196,6 @@ fun DropHereScreen() {
         }
     }
 
-    fun resetBusinessAuthFields(clearEmail: Boolean) {
-        if (clearEmail) {
-            businessEmail = TextFieldValue("")
-        }
-        businessPassword = TextFieldValue("")
-        businessConfirmPassword = TextFieldValue("")
-        businessAuthError = null
-        businessAuthStatus = null
-    }
-
-    fun dismissBusinessAuthDialog() {
-        if (businessAuthSubmitting) return
-        showBusinessSignIn = false
-        resetBusinessAuthFields(clearEmail = false)
-        businessAuthMode = BusinessAuthMode.SIGN_IN
-    }
-
-    fun performBusinessAuth() {
-        if (businessAuthSubmitting) return
-
-        val email = businessEmail.text.trim()
-        val password = businessPassword.text
-        val confirm = businessConfirmPassword.text
-
-        when {
-            email.isEmpty() -> {
-                businessAuthError = "Enter your email address."
-                return
-            }
-
-            !Patterns.EMAIL_ADDRESS.matcher(email).matches() -> {
-                businessAuthError = "Enter a valid email address."
-                return
-            }
-
-            password.length < 6 -> {
-                businessAuthError = "Password must be at least 6 characters."
-                return
-            }
-
-            businessAuthMode == BusinessAuthMode.REGISTER && confirm != password -> {
-                businessAuthError = "Passwords do not match."
-                return
-            }
-        }
-
-        businessAuthSubmitting = true
-        businessAuthError = null
-        businessAuthStatus = null
-
-        val selectedMode = businessAuthMode
-        val task = try {
-            when (selectedMode) {
-                BusinessAuthMode.SIGN_IN -> auth.signInWithEmailAndPassword(email, password)
-                BusinessAuthMode.REGISTER -> auth.createUserWithEmailAndPassword(email, password)
-            }
-        } catch (error: Exception) {
-            businessAuthSubmitting = false
-            businessAuthError = error.localizedMessage?.takeIf { it.isNotBlank() }
-                ?: if (selectedMode == BusinessAuthMode.REGISTER) {
-                    "Couldn't create your business account. Try again."
-                } else {
-                    "Couldn't sign you in. Check your email and password."
-                }
-            return
-        }
-
-        task.addOnCompleteListener { authTask ->
-            businessAuthSubmitting = false
-            if (authTask.isSuccessful) {
-                resetBusinessAuthFields(clearEmail = true)
-                showBusinessSignIn = false
-                if (selectedMode == BusinessAuthMode.REGISTER) {
-                    showBusinessOnboarding = true
-                }
-            } else {
-                val message = authTask.exception?.localizedMessage?.takeIf { it.isNotBlank() }
-                    ?: if (selectedMode == BusinessAuthMode.REGISTER) {
-                        "Couldn't create your business account. Try again."
-                    } else {
-                        "Couldn't sign you in. Check your email and password."
-                    }
-                businessAuthError = message
-            }
-        }
-    }
-
-    fun sendBusinessPasswordReset() {
-        if (businessAuthSubmitting) return
-
-        val email = businessEmail.text.trim()
-        if (!Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
-            businessAuthError = "Enter a valid email address to reset your password."
-            return
-        }
-
-        businessAuthSubmitting = true
-        businessAuthError = null
-        businessAuthStatus = null
-
-        auth.sendPasswordResetEmail(email)
-            .addOnCompleteListener { task ->
-                businessAuthSubmitting = false
-                if (task.isSuccessful) {
-                    businessAuthStatus = "Password reset email sent to $email."
-                } else {
-                    val message = task.exception?.localizedMessage?.takeIf { it.isNotBlank() }
-                        ?: "Couldn't send reset email. Try again."
-                    businessAuthError = message
-                }
-            }
-    }
-
     if (currentUser == null) {
         if (showBusinessSignIn) {
             BusinessSignInDialog(
@@ -425,6 +312,119 @@ fun DropHereScreen() {
     var businessDashboardLoading by remember { mutableStateOf(false) }
     var businessDashboardError by remember { mutableStateOf<String?>(null) }
     var businessDashboardRefreshToken by remember { mutableStateOf(0) }
+
+    fun resetBusinessAuthFields(clearEmail: Boolean) {
+        if (clearEmail) {
+            businessEmail = TextFieldValue("")
+        }
+        businessPassword = TextFieldValue("")
+        businessConfirmPassword = TextFieldValue("")
+        businessAuthError = null
+        businessAuthStatus = null
+    }
+
+    fun dismissBusinessAuthDialog() {
+        if (businessAuthSubmitting) return
+        showBusinessSignIn = false
+        resetBusinessAuthFields(clearEmail = false)
+        businessAuthMode = BusinessAuthMode.SIGN_IN
+    }
+
+    fun performBusinessAuth() {
+        if (businessAuthSubmitting) return
+
+        val email = businessEmail.text.trim()
+        val password = businessPassword.text
+        val confirm = businessConfirmPassword.text
+
+        when {
+            email.isEmpty() -> {
+                businessAuthError = "Enter your email address."
+                return
+            }
+
+            !Patterns.EMAIL_ADDRESS.matcher(email).matches() -> {
+                businessAuthError = "Enter a valid email address."
+                return
+            }
+
+            password.length < 6 -> {
+                businessAuthError = "Password must be at least 6 characters."
+                return
+            }
+
+            businessAuthMode == BusinessAuthMode.REGISTER && confirm != password -> {
+                businessAuthError = "Passwords do not match."
+                return
+            }
+        }
+
+        businessAuthSubmitting = true
+        businessAuthError = null
+        businessAuthStatus = null
+
+        val selectedMode = businessAuthMode
+        val task = try {
+            when (selectedMode) {
+                BusinessAuthMode.SIGN_IN -> auth.signInWithEmailAndPassword(email, password)
+                BusinessAuthMode.REGISTER -> auth.createUserWithEmailAndPassword(email, password)
+            }
+        } catch (error: Exception) {
+            businessAuthSubmitting = false
+            businessAuthError = error.localizedMessage?.takeIf { it.isNotBlank() }
+                ?: if (selectedMode == BusinessAuthMode.REGISTER) {
+                    "Couldn't create your business account. Try again."
+                } else {
+                    "Couldn't sign you in. Check your email and password."
+                }
+            return
+        }
+
+        task.addOnCompleteListener { authTask ->
+            businessAuthSubmitting = false
+            if (authTask.isSuccessful) {
+                resetBusinessAuthFields(clearEmail = true)
+                showBusinessSignIn = false
+                if (selectedMode == BusinessAuthMode.REGISTER) {
+                    showBusinessOnboarding = true
+                }
+            } else {
+                val message = authTask.exception?.localizedMessage?.takeIf { it.isNotBlank() }
+                    ?: if (selectedMode == BusinessAuthMode.REGISTER) {
+                        "Couldn't create your business account. Try again."
+                    } else {
+                        "Couldn't sign you in. Check your email and password."
+                    }
+                businessAuthError = message
+            }
+        }
+    }
+
+    fun sendBusinessPasswordReset() {
+        if (businessAuthSubmitting) return
+
+        val email = businessEmail.text.trim()
+        if (!Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+            businessAuthError = "Enter a valid email address to reset your password."
+            return
+        }
+
+        businessAuthSubmitting = true
+        businessAuthError = null
+        businessAuthStatus = null
+
+        auth.sendPasswordResetEmail(email)
+            .addOnCompleteListener { task ->
+                businessAuthSubmitting = false
+                if (task.isSuccessful) {
+                    businessAuthStatus = "Password reset email sent to $email."
+                } else {
+                    val message = task.exception?.localizedMessage?.takeIf { it.isNotBlank() }
+                        ?: "Couldn't send reset email. Try again."
+                    businessAuthError = message
+                }
+            }
+    }
 
     var userProfile by remember { mutableStateOf<UserProfile?>(null) }
     var userProfileLoading by remember { mutableStateOf(false) }
