@@ -65,6 +65,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -79,6 +80,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.e3hi.geodrop.R
 import com.e3hi.geodrop.data.CollectedNote
 import com.e3hi.geodrop.data.Drop
 import com.e3hi.geodrop.data.DropContentType
@@ -113,8 +115,12 @@ import com.google.android.gms.tasks.CancellationTokenSource
 import com.google.android.gms.tasks.Tasks
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.maps.model.LatLng
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.GoogleAuthProvider
 import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.MapUiSettings
 import com.google.maps.android.compose.Marker
@@ -157,6 +163,21 @@ fun DropHereScreen() {
     var businessAuthError by remember { mutableStateOf<String?>(null) }
     var businessAuthStatus by remember { mutableStateOf<String?>(null) }
     var showBusinessOnboarding by remember { mutableStateOf(false) }
+    var businessGoogleSigningIn by remember { mutableStateOf(false) }
+    val defaultWebClientId = stringResource(R.string.default_web_client_id)
+    val googleSignInClient = remember(defaultWebClientId, ctx) {
+        GoogleSignIn.getClient(
+            ctx,
+            GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                .apply {
+                    if (defaultWebClientId.isNotBlank()) {
+                        requestIdToken(defaultWebClientId)
+                    }
+                }
+                .requestEmail()
+                .build()
+        )
+    }
 
     fun resetBusinessAuthFields(clearEmail: Boolean) {
         if (clearEmail) {
@@ -169,14 +190,14 @@ fun DropHereScreen() {
     }
 
     fun dismissBusinessAuthDialog() {
-        if (businessAuthSubmitting) return
+        if (businessAuthSubmitting || businessGoogleSigningIn) return
         showBusinessSignIn = false
         resetBusinessAuthFields(clearEmail = false)
         businessAuthMode = BusinessAuthMode.SIGN_IN
     }
 
     fun performBusinessAuth() {
-        if (businessAuthSubmitting) return
+        if (businessAuthSubmitting || businessGoogleSigningIn) return
 
         val email = businessEmail.text.trim()
         val password = businessPassword.text
@@ -246,7 +267,7 @@ fun DropHereScreen() {
     }
 
     fun sendBusinessPasswordReset() {
-        if (businessAuthSubmitting) return
+        if (businessAuthSubmitting || businessGoogleSigningIn) return
 
         val email = businessEmail.text.trim()
         if (!Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
@@ -269,6 +290,76 @@ fun DropHereScreen() {
                     businessAuthError = message
                 }
             }
+    }
+
+    val businessGoogleSignInLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode != Activity.RESULT_OK) {
+            businessGoogleSigningIn = false
+            businessAuthError = if (result.resultCode == Activity.RESULT_CANCELED) {
+                "Google sign-in was cancelled."
+            } else {
+                "Google sign-in failed. Try again."
+            }
+            return@rememberLauncherForActivityResult
+        }
+
+        val signInTask = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+        try {
+            val account = signInTask.getResult(ApiException::class.java)
+            val idToken = account?.idToken
+            if (idToken.isNullOrBlank()) {
+                businessGoogleSigningIn = false
+                businessAuthError = "Google sign-in is misconfigured. Provide a valid web client ID."
+                return@rememberLauncherForActivityResult
+            }
+
+            businessAuthSubmitting = true
+            val credential = GoogleAuthProvider.getCredential(idToken, null)
+            auth.signInWithCredential(credential)
+                .addOnCompleteListener { authTask ->
+                    businessAuthSubmitting = false
+                    businessGoogleSigningIn = false
+                    if (authTask.isSuccessful) {
+                        resetBusinessAuthFields(clearEmail = true)
+                        showBusinessSignIn = false
+                        if (authTask.result?.additionalUserInfo?.isNewUser == true) {
+                            showBusinessOnboarding = true
+                        }
+                    } else {
+                        val message = authTask.exception?.localizedMessage?.takeIf { it.isNotBlank() }
+                            ?: "Couldn't sign you in with Google. Try again."
+                        businessAuthError = message
+                    }
+                }
+        } catch (error: ApiException) {
+            businessGoogleSigningIn = false
+            businessAuthError = error.localizedMessage?.takeIf { it.isNotBlank() }
+                ?: "Google sign-in failed. Try again."
+        }
+    }
+
+    fun startBusinessGoogleSignIn() {
+        if (businessAuthSubmitting || businessGoogleSigningIn) return
+        if (defaultWebClientId.isBlank()) {
+            businessAuthError = "Google sign-in isn't configured. Add your default_web_client_id in strings.xml."
+            return
+        }
+
+        businessAuthError = null
+        businessAuthStatus = null
+        businessGoogleSigningIn = true
+
+        runCatching { googleSignInClient.signOut() }
+
+        runCatching {
+            businessGoogleSignInLauncher.launch(googleSignInClient.signInIntent)
+        }.onFailure { error ->
+            businessGoogleSigningIn = false
+            businessAuthError = error.localizedMessage?.takeIf { it.isNotBlank() }
+                ?: "Couldn't start Google sign-in."
+        }
     }
 
     DisposableEffect(auth) {
@@ -323,7 +414,7 @@ fun DropHereScreen() {
             BusinessSignInDialog(
                 mode = businessAuthMode,
                 onModeChange = { mode ->
-                    if (businessAuthSubmitting) return@BusinessSignInDialog
+                    if (businessAuthSubmitting || businessGoogleSigningIn) return@BusinessSignInDialog
                     businessAuthMode = mode
                     businessAuthError = null
                     businessAuthStatus = null
@@ -335,11 +426,13 @@ fun DropHereScreen() {
                 confirmPassword = businessConfirmPassword,
                 onConfirmPasswordChange = { businessConfirmPassword = it },
                 isSubmitting = businessAuthSubmitting,
+                isGoogleSigningIn = businessGoogleSigningIn,
                 error = businessAuthError,
                 status = businessAuthStatus,
                 onSubmit = { performBusinessAuth() },
                 onDismiss = { dismissBusinessAuthDialog() },
-                onForgotPassword = { sendBusinessPasswordReset() }
+                onForgotPassword = { sendBusinessPasswordReset() },
+                onGoogleSignIn = { startBusinessGoogleSignIn() }
             )
         }
         SignInRequiredScreen(
@@ -367,7 +460,7 @@ fun DropHereScreen() {
                 }
             },
             onBusinessSignInClick = {
-                if (signingIn || businessAuthSubmitting) return@SignInRequiredScreen
+                if (signingIn || businessAuthSubmitting || businessGoogleSigningIn) return@SignInRequiredScreen
                 businessAuthMode = BusinessAuthMode.SIGN_IN
                 businessAuthError = null
                 businessAuthStatus = null
@@ -2165,17 +2258,20 @@ private fun BusinessSignInDialog(
     confirmPassword: TextFieldValue,
     onConfirmPasswordChange: (TextFieldValue) -> Unit,
     isSubmitting: Boolean,
+    isGoogleSigningIn: Boolean,
     error: String?,
     status: String?,
     onSubmit: () -> Unit,
     onDismiss: () -> Unit,
-    onForgotPassword: () -> Unit
+    onForgotPassword: () -> Unit,
+    onGoogleSignIn: () -> Unit
 ) {
+    val isBusy = isSubmitting || isGoogleSigningIn
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(
-            dismissOnBackPress = !isSubmitting,
-            dismissOnClickOutside = !isSubmitting
+            dismissOnBackPress = !isBusy,
+            dismissOnClickOutside = !isBusy
         )
     ) {
         Surface(
@@ -2217,7 +2313,7 @@ private fun BusinessSignInDialog(
                     value = email,
                     onValueChange = onEmailChange,
                     label = { Text("Email address") },
-                    enabled = !isSubmitting,
+                    enabled = !isBusy,
                     modifier = Modifier.fillMaxWidth(),
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.Email,
@@ -2229,7 +2325,7 @@ private fun BusinessSignInDialog(
                     value = password,
                     onValueChange = onPasswordChange,
                     label = { Text("Password") },
-                    enabled = !isSubmitting,
+                    enabled = !isBusy,
                     modifier = Modifier.fillMaxWidth(),
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(
@@ -2243,7 +2339,7 @@ private fun BusinessSignInDialog(
                         value = confirmPassword,
                         onValueChange = onConfirmPasswordChange,
                         label = { Text("Confirm password") },
-                        enabled = !isSubmitting,
+                        enabled = !isBusy,
                         modifier = Modifier.fillMaxWidth(),
                         visualTransformation = PasswordVisualTransformation(),
                         keyboardOptions = KeyboardOptions(
@@ -2272,7 +2368,7 @@ private fun BusinessSignInDialog(
                 if (!isRegister) {
                     TextButton(
                         onClick = onForgotPassword,
-                        enabled = !isSubmitting,
+                        enabled = !isBusy,
                         modifier = Modifier.align(Alignment.End)
                     ) {
                         Text("Forgot password?")
@@ -2286,7 +2382,7 @@ private fun BusinessSignInDialog(
                 ) {
                     OutlinedButton(
                         onClick = onDismiss,
-                        enabled = !isSubmitting,
+                        enabled = !isBusy,
                         modifier = Modifier.weight(1f)
                     ) {
                         Text("Cancel")
@@ -2294,7 +2390,7 @@ private fun BusinessSignInDialog(
 
                     Button(
                         onClick = onSubmit,
-                        enabled = !isSubmitting,
+                        enabled = !isBusy,
                         modifier = Modifier.weight(1f)
                     ) {
                         if (isSubmitting) {
@@ -2312,6 +2408,32 @@ private fun BusinessSignInDialog(
                                 }
                             )
                         }
+                    }
+                }
+
+                Spacer(Modifier.height(12.dp))
+                Divider()
+                Text(
+                    text = "Or continue with",
+                    modifier = Modifier.fillMaxWidth(),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+                OutlinedButton(
+                    onClick = onGoogleSignIn,
+                    enabled = !isBusy,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    if (isGoogleSigningIn) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text("Connecting to Google…")
+                    } else {
+                        Text("Sign in with Google")
                     }
                 }
             }
@@ -3940,7 +4062,7 @@ private fun SignInRequiredScreen(
             }
             Spacer(Modifier.height(20.dp))
             BusinessSignInSection(
-                enabled = !isSigningIn,
+                enabled = !isSigningIn && !businessAuthSubmitting && !businessGoogleSigningIn,
                 onClick = onBusinessSignInClick
             )
         }
