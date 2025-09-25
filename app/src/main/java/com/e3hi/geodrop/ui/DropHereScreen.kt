@@ -437,6 +437,8 @@ fun DropHereScreen() {
         }
         SignInRequiredScreen(
             isSigningIn = signingIn,
+            isBusinessAuthSubmitting = businessAuthSubmitting,
+            isBusinessGoogleSigningIn = businessGoogleSigningIn,
             error = signInError,
             onSignInClick = {
                 if (signingIn) return@SignInRequiredScreen
@@ -3999,6 +4001,8 @@ private fun ManageDropRow(
 @Composable
 private fun SignInRequiredScreen(
     isSigningIn: Boolean,
+    isBusinessAuthSubmitting: Boolean,
+    isBusinessGoogleSigningIn: Boolean,
     error: String?,
     onSignInClick: () -> Unit,
     onBusinessSignInClick: () -> Unit
@@ -4062,7 +4066,7 @@ private fun SignInRequiredScreen(
             }
             Spacer(Modifier.height(20.dp))
             BusinessSignInSection(
-                enabled = !isSigningIn && !businessAuthSubmitting && !businessGoogleSigningIn,
+                enabled = !isSigningIn && !isBusinessAuthSubmitting && !isBusinessGoogleSigningIn,
                 onClick = onBusinessSignInClick
             )
         }
