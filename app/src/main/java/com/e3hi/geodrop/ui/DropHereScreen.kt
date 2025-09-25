@@ -3938,15 +3938,99 @@ private fun SignInRequiredScreen(
                     Text("Continue as explorer")
                 }
             }
-            Spacer(Modifier.height(12.dp))
-            OutlinedButton(
-                onClick = onBusinessSignInClick,
+            Spacer(Modifier.height(20.dp))
+            BusinessSignInSection(
                 enabled = !isSigningIn,
+                onClick = onBusinessSignInClick
+            )
+        }
+    }
+}
+
+@Composable
+private fun BusinessSignInSection(
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    ElevatedCard(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = "For business partners",
+                    style = MaterialTheme.typography.titleMedium
+                )
+                Text(
+                    text = "Create offers, monitor engagement, and keep your brand present where it matters most.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                BusinessBenefitRow(
+                    icon = Icons.Rounded.Storefront,
+                    contentDescription = "Offer management",
+                    text = "Launch and update location-based offers in real time."
+                )
+                BusinessBenefitRow(
+                    icon = Icons.Rounded.Groups,
+                    contentDescription = "Audience insights",
+                    text = "See how explorers interact with your drops and redemptions."
+                )
+                BusinessBenefitRow(
+                    icon = Icons.Rounded.Inbox,
+                    contentDescription = "Customer follow-up",
+                    text = "Collect feedback and keep conversations going after a redemption."
+                )
+            }
+
+            FilledTonalButton(
+                onClick = onClick,
+                enabled = enabled,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text("Business account sign in")
             }
         }
+    }
+}
+
+@Composable
+private fun BusinessBenefitRow(
+    icon: ImageVector,
+    contentDescription: String,
+    text: String
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Surface(
+            modifier = Modifier.size(40.dp),
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.secondaryContainer,
+            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = contentDescription
+                )
+            }
+        }
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface
+        )
     }
 }
 
