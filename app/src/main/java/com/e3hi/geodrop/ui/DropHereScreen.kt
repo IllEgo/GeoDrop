@@ -520,6 +520,7 @@ fun DropHereScreen() {
     var businessDashboardLoading by remember { mutableStateOf(false) }
     var businessDashboardError by remember { mutableStateOf<String?>(null) }
     var businessDashboardRefreshToken by remember { mutableStateOf(0) }
+    var selectedHomeDestination by rememberSaveable { mutableStateOf(HomeDestination.Explorer.name) }
 
     var userProfile by remember { mutableStateOf<UserProfile?>(null) }
     var userProfileLoading by remember { mutableStateOf(false) }
@@ -705,8 +706,17 @@ fun DropHereScreen() {
     }
 
     LaunchedEffect(userProfile?.role) {
-        if (userProfile?.isBusiness() != true) {
+        val currentDestination = runCatching { HomeDestination.valueOf(selectedHomeDestination) }
+            .getOrDefault(HomeDestination.Explorer)
+        if (userProfile?.isBusiness() == true) {
+            if (currentDestination != HomeDestination.Business) {
+                selectedHomeDestination = HomeDestination.Business.name
+            }
+        } else {
             dropType = DropType.COMMUNITY
+            if (currentDestination == HomeDestination.Business) {
+                selectedHomeDestination = HomeDestination.Explorer.name
+            }
         }
     }
 
@@ -1176,21 +1186,51 @@ fun DropHereScreen() {
 
 
     val collectedCount = collectedNotes.size
+    val isBusinessUser = userProfile?.isBusiness() == true
+    val currentHomeDestination = runCatching { HomeDestination.valueOf(selectedHomeDestination) }
+        .getOrDefault(HomeDestination.Explorer)
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         topBar = {
-            TopAppBar(
-                title = { Text("GeoDrop") },
-                actions = {
-                    IconButton(onClick = { showManageGroups = true }) {
-                        Icon(
-                            imageVector = Icons.Rounded.Groups,
-                            contentDescription = "Manage group codes"
-                        )
+            Column {
+                TopAppBar(
+                    title = { Text("GeoDrop") },
+                    actions = {
+                        IconButton(onClick = { showManageGroups = true }) {
+                            Icon(
+                                imageVector = Icons.Rounded.Groups,
+                                contentDescription = "Manage group codes"
+                            )
+                        }
+                    }
+                )
+                if (isBusinessUser) {
+                    Divider()
+                    SingleChoiceSegmentedButtonRow(
+                        modifier = Modifier
+                            .padding(horizontal = 16.dp)
+                            .padding(top = 8.dp, bottom = 12.dp)
+                    ) {
+                        val options = listOf(HomeDestination.Explorer, HomeDestination.Business)
+                        options.forEachIndexed { index, option ->
+                            SegmentedButton(
+                                shape = SegmentedButtonDefaults.itemShape(index, options.size),
+                                selected = currentHomeDestination == option,
+                                onClick = { selectedHomeDestination = option.name },
+                                label = {
+                                    Text(
+                                        when (option) {
+                                            HomeDestination.Explorer -> "Explorer"
+                                            HomeDestination.Business -> "Business"
+                                        }
+                                    )
+                                }
+                            )
+                        }
                     }
                 }
-            )
+            }
         },
         floatingActionButton = {
             ExtendedFloatingActionButton(
@@ -1210,159 +1250,156 @@ fun DropHereScreen() {
             )
         }
     ) { innerPadding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 24.dp, bottom = 128.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
-        ) {
-            item {
-                HeroCard(
-                    joinedGroups = joinedGroups,
-                    onManageGroups = { showManageGroups = true }
-                )
-            }
-
-            item { SectionHeader(text = "Quick actions") }
-
-            item {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    ActionCard(
-                        icon = Icons.Rounded.Sync,
-                        title = "Sync nearby drops",
-                        description = "Refresh geofences and check for new surprises nearby.",
-                        onClick = {
-                            registrar.registerNearby(
-                                ctx,
-                                maxMeters = 300.0,
-                                groupCodes = joinedGroups.toSet()
-                            ) { statusResult ->
-                                when (statusResult) {
-                                    is NearbySyncStatus.Success -> {
-                                        val msg = if (statusResult.count > 0) {
-                                            val base = "Found ${statusResult.count} drop" +
-                                                    if (statusResult.count == 1) " nearby from another user." else "s nearby from other users."
-                                            "$base You'll be notified when you're close."
-                                        } else {
-                                            "No nearby drops from other users right now."
-                                        }
-
-                                        status = msg
-                                        snackbar.showMessage(scope, msg)
-                                    }
-                                    NearbySyncStatus.MissingPermission -> {
-                                        val msg = "Location permission is required to sync nearby drops."
-                                        status = msg
-                                        snackbar.showMessage(scope, msg)
-                                    }
-                                    NearbySyncStatus.NoLocation -> {
-                                        val msg = "Couldn't get your current location. Turn on GPS and try again."
-                                        status = msg
-                                        snackbar.showMessage(scope, msg)
-                                    }
-                                    is NearbySyncStatus.Error -> {
-                                        val msg = statusResult.message
-                                        status = msg
-                                        snackbar.showMessage(scope, msg)
-                                    }
-                                }
-                            }
-                        }
-                    )
-
-                    ActionCard(
-                        icon = Icons.Rounded.Map,
-                        title = "Browse map",
-                        description = "See every drop you can currently unlock.",
-                        onClick = {
-                            if (FirebaseAuth.getInstance().currentUser == null) {
-                                snackbar.showMessage(scope, "Signing you in… please try again shortly.")
-                            } else {
-                                showOtherDropsMap = true
-                            }
-                        }
-                    )
-
-                    ActionCard(
-                        icon = Icons.Rounded.Inbox,
-                        title = "My drops",
-                        description = "Review, open, and manage the drops you've shared.",
-                        onClick = {
-                            if (FirebaseAuth.getInstance().currentUser == null) {
-                                snackbar.showMessage(scope, "Signing you in… please try again shortly.")
-                            } else {
-                                showMyDrops = true
-                            }
-                        }
-                    )
-
-                    ActionCard(
-                        icon = Icons.Rounded.Bookmark,
-                        title = "Collected drops",
-                        description = if (collectedCount == 0) {
-                            "Open the drops you've saved for later."
-                        } else {
-                            "Open the $collectedCount drop" + if (collectedCount == 1) " you've saved." else "s you've saved."
-                        },
-                        onClick = {
-                            collectedNotes = noteInventory.getCollectedNotes()
-                            showCollectedDrops = true
-                        },
-                        trailingContent = {
-                            if (collectedCount > 0) {
-                                CountBadge(count = collectedCount)
-                            }
-                        }
+        if (isBusinessUser && currentHomeDestination == HomeDestination.Business) {
+            BusinessHomeScreen(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+                businessName = userProfile?.businessName,
+                joinedGroups = joinedGroups,
+                statusMessage = status,
+                onCreateDrop = {
+                    if (!isSubmitting) {
+                        showDropComposer = true
+                    }
+                },
+                onViewDashboard = {
+                    if (!userProfileLoading) {
+                        showBusinessDashboard = true
+                    }
+                },
+                onUpdateBusinessProfile = { showBusinessOnboarding = true },
+                onViewMyDrops = { showMyDrops = true },
+                onManageGroups = { showManageGroups = true }
+            )
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 24.dp, bottom = 128.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp)
+            ) {
+                item {
+                    HeroCard(
+                        joinedGroups = joinedGroups,
+                        onManageGroups = { showManageGroups = true }
                     )
                 }
-            }
 
-            if (userProfile?.isBusiness() == true) {
-                item { SectionHeader(text = "Business tools") }
+                item { SectionHeader(text = "Quick actions") }
 
                 item {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         ActionCard(
-                            icon = Icons.Rounded.Storefront,
-                            title = "Business dashboard",
-                            description = "See how many explorers discovered and redeemed your drops.",
+                            icon = Icons.Rounded.Sync,
+                            title = "Sync nearby drops",
+                            description = "Refresh geofences and check for new surprises nearby.",
                             onClick = {
-                                if (!userProfileLoading) {
-                                    showBusinessDashboard = true
+                                registrar.registerNearby(
+                                    ctx,
+                                    maxMeters = 300.0,
+                                    groupCodes = joinedGroups.toSet()
+                                ) { statusResult ->
+                                    when (statusResult) {
+                                        is NearbySyncStatus.Success -> {
+                                            val msg = if (statusResult.count > 0) {
+                                                val base = "Found ${statusResult.count} drop" +
+                                                        if (statusResult.count == 1) " nearby from another user." else "s nearby from other users."
+                                                "$base You'll be notified when you're close."
+                                            } else {
+                                                "No nearby drops from other users right now."
+                                            }
+
+                                            status = msg
+                                            snackbar.showMessage(scope, msg)
+                                        }
+                                        NearbySyncStatus.MissingPermission -> {
+                                            val msg = "Location permission is required to sync nearby drops."
+                                            status = msg
+                                            snackbar.showMessage(scope, msg)
+                                        }
+                                        NearbySyncStatus.NoLocation -> {
+                                            val msg = "Couldn't get your current location. Turn on GPS and try again."
+                                            status = msg
+                                            snackbar.showMessage(scope, msg)
+                                        }
+                                        is NearbySyncStatus.Error -> {
+                                            val msg = statusResult.message
+                                            status = msg
+                                            snackbar.showMessage(scope, msg)
+                                        }
+                                    }
                                 }
                             }
                         )
 
                         ActionCard(
-                            icon = Icons.Rounded.Edit,
-                            title = "Update business name",
-                            description = "Adjust how your brand appears on offers and tour stops.",
+                            icon = Icons.Rounded.Map,
+                            title = "Browse map",
+                            description = "See every drop you can currently unlock.",
                             onClick = {
-                                showBusinessOnboarding = true
+                                if (FirebaseAuth.getInstance().currentUser == null) {
+                                    snackbar.showMessage(scope, "Signing you in… please try again shortly.")
+                                } else {
+                                    showOtherDropsMap = true
+                                }
+                            }
+                        )
+
+                        ActionCard(
+                            icon = Icons.Rounded.Inbox,
+                            title = "My drops",
+                            description = "Review, open, and manage the drops you've shared.",
+                            onClick = {
+                                if (FirebaseAuth.getInstance().currentUser == null) {
+                                    snackbar.showMessage(scope, "Signing you in… please try again shortly.")
+                                } else {
+                                    showMyDrops = true
+                                }
+                            }
+                        )
+
+                        ActionCard(
+                            icon = Icons.Rounded.Bookmark,
+                            title = "Collected drops",
+                            description = if (collectedCount == 0) {
+                                "Open the drops you've saved for later."
+                            } else {
+                                "Open the $collectedCount drop" + if (collectedCount == 1) " you've saved." else "s you've saved."
+                            },
+                            onClick = {
+                                collectedNotes = noteInventory.getCollectedNotes()
+                                showCollectedDrops = true
+                            },
+                            trailingContent = {
+                                if (collectedCount > 0) {
+                                    CountBadge(count = collectedCount)
+                                }
                             }
                         )
                     }
                 }
-            } else {
-                item {
-                    ActionCard(
-                        icon = Icons.Rounded.Storefront,
-                        title = "Grow with GeoDrop",
-                        description = "Set up a business profile to share coupons or guided tours.",
-                        onClick = {
-                            if (FirebaseAuth.getInstance().currentUser == null) {
-                                snackbar.showMessage(scope, "Sign in to unlock business tools.")
-                            } else {
-                                showBusinessOnboarding = true
-                            }
-                        }
-                    )
-                }
-            }
 
-            status?.let { message ->
-                item { StatusCard(message = message) }
+                if (!isBusinessUser) {
+                    item {
+                        ActionCard(
+                            icon = Icons.Rounded.Storefront,
+                            title = "Grow with GeoDrop",
+                            description = "Set up a business profile to share coupons or guided tours.",
+                            onClick = {
+                                if (FirebaseAuth.getInstance().currentUser == null) {
+                                    snackbar.showMessage(scope, "Sign in to unlock business tools.")
+                                } else {
+                                    showBusinessOnboarding = true
+                                }
+                            }
+                        )
+                    }
+                }
+                status?.let { message ->
+                    item { StatusCard(message = message) }
+                }
             }
         }
     }
@@ -1596,6 +1633,180 @@ fun DropHereScreen() {
                 snackbar.showMessage(scope, "Removed group $code")
             }
         )
+    }
+}
+
+@Composable
+private fun BusinessHomeScreen(
+    modifier: Modifier = Modifier,
+    businessName: String?,
+    joinedGroups: List<String>,
+    statusMessage: String?,
+    onCreateDrop: () -> Unit,
+    onViewDashboard: () -> Unit,
+    onUpdateBusinessProfile: () -> Unit,
+    onViewMyDrops: () -> Unit,
+    onManageGroups: () -> Unit,
+) {
+    LazyColumn(
+        modifier = modifier,
+        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 24.dp, bottom = 128.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp)
+    ) {
+        item {
+            BusinessHeroCard(
+                businessName = businessName,
+                joinedGroups = joinedGroups,
+                onCreateDrop = onCreateDrop,
+                onManageGroups = onManageGroups
+            )
+        }
+
+        item { SectionHeader(text = "Manage drops") }
+
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                ActionCard(
+                    icon = Icons.Rounded.Place,
+                    title = "Create a drop",
+                    description = "Publish a new coupon, tour stop, or update for nearby explorers.",
+                    onClick = onCreateDrop
+                )
+
+                ActionCard(
+                    icon = Icons.Rounded.Inbox,
+                    title = "Manage existing drops",
+                    description = "Review performance and make changes to the drops you've shared.",
+                    onClick = onViewMyDrops
+                )
+
+                ActionCard(
+                    icon = Icons.Rounded.Groups,
+                    title = "Manage group codes",
+                    description = "Control who can access private campaigns or team-only drops.",
+                    onClick = onManageGroups
+                )
+            }
+        }
+
+        item { SectionHeader(text = "Insights & branding") }
+
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                ActionCard(
+                    icon = Icons.Rounded.Storefront,
+                    title = "Business dashboard",
+                    description = "Track discoveries, redemptions, and engagement in one place.",
+                    onClick = onViewDashboard
+                )
+
+                ActionCard(
+                    icon = Icons.Rounded.Edit,
+                    title = "Update business name",
+                    description = "Adjust how your brand appears across GeoDrop experiences.",
+                    onClick = onUpdateBusinessProfile
+                )
+            }
+        }
+
+        statusMessage?.let { message ->
+            item { StatusCard(message = message) }
+        }
+    }
+}
+
+@Composable
+private fun BusinessHeroCard(
+    businessName: String?,
+    joinedGroups: List<String>,
+    onCreateDrop: () -> Unit,
+    onManageGroups: () -> Unit,
+) {
+    val title = businessName?.takeIf { it.isNotBlank() }?.let { "$it on GeoDrop" }
+        ?: "Welcome to GeoDrop Business"
+    val subtitle = if (businessName.isNullOrBlank()) {
+        "Share exclusive offers, stories, and tours to reach explorers right when they're nearby."
+    } else {
+        "Keep explorers engaged with timely offers and experiences from your team."
+    }
+
+    ElevatedCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(28.dp),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.9f)
+                )
+            }
+
+            if (joinedGroups.isNotEmpty()) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Active group codes",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+
+                    Row(
+                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        joinedGroups.forEach { code ->
+                            AssistChip(
+                                onClick = {},
+                                label = { Text(code) },
+                                colors = AssistChipDefaults.assistChipColors(
+                                    containerColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.12f),
+                                    labelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+
+            Button(
+                onClick = onCreateDrop,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    contentColor = MaterialTheme.colorScheme.primaryContainer
+                )
+            ) {
+                Icon(Icons.Rounded.Place, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text("Create a new drop")
+            }
+
+            TextButton(
+                onClick = onManageGroups,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.textButtonColors(
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            ) {
+                Icon(Icons.Rounded.Groups, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text("Manage group codes")
+            }
+        }
     }
 }
 
@@ -4516,6 +4727,8 @@ private data class BusinessDropTypeOption(
     val description: String,
     val icon: ImageVector
 )
+
+private enum class HomeDestination { Explorer, Business }
 
 private enum class BusinessAuthMode {
     SIGN_IN,
