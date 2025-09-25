@@ -30,6 +30,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.material.icons.rounded.Bookmark
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Edit
@@ -37,6 +38,7 @@ import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.Inbox
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.Logout
 import androidx.compose.material.icons.rounded.Map
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.PhotoCamera
@@ -51,6 +53,8 @@ import androidx.compose.material.icons.rounded.ThumbDown
 import androidx.compose.material.icons.rounded.ThumbUp
 import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material3.*
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -164,6 +168,8 @@ fun DropHereScreen() {
     var businessAuthStatus by remember { mutableStateOf<String?>(null) }
     var showBusinessOnboarding by remember { mutableStateOf(false) }
     var businessGoogleSigningIn by remember { mutableStateOf(false) }
+    var showAccountMenu by remember { mutableStateOf(false) }
+    var signingOut by remember { mutableStateOf(false) }
     val defaultWebClientId = stringResource(R.string.default_web_client_id)
     val googleSignInClient = remember(defaultWebClientId, ctx) {
         GoogleSignIn.getClient(
@@ -370,6 +376,13 @@ fun DropHereScreen() {
         onDispose { auth.removeAuthStateListener(listener) }
     }
 
+    LaunchedEffect(currentUser) {
+        if (currentUser == null) {
+            showAccountMenu = false
+            signingOut = false
+        }
+    }
+
     val noteInventory = remember { NoteInventory(ctx) }
     var collectedNotes by remember { mutableStateOf(noteInventory.getCollectedNotes()) }
     var ignoredDropIds by remember { mutableStateOf(noteInventory.getIgnoredDropIds()) }
@@ -521,6 +534,43 @@ fun DropHereScreen() {
     var businessDashboardError by remember { mutableStateOf<String?>(null) }
     var businessDashboardRefreshToken by remember { mutableStateOf(0) }
     var selectedHomeDestination by rememberSaveable { mutableStateOf(HomeDestination.Explorer.name) }
+
+    fun handleSignOut() {
+        if (signingOut) return
+
+        showAccountMenu = false
+        signingOut = true
+        showBusinessDashboard = false
+        showBusinessOnboarding = false
+        showDropComposer = false
+        showMyDrops = false
+        showOtherDropsMap = false
+        showCollectedDrops = false
+        showManageGroups = false
+        showBusinessSignIn = false
+        status = null
+        signInError = null
+        businessAuthError = null
+        businessAuthStatus = null
+
+        scope.launch {
+            val result = runCatching {
+                runCatching { googleSignInClient.signOut() }
+                auth.signOut()
+            }
+
+            if (result.isSuccess) {
+                selectedHomeDestination = HomeDestination.Explorer.name
+                snackbar.showSnackbar("Signed out.")
+            } else {
+                val message = result.exceptionOrNull()?.localizedMessage?.takeIf { it.isNotBlank() }
+                    ?: "Couldn't sign out. Try again."
+                snackbar.showSnackbar(message)
+            }
+
+            signingOut = false
+        }
+    }
 
     var userProfile by remember { mutableStateOf<UserProfile?>(null) }
     var userProfileLoading by remember { mutableStateOf(false) }
@@ -1203,6 +1253,31 @@ fun DropHereScreen() {
                                 contentDescription = "Manage group codes"
                             )
                         }
+
+                        Box {
+                            IconButton(onClick = { showAccountMenu = !showAccountMenu }) {
+                                Icon(
+                                    imageVector = Icons.Rounded.AccountCircle,
+                                    contentDescription = "Account options"
+                                )
+                            }
+
+                            DropdownMenu(
+                                expanded = showAccountMenu,
+                                onDismissRequest = { showAccountMenu = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(if (signingOut) "Signing out…" else "Sign out")
+                                    },
+                                    leadingIcon = {
+                                        Icon(Icons.Rounded.Logout, contentDescription = null)
+                                    },
+                                    enabled = !signingOut,
+                                    onClick = { handleSignOut() }
+                                )
+                            }
+                        }
                     }
                 )
                 if (isBusinessUser) {
@@ -1270,7 +1345,8 @@ fun DropHereScreen() {
                 },
                 onUpdateBusinessProfile = { showBusinessOnboarding = true },
                 onViewMyDrops = { showMyDrops = true },
-                onManageGroups = { showManageGroups = true }
+                onManageGroups = { showManageGroups = true },
+                onSignOut = { handleSignOut() }
             )
         } else {
             LazyColumn(
@@ -1647,6 +1723,7 @@ private fun BusinessHomeScreen(
     onUpdateBusinessProfile: () -> Unit,
     onViewMyDrops: () -> Unit,
     onManageGroups: () -> Unit,
+    onSignOut: () -> Unit,
 ) {
     LazyColumn(
         modifier = modifier,
@@ -1707,6 +1784,17 @@ private fun BusinessHomeScreen(
                     onClick = onUpdateBusinessProfile
                 )
             }
+        }
+
+        item { SectionHeader(text = "Account") }
+
+        item {
+            ActionCard(
+                icon = Icons.Rounded.Logout,
+                title = "Sign out",
+                description = "Return to the explorer experience on this device.",
+                onClick = onSignOut
+            )
         }
 
         statusMessage?.let { message ->
