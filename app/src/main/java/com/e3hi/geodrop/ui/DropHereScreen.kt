@@ -202,6 +202,37 @@ fun DropHereScreen() {
         businessAuthMode = BusinessAuthMode.SIGN_IN
     }
 
+    fun startExplorerSignIn() {
+        if (signingIn || signingOut) return
+
+        signInError = null
+        signingIn = true
+
+        runCatching {
+            auth.signInAnonymously()
+                .addOnCompleteListener { task ->
+                    signingIn = false
+                    if (!task.isSuccessful) {
+                        val message = task.exception?.localizedMessage?.takeIf { it.isNotBlank() }
+                            ?: "Couldn't sign you in. Check your connection and try again."
+                        signInError = message
+                    }
+                }
+        }.onFailure { throwable ->
+            signingIn = false
+            val message = throwable.localizedMessage?.takeIf { it.isNotBlank() }
+                ?: "Couldn't sign you in. Check your connection and try again."
+            signInError = message
+        }
+    }
+
+    fun openBusinessAuthDialog(initialMode: BusinessAuthMode = BusinessAuthMode.SIGN_IN) {
+        if (businessAuthSubmitting || businessGoogleSigningIn) return
+        businessAuthMode = initialMode
+        resetBusinessAuthFields(clearEmail = true)
+        showBusinessSignIn = true
+    }
+
     fun performBusinessAuth() {
         if (businessAuthSubmitting || businessGoogleSigningIn) return
 
@@ -376,10 +407,20 @@ fun DropHereScreen() {
         onDispose { auth.removeAuthStateListener(listener) }
     }
 
-    LaunchedEffect(currentUser) {
+    LaunchedEffect(currentUser, businessAuthSubmitting, businessGoogleSigningIn, signingOut) {
         if (currentUser == null) {
             showAccountMenu = false
-            signingOut = false
+            if (!businessAuthSubmitting && !businessGoogleSigningIn) {
+                showBusinessSignIn = false
+                businessAuthMode = BusinessAuthMode.SIGN_IN
+                resetBusinessAuthFields(clearEmail = true)
+                if (!signingOut) {
+                    startExplorerSignIn()
+                }
+            }
+        } else {
+            signingIn = false
+            signInError = null
         }
     }
 
@@ -423,67 +464,10 @@ fun DropHereScreen() {
     }
 
     if (currentUser == null) {
-        if (showBusinessSignIn) {
-            BusinessSignInDialog(
-                mode = businessAuthMode,
-                onModeChange = { mode ->
-                    if (businessAuthSubmitting || businessGoogleSigningIn) return@BusinessSignInDialog
-                    businessAuthMode = mode
-                    businessAuthError = null
-                    businessAuthStatus = null
-                },
-                email = businessEmail,
-                onEmailChange = { businessEmail = it },
-                password = businessPassword,
-                onPasswordChange = { businessPassword = it },
-                confirmPassword = businessConfirmPassword,
-                onConfirmPasswordChange = { businessConfirmPassword = it },
-                isSubmitting = businessAuthSubmitting,
-                isGoogleSigningIn = businessGoogleSigningIn,
-                error = businessAuthError,
-                status = businessAuthStatus,
-                onSubmit = { performBusinessAuth() },
-                onDismiss = { dismissBusinessAuthDialog() },
-                onForgotPassword = { sendBusinessPasswordReset() },
-                onGoogleSignIn = { startBusinessGoogleSignIn() }
-            )
-        }
-        SignInRequiredScreen(
+        ExplorerAutoSignInScreen(
             isSigningIn = signingIn,
-            isBusinessAuthSubmitting = businessAuthSubmitting,
-            isBusinessGoogleSigningIn = businessGoogleSigningIn,
             error = signInError,
-            onSignInClick = {
-                if (signingIn) return@SignInRequiredScreen
-                signInError = null
-                signingIn = true
-                runCatching {
-                    auth.signInAnonymously()
-                        .addOnCompleteListener { task ->
-                            signingIn = false
-                            if (!task.isSuccessful) {
-                                val message = task.exception?.localizedMessage?.takeIf { it.isNotBlank() }
-                                    ?: "Couldn't sign you in. Check your connection and try again."
-                                signInError = message
-                            }
-                        }
-                }.onFailure { throwable ->
-                    signingIn = false
-                    val message = throwable.localizedMessage?.takeIf { it.isNotBlank() }
-                        ?: "Couldn't sign you in. Check your connection and try again."
-                    signInError = message
-                }
-            },
-            onBusinessSignInClick = {
-                if (signingIn || businessAuthSubmitting || businessGoogleSigningIn) return@SignInRequiredScreen
-                businessAuthMode = BusinessAuthMode.SIGN_IN
-                businessAuthError = null
-                businessAuthStatus = null
-                businessEmail = TextFieldValue("")
-                businessPassword = TextFieldValue("")
-                businessConfirmPassword = TextFieldValue("")
-                showBusinessSignIn = true
-            }
+            onRetry = { startExplorerSignIn() }
         )
         return
     }
@@ -1461,13 +1445,13 @@ fun DropHereScreen() {
                     item {
                         ActionCard(
                             icon = Icons.Rounded.Storefront,
-                            title = "Grow with GeoDrop",
-                            description = "Set up a business profile to share coupons or guided tours.",
+                            title = "Business tools",
+                            description = "Sign in or create a business account to share offers and guided tours.",
                             onClick = {
                                 if (FirebaseAuth.getInstance().currentUser == null) {
-                                    snackbar.showMessage(scope, "Sign in to unlock business tools.")
+                                    snackbar.showMessage(scope, "Signing you in… please try again shortly.")
                                 } else {
-                                    showBusinessOnboarding = true
+                                    openBusinessAuthDialog(BusinessAuthMode.SIGN_IN)
                                 }
                             }
                         )
@@ -1628,6 +1612,32 @@ fun DropHereScreen() {
         )
     }
 
+    if (showBusinessSignIn) {
+        BusinessSignInDialog(
+            mode = businessAuthMode,
+            onModeChange = { mode ->
+                if (businessAuthSubmitting || businessGoogleSigningIn) return@BusinessSignInDialog
+                businessAuthMode = mode
+                businessAuthError = null
+                businessAuthStatus = null
+            },
+            email = businessEmail,
+            onEmailChange = { businessEmail = it },
+            password = businessPassword,
+            onPasswordChange = { businessPassword = it },
+            confirmPassword = businessConfirmPassword,
+            onConfirmPasswordChange = { businessConfirmPassword = it },
+            isSubmitting = businessAuthSubmitting,
+            isGoogleSigningIn = businessGoogleSigningIn,
+            error = businessAuthError,
+            status = businessAuthStatus,
+            onSubmit = { performBusinessAuth() },
+            onDismiss = { dismissBusinessAuthDialog() },
+            onForgotPassword = { sendBusinessPasswordReset() },
+            onGoogleSignIn = { startBusinessGoogleSignIn() }
+        )
+    }
+
     if (showBusinessOnboarding) {
         var businessNameField by rememberSaveable(
             userProfile?.businessName,
@@ -1709,6 +1719,63 @@ fun DropHereScreen() {
                 snackbar.showMessage(scope, "Removed group $code")
             }
         )
+    }
+}
+
+@Composable
+private fun ExplorerAutoSignInScreen(
+    isSigningIn: Boolean,
+    error: String?,
+    onRetry: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(20.dp)
+        ) {
+            Text(
+                text = "Getting things ready",
+                style = MaterialTheme.typography.headlineSmall,
+                textAlign = TextAlign.Center
+            )
+            Text(
+                text = "We're signing you in as an explorer so you can start dropping right away.",
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.Center,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            error?.let { message ->
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error,
+                    textAlign = TextAlign.Center
+                )
+            }
+            Button(
+                onClick = onRetry,
+                enabled = !isSigningIn,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                if (isSigningIn) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text("Signing you in…")
+                } else {
+                    Text("Try again")
+                }
+            }
+        }
     }
 }
 
@@ -4294,168 +4361,6 @@ private fun ManageDropRow(
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun SignInRequiredScreen(
-    isSigningIn: Boolean,
-    isBusinessAuthSubmitting: Boolean,
-    isBusinessGoogleSigningIn: Boolean,
-    error: String?,
-    onSignInClick: () -> Unit,
-    onBusinessSignInClick: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .align(Alignment.Center)
-                .fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text(
-                text = "Sign in to continue",
-                style = MaterialTheme.typography.headlineSmall,
-                textAlign = TextAlign.Center
-            )
-            Spacer(Modifier.height(12.dp))
-            Text(
-                text = "Sign in to drop notes, photos, and audio. This keeps your uploads secure.",
-                style = MaterialTheme.typography.bodyMedium,
-                textAlign = TextAlign.Center,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text = "Business partners can sign in to manage offers and analytics.",
-                style = MaterialTheme.typography.bodySmall,
-                textAlign = TextAlign.Center,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            error?.let {
-                Spacer(Modifier.height(16.dp))
-                Text(
-                    text = it,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.error,
-                    textAlign = TextAlign.Center
-                )
-            }
-            Spacer(Modifier.height(24.dp))
-            Button(
-                onClick = onSignInClick,
-                enabled = !isSigningIn,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                if (isSigningIn) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        strokeWidth = 2.dp
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text("Signing in…")
-                } else {
-                    Text("Continue as explorer")
-                }
-            }
-            Spacer(Modifier.height(20.dp))
-            BusinessSignInSection(
-                enabled = !isSigningIn && !isBusinessAuthSubmitting && !isBusinessGoogleSigningIn,
-                onClick = onBusinessSignInClick
-            )
-        }
-    }
-}
-
-@Composable
-private fun BusinessSignInSection(
-    enabled: Boolean,
-    onClick: () -> Unit
-) {
-    ElevatedCard(
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(
-                    text = "For business partners",
-                    style = MaterialTheme.typography.titleMedium
-                )
-                Text(
-                    text = "Create offers, monitor engagement, and keep your brand present where it matters most.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                BusinessBenefitRow(
-                    icon = Icons.Rounded.Storefront,
-                    contentDescription = "Offer management",
-                    text = "Launch and update location-based offers in real time."
-                )
-                BusinessBenefitRow(
-                    icon = Icons.Rounded.Groups,
-                    contentDescription = "Audience insights",
-                    text = "See how explorers interact with your drops and redemptions."
-                )
-                BusinessBenefitRow(
-                    icon = Icons.Rounded.Inbox,
-                    contentDescription = "Customer follow-up",
-                    text = "Collect feedback and keep conversations going after a redemption."
-                )
-            }
-
-            FilledTonalButton(
-                onClick = onClick,
-                enabled = enabled,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Business account sign in")
-            }
-        }
-    }
-}
-
-@Composable
-private fun BusinessBenefitRow(
-    icon: ImageVector,
-    contentDescription: String,
-    text: String
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Surface(
-            modifier = Modifier.size(40.dp),
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.secondaryContainer,
-            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = contentDescription
-                )
-            }
-        }
-        Text(
-            text = text,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface
-        )
     }
 }
 
