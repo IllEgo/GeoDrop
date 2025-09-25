@@ -21,6 +21,7 @@ class MediaStorageRepo(
             DropContentType.TEXT -> Triple("other", "text/plain", "txt")
             DropContentType.PHOTO -> Triple("photos", "image/jpeg", "jpg")
             DropContentType.AUDIO -> Triple("audio", "audio/mpeg", "m4a")
+            DropContentType.VIDEO -> Triple("videos", "video/mp4", "mp4")
         }
 
         val resolvedMime = mimeType?.takeIf { it.isNotBlank() } ?: defaultMime

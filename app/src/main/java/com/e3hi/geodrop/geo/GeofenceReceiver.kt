@@ -104,6 +104,7 @@ class GeofenceReceiver : BroadcastReceiver() {
                     DropContentType.TEXT -> "Note nearby"
                     DropContentType.PHOTO -> "Photo drop nearby"
                     DropContentType.AUDIO -> "Audio drop nearby"
+                    DropContentType.VIDEO -> "Video drop nearby"
                 }
                 val pickupIntent = Intent(context, DropDecisionReceiver::class.java).apply {
                     action = DropDecisionReceiver.ACTION_PICK_UP
@@ -142,6 +143,7 @@ class GeofenceReceiver : BroadcastReceiver() {
                     DropContentType.TEXT -> "Pick up this note?"
                     DropContentType.PHOTO -> "Pick up this photo?"
                     DropContentType.AUDIO -> "Pick up this audio note?"
+                    DropContentType.VIDEO -> "Pick up this video?"
                 }
 
                 val notif = NotificationCompat.Builder(context, CHANNEL_NEARBY)

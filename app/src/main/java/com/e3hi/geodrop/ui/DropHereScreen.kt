@@ -12,6 +12,7 @@ import android.net.Uri
 import android.util.Base64
 import android.util.Log
 import android.util.Patterns
+import android.provider.MediaStore
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.BorderStroke
@@ -45,6 +46,7 @@ import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.material.icons.rounded.Place
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Public
+import androidx.compose.material.icons.rounded.Videocam
 import androidx.compose.material.icons.rounded.Storefront
 import androidx.compose.material.icons.rounded.Flag
 import androidx.compose.material.icons.rounded.Close
@@ -488,6 +490,7 @@ fun DropHereScreen() {
     var note by remember { mutableStateOf(TextFieldValue("")) }
     var capturedPhotoPath by rememberSaveable { mutableStateOf<String?>(null) }
     var capturedAudioUri by rememberSaveable { mutableStateOf<String?>(null) }
+    var capturedVideoUri by rememberSaveable { mutableStateOf<String?>(null) }
     var groupCodeInput by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
     var redemptionCodeInput by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
     var redemptionLimitInput by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
@@ -588,6 +591,10 @@ fun DropHereScreen() {
                 runCatching { ctx.contentResolver.delete(uri, null, null) }
             }
         }
+    }
+
+    fun clearVideo() {
+        capturedVideoUri = null
     }
 
     fun pickUpDrop(drop: Drop) {
@@ -759,14 +766,22 @@ fun DropHereScreen() {
             DropContentType.TEXT -> {
                 capturedPhotoPath = null
                 clearAudio()
+                clearVideo()
             }
 
             DropContentType.PHOTO -> {
                 clearAudio()
+                clearVideo()
             }
 
             DropContentType.AUDIO -> {
                 capturedPhotoPath = null
+                clearVideo()
+            }
+
+            DropContentType.VIDEO -> {
+                capturedPhotoPath = null
+                clearAudio()
             }
         }
     }
@@ -820,6 +835,17 @@ fun DropHereScreen() {
                 capturedAudioUri = uri.toString()
             } else {
                 snackbar.showMessage(scope, "Recording unavailable. Try again.")
+            }
+        }
+    }
+
+    val captureVideoLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val uri = result.data?.data
+            if (uri != null) {
+                capturedVideoUri = uri.toString()
+            } else {
+                snackbar.showMessage(scope, "Video unavailable. Try again.")
             }
         }
     }
@@ -882,6 +908,20 @@ fun DropHereScreen() {
         }
     }
 
+    fun ensureVideoAndLaunch() {
+        val permission = Manifest.permission.CAMERA
+        if (ContextCompat.checkSelfPermission(ctx, permission) == PackageManager.PERMISSION_GRANTED) {
+            val intent = Intent(MediaStore.ACTION_VIDEO_CAPTURE)
+            runCatching { captureVideoLauncher.launch(intent) }
+                .onFailure {
+                    snackbar.showMessage(scope, "Couldn't open the camera for video.")
+                }
+        } else {
+            pendingPermissionAction = { ensureVideoAndLaunch() }
+            cameraPermissionLauncher.launch(permission)
+        }
+    }
+
     fun uiDone(
         lat: Double,
         lng: Double,
@@ -893,6 +933,7 @@ fun DropHereScreen() {
         note = TextFieldValue("")
         capturedPhotoPath = null
         clearAudio()
+        clearVideo()
         showDropComposer = false
         if (dropType == DropType.RESTAURANT_COUPON) {
             redemptionCodeInput = TextFieldValue("")
@@ -906,6 +947,7 @@ fun DropHereScreen() {
                 DropContentType.TEXT -> "note"
                 DropContentType.PHOTO -> "photo drop"
                 DropContentType.AUDIO -> "audio drop"
+                DropContentType.VIDEO -> "video drop"
             }
         }
         status = if (groupCode != null) {
@@ -921,6 +963,7 @@ fun DropHereScreen() {
                 DropContentType.TEXT -> "Note dropped!"
                 DropContentType.PHOTO -> "Photo drop saved!"
                 DropContentType.AUDIO -> "Audio drop saved!"
+                DropContentType.VIDEO -> "Video drop saved!"
             }
         }
         scope.launch { snackbar.showSnackbar(snackbarMessage) }
@@ -947,7 +990,7 @@ fun DropHereScreen() {
         val sanitizedData = mediaData?.takeIf { it.isNotBlank() }
         val sanitizedText = when (contentType) {
             DropContentType.TEXT -> noteText.trim()
-            DropContentType.PHOTO, DropContentType.AUDIO -> noteText.trim()
+            DropContentType.PHOTO, DropContentType.AUDIO, DropContentType.VIDEO -> noteText.trim()
         }
         val d = Drop(
             text = sanitizedText,
@@ -1089,6 +1132,42 @@ fun DropHereScreen() {
                         mediaUrlResult = uploaded
                         mediaMimeTypeResult = mimeType
                         mediaDataResult = Base64.encodeToString(audioBytes, Base64.NO_WRAP)
+                    }
+
+                    DropContentType.VIDEO -> {
+                        val uriString = capturedVideoUri ?: run {
+                            isSubmitting = false
+                            snackbar.showMessage(scope, "Record a video before dropping.")
+                            return@launch
+                        }
+                        val uri = Uri.parse(uriString)
+
+                        val videoBytes = withContext(Dispatchers.IO) {
+                            try {
+                                ctx.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                            } catch (e: IOException) {
+                                null
+                            }
+                        } ?: run {
+                            isSubmitting = false
+                            snackbar.showMessage(
+                                scope,
+                                "Couldn't read the recorded video. Try again."
+                            )
+                            return@launch
+                        }
+
+                        val mimeType = ctx.contentResolver.getType(uri) ?: "video/mp4"
+
+                        val uploaded = mediaStorage.uploadMedia(
+                            DropContentType.VIDEO,
+                            videoBytes,
+                            mimeType
+                        )
+
+                        mediaUrlResult = uploaded
+                        mediaMimeTypeResult = mimeType
+                        mediaDataResult = null
                     }
                 }
 
@@ -1483,6 +1562,9 @@ fun DropHereScreen() {
             capturedAudioUri = capturedAudioUri,
             onRecordAudio = { ensureAudioAndLaunch() },
             onClearAudio = { clearAudio() },
+            capturedVideoUri = capturedVideoUri,
+            onRecordVideo = { ensureVideoAndLaunch() },
+            onClearVideo = { clearVideo() },
             dropVisibility = dropVisibility,
             onDropVisibilityChange = { dropVisibility = it },
             groupCodeInput = groupCodeInput,
@@ -2170,6 +2252,9 @@ private fun DropComposerDialog(
     capturedAudioUri: String?,
     onRecordAudio: () -> Unit,
     onClearAudio: () -> Unit,
+    capturedVideoUri: String?,
+    onRecordVideo: () -> Unit,
+    onClearVideo: () -> Unit,
     dropVisibility: DropVisibility,
     onDropVisibilityChange: (DropVisibility) -> Unit,
     groupCodeInput: TextFieldValue,
@@ -2265,12 +2350,13 @@ private fun DropComposerDialog(
 
                 val noteLabel = when (dropContentType) {
                     DropContentType.TEXT -> "Your note"
-                    DropContentType.PHOTO, DropContentType.AUDIO -> "Caption (optional)"
+                    DropContentType.PHOTO, DropContentType.AUDIO, DropContentType.VIDEO -> "Caption (optional)"
                 }
                 val noteSupporting = when (dropContentType) {
                     DropContentType.TEXT -> null
                     DropContentType.PHOTO -> "Add a short caption to go with your photo."
                     DropContentType.AUDIO -> "Add a short caption to go with your audio clip."
+                    DropContentType.VIDEO -> "Add a short caption to go with your video clip."
                 }
                 val noteMinLines = if (dropContentType == DropContentType.TEXT) 3 else 1
                 val supportingTextContent: (@Composable () -> Unit)? = noteSupporting?.let { helper ->
@@ -2388,6 +2474,69 @@ private fun DropComposerDialog(
                                 null
                             },
                             previewContent = audioPreview
+                        )
+                    }
+
+                    DropContentType.VIDEO -> {
+                        val hasVideo = capturedVideoUri != null
+                        val videoPreview: (@Composable () -> Unit)? = if (hasVideo) {
+                            {
+                                Surface(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.Start
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.PlayArrow,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                        Spacer(Modifier.width(12.dp))
+                                        Column {
+                                            Text(
+                                                text = "Video attached",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                            Text(
+                                                text = "Ready to drop your clip.",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            null
+                        }
+                        MediaCaptureCard(
+                            title = "Record video",
+                            description = "Capture a short clip to share at this location.",
+                            status = if (hasVideo) "Video ready to upload." else "No video recorded yet.",
+                            isReady = hasVideo,
+                            primaryLabel = if (hasVideo) "Record again" else "Record video",
+                            primaryIcon = Icons.Rounded.Videocam,
+                            onPrimary = {
+                                if (hasVideo) {
+                                    onClearVideo()
+                                }
+                                onRecordVideo()
+                            },
+                            secondaryLabel = if (hasVideo) "Remove video" else null,
+                            onSecondary = if (hasVideo) {
+                                { onClearVideo() }
+                            } else {
+                                null
+                            },
+                            previewContent = videoPreview
                         )
                     }
 
@@ -3296,6 +3445,7 @@ private fun CollectedDropsMap(
                     DropContentType.TEXT -> "Text note"
                     DropContentType.PHOTO -> "Photo drop"
                     DropContentType.AUDIO -> "Audio drop"
+                    DropContentType.VIDEO -> "Video drop"
                 }
                 val snippetParts = mutableListOf<String>()
                 snippetParts.add("Type: $typeLabel")
@@ -3310,6 +3460,7 @@ private fun CollectedDropsMap(
                         DropContentType.TEXT -> "Collected text drop"
                         DropContentType.PHOTO -> "Collected photo drop"
                         DropContentType.AUDIO -> "Collected audio drop"
+                        DropContentType.VIDEO -> "Collected video drop"
                     }
                 }
 
@@ -3372,6 +3523,7 @@ private fun CollectedNoteCard(
                 DropContentType.TEXT -> "Text note"
                 DropContentType.PHOTO -> "Photo drop"
                 DropContentType.AUDIO -> "Audio drop"
+                DropContentType.VIDEO -> "Video drop"
             }
             Text(
                 text = typeLabel,
@@ -3384,6 +3536,7 @@ private fun CollectedNoteCard(
                     DropContentType.TEXT -> "(No message)"
                     DropContentType.PHOTO -> "Photo drop"
                     DropContentType.AUDIO -> "Audio drop"
+                    DropContentType.VIDEO -> "Video drop"
                 }
             }
             Text(
@@ -3875,6 +4028,7 @@ private fun MyDropsMap(
                 DropContentType.TEXT -> "Text note"
                 DropContentType.PHOTO -> "Photo drop"
                 DropContentType.AUDIO -> "Audio drop"
+                DropContentType.VIDEO -> "Video drop"
             }
             snippetParts.add("Type: $typeLabel")
             formatTimestamp(drop.createdAt)?.let { snippetParts.add("Dropped $it") }
@@ -3958,6 +4112,7 @@ private fun OtherDropRow(
                 DropContentType.TEXT -> "Text note"
                 DropContentType.PHOTO -> "Photo drop"
                 DropContentType.AUDIO -> "Audio drop"
+                DropContentType.VIDEO -> "Video drop"
             }
             Text(
                 text = "Type: $typeLabel",
@@ -4257,6 +4412,7 @@ private fun ManageDropRow(
                 DropContentType.TEXT -> "Text note"
                 DropContentType.PHOTO -> "Photo drop"
                 DropContentType.AUDIO -> "Audio drop"
+                DropContentType.VIDEO -> "Video drop"
             }
             Text(
                 text = "Type: $typeLabel",
@@ -4383,6 +4539,12 @@ private fun DropContentTypeSection(
                 title = "Photo drop",
                 description = "Capture a photo with your camera that others can open.",
                 icon = Icons.Rounded.PhotoCamera
+            ),
+            DropContentTypeOption(
+                type = DropContentType.VIDEO,
+                title = "Video drop",
+                description = "Record a short clip for nearby explorers to watch.",
+                icon = Icons.Rounded.Videocam
             ),
             DropContentTypeOption(
                 type = DropContentType.AUDIO,

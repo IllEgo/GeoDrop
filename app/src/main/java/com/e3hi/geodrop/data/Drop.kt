@@ -73,7 +73,8 @@ enum class DropVoteType(val value: Int) {
 enum class DropContentType {
     TEXT,
     PHOTO,
-    AUDIO;
+    AUDIO,
+    VIDEO;
 
     companion object {
         fun fromRaw(value: String?): DropContentType {
@@ -90,6 +91,7 @@ fun Drop.displayTitle(): String = when (dropType) {
         DropContentType.TEXT -> text.ifBlank { "(No message)" }
         DropContentType.PHOTO -> text.ifBlank { "Photo drop" }
         DropContentType.AUDIO -> text.ifBlank { "Audio drop" }
+        DropContentType.VIDEO -> text.ifBlank { "Video drop" }
     }
 }
 
@@ -102,6 +104,7 @@ fun Drop.discoveryTitle(): String = when (dropType) {
         DropContentType.TEXT -> "Hidden note"
         DropContentType.PHOTO -> "Hidden photo drop"
         DropContentType.AUDIO -> "Hidden audio drop"
+        DropContentType.VIDEO -> "Hidden video drop"
     }
 }
 
@@ -112,6 +115,7 @@ fun Drop.discoveryDescription(): String = when (dropType) {
         DropContentType.TEXT -> "Collect this drop to read the message inside."
         DropContentType.PHOTO -> "Pick up this drop to reveal the photo."
         DropContentType.AUDIO -> "Collect this drop to listen to the recording."
+        DropContentType.VIDEO -> "Collect this drop to watch the clip."
     }
 }
 
