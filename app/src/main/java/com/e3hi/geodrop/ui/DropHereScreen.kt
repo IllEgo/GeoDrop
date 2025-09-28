@@ -4969,14 +4969,16 @@ private fun ManageDropRow(
 
                 Spacer(Modifier.height(4.dp))
 
-                val visibilityLabel = drop.groupCode?.takeIf { !it.isNullOrBlank() }
+                val visibilityLabel = drop.groupCode
+                    ?.takeIf { it.isNotBlank() }
                     ?.let { "Group-only · $it" }
                     ?: "Public drop"
-                    Text(
-                        text = visibilityLabel,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = supportingColor
-                    )
+
+                Text(
+                    text = visibilityLabel,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = supportingColor
+                )
 
                 Spacer(Modifier.height(4.dp))
 
