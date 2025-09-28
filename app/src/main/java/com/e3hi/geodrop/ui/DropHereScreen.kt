@@ -1379,13 +1379,6 @@ fun DropHereScreen() {
                 TopAppBar(
                     title = { Text("GeoDrop") },
                     actions = {
-                        IconButton(onClick = { showManageGroups = true }) {
-                            Icon(
-                                imageVector = Icons.Rounded.Groups,
-                                contentDescription = "Manage group codes"
-                            )
-                        }
-
                         Box {
                             IconButton(onClick = { showAccountMenu = !showAccountMenu }) {
                                 Icon(
@@ -1412,16 +1405,18 @@ fun DropHereScreen() {
                                         showNsfwDialog = true
                                     }
                                 )
-                                DropdownMenuItem(
-                                    text = {
-                                        Text(if (signingOut) "Signing out…" else "Sign out")
-                                    },
-                                    leadingIcon = {
-                                        Icon(Icons.Rounded.Logout, contentDescription = null)
-                                    },
-                                    enabled = !signingOut,
-                                    onClick = { handleSignOut() }
-                                )
+                                if (isBusinessUser) {
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(if (signingOut) "Signing out…" else "Sign out")
+                                        },
+                                        leadingIcon = {
+                                            Icon(Icons.Rounded.Logout, contentDescription = null)
+                                        },
+                                        enabled = !signingOut,
+                                        onClick = { handleSignOut() }
+                                    )
+                                }
                             }
                         }
                     }
