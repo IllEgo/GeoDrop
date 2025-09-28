@@ -115,7 +115,7 @@ class DropDecisionReceiver : BroadcastReceiver() {
         val inventory = NoteInventory(context)
         inventory.markIgnored(dropId)
         removeGeofence(context, dropId)
-        Log.d(TAG, "Ignored drops $dropId")
+        Log.d(TAG, "Ignored drop $dropId")
     }
 
     private suspend fun removeGeofence(context: Context, dropId: String) {
