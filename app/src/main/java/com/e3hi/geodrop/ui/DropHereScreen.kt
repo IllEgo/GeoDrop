@@ -15,6 +15,7 @@ import android.util.Patterns
 import android.provider.MediaStore
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
@@ -61,10 +62,11 @@ import androidx.compose.material3.*
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.DividerDefaults
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -3429,10 +3431,14 @@ private fun OtherDropsMapDialog(
 
                         else -> {
                             val listState = rememberLazyListState()
-                            val (mapWeight, listWeight) = rememberScrollAwareMapWeights(
+                            val mapWeights = rememberScrollAwareMapWeights(
                                 listState = listState,
                                 hasSelection = selectedId != null,
                                 animationLabel = "otherDropsMapWeight"
+                            )
+                            val otherDropsDividerThickness by animateDpAsState(
+                                targetValue = if (mapWeights.isCollapsed) 0.5.dp else DividerDefaults.Thickness,
+                                label = "otherDropsDividerThickness"
                             )
 
                             Column(
@@ -3450,7 +3456,7 @@ private fun OtherDropsMapDialog(
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .weight(mapWeight)
+                                        .weight(mapWeights.mapWeight)
                                 ) {
                                     OtherDropsMap(
                                         drops = drops,
@@ -3459,12 +3465,12 @@ private fun OtherDropsMapDialog(
                                     )
                                 }
 
-                                Divider()
+                                Divider(thickness = otherDropsDividerThickness)
 
                                 Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .weight(listWeight)
+                                        .weight(mapWeights.listWeight)
                                 ) {
                                     val isSignedIn = !currentUserId.isNullOrBlank()
                                     Text(
@@ -3919,10 +3925,14 @@ private fun MyDropsDialog(
 
                         else -> {
                             val listState = rememberLazyListState()
-                            val (mapWeight, listWeight) = rememberScrollAwareMapWeights(
+                            val mapWeights = rememberScrollAwareMapWeights(
                                 listState = listState,
                                 hasSelection = selectedId != null,
                                 animationLabel = "myDropsMapWeight"
+                            )
+                            val myDropsDividerThickness by animateDpAsState(
+                                targetValue = if (mapWeights.isCollapsed) 0.5.dp else DividerDefaults.Thickness,
+                                label = "myDropsDividerThickness"
                             )
 
                             Column(
@@ -3931,7 +3941,7 @@ private fun MyDropsDialog(
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .weight(mapWeight)
+                                        .weight(mapWeights.mapWeight)
                                 ) {
                                     MyDropsMap(
                                         drops = drops,
@@ -3940,12 +3950,12 @@ private fun MyDropsDialog(
                                     )
                                 }
 
-                                Divider()
+                                Divider(thickness = myDropsDividerThickness)
 
                                 Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .weight(listWeight)
+                                        .weight(mapWeights.listWeight)
                                 ) {
                                     Text(
                                         text = "Select a drop to focus on the map.",
@@ -4891,6 +4901,12 @@ private fun BusinessRedemptionSection(
     }
 }
 
+private data class ScrollAwareMapWeights(
+    val mapWeight: Float,
+    val listWeight: Float,
+    val isCollapsed: Boolean
+)
+
 @Composable
 private fun rememberScrollAwareMapWeights(
     listState: LazyListState,
@@ -4898,7 +4914,7 @@ private fun rememberScrollAwareMapWeights(
     expandedMapWeight: Float = 0.5f,
     collapsedMapWeight: Float = 0.2f,
     animationLabel: String = "mapWeight"
-): Pair<Float, Float> {
+): ScrollAwareMapWeights {
     var collapseFromScroll by remember { mutableStateOf(false) }
 
     LaunchedEffect(listState, hasSelection) {
@@ -4933,7 +4949,12 @@ private fun rememberScrollAwareMapWeights(
         label = animationLabel
     )
     val coercedMapWeight = animatedMapWeight.coerceIn(0f, 1f)
-    return coercedMapWeight to (1f - coercedMapWeight)
+    val isCollapsed = collapseFromScroll
+    return ScrollAwareMapWeights(
+        mapWeight = coercedMapWeight,
+        listWeight = 1f - coercedMapWeight,
+        isCollapsed = isCollapsed
+    )
 }
 
 @Composable
