@@ -32,6 +32,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.rounded.AccountCircle
+import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.Bookmark
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Edit
@@ -3415,11 +3416,22 @@ private fun BusinessDropAnalyticsCard(drop: Drop) {
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text(
-                text = drop.displayTitle(),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = drop.displayTitle(),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f)
+                )
+
+                if (drop.isNsfw) {
+                    DropNsfwBadge()
+                }
+            }
 
             Text(
                 text = when (drop.dropType) {
@@ -4255,6 +4267,37 @@ private fun MyDropsMap(
 }
 
 @Composable
+private fun DropNsfwBadge(
+    modifier: Modifier = Modifier,
+    containerColor: Color = MaterialTheme.colorScheme.errorContainer,
+    contentColor: Color = MaterialTheme.colorScheme.onErrorContainer
+) {
+    Surface(
+        modifier = modifier,
+        color = containerColor,
+        contentColor = contentColor,
+        shape = RoundedCornerShape(999.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Block,
+                contentDescription = "Adult content",
+                modifier = Modifier.size(16.dp)
+            )
+            Text(
+                text = "18+",
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+    }
+}
+
+@Composable
 private fun OtherDropRow(
     drop: Drop,
     isSelected: Boolean,
@@ -4295,11 +4338,22 @@ private fun OtherDropRow(
         )
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = drop.discoveryTitle(),
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.SemiBold
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = drop.discoveryTitle(),
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f)
+                )
+
+                if (drop.isNsfw) {
+                    DropNsfwBadge()
+                }
+            }
 
             Spacer(Modifier.height(4.dp))
 
@@ -4603,11 +4657,22 @@ private fun ManageDropRow(
         )
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = drop.displayTitle(),
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.SemiBold
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = drop.displayTitle(),
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f)
+                )
+
+                if (drop.isNsfw) {
+                    DropNsfwBadge()
+                }
+            }
 
             Spacer(Modifier.height(4.dp))
 
