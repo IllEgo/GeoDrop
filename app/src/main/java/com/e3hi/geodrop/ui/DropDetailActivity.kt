@@ -260,6 +260,7 @@ class DropDetailActivity : ComponentActivity() {
                         val sanitizedRedeemedMap = parseRedeemedMap(doc.get("redeemedBy"))
                         val resolvedNsfwFlag = when {
                             doc.contains("isNsfw") -> doc.getBoolean("isNsfw") == true
+                            doc.contains("nsfw") -> doc.getBoolean("nsfw") == true
                             previousLoaded != null -> previousLoaded.isNsfw
                             initialLoaded != null -> initialLoaded.isNsfw
                             else -> initialIsNsfw

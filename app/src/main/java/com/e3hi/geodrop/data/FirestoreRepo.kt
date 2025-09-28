@@ -147,8 +147,7 @@ class FirestoreRepo(
             .await()
 
         return snapshot.documents.mapNotNull { doc ->
-            val drop = doc.toObject(Drop::class.java)?.copy(id = doc.id)
-                ?: Drop(id = doc.id)
+            val drop = doc.toDrop()
 
             if (drop.isDeleted) null else drop
         }
@@ -164,8 +163,7 @@ class FirestoreRepo(
             .await()
 
         return snapshot.documents.mapNotNull { doc ->
-            val drop = doc.toObject(Drop::class.java)?.copy(id = doc.id)
-                ?: Drop(id = doc.id)
+            val drop = doc.toDrop()
 
             if (drop.isDeleted) null else drop
         }
@@ -186,8 +184,7 @@ class FirestoreRepo(
             .await()
 
         return snapshot.documents.mapNotNull { doc ->
-            val drop = doc.toObject(Drop::class.java)?.copy(id = doc.id)
-                ?: Drop(id = doc.id)
+            val drop = doc.toDrop()
 
             if (drop.isDeleted) return@mapNotNull null
 
@@ -399,6 +396,7 @@ class FirestoreRepo(
             "mediaMimeType" to sanitized.mediaMimeType,
             "mediaData" to sanitized.mediaData,
             "isNsfw" to sanitized.isNsfw,
+            "nsfw" to sanitized.isNsfw,
             "nsfwConfidence" to sanitized.nsfwConfidence,
             "nsfwLabels" to sanitized.nsfwLabels,
             "upvoteCount" to sanitized.upvoteCount,

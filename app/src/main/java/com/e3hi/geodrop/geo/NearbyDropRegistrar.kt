@@ -10,6 +10,7 @@ import android.os.Looper
 import android.util.Log
 import androidx.core.content.ContextCompat
 import com.e3hi.geodrop.data.Drop
+import com.e3hi.geodrop.data.toDrop
 import com.e3hi.geodrop.data.NoteInventory
 import com.e3hi.geodrop.util.GroupPreferences
 import com.google.android.gms.location.Geofence
@@ -121,7 +122,7 @@ class NearbyDropRegistrar {
                 val toAdd = mutableListOf<Geofence>()
 
                 for (doc in snapshot.documents) {
-                    val drop = doc.toObject(Drop::class.java) ?: continue
+                    val drop = doc.toDrop()
                     if (drop.isDeleted) continue
                     val id = doc.id
 
