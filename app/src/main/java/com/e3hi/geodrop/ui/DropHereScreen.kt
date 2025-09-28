@@ -2121,32 +2121,6 @@ private fun BusinessHeroCard(
                 )
             }
 
-            if (joinedGroups.isNotEmpty()) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        text = "Active group codes",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-
-                    Row(
-                        modifier = Modifier.horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        joinedGroups.forEach { code ->
-                            AssistChip(
-                                onClick = {},
-                                label = { Text(code) },
-                                colors = AssistChipDefaults.assistChipColors(
-                                    containerColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.12f),
-                                    labelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                            )
-                        }
-                    }
-                }
-            }
-
             Button(
                 onClick = onCreateDrop,
                 modifier = Modifier.fillMaxWidth(),
@@ -2203,46 +2177,6 @@ private fun HeroCard(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
             )
-
-            if (joinedGroups.isEmpty()) {
-                Text(
-                    text = "Add a group code to share privately with teammates, friends, or events.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
-                )
-            } else {
-                Text(
-                    text = "Active group codes",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-
-                Row(
-                    modifier = Modifier.horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    joinedGroups.forEach { code ->
-                        AssistChip(
-                            onClick = {},
-                            label = { Text(code) },
-                            colors = AssistChipDefaults.assistChipColors(
-                                containerColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.12f),
-                                labelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                        )
-                    }
-                }
-            }
-
-            OutlinedButton(
-                onClick = onManageGroups,
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                ),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.5f))
-            ) {
-                Text("Manage group codes")
-            }
         }
     }
 }
