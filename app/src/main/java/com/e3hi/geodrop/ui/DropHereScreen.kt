@@ -54,7 +54,6 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.ThumbDown
 import androidx.compose.material.icons.rounded.ThumbUp
-import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material3.*
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -114,7 +113,6 @@ import com.e3hi.geodrop.data.voteScore
 import com.e3hi.geodrop.data.isBusiness
 import com.e3hi.geodrop.geo.DropDecisionReceiver
 import com.e3hi.geodrop.geo.NearbyDropRegistrar
-import com.e3hi.geodrop.geo.NearbyDropRegistrar.NearbySyncStatus
 import com.e3hi.geodrop.util.GroupPreferences
 import com.e3hi.geodrop.util.formatTimestamp
 import com.e3hi.geodrop.util.DropBlockedBySafetyException
@@ -1508,49 +1506,6 @@ fun DropHereScreen() {
 
                 item {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        ActionCard(
-                            icon = Icons.Rounded.Sync,
-                            title = "Sync nearby drops",
-                            description = "Refresh geofences and check for new surprises nearby.",
-                            onClick = {
-                                registrar.registerNearby(
-                                    ctx,
-                                    maxMeters = 300.0,
-                                    groupCodes = joinedGroups.toSet()
-                                ) { statusResult ->
-                                    when (statusResult) {
-                                        is NearbySyncStatus.Success -> {
-                                            val msg = if (statusResult.count > 0) {
-                                                val base = "Found ${statusResult.count} drop" +
-                                                        if (statusResult.count == 1) " nearby from another user." else "s nearby from other users."
-                                                "$base You'll be notified when you're close."
-                                            } else {
-                                                "No nearby drops from other users right now."
-                                            }
-
-                                            status = msg
-                                            snackbar.showMessage(scope, msg)
-                                        }
-                                        NearbySyncStatus.MissingPermission -> {
-                                            val msg = "Location permission is required to sync nearby drops."
-                                            status = msg
-                                            snackbar.showMessage(scope, msg)
-                                        }
-                                        NearbySyncStatus.NoLocation -> {
-                                            val msg = "Couldn't get your current location. Turn on GPS and try again."
-                                            status = msg
-                                            snackbar.showMessage(scope, msg)
-                                        }
-                                        is NearbySyncStatus.Error -> {
-                                            val msg = statusResult.message
-                                            status = msg
-                                            snackbar.showMessage(scope, msg)
-                                        }
-                                    }
-                                }
-                            }
-                        )
-
                         ActionCard(
                             icon = Icons.Rounded.Map,
                             title = "Browse map",
