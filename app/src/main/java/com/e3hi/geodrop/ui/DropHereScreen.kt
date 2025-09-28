@@ -40,6 +40,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.Bookmark
@@ -90,6 +92,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -2783,12 +2786,7 @@ private fun CollectedDropsDialog(
                     var highlightedId by rememberSaveable { mutableStateOf<String?>(null) }
 
                     LaunchedEffect(notes) {
-                        if (notes.isEmpty()) {
-                            highlightedId = null
-                        } else if (highlightedId == null || notes.none { it.id == highlightedId }) {
-                            highlightedId = notes.firstOrNull { it.lat != null && it.lng != null }?.id
-                                ?: notes.firstOrNull()?.id
-                        }
+                        highlightedId = highlightedId?.takeIf { id -> notes.any { it.id == id } }
                     }
 
                     val highlightedNote = notes.firstOrNull { it.id == highlightedId }
@@ -2894,7 +2892,6 @@ private fun CollectedDropsDialog(
                                 thickness = collectedDropsDividerThickness
                             )
                         }
-                        Divider()
 
                         Column(
                             modifier = Modifier
@@ -2919,10 +2916,14 @@ private fun CollectedDropsDialog(
                                 verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
                                 items(notes, key = { it.id }) { note ->
+                                    val isHighlighted = note.id == highlightedId
                                     CollectedNoteCard(
                                         note = note,
-                                        selected = note.id == highlightedId,
-                                        onSelect = { highlightedId = note.id },
+                                        selected = isHighlighted,
+                                        expanded = isHighlighted,
+                                        onSelect = {
+                                            highlightedId = if (isHighlighted) null else note.id
+                                        },
                                         onView = {
                                             highlightedId = note.id
                                             onView(note)
@@ -3751,6 +3752,7 @@ private fun CollectedDropsMap(
 private fun CollectedNoteCard(
     note: CollectedNote,
     selected: Boolean,
+    expanded: Boolean,
     onSelect: () -> Unit,
     onView: () -> Unit,
     onRemove: () -> Unit
@@ -3782,7 +3784,7 @@ private fun CollectedNoteCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             val typeLabel = when (note.contentType) {
                 DropContentType.TEXT -> "Text note"
@@ -3792,7 +3794,6 @@ private fun CollectedNoteCard(
             }
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
@@ -3804,7 +3805,17 @@ private fun CollectedNoteCard(
 
                 if (note.isNsfw) {
                     DropNsfwBadge()
+                    Spacer(modifier = Modifier.width(8.dp))
                 }
+
+                Icon(
+                    imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                    contentDescription = if (expanded) {
+                        "Collapse drop details"
+                    } else {
+                        "Expand drop details"
+                    }
+                )
             }
 
             val preview = note.text.ifBlank {
@@ -3817,76 +3828,82 @@ private fun CollectedNoteCard(
             }
             Text(
                 text = preview,
-                style = MaterialTheme.typography.bodyLarge
+                style = MaterialTheme.typography.bodyLarge,
+                maxLines = if (expanded) Int.MAX_VALUE else 2,
+                overflow = TextOverflow.Ellipsis
             )
 
-            val mediaUrl = note.mediaUrl?.takeIf { it.isNotBlank() }
-            if (note.contentType == DropContentType.PHOTO && mediaUrl != null) {
-                val context = LocalContext.current
-                val imageRequest = remember(mediaUrl) {
-                    ImageRequest.Builder(context)
-                        .data(mediaUrl)
-                        .crossfade(true)
-                        .build()
-                }
+            AnimatedVisibility(visible = expanded) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    val mediaUrl = note.mediaUrl?.takeIf { it.isNotBlank() }
+                    if (note.contentType == DropContentType.PHOTO && mediaUrl != null) {
+                        val context = LocalContext.current
+                        val imageRequest = remember(mediaUrl) {
+                            ImageRequest.Builder(context)
+                                .data(mediaUrl)
+                                .crossfade(true)
+                                .build()
+                        }
 
-                AsyncImage(
-                    model = imageRequest,
-                    contentDescription = note.text.ifBlank { "Photo drop" },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 160.dp, max = 280.dp)
-                        .clip(RoundedCornerShape(12.dp)),
-                    contentScale = ContentScale.Crop
-                )
-            }
+                        AsyncImage(
+                            model = imageRequest,
+                            contentDescription = note.text.ifBlank { "Photo drop" },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 160.dp, max = 280.dp)
+                                .clip(RoundedCornerShape(12.dp)),
+                            contentScale = ContentScale.Crop
+                        )
+                    }
 
-            Text(
-                text = "Collected: ${formatTimestamp(note.collectedAt)}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = supportingColor
-            )
+                    Text(
+                        text = "Collected: ${formatTimestamp(note.collectedAt)}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = supportingColor
+                    )
 
-            note.dropCreatedAt?.let {
-                Text(
-                    text = "Dropped: ${formatTimestamp(it)}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = supportingColor
-                )
-            }
+                    note.dropCreatedAt?.let {
+                        Text(
+                            text = "Dropped: ${formatTimestamp(it)}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = supportingColor
+                        )
+                    }
 
-            note.groupCode?.let { group ->
-                Text(
-                    text = "Group: $group",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = supportingColor
-                )
-            }
+                    note.groupCode?.let { group ->
+                        Text(
+                            text = "Group: $group",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = supportingColor
+                        )
+                    }
 
-            if (note.lat != null && note.lng != null) {
-                Text(
-                    text = "Location: ${formatCoordinate(note.lat)}, ${formatCoordinate(note.lng)}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = supportingColor
-                )
-            } else {
-                Text(
-                    text = "Location: Unknown",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = supportingColor
-                )
-            }
+                    if (note.lat != null && note.lng != null) {
+                        Text(
+                            text = "Location: ${formatCoordinate(note.lat)}, ${formatCoordinate(note.lng)}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = supportingColor
+                        )
+                    } else {
+                        Text(
+                            text = "Location: Unknown",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = supportingColor
+                        )
+                    }
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                TextButton(onClick = onView) {
-                    Text("View details")
-                }
-                IconButton(onClick = onRemove) {
-                    Icon(Icons.Filled.Delete, contentDescription = "Remove from inventory")
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextButton(onClick = onView) {
+                            Text("View details")
+                        }
+                        IconButton(onClick = onRemove) {
+                            Icon(Icons.Filled.Delete, contentDescription = "Remove from inventory")
+                        }
+                    }
                 }
             }
         }
