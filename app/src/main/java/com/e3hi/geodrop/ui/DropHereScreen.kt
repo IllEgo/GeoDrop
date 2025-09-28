@@ -58,6 +58,7 @@ import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.material.icons.rounded.Place
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Public
+import androidx.compose.material.icons.rounded.DragHandle
 import androidx.compose.material.icons.rounded.Videocam
 import androidx.compose.material.icons.rounded.Storefront
 import androidx.compose.material.icons.rounded.Flag
@@ -2947,6 +2948,10 @@ private fun CollectedDropsDialog(
                                 modifier = Modifier.align(Alignment.Center),
                                 thickness = collectedDropsDividerThickness
                             )
+                            DividerDragHandleHint(
+                                modifier = Modifier.align(Alignment.Center),
+                                text = stringResource(R.string.drag_to_resize)
+                            )
                         }
 
                         Column(
@@ -3667,6 +3672,10 @@ private fun OtherDropsMapDialog(
                                         modifier = Modifier.align(Alignment.Center),
                                         thickness = otherDropsDividerThickness
                                     )
+                                    DividerDragHandleHint(
+                                        modifier = Modifier.align(Alignment.Center),
+                                        text = stringResource(R.string.drag_to_resize)
+                                    )
                                 }
 
                                 Column(
@@ -4228,6 +4237,10 @@ private fun MyDropsDialog(
                                         modifier = Modifier.align(Alignment.Center),
                                         thickness = myDropsDividerThickness
                                     )
+                                    DividerDragHandleHint(
+                                        modifier = Modifier.align(Alignment.Center),
+                                        text = stringResource(R.string.drag_to_resize)
+                                    )
                                 }
 
                                 Column(
@@ -4269,6 +4282,39 @@ private fun MyDropsDialog(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun DividerDragHandleHint(
+    modifier: Modifier = Modifier,
+    text: String
+) {
+    Surface(
+        modifier = modifier,
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.surfaceColorAtElevation(6.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)),
+        tonalElevation = 2.dp,
+        shadowElevation = 0.dp
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.DragHandle,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontWeight = FontWeight.SemiBold
+            )
         }
     }
 }
