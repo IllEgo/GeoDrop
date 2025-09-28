@@ -3740,11 +3740,22 @@ private fun CollectedNoteCard(
                 DropContentType.AUDIO -> "Audio drop"
                 DropContentType.VIDEO -> "Video drop"
             }
-            Text(
-                text = typeLabel,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = typeLabel,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f)
+                )
+
+                if (note.isNsfw) {
+                    DropNsfwBadge()
+                }
+            }
 
             val preview = note.text.ifBlank {
                 when (note.contentType) {
