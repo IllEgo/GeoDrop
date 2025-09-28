@@ -4870,7 +4870,7 @@ private fun ManageDropRow(
                     } else {
                         "Expand drop details"
                     }
-            }
+                )
             }
 
         AnimatedVisibility(visible = isSelected) {
