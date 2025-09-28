@@ -1387,7 +1387,14 @@ fun DropHereScreen() {
     }
 
 
-    val collectedCount = collectedNotes.size
+    val canViewNsfw = userProfile?.canViewNsfw() == true
+    val visibleCollectedNotes = if (canViewNsfw) {
+        collectedNotes
+    } else {
+        collectedNotes.filterNot { note -> note.isNsfw || note.nsfwLabels.isNotEmpty() }
+    }
+    val hiddenNsfwCollectedCount = collectedNotes.size - visibleCollectedNotes.size
+    val collectedCount = visibleCollectedNotes.size
     val isBusinessUser = userProfile?.isBusiness() == true
     val currentHomeDestination = runCatching { HomeDestination.valueOf(selectedHomeDestination) }
         .getOrDefault(HomeDestination.Explorer)
@@ -1557,10 +1564,21 @@ fun DropHereScreen() {
                         ActionCard(
                             icon = Icons.Rounded.Bookmark,
                             title = "Collected drops",
-                            description = if (collectedCount == 0) {
-                                "Open the drops you've saved for later."
-                            } else {
-                                "Open the $collectedCount drop" + if (collectedCount == 1) " you've saved." else "s you've saved."
+                            description = when {
+                                collectedCount == 0 && hiddenNsfwCollectedCount > 0 -> {
+                                    val plural = if (hiddenNsfwCollectedCount == 1) "drop" else "drops"
+                                    "Your NSFW settings are hiding $hiddenNsfwCollectedCount collected $plural."
+                                }
+                                collectedCount == 0 -> {
+                                    "Open the drops you've saved for later."
+                                }
+                                hiddenNsfwCollectedCount > 0 -> {
+                                    val plural = if (collectedCount == 1) "drop" else "drops"
+                                    "Open the $collectedCount $plural you've saved. ($hiddenNsfwCollectedCount hidden by NSFW settings.)"
+                                }
+                                else -> {
+                                    "Open the $collectedCount drop" + if (collectedCount == 1) " you've saved." else "s you've saved."
+                                }
                             },
                             onClick = {
                                 collectedNotes = noteInventory.getCollectedNotes()
@@ -1734,7 +1752,8 @@ fun DropHereScreen() {
 
     if (showCollectedDrops) {
         CollectedDropsDialog(
-            notes = collectedNotes,
+            notes = visibleCollectedNotes,
+            hiddenNsfwCount = hiddenNsfwCollectedCount,
             onDismiss = { showCollectedDrops = false },
             onView = { note ->
                 val intent = Intent(ctx, DropDetailActivity::class.java).apply {
@@ -2753,6 +2772,7 @@ private fun formatCoordinate(value: Double): String {
 @Composable
 private fun CollectedDropsDialog(
     notes: List<CollectedNote>,
+    hiddenNsfwCount: Int,
     onDismiss: () -> Unit,
     onView: (CollectedNote) -> Unit,
     onRemove: (CollectedNote) -> Unit
@@ -2782,13 +2802,19 @@ private fun CollectedDropsDialog(
                 }
             ) { padding ->
                 if (notes.isEmpty()) {
+                    val message = if (hiddenNsfwCount > 0) {
+                        val plural = if (hiddenNsfwCount == 1) "drop" else "drops"
+                        "Your NSFW settings are hiding $hiddenNsfwCount collected $plural."
+                    } else {
+                        "You haven't collected any drops yet."
+                    }
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(padding)
                     ) {
                         DialogMessageContent(
-                            message = "You haven't collected any drops yet.",
+                            message = message,
                             primaryLabel = null,
                             onPrimary = null,
                             onDismiss = onDismiss
@@ -2873,6 +2899,24 @@ private fun CollectedDropsDialog(
                             .padding(padding)
                             .onSizeChanged { containerHeight = it.height }
                     ) {
+                        if (hiddenNsfwCount > 0) {
+                            val plural = if (hiddenNsfwCount == 1) "drop" else "drops"
+                            Surface(
+                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                tonalElevation = 2.dp,
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                            ) {
+                                Text(
+                                    text = "Your NSFW settings are hiding $hiddenNsfwCount collected $plural.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                                )
+                            }
+                        }
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
