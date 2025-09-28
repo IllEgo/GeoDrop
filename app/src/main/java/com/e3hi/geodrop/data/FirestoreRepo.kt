@@ -66,6 +66,8 @@ class FirestoreRepo(
         }
         val existingBusinessName = snapshot.getString("businessName")?.takeIf { it.isNotBlank() }
         val storedDisplayName = snapshot.getString("displayName")?.takeIf { it.isNotBlank() }
+        val storedNsfwEnabled = snapshot.getBoolean("nsfwEnabled") == true
+        val storedNsfwEnabledAt = snapshot.getLong("nsfwEnabledAt")?.takeIf { it > 0L }
         val resolvedDisplayName = storedDisplayName ?: displayName?.takeIf { it.isNotBlank() }
 
         val updates = hashMapOf<String, Any?>()
@@ -73,12 +75,20 @@ class FirestoreRepo(
             updates["role"] = existingRole.name
             updates["businessName"] = existingBusinessName
             updates["displayName"] = resolvedDisplayName
+            updates["nsfwEnabled"] = storedNsfwEnabled
+            updates["nsfwEnabledAt"] = storedNsfwEnabledAt
         } else {
             if (snapshot.getString("role").isNullOrBlank()) {
                 updates["role"] = existingRole.name
             }
             if (resolvedDisplayName != null && resolvedDisplayName != storedDisplayName) {
                 updates["displayName"] = resolvedDisplayName
+            }
+            if (!snapshot.contains("nsfwEnabled")) {
+                updates["nsfwEnabled"] = storedNsfwEnabled
+            }
+            if (!snapshot.contains("nsfwEnabledAt")) {
+                updates["nsfwEnabledAt"] = storedNsfwEnabledAt
             }
         }
 
@@ -90,8 +100,25 @@ class FirestoreRepo(
             id = userId,
             displayName = resolvedDisplayName,
             role = existingRole,
-            businessName = existingBusinessName
+            businessName = existingBusinessName,
+            nsfwEnabled = storedNsfwEnabled,
+            nsfwEnabledAt = storedNsfwEnabledAt
         )
+    }
+
+    suspend fun updateNsfwPreference(userId: String, enabled: Boolean): UserProfile {
+        val profile = ensureUserProfile(userId)
+        if (userId.isBlank()) return profile
+
+        val timestamp = if (enabled) System.currentTimeMillis() else null
+        val updates = hashMapOf<String, Any?>(
+            "nsfwEnabled" to enabled,
+            "nsfwEnabledAt" to timestamp
+        )
+
+        users.document(userId).set(updates, SetOptions.merge()).await()
+
+        return profile.copy(nsfwEnabled = enabled, nsfwEnabledAt = timestamp)
     }
 
     suspend fun updateBusinessProfile(userId: String, businessName: String): UserProfile {
@@ -146,7 +173,8 @@ class FirestoreRepo(
 
     suspend fun getVisibleDropsForUser(
         userId: String?,
-        allowedGroups: Set<String>
+        allowedGroups: Set<String>,
+        allowNsfw: Boolean
     ): List<Drop> {
         val normalizedGroups = allowedGroups
             .mapNotNull { GroupPreferences.normalizeGroupCode(it) }
@@ -164,6 +192,7 @@ class FirestoreRepo(
             if (drop.isDeleted) return@mapNotNull null
 
             if (!drop.isVisibleTo(userId, normalizedGroups)) return@mapNotNull null
+            if (drop.isNsfw && !allowNsfw && drop.createdBy != userId) return@mapNotNull null
 
             drop
         }
@@ -344,6 +373,7 @@ class FirestoreRepo(
             mediaUrl = withTimestamp.mediaUrl?.trim()?.takeIf { it.isNotEmpty() },
             mediaMimeType = withTimestamp.mediaMimeType?.trim()?.takeIf { it.isNotEmpty() },
             mediaData = withTimestamp.mediaData?.trim()?.takeIf { it.isNotEmpty() },
+            nsfwLabels = withTimestamp.nsfwLabels.mapNotNull { it.trim().takeIf { label -> label.isNotEmpty() } },
             businessId = withTimestamp.businessId?.takeIf { it.isNotBlank() },
             businessName = withTimestamp.businessName?.trim()?.takeIf { it.isNotEmpty() },
             redemptionCode = withTimestamp.redemptionCode?.trim()?.takeIf { it.isNotEmpty() },
@@ -368,6 +398,9 @@ class FirestoreRepo(
             "mediaUrl" to sanitized.mediaUrl,
             "mediaMimeType" to sanitized.mediaMimeType,
             "mediaData" to sanitized.mediaData,
+            "isNsfw" to sanitized.isNsfw,
+            "nsfwConfidence" to sanitized.nsfwConfidence,
+            "nsfwLabels" to sanitized.nsfwLabels,
             "upvoteCount" to sanitized.upvoteCount,
             "downvoteCount" to sanitized.downvoteCount,
             "voteMap" to sanitized.voteMap,

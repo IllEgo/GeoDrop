@@ -4,7 +4,9 @@ data class UserProfile(
     val id: String = "",
     val displayName: String? = null,
     val role: UserRole = UserRole.EXPLORER,
-    val businessName: String? = null
+    val businessName: String? = null,
+    val nsfwEnabled: Boolean = false,
+    val nsfwEnabledAt: Long? = null
 )
 
 enum class UserRole {
@@ -20,3 +22,5 @@ enum class UserRole {
 }
 
 fun UserProfile.isBusiness(): Boolean = role == UserRole.BUSINESS
+
+fun UserProfile.canViewNsfw(): Boolean = nsfwEnabled

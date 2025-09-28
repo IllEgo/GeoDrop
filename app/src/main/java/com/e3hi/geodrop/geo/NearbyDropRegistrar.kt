@@ -21,6 +21,10 @@ import com.google.android.gms.tasks.CancellationTokenSource
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import kotlin.math.asin
 import kotlin.math.cos
 import kotlin.math.min
@@ -102,30 +106,37 @@ class NearbyDropRegistrar {
         val me = FirebaseAuth.getInstance().currentUser?.uid
         val allowedGroups = groupCodes.mapNotNull { GroupPreferences.normalizeGroupCode(it) }.toSet()
 
-        db.collection("drops")
-            .get()
-            .addOnSuccessListener { snap ->
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val allowNsfw = if (me.isNullOrBlank()) {
+                    false
+                } else {
+                    runCatching {
+                        db.collection("users").document(me).get().await().getBoolean("nsfwEnabled") == true
+                    }.getOrElse { false }
+                }
+
+                val snapshot = db.collection("drops").get().await()
                 val pendingIntent = GeofencePendingIntent.get(context)
                 val toAdd = mutableListOf<Geofence>()
 
-                for (doc in snap.documents) {
+                for (doc in snapshot.documents) {
                     val drop = doc.toObject(Drop::class.java) ?: continue
                     if (drop.isDeleted) continue
                     val id = doc.id
 
                     if (inventory.isCollected(id) || inventory.isIgnored(id)) continue
-
-                    // ignore my own drops — only notify for "other users"
                     if (drop.createdBy == me) continue
 
                     val dropGroup = GroupPreferences.normalizeGroupCode(drop.groupCode)
                     if (dropGroup != null && dropGroup !in allowedGroups) continue
+                    if (drop.isNsfw && !allowNsfw) continue
 
-                    val d = distanceMeters(originLat, originLng, drop.lat, drop.lng)
-                    if (d <= maxMeters) {
+                    val distance = distanceMeters(originLat, originLng, drop.lat, drop.lng)
+                    if (distance <= maxMeters) {
                         toAdd += Geofence.Builder()
                             .setRequestId(id)
-                            .setCircularRegion(drop.lat, drop.lng, /* 10 m radius */ 10f)
+                            .setCircularRegion(drop.lat, drop.lng, 10f)
                             .setTransitionTypes(Geofence.GEOFENCE_TRANSITION_ENTER)
                             .setExpirationDuration(Geofence.NEVER_EXPIRE)
                             .build()
@@ -135,39 +146,38 @@ class NearbyDropRegistrar {
                 if (toAdd.isEmpty()) {
                     Log.d(TAG, "No nearby foreign drops within ${maxMeters.toInt()} m to register.")
                     notifyStatus(onStatus, NearbySyncStatus.Success(0))
-                    return@addOnSuccessListener
+                    return@launch
                 }
 
-                val req = GeofencingRequest.Builder()
+                val request = GeofencingRequest.Builder()
                     .setInitialTrigger(GeofencingRequest.INITIAL_TRIGGER_ENTER)
                     .addGeofences(toAdd)
                     .build()
 
-                geos.addGeofences(req, pendingIntent)
-                    .addOnSuccessListener {
-                        Log.d(TAG, "Geofences added: ${toAdd.size}")
-                        notifyStatus(onStatus, NearbySyncStatus.Success(toAdd.size))
-                    }
-                    .addOnFailureListener { e ->
-                        Log.e(TAG, "addGeofences FAILED", e)
-                        logPerms(context)
-                        notifyStatus(
-                            onStatus,
-                            NearbySyncStatus.Error(
-                                "Couldn't register nearby drops: ${e.localizedMessage ?: "unknown error"}"
-                            )
+                try {
+                    geos.addGeofences(request, pendingIntent).await()
+                    Log.d(TAG, "Geofences added: ${toAdd.size}")
+                    notifyStatus(onStatus, NearbySyncStatus.Success(toAdd.size))
+                } catch (error: Exception) {
+                    Log.e(TAG, "addGeofences FAILED", error)
+                    logPerms(context)
+                    notifyStatus(
+                        onStatus,
+                        NearbySyncStatus.Error(
+                            "Couldn't register nearby drops: ${error.localizedMessage ?: "unknown error"}"
                         )
-                    }
-            }
-            .addOnFailureListener { e ->
-                Log.e(TAG, "Query drops FAILED", e)
+                    )
+                }
+            } catch (error: Exception) {
+                Log.e(TAG, "Query drops FAILED", error)
                 notifyStatus(
                     onStatus,
                     NearbySyncStatus.Error(
-                        "Couldn't check for nearby drops: ${e.localizedMessage ?: "unknown error"}"
+                        "Couldn't check for nearby drops: ${error.localizedMessage ?: "unknown error"}"
                     )
                 )
             }
+        }
     }
 
     // ---------- helpers ----------

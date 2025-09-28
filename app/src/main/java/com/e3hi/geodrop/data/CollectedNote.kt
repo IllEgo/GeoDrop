@@ -1,5 +1,6 @@
 package com.e3hi.geodrop.data
 
+import org.json.JSONArray
 import org.json.JSONObject
 
 /**
@@ -23,7 +24,10 @@ data class CollectedNote(
     val redemptionCount: Int = 0,
     val isRedeemed: Boolean = false,
     val redeemedAt: Long? = null,
-    val collectedAt: Long
+    val collectedAt: Long,
+    val isNsfw: Boolean = false,
+    val nsfwLabels: List<String> = emptyList(),
+    val nsfwConfidence: Double? = null
 ) {
     fun toJson(): JSONObject {
         return JSONObject().apply {
@@ -45,6 +49,9 @@ data class CollectedNote(
             put(KEY_IS_REDEEMED, isRedeemed)
             putOpt(KEY_REDEEMED_AT, redeemedAt)
             put(KEY_COLLECTED_AT, collectedAt)
+            put(KEY_IS_NSFW, isNsfw)
+            putOpt(KEY_NSFW_CONFIDENCE, nsfwConfidence)
+            put(KEY_NSFW_LABELS, JSONArray().apply { nsfwLabels.forEach { put(it) } })
         }
     }
 
@@ -67,6 +74,9 @@ data class CollectedNote(
         private const val KEY_IS_REDEEMED = "isRedeemed"
         private const val KEY_REDEEMED_AT = "redeemedAt"
         private const val KEY_COLLECTED_AT = "collectedAt"
+        private const val KEY_IS_NSFW = "isNsfw"
+        private const val KEY_NSFW_LABELS = "nsfwLabels"
+        private const val KEY_NSFW_CONFIDENCE = "nsfwConfidence"
 
         fun fromJson(json: JSONObject): CollectedNote {
             val id = json.optString(KEY_ID)
@@ -87,6 +97,18 @@ data class CollectedNote(
             val isRedeemed = json.optBoolean(KEY_IS_REDEEMED)
             val redeemedAt = json.optLong(KEY_REDEEMED_AT).takeIf { json.has(KEY_REDEEMED_AT) }
             val collectedAt = json.optLong(KEY_COLLECTED_AT)
+            val isNsfw = json.optBoolean(KEY_IS_NSFW)
+            val nsfwConfidence = json.optDouble(KEY_NSFW_CONFIDENCE).takeIf { json.has(KEY_NSFW_CONFIDENCE) }
+            val nsfwLabels = json.optJSONArray(KEY_NSFW_LABELS)
+                ?.let { array ->
+                    buildList {
+                        for (i in 0 until array.length()) {
+                            val value = array.optString(i)
+                            if (value.isNotBlank()) add(value)
+                        }
+                    }
+                }
+                ?: emptyList()
 
             return CollectedNote(
                 id = id,
@@ -106,7 +128,10 @@ data class CollectedNote(
                 redemptionCount = redemptionCount,
                 isRedeemed = isRedeemed,
                 redeemedAt = redeemedAt,
-                collectedAt = collectedAt
+                collectedAt = collectedAt,
+                isNsfw = isNsfw,
+                nsfwLabels = nsfwLabels,
+                nsfwConfidence = nsfwConfidence
             )
         }
     }

@@ -87,6 +87,7 @@ import com.e3hi.geodrop.data.RedemptionResult
 import com.e3hi.geodrop.data.applyUserVote
 import com.e3hi.geodrop.data.requiresRedemption
 import com.e3hi.geodrop.data.isRedeemedBy
+import com.e3hi.geodrop.data.canViewNsfw
 import com.e3hi.geodrop.geo.DropDecisionReceiver
 import com.e3hi.geodrop.ui.theme.GeoDropTheme
 import com.e3hi.geodrop.util.formatTimestamp
@@ -128,6 +129,15 @@ class DropDetailActivity : ComponentActivity() {
         val initialCollectedAt = intent.getLongExtra("dropCollectedAt", -1L).takeIf { it > 0L }
         val initialRedeemedAt = intent.getLongExtra("dropRedeemedAt", -1L).takeIf { it > 0L }
         val initialIsRedeemed = intent.getBooleanExtra("dropIsRedeemed", false)
+        val initialIsNsfw = intent.getBooleanExtra("dropIsNsfw", false)
+        val initialNsfwConfidence = if (intent.hasExtra("dropNsfwConfidence")) {
+            intent.getDoubleExtra("dropNsfwConfidence", 0.0)
+        } else {
+            null
+        }
+        val initialNsfwLabels = intent.getStringArrayListExtra("dropNsfwLabels")
+            ?.filter { it.isNotBlank() }
+            ?: emptyList()
         val showDecisionOptions = intent.getBooleanExtra(EXTRA_SHOW_DECISION_OPTIONS, false)
 
         setContent {
@@ -167,7 +177,10 @@ class DropDetailActivity : ComponentActivity() {
                                 redeemedBy = emptyMap(),
                                 collectedAt = initialCollectedAt,
                                 isRedeemed = initialIsRedeemed,
-                                redeemedAt = initialRedeemedAt
+                                redeemedAt = initialRedeemedAt,
+                                isNsfw = initialIsNsfw,
+                                nsfwConfidence = initialNsfwConfidence,
+                                nsfwLabels = initialNsfwLabels
                             )
                         } else {
                             DropDetailUiState.NotFound
@@ -203,7 +216,10 @@ class DropDetailActivity : ComponentActivity() {
                             redeemedBy = emptyMap(),
                             collectedAt = initialCollectedAt,
                             isRedeemed = initialIsRedeemed,
-                            redeemedAt = initialRedeemedAt
+                            redeemedAt = initialRedeemedAt,
+                            isNsfw = initialIsNsfw,
+                            nsfwConfidence = initialNsfwConfidence,
+                            nsfwLabels = initialNsfwLabels
                         )
                     } else {
                         DropDetailUiState.Loading
@@ -242,6 +258,32 @@ class DropDetailActivity : ComponentActivity() {
                         val initialLoaded = initialState as? DropDetailUiState.Loaded
                         val sanitizedVoteMap = parseVoteMap(doc.get("voteMap"))
                         val sanitizedRedeemedMap = parseRedeemedMap(doc.get("redeemedBy"))
+                        val resolvedNsfwFlag = when {
+                            doc.contains("isNsfw") -> doc.getBoolean("isNsfw") == true
+                            previousLoaded != null -> previousLoaded.isNsfw
+                            initialLoaded != null -> initialLoaded.isNsfw
+                            else -> initialIsNsfw
+                        }
+                        val resolvedNsfwConfidence = when {
+                            doc.contains("nsfwConfidence") -> {
+                                doc.getDouble("nsfwConfidence")
+                                    ?: doc.getLong("nsfwConfidence")?.toDouble()
+                            }
+                            previousLoaded?.nsfwConfidence != null -> previousLoaded.nsfwConfidence
+                            initialLoaded?.nsfwConfidence != null -> initialLoaded.nsfwConfidence
+                            else -> initialNsfwConfidence
+                        }
+                        val resolvedNsfwLabels = when {
+                            doc.contains("nsfwLabels") -> {
+                                @Suppress("UNCHECKED_CAST")
+                                (doc.get("nsfwLabels") as? List<*>)
+                                    ?.mapNotNull { it?.toString()?.takeIf { label -> label.isNotBlank() } }
+                                    ?.takeIf { it.isNotEmpty() }
+                            }
+                            previousLoaded != null -> previousLoaded.nsfwLabels
+                            initialLoaded != null -> initialLoaded.nsfwLabels
+                            else -> initialNsfwLabels
+                        } ?: emptyList()
                         state = DropDetailUiState.Loaded(
                             text = doc.getString("text")?.takeIf { it.isNotBlank() }
                                 ?: previousLoaded?.text
@@ -318,7 +360,10 @@ class DropDetailActivity : ComponentActivity() {
                                 ?: initialIsRedeemed,
                             redeemedAt = previousLoaded?.redeemedAt
                                 ?: initialLoaded?.redeemedAt
-                                ?: initialRedeemedAt
+                                ?: initialRedeemedAt,
+                            isNsfw = resolvedNsfwFlag,
+                            nsfwConfidence = resolvedNsfwConfidence,
+                            nsfwLabels = resolvedNsfwLabels
                         )
                     }
                     val appContext = context.applicationContext
@@ -335,6 +380,16 @@ class DropDetailActivity : ComponentActivity() {
                     val currentUserId = currentUser?.uid
                     val repo = remember { FirestoreRepo() }
                     val scope = rememberCoroutineScope()
+                    var nsfwAllowed by remember { mutableStateOf(false) }
+                    LaunchedEffect(currentUserId) {
+                        val userId = currentUserId
+                        if (userId.isNullOrBlank()) {
+                            nsfwAllowed = false
+                        } else {
+                            val profile = runCatching { repo.ensureUserProfile(userId) }.getOrNull()
+                            nsfwAllowed = profile?.canViewNsfw() == true
+                        }
+                    }
                     var decisionHandled by remember(dropId) { mutableStateOf(false) }
                     var decisionStatusMessage by remember(dropId) { mutableStateOf<String?>(null) }
                     var decisionProcessing by remember(dropId) { mutableStateOf(false) }
@@ -391,7 +446,7 @@ class DropDetailActivity : ComponentActivity() {
                     containerColor = MaterialTheme.colorScheme.surface
                 ) { paddingValues ->
                     val scrollState = rememberScrollState()
-                    Column(
+                    column@ Column(
                         modifier = Modifier
                             .fillMaxSize()
                             .verticalScroll(scrollState)
@@ -400,6 +455,52 @@ class DropDetailActivity : ComponentActivity() {
                         verticalArrangement = Arrangement.spacedBy(20.dp)
                     ) {
                         val loadedState = state as? DropDetailUiState.Loaded
+                        val ownerMatches = loadedState?.createdBy?.takeIf { it.isNotBlank() } == currentUserId
+                        val shouldHideContent = loadedState?.isNsfw == true && !ownerMatches && !nsfwAllowed
+                        val nsfwReasons = loadedState?.nsfwLabels.orEmpty()
+
+                        if (shouldHideContent) {
+                            ElevatedCard(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(20.dp)
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(20.dp),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Block,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.error
+                                        )
+                                        Text(
+                                            text = "Adult content hidden",
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
+                                    Text(
+                                        text = "Enable 18+ drops from the GeoDrop home screen account menu to view this drop.",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    if (nsfwReasons.isNotEmpty()) {
+                                        Text(
+                                            text = "Flagged because: ${nsfwReasons.joinToString()}",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+                            return@column
+                        }
                         val message = when (val current = state) {
                             is DropDetailUiState.Loaded -> {
                                 val fallback = when (current.contentType) {
@@ -527,6 +628,14 @@ class DropDetailActivity : ComponentActivity() {
                                             icon = it.icon,
                                             containerColor = it.containerColor,
                                             contentColor = it.contentColor
+                                        )
+                                    }
+                                    if (loadedState?.isNsfw == true) {
+                                        DropDetailTag(
+                                            text = "18+",
+                                            icon = Icons.Rounded.Block,
+                                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
                                         )
                                     }
                                 }
@@ -1119,6 +1228,9 @@ private fun DropDetailUiState.Loaded.toDropForVoting(): Drop {
         mediaUrl = mediaUrl,
         mediaMimeType = mediaMimeType,
         mediaData = mediaData,
+        isNsfw = isNsfw,
+        nsfwConfidence = nsfwConfidence,
+        nsfwLabels = nsfwLabels,
         upvoteCount = upvoteCount,
         downvoteCount = downvoteCount,
         voteMap = voteMap,
@@ -1458,7 +1570,10 @@ private sealed interface DropDetailUiState {
         val redeemedBy: Map<String, Long> = emptyMap(),
         val collectedAt: Long? = null,
         val isRedeemed: Boolean = false,
-        val redeemedAt: Long? = null
+        val redeemedAt: Long? = null,
+        val isNsfw: Boolean = false,
+        val nsfwConfidence: Double? = null,
+        val nsfwLabels: List<String> = emptyList()
     ) : DropDetailUiState
 
     object Loading : DropDetailUiState

@@ -101,6 +101,7 @@ import com.e3hi.geodrop.data.NoteInventory
 import com.e3hi.geodrop.data.DropType
 import com.e3hi.geodrop.data.UserProfile
 import com.e3hi.geodrop.data.UserRole
+import com.e3hi.geodrop.data.canViewNsfw
 import com.e3hi.geodrop.data.RedemptionResult
 import com.e3hi.geodrop.data.applyUserVote
 import com.e3hi.geodrop.data.isBusinessDrop
@@ -115,6 +116,9 @@ import com.e3hi.geodrop.geo.NearbyDropRegistrar
 import com.e3hi.geodrop.geo.NearbyDropRegistrar.NearbySyncStatus
 import com.e3hi.geodrop.util.GroupPreferences
 import com.e3hi.geodrop.util.formatTimestamp
+import com.e3hi.geodrop.util.DropBlockedBySafetyException
+import com.e3hi.geodrop.util.DropSafetyAssessment
+import com.e3hi.geodrop.util.DropSafetyClassifier
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
@@ -142,6 +146,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
+import java.util.ArrayList
 import java.util.Locale
 import kotlin.math.asin
 import kotlin.math.cos
@@ -172,6 +177,9 @@ fun DropHereScreen() {
     var businessGoogleSigningIn by remember { mutableStateOf(false) }
     var showAccountMenu by remember { mutableStateOf(false) }
     var signingOut by remember { mutableStateOf(false) }
+    var showNsfwDialog by remember { mutableStateOf(false) }
+    var nsfwUpdating by remember { mutableStateOf(false) }
+    var nsfwUpdateError by remember { mutableStateOf<String?>(null) }
     val defaultWebClientId = stringResource(R.string.default_web_client_id)
     val googleSignInClient = remember(defaultWebClientId, ctx) {
         GoogleSignIn.getClient(
@@ -195,6 +203,8 @@ fun DropHereScreen() {
         businessConfirmPassword = TextFieldValue("")
         businessAuthError = null
         businessAuthStatus = null
+        nsfwUpdateError = null
+        nsfwUpdating = false
     }
 
     fun dismissBusinessAuthDialog() {
@@ -535,6 +545,7 @@ fun DropHereScreen() {
         showCollectedDrops = false
         showManageGroups = false
         showBusinessSignIn = false
+        showNsfwDialog = false
         status = null
         signInError = null
         businessAuthError = null
@@ -641,6 +652,16 @@ fun DropHereScreen() {
             }
             drop.redemptionLimit?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_REDEMPTION_LIMIT, it) }
             putExtra(DropDecisionReceiver.EXTRA_DROP_REDEMPTION_COUNT, drop.redemptionCount)
+            putExtra(DropDecisionReceiver.EXTRA_DROP_IS_NSFW, drop.isNsfw)
+            if (drop.nsfwLabels.isNotEmpty()) {
+                putStringArrayListExtra(
+                    DropDecisionReceiver.EXTRA_DROP_NSFW_LABELS,
+                    ArrayList(drop.nsfwLabels)
+                )
+            }
+            drop.nsfwConfidence?.let {
+                putExtra(DropDecisionReceiver.EXTRA_DROP_NSFW_CONFIDENCE, it)
+            }
         }
 
         val result = runCatching { appContext.sendBroadcast(intent) }
@@ -980,8 +1001,9 @@ fun DropHereScreen() {
         mediaMimeType: String?,
         mediaData: String?,
         redemptionCode: String?,
-        redemptionLimit: Int?
-    ) {
+        redemptionLimit: Int?,
+        nsfwAllowed: Boolean
+    ): DropSafetyAssessment {
         val uid = FirebaseAuth.getInstance().currentUser?.uid ?: "anon"
         val sanitizedMedia = mediaInput?.takeIf { it.isNotBlank() }
         val sanitizedMime = mediaMimeType?.takeIf { it.isNotBlank() }
@@ -1009,12 +1031,34 @@ fun DropHereScreen() {
             redemptionCode = if (dropType == DropType.RESTAURANT_COUPON) sanitizedRedemptionCode else null,
             redemptionLimit = if (dropType == DropType.RESTAURANT_COUPON) sanitizedRedemptionLimit else null
         )
-        repo.addDrop(d) // suspend (uses Firestore .await() internally)
+
+        val safety = withContext(Dispatchers.Default) {
+            DropSafetyClassifier.evaluate(
+                text = sanitizedText,
+                contentType = contentType,
+                mediaMimeType = sanitizedMime,
+                mediaData = sanitizedData,
+                mediaUrl = sanitizedMedia
+            )
+        }
+
+        if (safety.isNsfw && !nsfwAllowed) {
+            throw DropBlockedBySafetyException(safety)
+        }
+
+        val dropToSave = d.copy(
+            isNsfw = safety.isNsfw,
+            nsfwConfidence = safety.confidence,
+            nsfwLabels = safety.reasons
+        )
+
+        repo.addDrop(dropToSave) // suspend (uses Firestore .await() internally)
         if (groupCode != null) {
             groupPrefs.addGroup(groupCode)
             joinedGroups = groupPrefs.getJoinedGroups()
         }
         uiDone(lat, lng, groupCode, contentType, dropType)
+        return safety
     }
 
     fun submitDrop() {
@@ -1198,7 +1242,7 @@ fun DropHereScreen() {
                     return@launch
                 }
 
-                addDropAt(
+                val safety = addDropAt(
                     lat = lat,
                     lng = lng,
                     groupCode = selectedGroupCode,
@@ -1209,9 +1253,29 @@ fun DropHereScreen() {
                     mediaMimeType = mediaMimeTypeResult,
                     mediaData = mediaDataResult,
                     redemptionCode = redemptionCodeResult,
-                    redemptionLimit = redemptionLimitResult
+                    redemptionLimit = redemptionLimitResult,
+                    nsfwAllowed = userProfile?.canViewNsfw() == true
                 )
+                if (safety.isNsfw) {
+                    snackbar.showMessage(scope, "Drop saved with an 18+ warning.")
+                }
             } catch (e: Exception) {
+                when (e) {
+                    is DropBlockedBySafetyException -> {
+                        isSubmitting = false
+                        val reason = e.assessment.reasons.firstOrNull()
+                        val message = buildString {
+                            append("This drop looks like adult content. ")
+                            append("Enable 18+ drops from your account menu to share it.")
+                            if (!reason.isNullOrBlank()) {
+                                append('\n')
+                                append(reason)
+                            }
+                        }
+                        snackbar.showMessage(scope, message)
+                        return@launch
+                    }
+                }
                 isSubmitting = false
                 snackbar.showMessage(scope, "Error: ${e.message}")
             }
@@ -1237,7 +1301,11 @@ fun DropHereScreen() {
                 otherDropsLoading = false
             } else {
                 try {
-                    val drops = repo.getVisibleDropsForUser(uid, joinedGroups.toSet())
+                    val drops = repo.getVisibleDropsForUser(
+                        uid,
+                        joinedGroups.toSet(),
+                        allowNsfw = userProfile?.canViewNsfw() == true
+                    )
                         .sortedByDescending { it.createdAt }
                     val filteredDrops = drops.filterNot { drop ->
                         val id = drop.id
@@ -1329,6 +1397,20 @@ fun DropHereScreen() {
                                 expanded = showAccountMenu,
                                 onDismissRequest = { showAccountMenu = false }
                             ) {
+                                val nsfwEnabled = userProfile?.canViewNsfw() == true
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            if (nsfwEnabled) "Disable 18+ drops" else "Enable 18+ drops"
+                                        )
+                                    },
+                                    leadingIcon = { Icon(Icons.Rounded.Flag, contentDescription = null) },
+                                    onClick = {
+                                        showAccountMenu = false
+                                        nsfwUpdateError = null
+                                        showNsfwDialog = true
+                                    }
+                                )
                                 DropdownMenuItem(
                                     text = {
                                         Text(if (signingOut) "Signing out…" else "Sign out")
@@ -1631,6 +1713,11 @@ fun DropHereScreen() {
                     drop.businessId?.let { putExtra("dropBusinessId", it) }
                     drop.redemptionLimit?.let { putExtra("dropRedemptionLimit", it) }
                     putExtra("dropRedemptionCount", drop.redemptionCount)
+                    putExtra("dropIsNsfw", drop.isNsfw)
+                    drop.nsfwConfidence?.let { putExtra("dropNsfwConfidence", it) }
+                    if (drop.nsfwLabels.isNotEmpty()) {
+                        putStringArrayListExtra("dropNsfwLabels", ArrayList(drop.nsfwLabels))
+                    }
                 }
                 ctx.startActivity(intent)
             },
@@ -1684,6 +1771,11 @@ fun DropHereScreen() {
                     putExtra("dropCollectedAt", note.collectedAt)
                     putExtra("dropIsRedeemed", note.isRedeemed)
                     note.redeemedAt?.let { putExtra("dropRedeemedAt", it) }
+                    putExtra("dropIsNsfw", note.isNsfw)
+                    note.nsfwConfidence?.let { putExtra("dropNsfwConfidence", it) }
+                    if (note.nsfwLabels.isNotEmpty()) {
+                        putStringArrayListExtra("dropNsfwLabels", ArrayList(note.nsfwLabels))
+                    }
                 }
                 ctx.startActivity(intent)
             },
@@ -1691,6 +1783,46 @@ fun DropHereScreen() {
                 noteInventory.removeCollected(note.id)
                 collectedNotes = noteInventory.getCollectedNotes()
             }
+        )
+    }
+
+    if (showNsfwDialog) {
+        NsfwPreferenceDialog(
+            enabled = userProfile?.canViewNsfw() == true,
+            isProcessing = nsfwUpdating,
+            error = nsfwUpdateError,
+            onConfirm = { enable ->
+                val userId = currentUserId
+                if (userId.isNullOrBlank()) {
+                    nsfwUpdateError = "Sign in again to update content settings."
+                    return@NsfwPreferenceDialog
+                }
+                nsfwUpdating = true
+                nsfwUpdateError = null
+                scope.launch {
+                    try {
+                        val updated = repo.updateNsfwPreference(userId, enable)
+                        userProfile = updated
+                        showNsfwDialog = false
+                        val message = if (enable) {
+                            "18+ drops enabled."
+                        } else {
+                            "18+ drops disabled."
+                        }
+                        snackbar.showMessage(scope, message)
+                        registrar.registerNearby(
+                            ctx,
+                            maxMeters = 300.0,
+                            groupCodes = groupPrefs.getJoinedGroups().toSet()
+                        )
+                    } catch (error: Exception) {
+                        nsfwUpdateError = error.localizedMessage ?: "Couldn't update settings."
+                    } finally {
+                        nsfwUpdating = false
+                    }
+                }
+            },
+            onDismiss = { showNsfwDialog = false }
         )
     }
 
@@ -2621,6 +2753,77 @@ private fun DialogMessageContent(
             Text("Back to main page")
         }
     }
+}
+
+@Composable
+private fun NsfwPreferenceDialog(
+    enabled: Boolean,
+    isProcessing: Boolean,
+    error: String?,
+    onConfirm: (Boolean) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var confirmChecked by remember(enabled) { mutableStateOf(false) }
+    var localError by remember { mutableStateOf<String?>(null) }
+
+    val description = if (enabled) {
+        "Turn off access to adult content in GeoDrop. You'll stop seeing NSFW drops and won't be able to create them."
+    } else {
+        "Enable access to adult (18+) drops. This allows you to view and share NSFW content when you are legally permitted to do so."
+    }
+
+    AlertDialog(
+        onDismissRequest = { if (!isProcessing) onDismiss() },
+        icon = { Icon(Icons.Rounded.Flag, contentDescription = null) },
+        title = { Text("18+ content") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(description)
+                if (!enabled) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(
+                            checked = confirmChecked,
+                            onCheckedChange = { checked ->
+                                confirmChecked = checked
+                                if (checked) localError = null
+                            },
+                            enabled = !isProcessing
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text("I confirm that I am at least 18 years old.")
+                    }
+                }
+                val message = error ?: localError
+                if (!message.isNullOrBlank()) {
+                    Text(
+                        text = message,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    if (!enabled && !confirmChecked) {
+                        localError = "Confirm that you are 18 or older."
+                    } else if (!isProcessing) {
+                        localError = null
+                        onConfirm(!enabled)
+                    }
+                },
+                enabled = !isProcessing && (enabled || confirmChecked)
+            ) {
+                Text(if (enabled) "Disable" else "Enable")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = { if (!isProcessing) onDismiss() }, enabled = !isProcessing) {
+                Text("Cancel")
+            }
+        }
+    )
 }
 
 private fun formatCoordinate(value: Double): String {

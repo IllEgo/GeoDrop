@@ -63,6 +63,15 @@ class DropDecisionReceiver : BroadcastReceiver() {
             null
         }
         val redemptionCount = intent.getIntExtra(EXTRA_DROP_REDEMPTION_COUNT, 0)
+        val isNsfw = intent.getBooleanExtra(EXTRA_DROP_IS_NSFW, false)
+        val nsfwLabels = intent.getStringArrayListExtra(EXTRA_DROP_NSFW_LABELS)
+            ?.filter { it.isNotBlank() }
+            ?: emptyList()
+        val nsfwConfidence = if (intent.hasExtra(EXTRA_DROP_NSFW_CONFIDENCE)) {
+            intent.getDoubleExtra(EXTRA_DROP_NSFW_CONFIDENCE, 0.0)
+        } else {
+            null
+        }
 
         val inventory = NoteInventory(context)
         val note = CollectedNote(
@@ -81,7 +90,10 @@ class DropDecisionReceiver : BroadcastReceiver() {
             businessName = businessName,
             redemptionLimit = redemptionLimit,
             redemptionCount = redemptionCount,
-            collectedAt = System.currentTimeMillis()
+            collectedAt = System.currentTimeMillis(),
+            isNsfw = isNsfw,
+            nsfwLabels = nsfwLabels,
+            nsfwConfidence = nsfwConfidence
         )
         inventory.saveCollected(note)
 
@@ -134,6 +146,9 @@ class DropDecisionReceiver : BroadcastReceiver() {
         const val EXTRA_DROP_BUSINESS_NAME = "extra_drop_business_name"
         const val EXTRA_DROP_REDEMPTION_LIMIT = "extra_drop_redemption_limit"
         const val EXTRA_DROP_REDEMPTION_COUNT = "extra_drop_redemption_count"
+        const val EXTRA_DROP_IS_NSFW = "extra_drop_is_nsfw"
+        const val EXTRA_DROP_NSFW_LABELS = "extra_drop_nsfw_labels"
+        const val EXTRA_DROP_NSFW_CONFIDENCE = "extra_drop_nsfw_confidence"
 
         private const val TAG = "DropDecisionReceiver"
     }
