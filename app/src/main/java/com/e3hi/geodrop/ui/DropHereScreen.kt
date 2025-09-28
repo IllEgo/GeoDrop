@@ -3490,7 +3490,6 @@ private fun OtherDropsMapDialog(
                                     interactionSource = dividerInteraction
                                 )
                                 .semantics(mergeDescendants = true) {
-                                    role = Role.Adjustable
                                     progressBarRangeInfo = ProgressBarRangeInfo(
                                         current = mapWeight,
                                         range = minMapWeight..maxMapWeight
@@ -4042,11 +4041,9 @@ private fun MyDropsDialog(
                                 .draggable(
                                     state = dividerDragState,
                                     orientation = Orientation.Vertical,
-                                    interactionSource = dividerInteraction,
-                                    indication = null
+                                    interactionSource = dividerInteraction
                                 )
                                 .semantics(mergeDescendants = true) {
-                                    role = Role.Adjustable
                                     progressBarRangeInfo = ProgressBarRangeInfo(
                                         current = mapWeight,
                                         range = minMapWeight..maxMapWeight
