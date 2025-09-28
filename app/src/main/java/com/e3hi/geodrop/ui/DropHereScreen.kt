@@ -13,6 +13,7 @@ import android.util.Base64
 import android.util.Log
 import android.util.Patterns
 import android.provider.MediaStore
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
@@ -4494,134 +4495,135 @@ private fun OtherDropRow(
                 }
             }
 
-            Spacer(Modifier.height(4.dp))
-
-            Text(
-                text = drop.discoveryDescription(),
-                style = MaterialTheme.typography.bodyMedium,
-                color = supportingColor
-            )
-
-            Spacer(Modifier.height(8.dp))
-
-            val typeLabel = when (drop.contentType) {
-                DropContentType.TEXT -> "Text note"
-                DropContentType.PHOTO -> "Photo drop"
-                DropContentType.AUDIO -> "Audio drop"
-                DropContentType.VIDEO -> "Video drop"
-            }
-            Text(
-                text = "Type: $typeLabel",
-                style = MaterialTheme.typography.bodySmall,
-                color = supportingColor
-            )
-
-            formatTimestamp(drop.createdAt)?.let {
+            val description = drop.discoveryDescription()
+            if (description.isNotBlank()) {
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    text = it,
+                    text = description,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = supportingColor
+                    color = supportingColor,
+                    maxLines = if (isSelected) Int.MAX_VALUE else 2
                 )
             }
 
-            drop.groupCode?.takeIf { !it.isNullOrBlank() }?.let { groupCode ->
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    text = "Group $groupCode",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = supportingColor
-                )
-            }
-
-            Spacer(Modifier.height(4.dp))
-
-            Text(
-                text = "Lat: ${formatCoordinate(drop.lat)}, Lng: ${formatCoordinate(drop.lng)}",
-                style = MaterialTheme.typography.bodySmall,
-                color = supportingColor
-            )
-
-            distanceMeters?.let { distance ->
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    text = "You're ${formatDistanceMeters(distance)} away.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = supportingColor
-                )
-            }
-
-            Spacer(Modifier.height(12.dp))
-
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    VoteToggleButton(
-                        icon = Icons.Rounded.ThumbUp,
-                        label = drop.upvoteCount.toString(),
-                        selected = userVote == DropVoteType.UPVOTE,
-                        enabled = canVote && !isVoting,
-                        onClick = {
-                            val nextVote = if (userVote == DropVoteType.UPVOTE) {
-                                DropVoteType.NONE
-                            } else {
-                                DropVoteType.UPVOTE
-                            }
-                            onVote(nextVote)
-                        },
-                        modifier = Modifier.weight(1f)
+            AnimatedVisibility(visible = isSelected) {
+                Column {
+                    Spacer(Modifier.height(8.dp))
+                    val typeLabel = when (drop.contentType) {
+                        DropContentType.TEXT -> "Text note"
+                        DropContentType.PHOTO -> "Photo drop"
+                        DropContentType.AUDIO -> "Audio drop"
+                        DropContentType.VIDEO -> "Video drop"
+                    }
+                    Text(
+                        text = "Type: $typeLabel",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = supportingColor
                     )
 
-                    VoteToggleButton(
-                        icon = Icons.Rounded.ThumbDown,
-                        label = drop.downvoteCount.toString(),
-                        selected = userVote == DropVoteType.DOWNVOTE,
-                        enabled = canVote && !isVoting,
-                        onClick = {
-                            val nextVote = if (userVote == DropVoteType.DOWNVOTE) {
-                                DropVoteType.NONE
-                            } else {
-                                DropVoteType.DOWNVOTE
-                            }
-                            onVote(nextVote)
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
-
-                    if (isVoting) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
-                            strokeWidth = 2.dp
+                    formatTimestamp(drop.createdAt)?.let {
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = it,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = supportingColor
                         )
                     }
-                }
+                    drop.groupCode?.takeIf { !it.isNullOrBlank() }?.let { groupCode ->
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = "Group $groupCode",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = supportingColor
+                        )
+                    }
 
-                Text(
-                    text = "Score: ${formatVoteScore(drop.voteScore())} (↑${drop.upvoteCount} / ↓${drop.downvoteCount})",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = supportingColor
-                )
-            }
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = "Lat: ${formatCoordinate(drop.lat)}, Lng: ${formatCoordinate(drop.lng)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = supportingColor
+                    )
 
-            if (!canVote) {
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    text = "Collect this drop to vote on it.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = supportingColor
-                )
-            }
+                    distanceMeters?.let { distance ->
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = "You're ${formatDistanceMeters(distance)} away.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = supportingColor
+                        )
+                    }
 
-            if (withinPickupRange) {
-                Spacer(Modifier.height(12.dp))
-                Button(
-                    onClick = onPickUp,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Pick up drop")
+                    Spacer(Modifier.height(12.dp))
+
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            VoteToggleButton(
+                                icon = Icons.Rounded.ThumbUp,
+                                label = drop.upvoteCount.toString(),
+                                selected = userVote == DropVoteType.UPVOTE,
+                                enabled = canVote && !isVoting,
+                                onClick = {
+                                    val nextVote = if (userVote == DropVoteType.UPVOTE) {
+                                        DropVoteType.NONE
+                                    } else {
+                                        DropVoteType.UPVOTE
+                                    }
+                                    onVote(nextVote)
+                                },
+                                modifier = Modifier.weight(1f)
+                            )
+
+                            VoteToggleButton(
+                                icon = Icons.Rounded.ThumbDown,
+                                label = drop.downvoteCount.toString(),
+                                selected = userVote == DropVoteType.DOWNVOTE,
+                                enabled = canVote && !isVoting,
+                                onClick = {
+                                    val nextVote = if (userVote == DropVoteType.DOWNVOTE) {
+                                        DropVoteType.NONE
+                                    } else {
+                                        DropVoteType.DOWNVOTE
+                                    }
+                                    onVote(nextVote)
+                                },
+                                modifier = Modifier.weight(1f)
+                            )
+
+                            if (isVoting) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            }
+                        }
+                        Text(
+                            text = "Score: ${formatVoteScore(drop.voteScore())} (↑${drop.upvoteCount} / ↓${drop.downvoteCount})",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = supportingColor
+                        )
+                    }
+                    if (!canVote) {
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = "Collect this drop to vote on it.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = supportingColor
+                        )
+                    }
+                    if (withinPickupRange) {
+                        Spacer(Modifier.height(12.dp))
+                        Button(
+                            onClick = onPickUp,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Pick up drop")
+                        }
+                    }
                 }
             }
         }
