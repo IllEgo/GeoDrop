@@ -72,6 +72,7 @@ class DropDecisionReceiver : BroadcastReceiver() {
         } else {
             null
         }
+        val resolvedIsNsfw = isNsfw || nsfwLabels.isNotEmpty()
 
         val inventory = NoteInventory(context)
         val note = CollectedNote(
@@ -91,7 +92,7 @@ class DropDecisionReceiver : BroadcastReceiver() {
             redemptionLimit = redemptionLimit,
             redemptionCount = redemptionCount,
             collectedAt = System.currentTimeMillis(),
-            isNsfw = isNsfw,
+            isNsfw = resolvedIsNsfw,
             nsfwLabels = nsfwLabels,
             nsfwConfidence = nsfwConfidence
         )

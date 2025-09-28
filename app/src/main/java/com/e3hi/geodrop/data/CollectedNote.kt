@@ -97,8 +97,6 @@ data class CollectedNote(
             val isRedeemed = json.optBoolean(KEY_IS_REDEEMED)
             val redeemedAt = json.optLong(KEY_REDEEMED_AT).takeIf { json.has(KEY_REDEEMED_AT) }
             val collectedAt = json.optLong(KEY_COLLECTED_AT)
-            val isNsfw = json.optBoolean(KEY_IS_NSFW)
-            val nsfwConfidence = json.optDouble(KEY_NSFW_CONFIDENCE).takeIf { json.has(KEY_NSFW_CONFIDENCE) }
             val nsfwLabels = json.optJSONArray(KEY_NSFW_LABELS)
                 ?.let { array ->
                     buildList {
@@ -109,6 +107,8 @@ data class CollectedNote(
                     }
                 }
                 ?: emptyList()
+            val nsfwConfidence = json.optDouble(KEY_NSFW_CONFIDENCE).takeIf { json.has(KEY_NSFW_CONFIDENCE) }
+            val isNsfw = json.optBoolean(KEY_IS_NSFW) || nsfwLabels.isNotEmpty()
 
             return CollectedNote(
                 id = id,
