@@ -3912,7 +3912,7 @@ private fun MyDropsDialog(
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .weight(1f)
+                                        .weight(0.3f)
                                 ) {
                                     MyDropsMap(
                                         drops = drops,
@@ -3926,7 +3926,7 @@ private fun MyDropsDialog(
                                 Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .weight(1f)
+                                        .weight(0.7f)
                                 ) {
                                     Text(
                                         text = "Select a drop to focus on the map.",
@@ -4568,7 +4568,11 @@ private fun ManageDropRow(
             contentColor = contentColor
         )
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -4586,113 +4590,115 @@ private fun ManageDropRow(
                 }
             }
 
-            Spacer(Modifier.height(4.dp))
+            if (isSelected) {
+                Spacer(Modifier.height(4.dp))
 
-            val typeLabel = when (drop.contentType) {
-                DropContentType.TEXT -> "Text note"
-                DropContentType.PHOTO -> "Photo drop"
-                DropContentType.AUDIO -> "Audio drop"
-                DropContentType.VIDEO -> "Video drop"
-            }
-            Text(
-                text = "Type: $typeLabel",
-                style = MaterialTheme.typography.bodySmall,
-                color = supportingColor
-            )
-
-            val mediaUrl = drop.mediaLabel()
-            if (drop.contentType == DropContentType.PHOTO && mediaUrl != null) {
-                Spacer(Modifier.height(12.dp))
-
-                val context = LocalContext.current
-                val imageRequest = remember(mediaUrl) {
-                    ImageRequest.Builder(context)
-                        .data(mediaUrl)
-                        .crossfade(true)
-                        .build()
+                val typeLabel = when (drop.contentType) {
+                    DropContentType.TEXT -> "Text note"
+                    DropContentType.PHOTO -> "Photo drop"
+                    DropContentType.AUDIO -> "Audio drop"
+                    DropContentType.VIDEO -> "Video drop"
                 }
-
-                AsyncImage(
-                    model = imageRequest,
-                    contentDescription = drop.displayTitle(),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 160.dp, max = 280.dp)
-                        .clip(RoundedCornerShape(12.dp)),
-                    contentScale = ContentScale.Crop
-                )
-                Spacer(Modifier.height(12.dp))
-            }
-
-            Spacer(Modifier.height(4.dp))
-
-            formatTimestamp(drop.createdAt)?.let {
                 Text(
-                    text = it,
-                    style = MaterialTheme.typography.bodyMedium,
+                    text = "Type: $typeLabel",
+                    style = MaterialTheme.typography.bodySmall,
                     color = supportingColor
                 )
-            }
 
-            Spacer(Modifier.height(4.dp))
+                val mediaUrl = drop.mediaLabel()
+                if (drop.contentType == DropContentType.PHOTO && mediaUrl != null) {
+                    Spacer(Modifier.height(12.dp))
 
-            val visibilityLabel = drop.groupCode?.takeIf { !it.isNullOrBlank() }
-                ?.let { "Group-only · $it" }
-                ?: "Public drop"
-            Text(
-                text = visibilityLabel,
-                style = MaterialTheme.typography.bodySmall,
-                color = supportingColor
-            )
+                    val context = LocalContext.current
+                    val imageRequest = remember(mediaUrl) {
+                        ImageRequest.Builder(context)
+                            .data(mediaUrl)
+                            .crossfade(true)
+                            .build()
+                    }
 
-            Spacer(Modifier.height(4.dp))
-
-            Text(
-                text = "Lat: %.5f, Lng: %.5f".format(drop.lat, drop.lng),
-                style = MaterialTheme.typography.bodySmall,
-                color = supportingColor
-            )
-
-            Spacer(Modifier.height(4.dp))
-
-            Text(
-                text = "Score: ${formatVoteScore(drop.voteScore())} (↑${drop.upvoteCount} / ↓${drop.downvoteCount})",
-                style = MaterialTheme.typography.bodySmall,
-                color = supportingColor
-            )
-
-            Spacer(Modifier.height(12.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                TextButton(
-                    onClick = onView,
-                    enabled = !isDeleting
-                ) {
-                    Text("View details")
+                    AsyncImage(
+                        model = imageRequest,
+                        contentDescription = drop.displayTitle(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 160.dp, max = 280.dp)
+                            .clip(RoundedCornerShape(12.dp)),
+                        contentScale = ContentScale.Crop
+                    )
+                    Spacer(Modifier.height(12.dp))
                 }
 
-                TextButton(
-                    onClick = onDelete,
-                    enabled = !isDeleting
+                Spacer(Modifier.height(4.dp))
+
+                formatTimestamp(drop.createdAt)?.let {
+                    Text(
+                        text = it,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = supportingColor
+                    )
+                }
+
+                Spacer(Modifier.height(4.dp))
+
+                val visibilityLabel = drop.groupCode?.takeIf { !it.isNullOrBlank() }
+                    ?.let { "Group-only · $it" }
+                    ?: "Public drop"
+                Text(
+                    text = visibilityLabel,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = supportingColor
+                )
+
+                Spacer(Modifier.height(4.dp))
+
+                Text(
+                    text = "Lat: %.5f, Lng: %.5f".format(drop.lat, drop.lng),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = supportingColor
+                )
+
+                Spacer(Modifier.height(4.dp))
+
+                Text(
+                    text = "Score: ${formatVoteScore(drop.voteScore())} (↑${drop.upvoteCount} / ↓${drop.downvoteCount})",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = supportingColor
+                )
+
+                Spacer(Modifier.height(12.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    if (isDeleting) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(18.dp),
-                            strokeWidth = 2.dp
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text("Deleting…")
-                    } else {
-                        Icon(
-                            imageVector = Icons.Filled.Delete,
-                            contentDescription = "Delete drop"
-                        )
-                        Spacer(Modifier.width(4.dp))
-                        Text("Delete")
+                    TextButton(
+                        onClick = onView,
+                        enabled = !isDeleting
+                    ) {
+                        Text("View details")
+                    }
+
+                    TextButton(
+                        onClick = onDelete,
+                        enabled = !isDeleting
+                    ) {
+                        if (isDeleting) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text("Deleting…")
+                        } else {
+                            Icon(
+                                imageVector = Icons.Filled.Delete,
+                                contentDescription = "Delete drop"
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text("Delete")
+                        }
                     }
                 }
             }
