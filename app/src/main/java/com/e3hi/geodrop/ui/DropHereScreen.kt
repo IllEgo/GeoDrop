@@ -68,6 +68,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -147,6 +148,8 @@ import androidx.lifecycle.LifecycleEventObserver
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.collect
 import java.io.File
 import java.io.IOException
 import java.util.ArrayList
@@ -4899,19 +4902,32 @@ private fun rememberScrollAwareMapWeights(
     collapsedMapWeight: Float = 0.2f,
     animationLabel: String = "mapWeight"
 ): Pair<Float, Float> {
-    val shouldCollapse by remember(listState, hasSelection) {
-        derivedStateOf {
-            if (hasSelection) {
-                false
-            } else {
-                val hasScrolledPastTop = listState.firstVisibleItemIndex > 0 ||
-                        listState.firstVisibleItemScrollOffset > 0
-                listState.isScrollInProgress || hasScrolledPastTop
-            }
+    var collapseFromScroll by remember { mutableStateOf(false) }
+
+    LaunchedEffect(listState, hasSelection) {
+        if (hasSelection) {
+            collapseFromScroll = false
+            return@LaunchedEffect
         }
+
+        collapseFromScroll = listState.firstVisibleItemIndex > 0 ||
+                listState.firstVisibleItemScrollOffset > 0
+
+        snapshotFlow {
+            listState.isScrollInProgress ||
+                    listState.firstVisibleItemIndex > 0 ||
+                    listState.firstVisibleItemScrollOffset > 0
+        }
+            .distinctUntilChanged()
+            .collect { collapseFromScroll = it }
     }
 
-    val targetMapWeight = if (shouldCollapse) collapsedMapWeight else expandedMapWeight
+    val targetMapWeight = if (hasSelection || !collapseFromScroll) {
+        expandedMapWeight
+    } else {
+        collapsedMapWeight
+    }
+
     val animatedMapWeight by animateFloatAsState(
         targetValue = targetMapWeight,
         label = animationLabel
