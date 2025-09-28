@@ -3487,8 +3487,7 @@ private fun OtherDropsMapDialog(
                                 .draggable(
                                     state = dividerDragState,
                                     orientation = Orientation.Vertical,
-                                    interactionSource = dividerInteraction,
-                                    indication = null
+                                    interactionSource = dividerInteraction
                                 )
                                 .semantics(mergeDescendants = true) {
                                     role = Role.Adjustable
