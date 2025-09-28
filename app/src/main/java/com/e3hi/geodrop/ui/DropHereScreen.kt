@@ -3669,6 +3669,9 @@ private fun CollectedDropsMap(
                 }
                 snippetParts.add("Lat: ${formatCoordinate(lat)}, Lng: ${formatCoordinate(lng)}")
                 note.groupCode?.let { snippetParts.add("Group $it") }
+                if (note.isNsfw) {
+                    snippetParts.add("Marked as adult content")
+                }
 
                 val title = note.text.ifBlank {
                     when (note.contentType) {
@@ -3679,17 +3682,17 @@ private fun CollectedDropsMap(
                     }
                 }
 
-                val markerColor = if (note.id == highlightedId) {
-                    BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ORANGE)
-                } else {
-                    BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN)
+                val markerIcon = when {
+                    note.isNsfw -> BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_MAGENTA)
+                    note.id == highlightedId -> BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ORANGE)
+                    else -> BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN)
                 }
 
                 Marker(
                     state = MarkerState(position),
                     title = title,
                     snippet = snippetParts.joinToString("\n"),
-                    icon = markerColor,
+                    icon = markerIcon,
                     zIndex = if (note.id == highlightedId) 1f else 0f
                 )
             }
@@ -4261,9 +4264,16 @@ private fun MyDropsMap(
             drop.groupCode?.takeIf { !it.isNullOrBlank() }?.let { snippetParts.add("Group $it") }
             snippetParts.add("Lat: %.5f, Lng: %.5f".format(drop.lat, drop.lng))
             snippetParts.add("Score: ${formatVoteScore(drop.voteScore())} (↑${drop.upvoteCount} / ↓${drop.downvoteCount})")
+            if (drop.isNsfw) {
+                snippetParts.add("Marked as adult content")
+            }
 
             val isSelected = drop.id == selectedDropId
-            val markerIcon = BitmapDescriptorFactory.defaultMarker(voteHueFor(drop.upvoteCount))
+            val markerIcon = if (drop.isNsfw) {
+                BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_MAGENTA)
+            } else {
+                BitmapDescriptorFactory.defaultMarker(voteHueFor(drop.upvoteCount))
+            }
 
             Marker(
                 state = MarkerState(position),
@@ -4542,10 +4552,17 @@ private fun OtherDropsMap(
             drop.groupCode?.takeIf { !it.isNullOrBlank() }?.let { snippetParts.add("Group $it") }
             snippetParts.add("Lat: %.5f, Lng: %.5f".format(drop.lat, drop.lng))
             snippetParts.add("Score: ${formatVoteScore(drop.voteScore())} (↑${drop.upvoteCount} / ↓${drop.downvoteCount})")
+            if (drop.isNsfw) {
+                snippetParts.add("Marked as adult content")
+            }
 
             val isSelected = drop.id == selectedDropId
 
-            val markerIcon = BitmapDescriptorFactory.defaultMarker(voteHueFor(drop.upvoteCount))
+            val markerIcon = if (drop.isNsfw) {
+                BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_MAGENTA)
+            } else {
+                BitmapDescriptorFactory.defaultMarker(voteHueFor(drop.upvoteCount))
+            }
 
             Marker(
                 state = MarkerState(position),
