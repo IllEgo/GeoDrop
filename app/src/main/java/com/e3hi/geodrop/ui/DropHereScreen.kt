@@ -16,8 +16,6 @@ import android.provider.MediaStore
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.background
@@ -28,7 +26,6 @@ import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -74,7 +71,6 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.material3.DividerDefaults
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -165,7 +161,6 @@ import androidx.lifecycle.LifecycleEventObserver
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.flow.distinctUntilChanged
 import java.io.File
 import java.io.IOException
 import java.util.ArrayList
@@ -2839,30 +2834,11 @@ private fun CollectedDropsDialog(
                             listState.animateScrollToItem(index)
                         }
                     }
-                    val mapWeights = rememberScrollAwareMapWeights(
-                        listState = listState,
-                        hasSelection = highlightedId != null,
-                        animationLabel = "collectedDropsMapWeight"
-                    )
-                    val collectedDropsDividerThickness by animateDpAsState(
-                        targetValue = if (mapWeights.isCollapsed) 0.5.dp else DividerDefaults.Thickness,
-                        label = "collectedDropsDividerThickness"
-                    )
                     val minMapWeight = MAP_LIST_MIN_WEIGHT
                     val maxMapWeight = MAP_LIST_MAX_WEIGHT
                     var containerHeight by remember { mutableStateOf(0) }
-                    var userHasResized by remember { mutableStateOf(false) }
-                    var mapWeight by remember {
-                        mutableStateOf(mapWeights.mapWeight.coerceIn(minMapWeight, maxMapWeight))
-                    }
-
-                    LaunchedEffect(mapWeights.mapWeight) {
-                        val coercedTarget = mapWeights.mapWeight.coerceIn(minMapWeight, maxMapWeight)
-                        if (!userHasResized) {
-                            mapWeight = coercedTarget
-                        } else if (mapWeight < minMapWeight || mapWeight > maxMapWeight) {
-                            mapWeight = mapWeight.coerceIn(minMapWeight, maxMapWeight)
-                        }
+                    var mapWeight by rememberSaveable {
+                        mutableStateOf(DEFAULT_MAP_WEIGHT.coerceIn(minMapWeight, maxMapWeight))
                     }
 
                     val listWeight = 1f - mapWeight
@@ -2873,7 +2849,6 @@ private fun CollectedDropsDialog(
                         val updated = (mapWeight + deltaWeight).coerceIn(minMapWeight, maxMapWeight)
                         if (updated != mapWeight) {
                             mapWeight = updated
-                            userHasResized = true
                         }
                     }
                     val dividerInteraction = remember { MutableInteractionSource() }
@@ -2896,7 +2871,6 @@ private fun CollectedDropsDialog(
                                 val coerced = target.coerceIn(minMapWeight, maxMapWeight)
                                 if (coerced != mapWeight) {
                                     mapWeight = coerced
-                                    userHasResized = true
                                 }
                                 true
                             }
@@ -2952,10 +2926,7 @@ private fun CollectedDropsDialog(
                         }
 
                         Box(modifier = dividerModifier) {
-                            Divider(
-                                modifier = Modifier.align(Alignment.Center),
-                                thickness = collectedDropsDividerThickness
-                            )
+                            Divider(modifier = Modifier.align(Alignment.Center))
                             DividerDragHandleHint(
                                 modifier = Modifier.align(Alignment.Center),
                                 text = stringResource(R.string.drag_to_resize)
@@ -3595,30 +3566,11 @@ private fun OtherDropsMapDialog(
                                     listState.animateScrollToItem(index)
                                 }
                             }
-                            val mapWeights = rememberScrollAwareMapWeights(
-                                listState = listState,
-                                hasSelection = selectedId != null,
-                                animationLabel = "otherDropsMapWeight"
-                            )
-                            val otherDropsDividerThickness by animateDpAsState(
-                                targetValue = if (mapWeights.isCollapsed) 0.5.dp else DividerDefaults.Thickness,
-                                label = "otherDropsDividerThickness"
-                            )
                             val minMapWeight = MAP_LIST_MIN_WEIGHT
                             val maxMapWeight = MAP_LIST_MAX_WEIGHT
                             var containerHeight by remember { mutableStateOf(0) }
-                            var userHasResized by remember { mutableStateOf(false) }
-                            var mapWeight by remember {
-                                mutableStateOf(mapWeights.mapWeight.coerceIn(minMapWeight, maxMapWeight))
-                            }
-
-                            LaunchedEffect(mapWeights.mapWeight) {
-                                val coercedTarget = mapWeights.mapWeight.coerceIn(minMapWeight, maxMapWeight)
-                                if (!userHasResized) {
-                                    mapWeight = coercedTarget
-                                } else if (mapWeight < minMapWeight || mapWeight > maxMapWeight) {
-                                    mapWeight = mapWeight.coerceIn(minMapWeight, maxMapWeight)
-                                }
+                            var mapWeight by rememberSaveable {
+                                mutableStateOf(DEFAULT_MAP_WEIGHT.coerceIn(minMapWeight, maxMapWeight))
                             }
 
                             val listWeight = 1f - mapWeight
@@ -3629,7 +3581,6 @@ private fun OtherDropsMapDialog(
                                 val updated = (mapWeight + deltaWeight).coerceIn(minMapWeight, maxMapWeight)
                                 if (updated != mapWeight) {
                                     mapWeight = updated
-                                    userHasResized = true
                                 }
                             }
                             val dividerInteraction = remember { MutableInteractionSource() }
@@ -3652,7 +3603,6 @@ private fun OtherDropsMapDialog(
                                         val coerced = target.coerceIn(minMapWeight, maxMapWeight)
                                         if (coerced != mapWeight) {
                                             mapWeight = coerced
-                                            userHasResized = true
                                         }
                                         true
                                     }
@@ -3685,10 +3635,7 @@ private fun OtherDropsMapDialog(
                                 }
 
                                 Box(modifier = dividerModifier) {
-                                    Divider(
-                                        modifier = Modifier.align(Alignment.Center),
-                                        thickness = otherDropsDividerThickness
-                                    )
+                                    Divider(modifier = Modifier.align(Alignment.Center))
                                     DividerDragHandleHint(
                                         modifier = Modifier.align(Alignment.Center),
                                         text = stringResource(R.string.drag_to_resize)
@@ -4177,30 +4124,11 @@ private fun MyDropsDialog(
                                     listState.animateScrollToItem(index)
                                 }
                             }
-                            val mapWeights = rememberScrollAwareMapWeights(
-                                listState = listState,
-                                hasSelection = selectedId != null,
-                                animationLabel = "myDropsMapWeight"
-                            )
-                            val myDropsDividerThickness by animateDpAsState(
-                                targetValue = if (mapWeights.isCollapsed) 0.5.dp else DividerDefaults.Thickness,
-                                label = "myDropsDividerThickness"
-                            )
                             val minMapWeight = MAP_LIST_MIN_WEIGHT
                             val maxMapWeight = MAP_LIST_MAX_WEIGHT
                             var containerHeight by remember { mutableStateOf(0) }
-                            var userHasResized by remember { mutableStateOf(false) }
-                            var mapWeight by remember {
-                                mutableStateOf(mapWeights.mapWeight.coerceIn(minMapWeight, maxMapWeight))
-                            }
-
-                            LaunchedEffect(mapWeights.mapWeight) {
-                                val coercedTarget = mapWeights.mapWeight.coerceIn(minMapWeight, maxMapWeight)
-                                if (!userHasResized) {
-                                    mapWeight = coercedTarget
-                                } else if (mapWeight < minMapWeight || mapWeight > maxMapWeight) {
-                                    mapWeight = mapWeight.coerceIn(minMapWeight, maxMapWeight)
-                                }
+                            var mapWeight by rememberSaveable {
+                                mutableStateOf(DEFAULT_MAP_WEIGHT.coerceIn(minMapWeight, maxMapWeight))
                             }
 
                             val listWeight = 1f - mapWeight
@@ -4211,7 +4139,6 @@ private fun MyDropsDialog(
                                 val updated = (mapWeight + deltaWeight).coerceIn(minMapWeight, maxMapWeight)
                                 if (updated != mapWeight) {
                                     mapWeight = updated
-                                    userHasResized = true
                                 }
                             }
                             val dividerInteraction = remember { MutableInteractionSource() }
@@ -4234,7 +4161,6 @@ private fun MyDropsDialog(
                                         val coerced = target.coerceIn(minMapWeight, maxMapWeight)
                                         if (coerced != mapWeight) {
                                             mapWeight = coerced
-                                            userHasResized = true
                                         }
                                         true
                                     }
@@ -4258,10 +4184,7 @@ private fun MyDropsDialog(
                                 }
 
                                 Box(modifier = dividerModifier) {
-                                    Divider(
-                                        modifier = Modifier.align(Alignment.Center),
-                                        thickness = myDropsDividerThickness
-                                    )
+                                    Divider(modifier = Modifier.align(Alignment.Center))
                                     DividerDragHandleHint(
                                         modifier = Modifier.align(Alignment.Center),
                                         text = stringResource(R.string.drag_to_resize)
@@ -5276,62 +5199,7 @@ private fun BusinessRedemptionSection(
 private val DIVIDER_DRAG_HANDLE_HEIGHT = 24.dp
 private const val MAP_LIST_MIN_WEIGHT = 0.2f
 private const val MAP_LIST_MAX_WEIGHT = 0.8f
-
-private data class ScrollAwareMapWeights(
-    val mapWeight: Float,
-    val listWeight: Float,
-    val isCollapsed: Boolean
-)
-
-@Composable
-private fun rememberScrollAwareMapWeights(
-    listState: LazyListState,
-    hasSelection: Boolean,
-    expandedMapWeight: Float = 0.5f,
-    collapsedMapWeight: Float = 0.2f,
-    animationLabel: String = "mapWeight"
-): ScrollAwareMapWeights {
-    var collapseFromScroll by remember { mutableStateOf(false) }
-
-    LaunchedEffect(listState, hasSelection) {
-        if (hasSelection) {
-            collapseFromScroll = false
-        }
-
-        snapshotFlow {
-            val layoutInfo = listState.layoutInfo
-            val firstIndex = listState.firstVisibleItemIndex
-            val firstOffset = listState.firstVisibleItemScrollOffset
-            val beforePadding = layoutInfo.beforeContentPadding
-            val hasItems = layoutInfo.totalItemsCount > 0
-            val isAtTop = !hasItems || (firstIndex == 0 && firstOffset <= beforePadding)
-
-            !hasSelection && !isAtTop
-        }
-            .distinctUntilChanged()
-            .collect { shouldCollapse ->
-                collapseFromScroll = shouldCollapse
-            }
-    }
-
-    val targetMapWeight = if (collapseFromScroll) {
-        collapsedMapWeight
-    } else {
-        expandedMapWeight
-    }
-
-    val animatedMapWeight by animateFloatAsState(
-        targetValue = targetMapWeight,
-        label = animationLabel
-    )
-    val coercedMapWeight = animatedMapWeight.coerceIn(0f, 1f)
-    val isCollapsed = collapseFromScroll
-    return ScrollAwareMapWeights(
-        mapWeight = coercedMapWeight,
-        listWeight = 1f - coercedMapWeight,
-        isCollapsed = isCollapsed
-    )
-}
+private const val DEFAULT_MAP_WEIGHT = 0.5f
 
 @Composable
 private fun DropVisibilitySection(
