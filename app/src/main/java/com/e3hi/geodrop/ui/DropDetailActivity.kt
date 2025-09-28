@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -734,7 +735,26 @@ class DropDetailActivity : ComponentActivity() {
                                     }
 
                                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        Text("Message", style = MaterialTheme.typography.titleMedium)
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = "Message",
+                                                style = MaterialTheme.typography.titleMedium,
+                                                modifier = Modifier.weight(1f)
+                                            )
+
+                                            if (loadedState?.isNsfw == true) {
+                                                DropDetailTag(
+                                                    text = "18+",
+                                                    icon = Icons.Rounded.Block,
+                                                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                                                )
+                                            }
+                                        }
                                         Text(message, style = MaterialTheme.typography.bodyLarge)
                                     }
 
