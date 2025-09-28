@@ -15,6 +15,7 @@ import android.util.Patterns
 import android.provider.MediaStore
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.background
@@ -23,6 +24,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.shape.CircleShape
@@ -3906,13 +3908,18 @@ private fun MyDropsDialog(
                         }
 
                         else -> {
+                            val listState = rememberLazyListState()
+                            val targetMapWeight = if (listState.isScrollInProgress && selectedId == null) 0.2f else 0.5f
+                            val animatedMapWeight by animateFloatAsState(targetValue = targetMapWeight, label = "mapWeight")
+                            val listWeight = 1f - animatedMapWeight
+
                             Column(
                                 modifier = Modifier.fillMaxSize()
                             ) {
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .weight(0.3f)
+                                        .weight(animatedMapWeight)
                                 ) {
                                     MyDropsMap(
                                         drops = drops,
@@ -3926,7 +3933,7 @@ private fun MyDropsDialog(
                                 Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .weight(0.7f)
+                                        .weight(listWeight)
                                 ) {
                                     Text(
                                         text = "Select a drop to focus on the map.",
@@ -3938,6 +3945,7 @@ private fun MyDropsDialog(
                                     )
 
                                     LazyColumn(
+                                        state = listState,
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .weight(1f),
