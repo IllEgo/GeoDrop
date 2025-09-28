@@ -3587,9 +3587,10 @@ private fun OtherDropsMapDialog(
                         else -> {
                             val listState = rememberLazyListState()
 
-                            LaunchedEffect(highlightedId, notes) {
-                                val targetId = highlightedId ?: return@LaunchedEffect
-                                val index = notes.indexOfFirst { it.id == targetId }
+
+                            LaunchedEffect(selectedId, drops) {
+                                val targetId = selectedId ?: return@LaunchedEffect
+                                val index = drops.indexOfFirst { it.id == targetId }
                                 if (index >= 0) {
                                     listState.animateScrollToItem(index)
                                 }
@@ -4169,9 +4170,9 @@ private fun MyDropsDialog(
                         else -> {
                             val listState = rememberLazyListState()
 
-                            LaunchedEffect(highlightedId, notes) {
-                                val targetId = highlightedId ?: return@LaunchedEffect
-                                val index = notes.indexOfFirst { it.id == targetId }
+                            LaunchedEffect(selectedId, drops) {
+                                val targetId = selectedId ?: return@LaunchedEffect
+                                val index = drops.indexOfFirst { it.id == targetId }
                                 if (index >= 0) {
                                     listState.animateScrollToItem(index)
                                 }
