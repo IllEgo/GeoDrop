@@ -23,6 +23,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
@@ -66,6 +67,7 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -3426,6 +3428,13 @@ private fun OtherDropsMapDialog(
                         }
 
                         else -> {
+                            val listState = rememberLazyListState()
+                            val (mapWeight, listWeight) = rememberScrollAwareMapWeights(
+                                listState = listState,
+                                hasSelection = selectedId != null,
+                                animationLabel = "otherDropsMapWeight"
+                            )
+
                             Column(
                                 modifier = Modifier.fillMaxSize()
                             ) {
@@ -3441,7 +3450,7 @@ private fun OtherDropsMapDialog(
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .weight(1f)
+                                        .weight(mapWeight)
                                 ) {
                                     OtherDropsMap(
                                         drops = drops,
@@ -3455,7 +3464,7 @@ private fun OtherDropsMapDialog(
                                 Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .weight(1f)
+                                        .weight(listWeight)
                                 ) {
                                     val isSignedIn = !currentUserId.isNullOrBlank()
                                     Text(
@@ -3468,6 +3477,7 @@ private fun OtherDropsMapDialog(
                                     )
 
                                     LazyColumn(
+                                        state = listState,
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .weight(1f),
@@ -3909,9 +3919,11 @@ private fun MyDropsDialog(
 
                         else -> {
                             val listState = rememberLazyListState()
-                            val targetMapWeight = if (listState.isScrollInProgress && selectedId == null) 0.2f else 0.5f
-                            val animatedMapWeight by animateFloatAsState(targetValue = targetMapWeight, label = "mapWeight")
-                            val listWeight = 1f - animatedMapWeight
+                            val (mapWeight, listWeight) = rememberScrollAwareMapWeights(
+                                listState = listState,
+                                hasSelection = selectedId != null,
+                                animationLabel = "myDropsMapWeight"
+                            )
 
                             Column(
                                 modifier = Modifier.fillMaxSize()
@@ -3919,7 +3931,7 @@ private fun MyDropsDialog(
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .weight(animatedMapWeight)
+                                        .weight(mapWeight)
                                 ) {
                                     MyDropsMap(
                                         drops = drops,
@@ -4877,6 +4889,35 @@ private fun BusinessRedemptionSection(
             modifier = Modifier.fillMaxWidth()
         )
     }
+}
+
+@Composable
+private fun rememberScrollAwareMapWeights(
+    listState: LazyListState,
+    hasSelection: Boolean,
+    expandedMapWeight: Float = 0.5f,
+    collapsedMapWeight: Float = 0.2f,
+    animationLabel: String = "mapWeight"
+): Pair<Float, Float> {
+    val shouldCollapse by remember(listState, hasSelection) {
+        derivedStateOf {
+            if (hasSelection) {
+                false
+            } else {
+                val hasScrolledPastTop = listState.firstVisibleItemIndex > 0 ||
+                        listState.firstVisibleItemScrollOffset > 0
+                listState.isScrollInProgress || hasScrolledPastTop
+            }
+        }
+    }
+
+    val targetMapWeight = if (shouldCollapse) collapsedMapWeight else expandedMapWeight
+    val animatedMapWeight by animateFloatAsState(
+        targetValue = targetMapWeight,
+        label = animationLabel
+    )
+    val coercedMapWeight = animatedMapWeight.coerceIn(0f, 1f)
+    return coercedMapWeight to (1f - coercedMapWeight)
 }
 
 @Composable
