@@ -1647,7 +1647,13 @@ fun DropHereScreen() {
             currentLocation = otherDropsCurrentLocation,
             error = otherDropsError,
             selectedId = otherDropsSelectedId,
-            onSelect = { drop -> otherDropsSelectedId = drop.id },
+            onSelect = { drop ->
+                otherDropsSelectedId = if (otherDropsSelectedId == drop.id) {
+                    null
+                } else {
+                    drop.id
+                }
+            },
             onPickUp = { drop -> pickUpDrop(drop) },
             currentUserId = currentUserId,
             votingDropIds = votingDropIds,
@@ -1666,7 +1672,13 @@ fun DropHereScreen() {
             deletingId = myDropsDeletingId,
             error = myDropsError,
             selectedId = myDropsSelectedId,
-            onSelect = { drop -> myDropsSelectedId = drop.id },
+            onSelect = { drop ->
+                myDropsSelectedId = if (myDropsSelectedId == drop.id) {
+                    null
+                } else {
+                    drop.id
+                }
+            },
             onDismiss = { showMyDrops = false },
             onRetry = { myDropsRefreshToken += 1 },
             onView = { drop ->
@@ -4510,6 +4522,15 @@ private fun OtherDropRow(
                 if (drop.isNsfw) {
                     DropNsfwBadge()
                 }
+
+                Icon(
+                    imageVector = if (isSelected) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                    contentDescription = if (isSelected) {
+                        "Collapse drop details"
+                    } else {
+                        "Expand drop details"
+                    }
+                )
             }
 
             val description = drop.discoveryDescription()
@@ -4841,9 +4862,19 @@ private fun ManageDropRow(
                 if (drop.isNsfw) {
                     DropNsfwBadge()
                 }
+
+                Icon(
+                    imageVector = if (isSelected) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                    contentDescription = if (isSelected) {
+                        "Collapse drop details"
+                    } else {
+                        "Expand drop details"
+                    }
+            }
             }
 
-            if (isSelected) {
+        AnimatedVisibility(visible = isSelected) {
+            Column {
                 Spacer(Modifier.height(4.dp))
 
                 val typeLabel = when (drop.contentType) {
@@ -4880,7 +4911,7 @@ private fun ManageDropRow(
                         contentScale = ContentScale.Crop
                     )
                     Spacer(Modifier.height(12.dp))
-                }
+                    }
 
                 Spacer(Modifier.height(4.dp))
 
@@ -4897,11 +4928,11 @@ private fun ManageDropRow(
                 val visibilityLabel = drop.groupCode?.takeIf { !it.isNullOrBlank() }
                     ?.let { "Group-only · $it" }
                     ?: "Public drop"
-                Text(
-                    text = visibilityLabel,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = supportingColor
-                )
+                    Text(
+                        text = visibilityLabel,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = supportingColor
+                    )
 
                 Spacer(Modifier.height(4.dp))
 
@@ -4925,7 +4956,7 @@ private fun ManageDropRow(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
-                ) {
+                    ) {
                     TextButton(
                         onClick = onView,
                         enabled = !isDeleting
@@ -4951,6 +4982,7 @@ private fun ManageDropRow(
                             )
                             Spacer(Modifier.width(4.dp))
                             Text("Delete")
+                        }
                         }
                     }
                 }
