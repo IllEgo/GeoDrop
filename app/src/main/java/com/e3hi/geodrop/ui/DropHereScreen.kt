@@ -21,12 +21,16 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.shape.CircleShape
@@ -73,6 +77,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -87,6 +92,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.setProgress
+import androidx.compose.ui.semantics.stateDescription
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import coil.compose.AsyncImage
@@ -3440,9 +3452,66 @@ private fun OtherDropsMapDialog(
                                 targetValue = if (mapWeights.isCollapsed) 0.5.dp else DividerDefaults.Thickness,
                                 label = "otherDropsDividerThickness"
                             )
+                            val minMapWeight = MAP_LIST_MIN_WEIGHT
+                            val maxMapWeight = MAP_LIST_MAX_WEIGHT
+                            var containerHeight by remember { mutableStateOf(0) }
+                            var userHasResized by remember { mutableStateOf(false) }
+                            var mapWeight by remember {
+                                mutableStateOf(mapWeights.mapWeight.coerceIn(minMapWeight, maxMapWeight))
+                            }
+
+                            LaunchedEffect(mapWeights.mapWeight) {
+                                val coercedTarget = mapWeights.mapWeight.coerceIn(minMapWeight, maxMapWeight)
+                                if (!userHasResized) {
+                                    mapWeight = coercedTarget
+                                } else if (mapWeight < minMapWeight || mapWeight > maxMapWeight) {
+                                    mapWeight = mapWeight.coerceIn(minMapWeight, maxMapWeight)
+                                }
+                            }
+
+                            val listWeight = 1f - mapWeight
+                            val dividerDragState = rememberDraggableState { delta ->
+                                val height = containerHeight.takeIf { it > 0 }?.toFloat()
+                                    ?: return@rememberDraggableState
+                                val deltaWeight = -delta / height
+                                val updated = (mapWeight + deltaWeight).coerceIn(minMapWeight, maxMapWeight)
+                                if (updated != mapWeight) {
+                                    mapWeight = updated
+                                    userHasResized = true
+                                }
+                            }
+                            val dividerInteraction = remember { MutableInteractionSource() }
+                            val dividerModifier = Modifier
+                                .fillMaxWidth()
+                                .height(DIVIDER_DRAG_HANDLE_HEIGHT)
+                                .draggable(
+                                    state = dividerDragState,
+                                    orientation = Orientation.Vertical,
+                                    interactionSource = dividerInteraction,
+                                    indication = null
+                                )
+                                .semantics(mergeDescendants = true) {
+                                    role = Role.Adjustable
+                                    progressBarRangeInfo = ProgressBarRangeInfo(
+                                        current = mapWeight,
+                                        range = minMapWeight..maxMapWeight
+                                    )
+                                    stateDescription =
+                                        "Map occupies ${'$'}{(mapWeight * 100).roundToInt()} percent of the available height"
+                                    setProgress { target ->
+                                        val coerced = target.coerceIn(minMapWeight, maxMapWeight)
+                                        if (coerced != mapWeight) {
+                                            mapWeight = coerced
+                                            userHasResized = true
+                                        }
+                                        true
+                                    }
+                                }
 
                             Column(
-                                modifier = Modifier.fillMaxSize()
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .onSizeChanged { containerHeight = it.height }
                             ) {
                                 Text(
                                     text = "Collect a drop to reveal its contents.",
@@ -3456,7 +3525,7 @@ private fun OtherDropsMapDialog(
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .weight(mapWeights.mapWeight)
+                                        .weight(mapWeight)
                                 ) {
                                     OtherDropsMap(
                                         drops = drops,
@@ -3465,12 +3534,17 @@ private fun OtherDropsMapDialog(
                                     )
                                 }
 
-                                Divider(thickness = otherDropsDividerThickness)
+                                Box(modifier = dividerModifier) {
+                                    Divider(
+                                        modifier = Modifier.align(Alignment.Center),
+                                        thickness = otherDropsDividerThickness
+                                    )
+                                }
 
                                 Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .weight(mapWeights.listWeight)
+                                        .weight(listWeight)
                                 ) {
                                     val isSignedIn = !currentUserId.isNullOrBlank()
                                     Text(
@@ -3934,14 +4008,71 @@ private fun MyDropsDialog(
                                 targetValue = if (mapWeights.isCollapsed) 0.5.dp else DividerDefaults.Thickness,
                                 label = "myDropsDividerThickness"
                             )
+                            val minMapWeight = MAP_LIST_MIN_WEIGHT
+                            val maxMapWeight = MAP_LIST_MAX_WEIGHT
+                            var containerHeight by remember { mutableStateOf(0) }
+                            var userHasResized by remember { mutableStateOf(false) }
+                            var mapWeight by remember {
+                                mutableStateOf(mapWeights.mapWeight.coerceIn(minMapWeight, maxMapWeight))
+                            }
+
+                            LaunchedEffect(mapWeights.mapWeight) {
+                                val coercedTarget = mapWeights.mapWeight.coerceIn(minMapWeight, maxMapWeight)
+                                if (!userHasResized) {
+                                    mapWeight = coercedTarget
+                                } else if (mapWeight < minMapWeight || mapWeight > maxMapWeight) {
+                                    mapWeight = mapWeight.coerceIn(minMapWeight, maxMapWeight)
+                                }
+                            }
+
+                            val listWeight = 1f - mapWeight
+                            val dividerDragState = rememberDraggableState { delta ->
+                                val height = containerHeight.takeIf { it > 0 }?.toFloat()
+                                    ?: return@rememberDraggableState
+                                val deltaWeight = -delta / height
+                                val updated = (mapWeight + deltaWeight).coerceIn(minMapWeight, maxMapWeight)
+                                if (updated != mapWeight) {
+                                    mapWeight = updated
+                                    userHasResized = true
+                                }
+                            }
+                            val dividerInteraction = remember { MutableInteractionSource() }
+                            val dividerModifier = Modifier
+                                .fillMaxWidth()
+                                .height(DIVIDER_DRAG_HANDLE_HEIGHT)
+                                .draggable(
+                                    state = dividerDragState,
+                                    orientation = Orientation.Vertical,
+                                    interactionSource = dividerInteraction,
+                                    indication = null
+                                )
+                                .semantics(mergeDescendants = true) {
+                                    role = Role.Adjustable
+                                    progressBarRangeInfo = ProgressBarRangeInfo(
+                                        current = mapWeight,
+                                        range = minMapWeight..maxMapWeight
+                                    )
+                                    stateDescription =
+                                        "Map occupies ${'$'}{(mapWeight * 100).roundToInt()} percent of the available height"
+                                    setProgress { target ->
+                                        val coerced = target.coerceIn(minMapWeight, maxMapWeight)
+                                        if (coerced != mapWeight) {
+                                            mapWeight = coerced
+                                            userHasResized = true
+                                        }
+                                        true
+                                    }
+                                }
 
                             Column(
-                                modifier = Modifier.fillMaxSize()
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .onSizeChanged { containerHeight = it.height }
                             ) {
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .weight(mapWeights.mapWeight)
+                                        .weight(mapWeight)
                                 ) {
                                     MyDropsMap(
                                         drops = drops,
@@ -3950,12 +4081,17 @@ private fun MyDropsDialog(
                                     )
                                 }
 
-                                Divider(thickness = myDropsDividerThickness)
+                                Box(modifier = dividerModifier) {
+                                    Divider(
+                                        modifier = Modifier.align(Alignment.Center),
+                                        thickness = myDropsDividerThickness
+                                    )
+                                }
 
                                 Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .weight(mapWeights.listWeight)
+                                        .weight(listWeight)
                                 ) {
                                     Text(
                                         text = "Select a drop to focus on the map.",
@@ -4900,6 +5036,10 @@ private fun BusinessRedemptionSection(
         )
     }
 }
+
+private val DIVIDER_DRAG_HANDLE_HEIGHT = 24.dp
+private const val MAP_LIST_MIN_WEIGHT = 0.2f
+private const val MAP_LIST_MAX_WEIGHT = 0.8f
 
 private data class ScrollAwareMapWeights(
     val mapWeight: Float,
