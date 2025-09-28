@@ -4027,7 +4027,7 @@ private fun MyDropsDialog(
                             val dividerDragState = rememberDraggableState { delta ->
                                 val height = containerHeight.takeIf { it > 0 }?.toFloat()
                                     ?: return@rememberDraggableState
-                                val deltaWeight = -delta / height
+                                val deltaWeight = delta / height
                                 val updated = (mapWeight + deltaWeight).coerceIn(minMapWeight, maxMapWeight)
                                 if (updated != mapWeight) {
                                     mapWeight = updated
