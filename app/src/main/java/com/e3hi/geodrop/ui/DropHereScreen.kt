@@ -1402,7 +1402,7 @@ fun DropHereScreen() {
                                 DropdownMenuItem(
                                     text = {
                                         Text(
-                                            if (nsfwEnabled) "Disable 18+ drops" else "Enable 18+ drops"
+                                            if (nsfwEnabled) "Disable NSFW drops" else "Enable NSFW drops"
                                         )
                                     },
                                     leadingIcon = { Icon(Icons.Rounded.Flag, contentDescription = null) },
@@ -1806,9 +1806,9 @@ fun DropHereScreen() {
                         userProfile = updated
                         showNsfwDialog = false
                         val message = if (enable) {
-                            "18+ drops enabled."
+                            "NSFW drops enabled."
                         } else {
-                            "18+ drops disabled."
+                            "NSFW drops disabled."
                         }
                         snackbar.showMessage(scope, message)
                         registrar.registerNearby(
