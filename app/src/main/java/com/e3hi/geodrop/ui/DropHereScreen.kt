@@ -2831,6 +2831,14 @@ private fun CollectedDropsDialog(
                     val highlightedNote = notes.firstOrNull { it.id == highlightedId }
 
                     val listState = rememberLazyListState()
+
+                    LaunchedEffect(highlightedId, notes) {
+                        val targetId = highlightedId ?: return@LaunchedEffect
+                        val index = notes.indexOfFirst { it.id == targetId }
+                        if (index >= 0) {
+                            listState.animateScrollToItem(index)
+                        }
+                    }
                     val mapWeights = rememberScrollAwareMapWeights(
                         listState = listState,
                         hasSelection = highlightedId != null,
@@ -3578,6 +3586,14 @@ private fun OtherDropsMapDialog(
 
                         else -> {
                             val listState = rememberLazyListState()
+
+                            LaunchedEffect(highlightedId, notes) {
+                                val targetId = highlightedId ?: return@LaunchedEffect
+                                val index = notes.indexOfFirst { it.id == targetId }
+                                if (index >= 0) {
+                                    listState.animateScrollToItem(index)
+                                }
+                            }
                             val mapWeights = rememberScrollAwareMapWeights(
                                 listState = listState,
                                 hasSelection = selectedId != null,
@@ -4152,6 +4168,14 @@ private fun MyDropsDialog(
 
                         else -> {
                             val listState = rememberLazyListState()
+
+                            LaunchedEffect(highlightedId, notes) {
+                                val targetId = highlightedId ?: return@LaunchedEffect
+                                val index = notes.indexOfFirst { it.id == targetId }
+                                if (index >= 0) {
+                                    listState.animateScrollToItem(index)
+                                }
+                            }
                             val mapWeights = rememberScrollAwareMapWeights(
                                 listState = listState,
                                 hasSelection = selectedId != null,
