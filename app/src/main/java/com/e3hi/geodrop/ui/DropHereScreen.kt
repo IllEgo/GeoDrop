@@ -67,7 +67,7 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -145,6 +145,7 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -4899,14 +4900,23 @@ private fun rememberScrollAwareMapWeights(
     collapsedMapWeight: Float = 0.2f,
     animationLabel: String = "mapWeight"
 ): Pair<Float, Float> {
-    val collapseFromScroll by remember(listState, hasSelection) {
-        derivedStateOf {
+    var collapseFromScroll by remember(listState) { mutableStateOf(false) }
+
+    LaunchedEffect(listState, hasSelection) {
+        if (hasSelection) {
+            collapseFromScroll = false
+        }
+        snapshotFlow {
             !hasSelection && (
                     listState.isScrollInProgress ||
                     listState.firstVisibleItemIndex > 0 ||
                     listState.firstVisibleItemScrollOffset > 0
                     )
         }
+            .distinctUntilChanged()
+            .collect { shouldCollapse ->
+                collapseFromScroll = shouldCollapse
+            }
     }
 
     val targetMapWeight = if (collapseFromScroll) {
