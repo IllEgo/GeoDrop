@@ -72,7 +72,8 @@ object DropSafetyClassifier {
         }
 
         val normalizedConfidence = confidence.coerceIn(0.0, 0.99)
-        val isNsfw = strongSignals.isNotEmpty() || normalizedConfidence >= 0.35
+        val threshold = if (strongSignals.isNotEmpty()) 0.35 else 0.65
+        val isNsfw = strongSignals.isNotEmpty() || normalizedConfidence >= threshold
         val reasons = if (isNsfw) (strongSignals + weakSignals).distinct() else emptyList()
 
         val reportedConfidence = if (isNsfw) normalizedConfidence else 0.0
