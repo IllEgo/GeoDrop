@@ -10,6 +10,7 @@ import java.io.BufferedWriter
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.Locale
 import kotlin.math.round
 
 /**
@@ -125,12 +126,35 @@ class AdvancedDropSafetyEvaluator(
             }
 
             val json = JSONObject(responseBody)
-            val isNsfw = json.optBoolean("nsfw", false)
-            val confidence = json.optDouble("confidence", if (isNsfw) 0.5 else 0.0)
-                .coerceIn(0.0, 0.99)
-            val reasons = json.optJSONArray("reasons")?.let { it.toStringList() } ?: emptyList()
+            val isNsfw = json.optBooleanCompat(
+                "nsfw",
+                "isNsfw",
+                "nsfwFlag",
+                "flagged",
+                fallback = false
+            )
+            val confidence = json.optConfidenceCompat(
+                "confidence",
+                "nsfwConfidence",
+                "score",
+                "probability",
+                "likelihood",
+                "nsfwScore"
+            ) ?: if (isNsfw) 0.5 else 0.0
 
-            val roundedConfidence = if (isNsfw) round(confidence * 100) / 100.0 else 0.0
+            val normalizedConfidence = confidence.coerceIn(0.0, 0.99)
+            val reasons = json.optReasonsCompat(
+                "reasons",
+                "reason",
+                "reasonsList",
+                "nsfwReasons",
+                "labels",
+                "nsfwLabels",
+                "categories",
+                "tags"
+            )
+
+            val roundedConfidence = if (isNsfw) round(normalizedConfidence * 100) / 100.0 else 0.0
             val reportedReasons = if (isNsfw) reasons.filter { it.isNotBlank() }.distinct() else emptyList()
 
             DropSafetyAssessment(
@@ -152,6 +176,89 @@ class AdvancedDropSafetyEvaluator(
             }
         }
         return items
+    }
+
+    private fun JSONObject.optBooleanCompat(vararg keys: String, fallback: Boolean): Boolean {
+        keys.forEach { key ->
+            if (has(key)) {
+                when (val value = opt(key)) {
+                    is Boolean -> return value
+                    is Number -> return value.toInt() != 0
+                    is String -> {
+                        val lowered = value.trim().lowercase(Locale.US)
+                        if (lowered.isNotEmpty()) {
+                            return lowered == "true" || lowered == "1" || lowered == "yes"
+                        }
+                    }
+                }
+            }
+        }
+        return fallback
+    }
+
+    private fun JSONObject.optConfidenceCompat(vararg keys: String): Double? {
+        keys.forEach { key ->
+            if (has(key)) {
+                val raw = when (val value = opt(key)) {
+                    is Number -> value.toDouble()
+                    is String -> value.trim().toDoubleOrNull()
+                    else -> null
+                }
+
+                if (raw != null && !raw.isNaN()) {
+                    val normalized = when {
+                        raw > 1.0 && raw <= 100.0 -> raw / 100.0
+                        raw < 0.0 -> 0.0
+                        else -> raw
+                    }
+                    return normalized
+                }
+            }
+        }
+        return null
+    }
+
+    private fun JSONObject.optReasonsCompat(vararg keys: String): List<String> {
+        keys.forEach { key ->
+            if (!has(key)) return@forEach
+
+            when (val value = opt(key)) {
+                is JSONArray -> {
+                    val values = value.toStringList()
+                    if (values.isNotEmpty()) return values
+                }
+                is String -> {
+                    val trimmed = value.trim()
+                    if (trimmed.isNotEmpty()) return listOf(trimmed)
+                }
+                is JSONObject -> {
+                    val nested = mutableListOf<String>()
+                    value.keys().forEach { nestedKey ->
+                        val nestedValue = value.opt(nestedKey)
+                        val label = when (nestedValue) {
+                            is String -> nestedValue.trim().takeIf { it.isNotEmpty() }
+                            is Number -> nestedValue.toDouble().let { score ->
+                                val percent = if (score in 0.0..1.0) {
+                                    round(score * 100).toInt()
+                                } else {
+                                    score.toInt()
+                                }
+                                "$nestedKey ($percent%)"
+                            }
+                            else -> null
+                        }
+                        if (!label.isNullOrBlank()) {
+                            nested += label
+                        } else if (nestedKey.isNotBlank()) {
+                            nested += nestedKey
+                        }
+                    }
+                    if (nested.isNotEmpty()) return nested
+                }
+            }
+        }
+
+        return emptyList()
     }
 
     private companion object {
