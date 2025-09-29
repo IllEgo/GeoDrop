@@ -37,36 +37,38 @@ object DropSafetyClassifier {
         mediaUrl: String?
     ): DropSafetyAssessment {
         val lowered = text?.lowercase(Locale.US).orEmpty()
-        val reasons = mutableListOf<String>()
+        val strongSignals = mutableListOf<String>()
+        val weakSignals = mutableListOf<String>()
         var confidence = 0.05
 
         keywordSignals.forEach { (keyword, reason) ->
             if (lowered.contains(keyword)) {
-                reasons += reason
-                confidence += 0.15
+                strongSignals += reason
+                confidence += 0.25
             }
         }
 
         if (mediaUrl?.lowercase(Locale.US)?.contains("nsfw") == true) {
-            reasons += "Media URL indicates NSFW content"
-            confidence += 0.15
+            strongSignals += "Media URL indicates NSFW content"
+            confidence += 0.2
         }
 
         riskyMimePrefixes.forEach { (prefix, pair) ->
             val (weight, reason) = pair
             if (mediaMimeType?.lowercase(Locale.US)?.startsWith(prefix) == true) {
-                reasons += reason
+                weakSignals += reason
                 confidence += weight
             }
         }
 
         if (contentType != DropContentType.TEXT && !mediaData.isNullOrBlank()) {
-            reasons += "Contains embedded media data"
+            weakSignals += "Contains embedded media data"
             confidence += 0.1
         }
 
-        val isNsfw = reasons.isNotEmpty()
-        val normalizedConfidence = confidence.coerceIn(0.0, 0.99)
+        val isNsfw = strongSignals.isNotEmpty()
+        val normalizedConfidence = if (isNsfw) confidence.coerceIn(0.0, 0.99) else 0.0
+        val reasons = if (isNsfw) (strongSignals + weakSignals).distinct() else emptyList()
 
         return DropSafetyAssessment(
             isNsfw = isNsfw,
