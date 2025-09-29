@@ -135,7 +135,8 @@ import com.e3hi.geodrop.util.GroupPreferences
 import com.e3hi.geodrop.util.formatTimestamp
 import com.e3hi.geodrop.util.DropBlockedBySafetyException
 import com.e3hi.geodrop.util.DropSafetyAssessment
-import com.e3hi.geodrop.util.DropSafetyClassifier
+import com.e3hi.geodrop.util.DropSafetyEvaluator
+import com.e3hi.geodrop.util.HeuristicDropSafetyEvaluator
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
@@ -175,7 +176,9 @@ import kotlin.math.sqrt
 @SuppressLint("MissingPermission")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DropHereScreen() {
+fun DropHereScreen(
+    dropSafetyEvaluator: DropSafetyEvaluator = HeuristicDropSafetyEvaluator
+) {
     val ctx = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val auth = remember { FirebaseAuth.getInstance() }
@@ -1049,15 +1052,13 @@ fun DropHereScreen() {
             redemptionLimit = if (dropType == DropType.RESTAURANT_COUPON) sanitizedRedemptionLimit else null
         )
 
-        val safety = withContext(Dispatchers.Default) {
-            DropSafetyClassifier.evaluate(
-                text = sanitizedText,
-                contentType = contentType,
-                mediaMimeType = sanitizedMime,
-                mediaData = sanitizedData,
-                mediaUrl = sanitizedMedia
-            )
-        }
+        val safety = dropSafetyEvaluator.assess(
+            text = sanitizedText,
+            contentType = contentType,
+            mediaMimeType = sanitizedMime,
+            mediaData = sanitizedData,
+            mediaUrl = sanitizedMedia
+        )
 
         if (safety.isNsfw && !nsfwAllowed) {
             throw DropBlockedBySafetyException(safety)
