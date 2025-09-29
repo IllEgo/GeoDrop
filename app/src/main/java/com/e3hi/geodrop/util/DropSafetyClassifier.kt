@@ -90,7 +90,3 @@ data class DropSafetyAssessment(
     val confidence: Double,
     val reasons: List<String>
 )
-
-class DropBlockedBySafetyException(val assessment: DropSafetyAssessment) : Exception(
-    "NSFW content requires adult verification"
-)
