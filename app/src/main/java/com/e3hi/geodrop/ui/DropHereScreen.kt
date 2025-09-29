@@ -574,16 +574,16 @@ fun DropHereScreen() {
                 auth.signOut()
             }
 
+            signingOut = false
+
             if (result.isSuccess) {
                 selectedHomeDestination = HomeDestination.Explorer.name
-                snackbar.showSnackbar("Signed out.")
+                snackbar.showMessage(scope, "Signed out.")
             } else {
                 val message = result.exceptionOrNull()?.localizedMessage?.takeIf { it.isNotBlank() }
                     ?: "Couldn't sign out. Try again."
-                snackbar.showSnackbar(message)
+                snackbar.showMessage(scope, message)
             }
-
-            signingOut = false
         }
     }
 
