@@ -67,6 +67,14 @@ class AdvancedDropSafetyEvaluator(
         mediaUrl: String?
     ): DropSafetyAssessment {
         return try {
+            val classifierAssessment = DropSafetyClassifier.evaluate(
+                text = text,
+                contentType = contentType,
+                mediaMimeType = mediaMimeType,
+                mediaData = mediaData,
+                mediaUrl = mediaUrl
+            )
+
             val advanced = withContext(Dispatchers.IO) {
                 requestAssessment(
                     text = text,
@@ -76,15 +84,26 @@ class AdvancedDropSafetyEvaluator(
                     mediaUrl = mediaUrl
                 )
             }
-            if (advanced.isNsfw && advanced.reasons.isEmpty()) {
-                val heuristic = fallback.assess(text, contentType, mediaMimeType, mediaData, mediaUrl)
-                advanced.copy(reasons = heuristic.reasons)
-            } else {
-                advanced
+
+            val resolvedReasons = when {
+                advanced.reasons.isNotEmpty() -> advanced.reasons
+                classifierAssessment.reasons.isNotEmpty() -> classifierAssessment.reasons
+                else -> advanced.reasons
             }
+
+            advanced.copy(
+                reasons = resolvedReasons,
+                evaluatorScore = advanced.evaluatorScore ?: advanced.confidence.takeIf { it > 0.0 },
+                classifierScore = classifierAssessment.classifierScore
+            )
         } catch (t: Throwable) {
             Log.w(TAG, "Advanced NSFW check failed; falling back to heuristic", t)
-            fallback.assess(text, contentType, mediaMimeType, mediaData, mediaUrl)
+            val fallbackAssessment = fallback.assess(text, contentType, mediaMimeType, mediaData, mediaUrl)
+            if (fallbackAssessment.classifierScore == null) {
+                fallbackAssessment.copy(classifierScore = fallbackAssessment.confidence)
+            } else {
+                fallbackAssessment
+            }
         }
     }
 
@@ -159,8 +178,10 @@ class AdvancedDropSafetyEvaluator(
 
             DropSafetyAssessment(
                 isNsfw = isNsfw,
-                confidence = roundedConfidence,
-                reasons = reportedReasons
+                confidence = if (isNsfw) roundedConfidence else 0.0,
+                reasons = reportedReasons,
+                evaluatorScore = roundedConfidence,
+                classifierScore = null
             )
         } finally {
             connection.disconnect()
