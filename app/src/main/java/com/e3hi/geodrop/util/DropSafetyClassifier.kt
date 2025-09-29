@@ -66,6 +66,11 @@ object DropSafetyClassifier {
             confidence += 0.1
         }
 
+        if (contentType != DropContentType.TEXT && !mediaUrl.isNullOrBlank()) {
+            weakSignals += "Contains linked media attachment"
+            confidence += 0.15
+        }
+
         val normalizedConfidence = confidence.coerceIn(0.0, 0.99)
         val isNsfw = strongSignals.isNotEmpty() || normalizedConfidence >= 0.35
         val reasons = if (isNsfw) (strongSignals + weakSignals).distinct() else emptyList()
