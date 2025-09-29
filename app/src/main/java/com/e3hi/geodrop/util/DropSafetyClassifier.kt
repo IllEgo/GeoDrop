@@ -88,12 +88,15 @@ object DropSafetyClassifier {
         val isNsfw = strongSignals.isNotEmpty() || normalizedConfidence >= threshold
         val reasons = if (isNsfw) (strongSignals + weakSignals).distinct() else emptyList()
 
-        val reportedConfidence = if (isNsfw) normalizedConfidence else 0.0
+        val roundedClassifierScore = round(normalizedConfidence * 100) / 100.0
+        val reportedConfidence = if (isNsfw) roundedClassifierScore else 0.0
 
         return DropSafetyAssessment(
             isNsfw = isNsfw,
-            confidence = round(reportedConfidence * 100) / 100.0,
-            reasons = reasons.distinct()
+            confidence = reportedConfidence,
+            reasons = reasons.distinct(),
+            evaluatorScore = null,
+            classifierScore = roundedClassifierScore
         )
     }
 }
@@ -101,7 +104,9 @@ object DropSafetyClassifier {
 data class DropSafetyAssessment(
     val isNsfw: Boolean,
     val confidence: Double,
-    val reasons: List<String>
+    val reasons: List<String>,
+    val evaluatorScore: Double? = null,
+    val classifierScore: Double? = null
 )
 
 class DropBlockedBySafetyException(val assessment: DropSafetyAssessment) : Exception(

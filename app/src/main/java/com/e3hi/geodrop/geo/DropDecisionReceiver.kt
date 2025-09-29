@@ -72,6 +72,16 @@ class DropDecisionReceiver : BroadcastReceiver() {
         } else {
             null
         }
+        val nsfwEvaluatorScore = if (intent.hasExtra(EXTRA_DROP_NSFW_EVALUATOR_SCORE)) {
+            intent.getDoubleExtra(EXTRA_DROP_NSFW_EVALUATOR_SCORE, 0.0)
+        } else {
+            null
+        }
+        val nsfwClassifierScore = if (intent.hasExtra(EXTRA_DROP_NSFW_CLASSIFIER_SCORE)) {
+            intent.getDoubleExtra(EXTRA_DROP_NSFW_CLASSIFIER_SCORE, 0.0)
+        } else {
+            null
+        }
         val resolvedIsNsfw = isNsfw || nsfwLabels.isNotEmpty()
 
         val inventory = NoteInventory(context)
@@ -94,7 +104,9 @@ class DropDecisionReceiver : BroadcastReceiver() {
             collectedAt = System.currentTimeMillis(),
             isNsfw = resolvedIsNsfw,
             nsfwLabels = nsfwLabels,
-            nsfwConfidence = nsfwConfidence
+            nsfwConfidence = nsfwConfidence,
+            nsfwEvaluatorScore = nsfwEvaluatorScore,
+            nsfwClassifierScore = nsfwClassifierScore
         )
         inventory.saveCollected(note)
 
@@ -150,6 +162,8 @@ class DropDecisionReceiver : BroadcastReceiver() {
         const val EXTRA_DROP_IS_NSFW = "extra_drop_is_nsfw"
         const val EXTRA_DROP_NSFW_LABELS = "extra_drop_nsfw_labels"
         const val EXTRA_DROP_NSFW_CONFIDENCE = "extra_drop_nsfw_confidence"
+        const val EXTRA_DROP_NSFW_EVALUATOR_SCORE = "extra_drop_nsfw_evaluator_score"
+        const val EXTRA_DROP_NSFW_CLASSIFIER_SCORE = "extra_drop_nsfw_classifier_score"
 
         private const val TAG = "DropDecisionReceiver"
     }

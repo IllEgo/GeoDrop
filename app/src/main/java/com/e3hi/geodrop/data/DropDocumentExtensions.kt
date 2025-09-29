@@ -17,6 +17,18 @@ internal fun DocumentSnapshot.toDrop(): Drop {
         else -> base.nsfwConfidence
     }
 
+    val nsfwEvaluatorScore = when {
+        contains("nsfwEvaluatorScore") -> getDouble("nsfwEvaluatorScore")
+            ?: getLong("nsfwEvaluatorScore")?.toDouble()
+        else -> base.nsfwEvaluatorScore
+    }
+
+    val nsfwClassifierScore = when {
+        contains("nsfwClassifierScore") -> getDouble("nsfwClassifierScore")
+            ?: getLong("nsfwClassifierScore")?.toDouble()
+        else -> base.nsfwClassifierScore
+    }
+
     val nsfwLabels = when {
         contains("nsfwLabels") -> {
             val raw = get("nsfwLabels")
@@ -34,6 +46,8 @@ internal fun DocumentSnapshot.toDrop(): Drop {
     return base.copy(
         isNsfw = nsfwFlag,
         nsfwConfidence = nsfwConfidence,
+        nsfwEvaluatorScore = nsfwEvaluatorScore,
+        nsfwClassifierScore = nsfwClassifierScore,
         nsfwLabels = nsfwLabels
     )
 }

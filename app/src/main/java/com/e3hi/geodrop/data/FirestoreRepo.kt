@@ -398,6 +398,8 @@ class FirestoreRepo(
             "isNsfw" to sanitized.isNsfw,
             "nsfw" to sanitized.isNsfw,
             "nsfwConfidence" to sanitized.nsfwConfidence,
+            "nsfwEvaluatorScore" to sanitized.nsfwEvaluatorScore,
+            "nsfwClassifierScore" to sanitized.nsfwClassifierScore,
             "nsfwLabels" to sanitized.nsfwLabels,
             "upvoteCount" to sanitized.upvoteCount,
             "downvoteCount" to sanitized.downvoteCount,

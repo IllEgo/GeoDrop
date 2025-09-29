@@ -19,6 +19,8 @@ data class Drop(
     val mediaData: String? = null,
     val isNsfw: Boolean = false,
     val nsfwConfidence: Double? = null,
+    val nsfwEvaluatorScore: Double? = null,
+    val nsfwClassifierScore: Double? = null,
     val nsfwLabels: List<String> = emptyList(),
     val upvoteCount: Long = 0,
     val downvoteCount: Long = 0,
