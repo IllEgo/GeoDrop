@@ -2,6 +2,7 @@ package com.e3hi.geodrop.util
 
 import com.e3hi.geodrop.data.DropContentType
 import java.util.Locale
+import kotlin.math.max
 import kotlin.math.round
 
 /**
@@ -59,6 +60,17 @@ object DropSafetyClassifier {
                 weakSignals += reason
                 confidence += weight
             }
+        }
+
+        val imageAssessment = if (mediaMimeType?.lowercase(Locale.US)?.startsWith("image/") == true && !mediaData.isNullOrBlank()) {
+            ImageNsfwAnalyzer.analyzeBase64(mediaData)
+        } else {
+            null
+        }
+
+        if (imageAssessment?.flagged == true) {
+            strongSignals += imageAssessment.reason
+            confidence = max(confidence, 0.55 + (0.4 * imageAssessment.confidence))
         }
 
         if (contentType != DropContentType.TEXT && !mediaData.isNullOrBlank()) {
