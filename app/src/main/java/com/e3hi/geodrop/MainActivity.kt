@@ -57,7 +57,7 @@ class MainActivity : ComponentActivity() {
         authListener?.let { auth.addAuthStateListener(it) }
 
         setContent {
-            val apiKey = BuildConfig.GOOGLE_VISION_API_KEY
+            val apiKey = remember { fetchVisionApiKey() }
             val dropSafetyEvaluator = remember(apiKey) {
                 if (apiKey.isNotBlank()) {
                     GoogleVisionSafeSearchEvaluator(apiKey = apiKey)
@@ -78,6 +78,27 @@ class MainActivity : ComponentActivity() {
             ContextCompat.checkSelfPermission(this, it) != PermissionChecker.PERMISSION_GRANTED
         }
         if (need) permissionLauncher.launch(requiredPermissions)
+    }
+
+    private fun fetchVisionApiKey(): String {
+        return try {
+            val field = BuildConfig::class.java.getField("GOOGLE_VISION_API_KEY")
+            (field.get(null) as? String).orEmpty()
+        } catch (noField: NoSuchFieldException) {
+            Log.w(
+                "GeoDrop",
+                "GOOGLE_VISION_API_KEY missing from BuildConfig; falling back to heuristic evaluator.",
+                noField
+            )
+            ""
+        } catch (illegal: IllegalAccessException) {
+            Log.w(
+                "GeoDrop",
+                "Unable to access GOOGLE_VISION_API_KEY from BuildConfig; falling back to heuristic evaluator.",
+                illegal
+            )
+            ""
+        }
     }
 
     override fun onDestroy() {
