@@ -10,6 +10,7 @@ import androidx.compose.runtime.remember
 import androidx.core.content.ContextCompat
 import androidx.core.content.PermissionChecker
 import android.util.Log
+import com.e3hi.geodrop.BuildConfig
 import com.e3hi.geodrop.ui.DropHereScreen
 import com.e3hi.geodrop.util.GoogleVisionSafeSearchEvaluator
 import com.e3hi.geodrop.util.GroupPreferences

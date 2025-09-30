@@ -15,11 +15,11 @@ android {
         versionCode = 1
         versionName = "1.0"
 
-        val visionApiKey = (project.findProperty("AIzaSyDD9c_0xHim_ITvXZlHY67b_m_SR-9DUJs") as String?)
-            ?: System.getenv("AIzaSyDD9c_0xHim_ITvXZlHY67b_m_SR-9DUJs")
+        val visionApiKey = (project.findProperty("GOOGLE_VISION_API_KEY") as String?)
+            ?: System.getenv("GOOGLE_VISION_API_KEY")
             ?: ""
         val escapedVisionKey = visionApiKey.replace("\"", "\\\"")
-        buildConfigField("String", "AIzaSyDD9c_0xHim_ITvXZlHY67b_m_SR-9DUJs", "\"$escapedVisionKey\"")
+        buildConfigField("String", "GOOGLE_VISION_API_KEY", "\"$escapedVisionKey\"")
     }
 
     compileOptions {
