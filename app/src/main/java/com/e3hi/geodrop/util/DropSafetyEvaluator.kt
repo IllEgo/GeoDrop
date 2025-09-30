@@ -99,11 +99,18 @@ class AdvancedDropSafetyEvaluator(
         } catch (t: Throwable) {
             Log.w(TAG, "Advanced NSFW check failed; falling back to heuristic", t)
             val fallbackAssessment = fallback.assess(text, contentType, mediaMimeType, mediaData, mediaUrl)
-            if (fallbackAssessment.classifierScore == null) {
-                fallbackAssessment.copy(classifierScore = fallbackAssessment.confidence)
-            } else {
-                fallbackAssessment
+            val resolvedClassifierScore = fallbackAssessment.classifierScore ?: fallbackAssessment.confidence
+            val resolvedEvaluatorScore = when {
+                fallbackAssessment.evaluatorScore != null -> fallbackAssessment.evaluatorScore
+                fallbackAssessment.isNsfw -> fallbackAssessment.classifierScore
+                    ?: fallbackAssessment.confidence.takeIf { it > 0.0 }
+                else -> null
             }
+
+            fallbackAssessment.copy(
+                evaluatorScore = resolvedEvaluatorScore,
+                classifierScore = resolvedClassifierScore
+            )
         }
     }
 
