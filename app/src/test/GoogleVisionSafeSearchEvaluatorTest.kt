@@ -1,7 +1,9 @@
 package com.e3hi.geodrop.util
 
 import com.e3hi.geodrop.data.DropContentType
+import com.e3hi.geodrop.data.VisionApiStatus
 import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -27,6 +29,7 @@ class GoogleVisionSafeSearchEvaluatorTest {
 
         assertFalse(assessment.isNsfw)
         assertTrue(assessment.reasons.isEmpty())
+        assertEquals(VisionApiStatus.NOT_CONFIGURED, assessment.visionStatus)
     }
 
     @Test
@@ -43,5 +46,6 @@ class GoogleVisionSafeSearchEvaluatorTest {
 
         assertFalse(assessment.isNsfw)
         assertTrue(assessment.reasons.isEmpty())
+        assertEquals(VisionApiStatus.NOT_ELIGIBLE, assessment.visionStatus)
     }
 }

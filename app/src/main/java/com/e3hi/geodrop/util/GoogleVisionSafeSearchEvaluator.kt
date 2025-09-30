@@ -2,6 +2,7 @@ package com.e3hi.geodrop.util
 
 import android.util.Log
 import com.e3hi.geodrop.data.DropContentType
+import com.e3hi.geodrop.data.VisionApiStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -34,14 +35,14 @@ class GoogleVisionSafeSearchEvaluator(
     ): DropSafetyAssessment {
         if (apiKey.isBlank()) {
             Log.w(TAG, "Vision API key missing; skipping NSFW evaluation")
-            return safeAssessment()
+            return safeAssessment(VisionApiStatus.NOT_CONFIGURED)
         }
 
         val eligibleForVision = contentType == DropContentType.PHOTO &&
                 (mediaMimeType?.startsWith("image/") == true || !mediaData.isNullOrBlank() || !mediaUrl.isNullOrBlank())
 
         if (!eligibleForVision) {
-            return safeAssessment()
+            return safeAssessment(VisionApiStatus.NOT_ELIGIBLE)
         }
 
         val visionResult = try {
@@ -50,12 +51,12 @@ class GoogleVisionSafeSearchEvaluator(
             }
         } catch (t: Throwable) {
             Log.w(TAG, "Vision SafeSearch request failed", t)
-            null
+            return safeAssessment(VisionApiStatus.ERROR)
         }
 
-    val resolved = visionResult ?: return safeAssessment()
-    if (!resolved.flagged) {
-        return safeAssessment()
+        val resolved = visionResult ?: return safeAssessment(VisionApiStatus.CLEARED)
+        if (!resolved.flagged) {
+            return safeAssessment(VisionApiStatus.CLEARED)
         }
 
         return DropSafetyAssessment(
@@ -63,16 +64,18 @@ class GoogleVisionSafeSearchEvaluator(
             confidence = resolved.confidence,
             reasons = resolved.reasons,
             evaluatorScore = resolved.confidence,
-            classifierScore = null
+            classifierScore = null,
+            visionStatus = VisionApiStatus.FLAGGED
         )
     }
 
-    private fun safeAssessment(): DropSafetyAssessment = DropSafetyAssessment(
+    private fun safeAssessment(status: VisionApiStatus): DropSafetyAssessment = DropSafetyAssessment(
         isNsfw = false,
         confidence = 0.0,
         reasons = emptyList(),
         evaluatorScore = null,
-        classifierScore = null
+        classifierScore = null,
+        visionStatus = status
     )
 
     private fun requestSafeSearch(

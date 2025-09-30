@@ -129,6 +129,7 @@ import com.e3hi.geodrop.data.requiresRedemption
 import com.e3hi.geodrop.data.userVote
 import com.e3hi.geodrop.data.voteScore
 import com.e3hi.geodrop.data.isBusiness
+import com.e3hi.geodrop.data.VisionApiStatus
 import com.e3hi.geodrop.geo.DropDecisionReceiver
 import com.e3hi.geodrop.geo.NearbyDropRegistrar
 import com.e3hi.geodrop.util.GroupPreferences
@@ -1282,6 +1283,16 @@ fun DropHereScreen(
                     redemptionLimit = redemptionLimitResult,
                     nsfwAllowed = userProfile?.canViewNsfw() == true
                 )
+                val baseStatusMessage = status
+                val visionMessage = visionStatusMessage(
+                    assessment = safety,
+                    contentType = dropContentType
+                )
+                status = when {
+                    visionMessage == null -> baseStatusMessage
+                    baseStatusMessage.isNullOrBlank() -> visionMessage
+                    else -> listOf(baseStatusMessage, visionMessage).joinToString(separator = "\n")
+                }
                 if (safety.isNsfw) {
                     val scoreParts = buildList {
                         formatSafetyScorePercent(safety.evaluatorScore)?.let { add("Evaluator $it") }
@@ -2783,6 +2794,39 @@ private fun NsfwPreferenceDialog(
             }
         }
     )
+}
+
+private fun visionStatusMessage(
+    assessment: DropSafetyAssessment,
+    contentType: DropContentType
+): String? {
+    return when (assessment.visionStatus) {
+        VisionApiStatus.NOT_CONFIGURED ->
+            "Google Vision SafeSearch isn't configured, so this drop wasn't scanned."
+
+        VisionApiStatus.NOT_ELIGIBLE -> when (contentType) {
+            DropContentType.PHOTO ->
+                "Google Vision SafeSearch skipped this photo because it couldn't be processed."
+
+            else ->
+                "Google Vision SafeSearch only scans photo drops, so this one was skipped."
+        }
+
+        VisionApiStatus.ERROR ->
+            "Google Vision SafeSearch couldn't be reached, so the drop was saved without a scan."
+
+        VisionApiStatus.CLEARED ->
+            "Google Vision SafeSearch scanned the drop and cleared it."
+
+        VisionApiStatus.FLAGGED -> {
+            val reason = assessment.reasons.firstOrNull()?.takeIf { it.isNotBlank() }
+            if (reason != null) {
+                "Google Vision SafeSearch flagged this drop: $reason"
+            } else {
+                "Google Vision SafeSearch flagged this drop as adult content."
+            }
+        }
+    }
 }
 
 private fun formatSafetyScorePercent(score: Double?): String? {

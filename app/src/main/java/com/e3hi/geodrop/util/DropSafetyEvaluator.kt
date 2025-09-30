@@ -1,6 +1,7 @@
 package com.e3hi.geodrop.util
 
 import com.e3hi.geodrop.data.DropContentType
+import com.e3hi.geodrop.data.VisionApiStatus
 
 /**
  * Contract for pluggable NSFW evaluators. Implementations can call the Google
@@ -32,6 +33,7 @@ object NoOpDropSafetyEvaluator : DropSafetyEvaluator {
         confidence = 0.0,
         reasons = emptyList(),
         evaluatorScore = null,
-        classifierScore = null
+        classifierScore = null,
+        visionStatus = VisionApiStatus.NOT_CONFIGURED
     )
 }
