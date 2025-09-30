@@ -136,7 +136,7 @@ import com.e3hi.geodrop.util.formatTimestamp
 import com.e3hi.geodrop.util.DropBlockedBySafetyException
 import com.e3hi.geodrop.util.DropSafetyAssessment
 import com.e3hi.geodrop.util.DropSafetyEvaluator
-import com.e3hi.geodrop.util.HeuristicDropSafetyEvaluator
+import com.e3hi.geodrop.util.NoOpDropSafetyEvaluator
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
@@ -177,7 +177,7 @@ import kotlin.math.sqrt
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DropHereScreen(
-    dropSafetyEvaluator: DropSafetyEvaluator = HeuristicDropSafetyEvaluator
+    dropSafetyEvaluator: DropSafetyEvaluator = NoOpDropSafetyEvaluator
 ) {
     val ctx = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current

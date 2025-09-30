@@ -14,8 +14,8 @@ import com.e3hi.geodrop.BuildConfig
 import com.e3hi.geodrop.ui.DropHereScreen
 import com.e3hi.geodrop.util.GoogleVisionSafeSearchEvaluator
 import com.e3hi.geodrop.util.GroupPreferences
+import com.e3hi.geodrop.util.NoOpDropSafetyEvaluator
 import com.e3hi.geodrop.util.createNotificationChannelIfNeeded
-import com.e3hi.geodrop.util.HeuristicDropSafetyEvaluator
 import com.e3hi.geodrop.geo.NearbyDropRegistrar
 import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
@@ -62,7 +62,7 @@ class MainActivity : ComponentActivity() {
                 if (apiKey.isNotBlank()) {
                     GoogleVisionSafeSearchEvaluator(apiKey = apiKey)
                 } else {
-                    HeuristicDropSafetyEvaluator
+                    NoOpDropSafetyEvaluator
                 }
             }
             DropHereScreen(dropSafetyEvaluator = dropSafetyEvaluator)
@@ -87,14 +87,14 @@ class MainActivity : ComponentActivity() {
         } catch (noField: NoSuchFieldException) {
             Log.w(
                 "GeoDrop",
-                "GOOGLE_VISION_API_KEY missing from BuildConfig; falling back to heuristic evaluator.",
+                "GOOGLE_VISION_API_KEY missing from BuildConfig; NSFW detection will be disabled.",
                 noField
             )
             ""
         } catch (illegal: IllegalAccessException) {
             Log.w(
                 "GeoDrop",
-                "Unable to access GOOGLE_VISION_API_KEY from BuildConfig; falling back to heuristic evaluator.",
+                "Unable to access GOOGLE_VISION_API_KEY from BuildConfig; NSFW detection will be disabled.",
                 illegal
             )
             ""

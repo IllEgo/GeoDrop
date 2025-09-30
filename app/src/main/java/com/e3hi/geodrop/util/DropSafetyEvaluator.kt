@@ -1,21 +1,10 @@
 package com.e3hi.geodrop.util
 
-import android.util.Log
 import com.e3hi.geodrop.data.DropContentType
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import org.json.JSONArray
-import org.json.JSONObject
-import java.io.BufferedWriter
-import java.io.OutputStreamWriter
-import java.net.HttpURLConnection
-import java.net.URL
-import java.util.Locale
-import kotlin.math.round
 
 /**
- * Contract for pluggable NSFW evaluators. Implementations can call a
- * heuristic classifier, on-device ML model, or a cloud inference API.
+ * Contract for pluggable NSFW evaluators. Implementations can call the Google
+ * Vision API or provide a lightweight no-op used for previews/tests.
  */
 interface DropSafetyEvaluator {
     suspend fun assess(
@@ -28,268 +17,21 @@ interface DropSafetyEvaluator {
 }
 
 /**
- * Thin wrapper around the existing heuristic classifier so it can be used via
- * the evaluator interface.
+ * Convenience evaluator that always returns a safe assessment. Useful for UI
+ * previews or when an API key is unavailable.
  */
-object HeuristicDropSafetyEvaluator : DropSafetyEvaluator {
+object NoOpDropSafetyEvaluator : DropSafetyEvaluator {
     override suspend fun assess(
         text: String?,
         contentType: DropContentType,
         mediaMimeType: String?,
         mediaData: String?,
         mediaUrl: String?
-    ): DropSafetyAssessment = DropSafetyClassifier.evaluate(
-        text = text,
-        contentType = contentType,
-        mediaMimeType = mediaMimeType,
-        mediaData = mediaData,
-        mediaUrl = mediaUrl
+    ): DropSafetyAssessment = DropSafetyAssessment(
+        isNsfw = false,
+        confidence = 0.0,
+        reasons = emptyList(),
+        evaluatorScore = null,
+        classifierScore = null
     )
-}
-
-/**
- * Implementation that sends the drop payload to a remote ML model. On any
- * failure the evaluator falls back to the heuristic implementation so the app
- * never blocks on network errors.
- */
-class AdvancedDropSafetyEvaluator(
-    private val endpointUrl: String,
-    private val apiKey: String? = null,
-    private val timeoutMs: Int = 10_000,
-    private val fallback: DropSafetyEvaluator = HeuristicDropSafetyEvaluator
-) : DropSafetyEvaluator {
-
-    override suspend fun assess(
-        text: String?,
-        contentType: DropContentType,
-        mediaMimeType: String?,
-        mediaData: String?,
-        mediaUrl: String?
-    ): DropSafetyAssessment {
-        return try {
-            val classifierAssessment = DropSafetyClassifier.evaluate(
-                text = text,
-                contentType = contentType,
-                mediaMimeType = mediaMimeType,
-                mediaData = mediaData,
-                mediaUrl = mediaUrl
-            )
-
-            val advanced = withContext(Dispatchers.IO) {
-                requestAssessment(
-                    text = text,
-                    contentType = contentType,
-                    mediaMimeType = mediaMimeType,
-                    mediaData = mediaData,
-                    mediaUrl = mediaUrl
-                )
-            }
-
-            val resolvedReasons = when {
-                advanced.reasons.isNotEmpty() -> advanced.reasons
-                classifierAssessment.reasons.isNotEmpty() -> classifierAssessment.reasons
-                else -> advanced.reasons
-            }
-
-            advanced.copy(
-                reasons = resolvedReasons,
-                evaluatorScore = advanced.evaluatorScore ?: advanced.confidence.takeIf { it > 0.0 },
-                classifierScore = classifierAssessment.classifierScore
-            )
-        } catch (t: Throwable) {
-            Log.w(TAG, "Advanced NSFW check failed; falling back to heuristic", t)
-            val fallbackAssessment = fallback.assess(text, contentType, mediaMimeType, mediaData, mediaUrl)
-            val resolvedClassifierScore = fallbackAssessment.classifierScore ?: fallbackAssessment.confidence
-            val resolvedEvaluatorScore = when {
-                fallbackAssessment.evaluatorScore != null -> fallbackAssessment.evaluatorScore
-                fallbackAssessment.isNsfw -> fallbackAssessment.classifierScore
-                    ?: fallbackAssessment.confidence.takeIf { it > 0.0 }
-                else -> null
-            }
-
-            fallbackAssessment.copy(
-                evaluatorScore = resolvedEvaluatorScore,
-                classifierScore = resolvedClassifierScore
-            )
-        }
-    }
-
-    private fun requestAssessment(
-        text: String?,
-        contentType: DropContentType,
-        mediaMimeType: String?,
-        mediaData: String?,
-        mediaUrl: String?
-    ): DropSafetyAssessment {
-        val connection = (URL(endpointUrl).openConnection() as HttpURLConnection).apply {
-            requestMethod = "POST"
-            connectTimeout = timeoutMs
-            readTimeout = timeoutMs
-            doOutput = true
-            setRequestProperty("Content-Type", "application/json")
-            apiKey?.let { setRequestProperty("Authorization", "Bearer $it") }
-        }
-
-        val payload = JSONObject().apply {
-            put("contentType", contentType.name)
-            text?.let { put("text", it) }
-            mediaMimeType?.let { put("mediaMimeType", it) }
-            mediaData?.let { put("mediaData", it) }
-            mediaUrl?.let { put("mediaUrl", it) }
-        }
-
-        return try {
-            BufferedWriter(OutputStreamWriter(connection.outputStream, Charsets.UTF_8)).use { writer ->
-                writer.write(payload.toString())
-            }
-
-            val responseCode = connection.responseCode
-            val responseBody = (if (responseCode in 200..299) connection.inputStream else connection.errorStream)
-                ?.bufferedReader()?.use { it.readText() }.orEmpty()
-
-            if (responseCode !in 200..299 || responseBody.isBlank()) {
-                throw IllegalStateException("Unexpected response $responseCode: $responseBody")
-            }
-
-            val json = JSONObject(responseBody)
-            val isNsfw = json.optBooleanCompat(
-                "nsfw",
-                "isNsfw",
-                "nsfwFlag",
-                "flagged",
-                fallback = false
-            )
-            val confidence = json.optConfidenceCompat(
-                "confidence",
-                "nsfwConfidence",
-                "score",
-                "probability",
-                "likelihood",
-                "nsfwScore"
-            ) ?: if (isNsfw) 0.5 else 0.0
-
-            val normalizedConfidence = confidence.coerceIn(0.0, 0.99)
-            val reasons = json.optReasonsCompat(
-                "reasons",
-                "reason",
-                "reasonsList",
-                "nsfwReasons",
-                "labels",
-                "nsfwLabels",
-                "categories",
-                "tags"
-            )
-
-            val roundedConfidence = if (isNsfw) round(normalizedConfidence * 100) / 100.0 else 0.0
-            val reportedReasons = if (isNsfw) reasons.filter { it.isNotBlank() }.distinct() else emptyList()
-
-            DropSafetyAssessment(
-                isNsfw = isNsfw,
-                confidence = if (isNsfw) roundedConfidence else 0.0,
-                reasons = reportedReasons,
-                evaluatorScore = roundedConfidence,
-                classifierScore = null
-            )
-        } finally {
-            connection.disconnect()
-        }
-    }
-
-    private fun JSONArray.toStringList(): List<String> {
-        val items = mutableListOf<String>()
-        for (i in 0 until length()) {
-            val value = optString(i)
-            if (!value.isNullOrBlank()) {
-                items += value
-            }
-        }
-        return items
-    }
-
-    private fun JSONObject.optBooleanCompat(vararg keys: String, fallback: Boolean): Boolean {
-        keys.forEach { key ->
-            if (has(key)) {
-                when (val value = opt(key)) {
-                    is Boolean -> return value
-                    is Number -> return value.toInt() != 0
-                    is String -> {
-                        val lowered = value.trim().lowercase(Locale.US)
-                        if (lowered.isNotEmpty()) {
-                            return lowered == "true" || lowered == "1" || lowered == "yes"
-                        }
-                    }
-                }
-            }
-        }
-        return fallback
-    }
-
-    private fun JSONObject.optConfidenceCompat(vararg keys: String): Double? {
-        keys.forEach { key ->
-            if (has(key)) {
-                val raw = when (val value = opt(key)) {
-                    is Number -> value.toDouble()
-                    is String -> value.trim().toDoubleOrNull()
-                    else -> null
-                }
-
-                if (raw != null && !raw.isNaN()) {
-                    val normalized = when {
-                        raw > 1.0 && raw <= 100.0 -> raw / 100.0
-                        raw < 0.0 -> 0.0
-                        else -> raw
-                    }
-                    return normalized
-                }
-            }
-        }
-        return null
-    }
-
-    private fun JSONObject.optReasonsCompat(vararg keys: String): List<String> {
-        keys.forEach { key ->
-            if (!has(key)) return@forEach
-
-            when (val value = opt(key)) {
-                is JSONArray -> {
-                    val values = value.toStringList()
-                    if (values.isNotEmpty()) return values
-                }
-                is String -> {
-                    val trimmed = value.trim()
-                    if (trimmed.isNotEmpty()) return listOf(trimmed)
-                }
-                is JSONObject -> {
-                    val nested = mutableListOf<String>()
-                    value.keys().forEach { nestedKey ->
-                        val nestedValue = value.opt(nestedKey)
-                        val label = when (nestedValue) {
-                            is String -> nestedValue.trim().takeIf { it.isNotEmpty() }
-                            is Number -> nestedValue.toDouble().let { score ->
-                                val percent = if (score in 0.0..1.0) {
-                                    round(score * 100).toInt()
-                                } else {
-                                    score.toInt()
-                                }
-                                "$nestedKey ($percent%)"
-                            }
-                            else -> null
-                        }
-                        if (!label.isNullOrBlank()) {
-                            nested += label
-                        } else if (nestedKey.isNotBlank()) {
-                            nested += nestedKey
-                        }
-                    }
-                    if (nested.isNotEmpty()) return nested
-                }
-            }
-        }
-
-        return emptyList()
-    }
-
-    private companion object {
-        private const val TAG = "AdvancedDropSafetyEval"
-    }
-}
+}v

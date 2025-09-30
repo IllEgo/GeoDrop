@@ -14,17 +14,14 @@ import kotlin.math.max
 import kotlin.math.round
 
 /**
- * Drop safety evaluator backed by the Google Cloud Vision SafeSearch API.
- * It inspects photo drops for adult / racy likelihoods and combines the
- * result with the existing heuristic classifier. If the Vision call fails,
- * the heuristic assessment is returned instead so the app never blocks the
- * user flow.
+ * Drop safety evaluator backed exclusively by the Google Cloud Vision
+ * SafeSearch API. If the call fails or the payload cannot be evaluated, the
+ * content is treated as safe.
  */
 class GoogleVisionSafeSearchEvaluator(
     private val apiKey: String,
     private val endpoint: String = "https://vision.googleapis.com/v1/images:annotate",
     private val minimumLikelihood: Likelihood = Likelihood.LIKELY,
-    private val fallback: DropSafetyEvaluator = HeuristicDropSafetyEvaluator,
     private val requestTimeoutMs: Int = 10_000
 ) : DropSafetyEvaluator {
 
@@ -35,64 +32,48 @@ class GoogleVisionSafeSearchEvaluator(
         mediaData: String?,
         mediaUrl: String?
     ): DropSafetyAssessment {
-        val heuristic = fallback.assess(text, contentType, mediaMimeType, mediaData, mediaUrl)
+        if (apiKey.isBlank()) {
+            Log.w(TAG, "Vision API key missing; skipping NSFW evaluation")
+            return safeAssessment()
+        }
 
-        val eligibleForVision = apiKey.isNotBlank() &&
-                contentType == DropContentType.PHOTO &&
-                (mediaMimeType?.startsWith("image/") == true || !mediaData.isNullOrBlank())
+        val eligibleForVision = contentType == DropContentType.PHOTO &&
+                (mediaMimeType?.startsWith("image/") == true || !mediaData.isNullOrBlank() || !mediaUrl.isNullOrBlank())
 
         if (!eligibleForVision) {
-            return heuristic
+            return safeAssessment()
         }
 
-        return try {
-            val visionResult = withContext(Dispatchers.IO) {
+        val visionResult = try {
+            withContext(Dispatchers.IO) {
                 requestSafeSearch(mediaData, mediaUrl)
             }
-
-            if (visionResult == null) {
-                heuristic
-            } else {
-                combineAssessments(heuristic, visionResult)
-            }
         } catch (t: Throwable) {
-            Log.w(TAG, "Vision SafeSearch request failed; using heuristic only", t)
-            heuristic
-        }
-    }
-
-    private fun combineAssessments(
-        heuristic: DropSafetyAssessment,
-        vision: VisionAssessment
-    ): DropSafetyAssessment {
-        val combinedReasons = mutableListOf<String>()
-        if (vision.flagged && vision.reasons.isNotEmpty()) {
-            combinedReasons += vision.reasons
-        }
-        if (heuristic.isNsfw && heuristic.reasons.isNotEmpty()) {
-            combinedReasons += heuristic.reasons
+            Log.w(TAG, "Vision SafeSearch request failed", t)
+            null
         }
 
-        val flagged = heuristic.isNsfw || vision.flagged
-        val confidenceSources = buildList {
-            if (vision.flagged) add(vision.confidence)
-            if (heuristic.isNsfw) add(heuristic.confidence)
-        }
-        val resolvedConfidence = if (flagged) {
-            confidenceSources.maxOrNull() ?: 0.0
-        } else {
-            0.0
+    val resolved = visionResult ?: return safeAssessment()
+    if (!resolved.flagged) {
+        return safeAssessment()
         }
 
         return DropSafetyAssessment(
-            isNsfw = flagged,
-            confidence = resolvedConfidence,
-            reasons = combinedReasons.distinct(),
-            evaluatorScore = vision.confidence.takeIf { vision.flagged },
-            classifierScore = heuristic.classifierScore
-                ?: heuristic.confidence.takeIf { heuristic.isNsfw }
+            isNsfw = true,
+            confidence = resolved.confidence,
+            reasons = resolved.reasons,
+            evaluatorScore = resolved.confidence,
+            classifierScore = null
         )
     }
+
+    private fun safeAssessment(): DropSafetyAssessment = DropSafetyAssessment(
+        isNsfw = false,
+        confidence = 0.0,
+        reasons = emptyList(),
+        evaluatorScore = null,
+        classifierScore = null
+    )
 
     private fun requestSafeSearch(
         mediaData: String?,
