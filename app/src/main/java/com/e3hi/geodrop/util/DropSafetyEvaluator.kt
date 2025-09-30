@@ -34,4 +34,4 @@ object NoOpDropSafetyEvaluator : DropSafetyEvaluator {
         evaluatorScore = null,
         classifierScore = null
     )
-}v
+}
