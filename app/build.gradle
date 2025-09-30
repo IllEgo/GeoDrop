@@ -15,7 +15,7 @@ android {
         versionCode 1
         versionName "1.0"
 
-        buildConfigField 'String', 'AIzaSyDD9c_0xHim_ITvXZlHY67b_m_SR-9DUJs', '""'
+        buildConfigField 'String', 'GOOGLE_VISION_API_KEY', '""'
     }
 
     compileOptions {
