@@ -6,13 +6,16 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.remember
 import androidx.core.content.ContextCompat
 import androidx.core.content.PermissionChecker
+import android.util.Log
 import com.e3hi.geodrop.ui.DropHereScreen
+import com.e3hi.geodrop.util.GoogleVisionSafeSearchEvaluator
 import com.e3hi.geodrop.util.GroupPreferences
 import com.e3hi.geodrop.util.createNotificationChannelIfNeeded
+import com.e3hi.geodrop.util.HeuristicDropSafetyEvaluator
 import com.e3hi.geodrop.geo.NearbyDropRegistrar
-import android.util.Log
 import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuth.AuthStateListener
@@ -52,7 +55,17 @@ class MainActivity : ComponentActivity() {
         }
         authListener?.let { auth.addAuthStateListener(it) }
 
-        setContent { DropHereScreen() }
+        setContent {
+            val apiKey = BuildConfig.GOOGLE_VISION_API_KEY
+            val dropSafetyEvaluator = remember(apiKey) {
+                if (apiKey.isNotBlank()) {
+                    GoogleVisionSafeSearchEvaluator(apiKey = apiKey)
+                } else {
+                    HeuristicDropSafetyEvaluator
+                }
+            }
+            DropHereScreen(dropSafetyEvaluator = dropSafetyEvaluator)
+        }
 
         // 🔎 Debug log to confirm Firebase is connected
         val opts = FirebaseApp.getInstance().options

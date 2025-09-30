@@ -14,6 +14,12 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
+
+        val visionApiKey = (project.findProperty("AIzaSyDD9c_0xHim_ITvXZlHY67b_m_SR-9DUJs") as String?)
+            ?: System.getenv("AIzaSyDD9c_0xHim_ITvXZlHY67b_m_SR-9DUJs")
+            ?: ""
+        val escapedVisionKey = visionApiKey.replace("\"", "\\\"")
+        buildConfigField("String", "AIzaSyDD9c_0xHim_ITvXZlHY67b_m_SR-9DUJs", "\"$escapedVisionKey\"")
     }
 
     compileOptions {
