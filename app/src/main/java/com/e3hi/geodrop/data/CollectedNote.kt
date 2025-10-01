@@ -26,10 +26,7 @@ data class CollectedNote(
     val redeemedAt: Long? = null,
     val collectedAt: Long,
     val isNsfw: Boolean = false,
-    val nsfwLabels: List<String> = emptyList(),
-    val nsfwConfidence: Double? = null,
-    val nsfwEvaluatorScore: Double? = null,
-    val nsfwClassifierScore: Double? = null
+    val nsfwLabels: List<String> = emptyList()
 ) {
     fun toJson(): JSONObject {
         return JSONObject().apply {
@@ -52,9 +49,6 @@ data class CollectedNote(
             putOpt(KEY_REDEEMED_AT, redeemedAt)
             put(KEY_COLLECTED_AT, collectedAt)
             put(KEY_IS_NSFW, isNsfw)
-            putOpt(KEY_NSFW_CONFIDENCE, nsfwConfidence)
-            putOpt(KEY_NSFW_EVALUATOR_SCORE, nsfwEvaluatorScore)
-            putOpt(KEY_NSFW_CLASSIFIER_SCORE, nsfwClassifierScore)
             put(KEY_NSFW_LABELS, JSONArray().apply { nsfwLabels.forEach { put(it) } })
         }
     }
@@ -80,9 +74,6 @@ data class CollectedNote(
         private const val KEY_COLLECTED_AT = "collectedAt"
         private const val KEY_IS_NSFW = "isNsfw"
         private const val KEY_NSFW_LABELS = "nsfwLabels"
-        private const val KEY_NSFW_CONFIDENCE = "nsfwConfidence"
-        private const val KEY_NSFW_EVALUATOR_SCORE = "nsfwEvaluatorScore"
-        private const val KEY_NSFW_CLASSIFIER_SCORE = "nsfwClassifierScore"
 
         fun fromJson(json: JSONObject): CollectedNote {
             val id = json.optString(KEY_ID)
@@ -113,11 +104,6 @@ data class CollectedNote(
                     }
                 }
                 ?: emptyList()
-            val nsfwConfidence = json.optDouble(KEY_NSFW_CONFIDENCE).takeIf { json.has(KEY_NSFW_CONFIDENCE) }
-            val nsfwEvaluatorScore = json.optDouble(KEY_NSFW_EVALUATOR_SCORE)
-                .takeIf { json.has(KEY_NSFW_EVALUATOR_SCORE) }
-            val nsfwClassifierScore = json.optDouble(KEY_NSFW_CLASSIFIER_SCORE)
-                .takeIf { json.has(KEY_NSFW_CLASSIFIER_SCORE) }
             val isNsfw = json.optBoolean(KEY_IS_NSFW) || nsfwLabels.isNotEmpty()
 
             return CollectedNote(
@@ -140,10 +126,7 @@ data class CollectedNote(
                 redeemedAt = redeemedAt,
                 collectedAt = collectedAt,
                 isNsfw = isNsfw,
-                nsfwLabels = nsfwLabels,
-                nsfwConfidence = nsfwConfidence,
-                nsfwEvaluatorScore = nsfwEvaluatorScore,
-                nsfwClassifierScore = nsfwClassifierScore
+                nsfwLabels = nsfwLabels
             )
         }
     }

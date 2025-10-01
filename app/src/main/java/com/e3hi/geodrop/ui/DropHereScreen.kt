@@ -680,15 +680,6 @@ fun DropHereScreen(
                     ArrayList(drop.nsfwLabels)
                 )
             }
-            drop.nsfwConfidence?.let {
-                putExtra(DropDecisionReceiver.EXTRA_DROP_NSFW_CONFIDENCE, it)
-            }
-            drop.nsfwEvaluatorScore?.let {
-                putExtra(DropDecisionReceiver.EXTRA_DROP_NSFW_EVALUATOR_SCORE, it)
-            }
-            drop.nsfwClassifierScore?.let {
-                putExtra(DropDecisionReceiver.EXTRA_DROP_NSFW_CLASSIFIER_SCORE, it)
-            }
         }
 
         val result = runCatching { appContext.sendBroadcast(intent) }
@@ -1073,9 +1064,6 @@ fun DropHereScreen(
 
         val dropToSave = d.copy(
             isNsfw = safety.isNsfw,
-            nsfwConfidence = safety.confidence,
-            nsfwEvaluatorScore = safety.evaluatorScore,
-            nsfwClassifierScore = safety.classifierScore,
             nsfwLabels = safety.reasons
         )
 
@@ -1294,19 +1282,7 @@ fun DropHereScreen(
                     else -> listOf(baseStatusMessage, visionMessage).joinToString(separator = "\n")
                 }
                 if (safety.isNsfw) {
-                    val scoreParts = buildList {
-                        formatSafetyScorePercent(safety.evaluatorScore)?.let { add("Evaluator $it") }
-                        formatSafetyScorePercent(safety.classifierScore)?.let { add("Classifier $it") }
-                    }
-                    val message = buildString {
-                        append("Drop saved with an 18+ warning.")
-                        if (scoreParts.isNotEmpty()) {
-                            append(' ')
-                            append("Scores: ")
-                            append(scoreParts.joinToString())
-                        }
-                    }
-                    snackbar.showMessage(scope, message)
+                    snackbar.showMessage(scope, "Drop saved with an 18+ warning.")
                 }
             } catch (e: Exception) {
                 when (e) {
@@ -1745,9 +1721,6 @@ fun DropHereScreen(
                     drop.redemptionLimit?.let { putExtra("dropRedemptionLimit", it) }
                     putExtra("dropRedemptionCount", drop.redemptionCount)
                     putExtra("dropIsNsfw", drop.isNsfw)
-                    drop.nsfwConfidence?.let { putExtra("dropNsfwConfidence", it) }
-                    drop.nsfwEvaluatorScore?.let { putExtra("dropNsfwEvaluatorScore", it) }
-                    drop.nsfwClassifierScore?.let { putExtra("dropNsfwClassifierScore", it) }
                     if (drop.nsfwLabels.isNotEmpty()) {
                         putStringArrayListExtra("dropNsfwLabels", ArrayList(drop.nsfwLabels))
                     }
@@ -1806,9 +1779,6 @@ fun DropHereScreen(
                     putExtra("dropIsRedeemed", note.isRedeemed)
                     note.redeemedAt?.let { putExtra("dropRedeemedAt", it) }
                     putExtra("dropIsNsfw", note.isNsfw)
-                    note.nsfwConfidence?.let { putExtra("dropNsfwConfidence", it) }
-                    note.nsfwEvaluatorScore?.let { putExtra("dropNsfwEvaluatorScore", it) }
-                    note.nsfwClassifierScore?.let { putExtra("dropNsfwClassifierScore", it) }
                     if (note.nsfwLabels.isNotEmpty()) {
                         putStringArrayListExtra("dropNsfwLabels", ArrayList(note.nsfwLabels))
                     }
@@ -2827,20 +2797,6 @@ private fun visionStatusMessage(
             }
         }
     }
-}
-
-private fun formatSafetyScorePercent(score: Double?): String? {
-    val value = score ?: return null
-    if (value.isNaN()) return null
-    val clamped = value.coerceIn(0.0, 1.0)
-    val percent = clamped * 100.0
-    val formatted = String.format(Locale.US, "%.1f", percent)
-    val cleaned = if (formatted.endsWith(".0")) {
-        formatted.dropLast(2)
-    } else {
-        formatted
-    }
-    return "$cleaned%"
 }
 
 private fun formatCoordinate(value: Double): String {

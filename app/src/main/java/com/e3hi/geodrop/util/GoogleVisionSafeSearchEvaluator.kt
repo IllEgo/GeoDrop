@@ -11,8 +11,6 @@ import java.io.BufferedWriter
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
-import kotlin.math.max
-import kotlin.math.round
 
 /**
  * Drop safety evaluator backed exclusively by the Google Cloud Vision
@@ -61,20 +59,14 @@ class GoogleVisionSafeSearchEvaluator(
 
         return DropSafetyAssessment(
             isNsfw = true,
-            confidence = resolved.confidence,
             reasons = resolved.reasons,
-            evaluatorScore = resolved.confidence,
-            classifierScore = null,
             visionStatus = VisionApiStatus.FLAGGED
         )
     }
 
     private fun safeAssessment(status: VisionApiStatus): DropSafetyAssessment = DropSafetyAssessment(
         isNsfw = false,
-        confidence = 0.0,
         reasons = emptyList(),
-        evaluatorScore = null,
-        classifierScore = null,
         visionStatus = status
     )
 
@@ -171,31 +163,25 @@ class GoogleVisionSafeSearchEvaluator(
         val racyLikelihood = Likelihood.fromResponse(annotation.optString("racy"))
 
         val reasons = mutableListOf<String>()
-        var confidence = 0.0
 
         if (adultLikelihood.isAtLeast(minimumLikelihood)) {
             reasons += "Google Vision flagged as adult (${adultLikelihood.readableLabel})"
-            confidence = max(confidence, adultLikelihood.confidence)
         }
 
         if (racyLikelihood.isAtLeast(minimumLikelihood)) {
             reasons += "Google Vision flagged as racy (${racyLikelihood.readableLabel})"
-            confidence = max(confidence, racyLikelihood.confidence)
         }
 
         val flagged = reasons.isNotEmpty()
-        val roundedConfidence = if (flagged) round(confidence * 100) / 100.0 else 0.0
 
         return VisionAssessment(
             flagged = flagged,
-            confidence = roundedConfidence,
             reasons = reasons
         )
     }
 
     private data class VisionAssessment(
         val flagged: Boolean,
-        val confidence: Double,
         val reasons: List<String>
     )
 

@@ -30,10 +30,7 @@ object NoOpDropSafetyEvaluator : DropSafetyEvaluator {
         mediaUrl: String?
     ): DropSafetyAssessment = DropSafetyAssessment(
         isNsfw = false,
-        confidence = 0.0,
         reasons = emptyList(),
-        evaluatorScore = null,
-        classifierScore = null,
         visionStatus = VisionApiStatus.NOT_CONFIGURED
     )
 }

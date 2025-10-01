@@ -8,10 +8,7 @@ import com.e3hi.geodrop.data.VisionApiStatus
 
 data class DropSafetyAssessment(
     val isNsfw: Boolean,
-    val confidence: Double,
     val reasons: List<String>,
-    val evaluatorScore: Double? = null,
-    val classifierScore: Double? = null,
     val visionStatus: VisionApiStatus = VisionApiStatus.NOT_CONFIGURED
 )
 

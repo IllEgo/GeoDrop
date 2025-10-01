@@ -44,7 +44,6 @@ import androidx.compose.material.icons.rounded.Videocam
 import androidx.compose.material3.Button
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Divider
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
@@ -101,7 +100,6 @@ import coil.request.ImageRequest
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
-import java.util.Locale
 import kotlinx.coroutines.launch
 
 class DropDetailActivity : ComponentActivity() {
@@ -132,21 +130,6 @@ class DropDetailActivity : ComponentActivity() {
         val initialRedeemedAt = intent.getLongExtra("dropRedeemedAt", -1L).takeIf { it > 0L }
         val initialIsRedeemed = intent.getBooleanExtra("dropIsRedeemed", false)
         val initialIsNsfw = intent.getBooleanExtra("dropIsNsfw", false)
-        val initialNsfwConfidence = if (intent.hasExtra("dropNsfwConfidence")) {
-            intent.getDoubleExtra("dropNsfwConfidence", 0.0)
-        } else {
-            null
-        }
-        val initialNsfwEvaluatorScore = if (intent.hasExtra("dropNsfwEvaluatorScore")) {
-            intent.getDoubleExtra("dropNsfwEvaluatorScore", 0.0)
-        } else {
-            null
-        }
-        val initialNsfwClassifierScore = if (intent.hasExtra("dropNsfwClassifierScore")) {
-            intent.getDoubleExtra("dropNsfwClassifierScore", 0.0)
-        } else {
-            null
-        }
         val initialNsfwLabels = intent.getStringArrayListExtra("dropNsfwLabels")
             ?.filter { it.isNotBlank() }
             ?: emptyList()
@@ -191,9 +174,6 @@ class DropDetailActivity : ComponentActivity() {
                                 isRedeemed = initialIsRedeemed,
                                 redeemedAt = initialRedeemedAt,
                                 isNsfw = initialIsNsfw,
-                                nsfwConfidence = initialNsfwConfidence,
-                                nsfwEvaluatorScore = initialNsfwEvaluatorScore,
-                                nsfwClassifierScore = initialNsfwClassifierScore,
                                 nsfwLabels = initialNsfwLabels
                             )
                         } else {
@@ -232,9 +212,6 @@ class DropDetailActivity : ComponentActivity() {
                             isRedeemed = initialIsRedeemed,
                             redeemedAt = initialRedeemedAt,
                             isNsfw = initialIsNsfw,
-                            nsfwConfidence = initialNsfwConfidence,
-                            nsfwEvaluatorScore = initialNsfwEvaluatorScore,
-                            nsfwClassifierScore = initialNsfwClassifierScore,
                             nsfwLabels = initialNsfwLabels
                         )
                     } else {
@@ -280,33 +257,6 @@ class DropDetailActivity : ComponentActivity() {
                             previousLoaded != null -> previousLoaded.isNsfw
                             initialLoaded != null -> initialLoaded.isNsfw
                             else -> initialIsNsfw
-                        }
-                        val resolvedNsfwConfidence = when {
-                            doc.contains("nsfwConfidence") -> {
-                                doc.getDouble("nsfwConfidence")
-                                    ?: doc.getLong("nsfwConfidence")?.toDouble()
-                            }
-                            previousLoaded?.nsfwConfidence != null -> previousLoaded.nsfwConfidence
-                            initialLoaded?.nsfwConfidence != null -> initialLoaded.nsfwConfidence
-                            else -> initialNsfwConfidence
-                        }
-                        val resolvedNsfwEvaluatorScore = when {
-                            doc.contains("nsfwEvaluatorScore") -> {
-                                doc.getDouble("nsfwEvaluatorScore")
-                                    ?: doc.getLong("nsfwEvaluatorScore")?.toDouble()
-                            }
-                            previousLoaded?.nsfwEvaluatorScore != null -> previousLoaded.nsfwEvaluatorScore
-                            initialLoaded?.nsfwEvaluatorScore != null -> initialLoaded.nsfwEvaluatorScore
-                            else -> initialNsfwEvaluatorScore
-                        }
-                        val resolvedNsfwClassifierScore = when {
-                            doc.contains("nsfwClassifierScore") -> {
-                                doc.getDouble("nsfwClassifierScore")
-                                    ?: doc.getLong("nsfwClassifierScore")?.toDouble()
-                            }
-                            previousLoaded?.nsfwClassifierScore != null -> previousLoaded.nsfwClassifierScore
-                            initialLoaded?.nsfwClassifierScore != null -> initialLoaded.nsfwClassifierScore
-                            else -> initialNsfwClassifierScore
                         }
                         val resolvedNsfwLabels = when {
                             doc.contains("nsfwLabels") -> {
@@ -397,9 +347,6 @@ class DropDetailActivity : ComponentActivity() {
                                 ?: initialLoaded?.redeemedAt
                                 ?: initialRedeemedAt,
                             isNsfw = resolvedNsfwFlag,
-                            nsfwConfidence = resolvedNsfwConfidence,
-                            nsfwEvaluatorScore = resolvedNsfwEvaluatorScore,
-                            nsfwClassifierScore = resolvedNsfwClassifierScore,
                             nsfwLabels = resolvedNsfwLabels
                         )
                     }
@@ -495,8 +442,6 @@ class DropDetailActivity : ComponentActivity() {
                         val ownerMatches = loadedState?.createdBy?.takeIf { it.isNotBlank() } == currentUserId
                         val shouldHideContent = loadedState?.isNsfw == true && !ownerMatches && !nsfwAllowed
                         val nsfwReasons = loadedState?.nsfwLabels.orEmpty()
-                        val evaluatorScore = loadedState?.nsfwEvaluatorScore
-                        val classifierScore = loadedState?.nsfwClassifierScore
 
                         if (shouldHideContent) {
                             ElevatedCard(
@@ -535,25 +480,6 @@ class DropDetailActivity : ComponentActivity() {
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
-                                    }
-                                    if (evaluatorScore != null || classifierScore != null) {
-                                        Divider(color = MaterialTheme.colorScheme.outlineVariant)
-                                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                            evaluatorScore?.let { score ->
-                                                Text(
-                                                    text = "Evaluator score: ${formatScoreAsPercent(score)}",
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                )
-                                            }
-                                            classifierScore?.let { score ->
-                                                Text(
-                                                    text = "Classifier score: ${formatScoreAsPercent(score)}",
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                )
-                                            }
-                                        }
                                     }
                                 }
                             }
@@ -695,30 +621,6 @@ class DropDetailActivity : ComponentActivity() {
                                                 containerColor = MaterialTheme.colorScheme.secondaryContainer,
                                                 contentColor = MaterialTheme.colorScheme.onSecondaryContainer
                                             )
-                                        }
-                                    }
-
-                                    if (loadedState?.isNsfw == true && (evaluatorScore != null || classifierScore != null)) {
-                                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                            Text(
-                                                text = "Safety scores",
-                                                style = MaterialTheme.typography.titleSmall,
-                                                fontWeight = FontWeight.SemiBold
-                                            )
-                                            evaluatorScore?.let { score ->
-                                                Text(
-                                                    text = "Evaluator score: ${formatScoreAsPercent(score)}",
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                )
-                                            }
-                                            classifierScore?.let { score ->
-                                                Text(
-                                                    text = "Classifier score: ${formatScoreAsPercent(score)}",
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                )
-                                            }
                                         }
                                     }
 
@@ -1332,9 +1234,6 @@ private fun DropDetailUiState.Loaded.toDropForVoting(): Drop {
         mediaMimeType = mediaMimeType,
         mediaData = mediaData,
         isNsfw = isNsfw,
-        nsfwConfidence = nsfwConfidence,
-        nsfwEvaluatorScore = nsfwEvaluatorScore,
-        nsfwClassifierScore = nsfwClassifierScore,
         nsfwLabels = nsfwLabels,
         upvoteCount = upvoteCount,
         downvoteCount = downvoteCount,
@@ -1354,19 +1253,6 @@ private fun DropDetailUiState.Loaded.voteScore(): Long = upvoteCount - downvoteC
 private fun DropDetailUiState.Loaded.remainingRedemptions(): Int? {
     val limit = redemptionLimit ?: return null
     return (limit - redemptionCount).coerceAtLeast(0)
-}
-
-private fun formatScoreAsPercent(score: Double): String {
-    if (score.isNaN()) return "N/A"
-    val clamped = score.coerceIn(0.0, 1.0)
-    val percent = clamped * 100.0
-    val formatted = String.format(Locale.US, "%.1f", percent)
-    val cleaned = if (formatted.endsWith(".0")) {
-        formatted.dropLast(2)
-    } else {
-        formatted
-    }
-    return "$cleaned%"
 }
 
 private fun formatVoteScore(score: Long): String {
@@ -1690,9 +1576,6 @@ private sealed interface DropDetailUiState {
         val isRedeemed: Boolean = false,
         val redeemedAt: Long? = null,
         val isNsfw: Boolean = false,
-        val nsfwConfidence: Double? = null,
-        val nsfwEvaluatorScore: Double? = null,
-        val nsfwClassifierScore: Double? = null,
         val nsfwLabels: List<String> = emptyList()
     ) : DropDetailUiState
 
