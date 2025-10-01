@@ -29,9 +29,10 @@ export const safeSearch = functions
         "Provide data.base64"
       );
     }
-    const [result] = await vision.safeSearchDetection(
-      {image: {content: base64}}
-    );
+    const [result] = await vision.annotateImage({
+      image: {content: base64},
+      features: [{type: "SAFE_SEARCH_DETECTION"}],
+    });
     const s = result.safeSearchAnnotation;
     return {
       adult: s?.adult,
@@ -60,9 +61,10 @@ export const analyzeOnUpload = functions
     const file = bucket.file(name);
     const [buffer] = await file.download();
 
-    const [result] = await vision.safeSearchDetection(
-      {image: {content: buffer}}
-    );
+    const [result] = await vision.annotateImage({
+      image: {content: buffer},
+      features: [{type: "SAFE_SEARCH_DETECTION"}],
+    });
     const s = result.safeSearchAnnotation;
 
 
