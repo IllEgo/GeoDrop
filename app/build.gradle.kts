@@ -45,6 +45,7 @@ dependencies {
     implementation("com.google.firebase:firebase-firestore-ktx")
     implementation("com.google.firebase:firebase-messaging-ktx")
     implementation("com.google.firebase:firebase-storage-ktx")
+    implementation("com.google.firebase:firebase-functions-ktx")
 
     // Play Services Location (for geofencing / fused location)
     implementation("com.google.android.gms:play-services-location:21.3.0")
@@ -66,6 +67,7 @@ dependencies {
     implementation("com.google.android.material:material:1.12.0")
 
     implementation("io.coil-kt:coil-compose:2.6.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.robolectric:robolectric:4.12.1")

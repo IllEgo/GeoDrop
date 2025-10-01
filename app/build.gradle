@@ -47,6 +47,7 @@ dependencies {
     // Firebase BOM first (no versions on individual Firebase libs)
     implementation platform('com.google.firebase:firebase-bom:33.2.0')
     implementation 'com.google.firebase:firebase-storage-ktx'
+    implementation 'com.google.firebase:firebase-functions-ktx'
 
     // Firebase Auth (PLAIN, not -ktx)
     implementation 'com.google.firebase:firebase-auth'

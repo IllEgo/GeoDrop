@@ -14,12 +14,13 @@ import com.e3hi.geodrop.BuildConfig
 import com.e3hi.geodrop.ui.DropHereScreen
 import com.e3hi.geodrop.util.GoogleVisionSafeSearchEvaluator
 import com.e3hi.geodrop.util.GroupPreferences
-import com.e3hi.geodrop.util.NoOpDropSafetyEvaluator
 import com.e3hi.geodrop.util.createNotificationChannelIfNeeded
 import com.e3hi.geodrop.geo.NearbyDropRegistrar
 import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuth.AuthStateListener
+import com.google.firebase.functions.FirebaseFunctions
+import kotlinx.coroutines.tasks.await
 
 class MainActivity : ComponentActivity() {
 
@@ -58,12 +59,22 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val apiKey = remember { fetchVisionApiKey() }
-            val dropSafetyEvaluator = remember(apiKey) {
-                if (apiKey.isNotBlank()) {
-                    GoogleVisionSafeSearchEvaluator(apiKey = apiKey)
-                } else {
-                    NoOpDropSafetyEvaluator
+            val safeSearchCallable = remember {
+                val functions = FirebaseFunctions.getInstance("us-central1")
+                GoogleVisionSafeSearchEvaluator.SafeSearchCallable { payload ->
+                    val result = functions
+                        .getHttpsCallable("safeSearch")
+                        .call(mapOf("base64" to payload))
+                        .await()
+                    @Suppress("UNCHECKED_CAST")
+                    result.data as? Map<String, Any?>
                 }
+            }
+            val dropSafetyEvaluator = remember(apiKey) {
+                GoogleVisionSafeSearchEvaluator(
+                    apiKey = apiKey,
+                    safeSearchCallable = safeSearchCallable
+                )
             }
             DropHereScreen(dropSafetyEvaluator = dropSafetyEvaluator)
         }

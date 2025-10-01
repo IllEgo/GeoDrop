@@ -48,4 +48,29 @@ class GoogleVisionSafeSearchEvaluatorTest {
         assertTrue(assessment.reasons.isEmpty())
         assertEquals(VisionApiStatus.NOT_ELIGIBLE, assessment.visionStatus)
     }
+
+    @Test
+    fun `callable fallback flags nsfw content when api key missing`() = runBlocking {
+        val evaluator = GoogleVisionSafeSearchEvaluator(
+            apiKey = "",
+            safeSearchCallable = GoogleVisionSafeSearchEvaluator.SafeSearchCallable {
+                mapOf(
+                    "adult" to "VERY_LIKELY",
+                    "racy" to "UNLIKELY"
+                )
+            }
+        )
+
+        val assessment = evaluator.assess(
+            text = null,
+            contentType = DropContentType.PHOTO,
+            mediaMimeType = "image/jpeg",
+            mediaData = "data:image/jpeg;base64,ZmFrZUJhc2U2NA==",
+            mediaUrl = null
+        )
+
+        assertTrue(assessment.isNsfw)
+        assertEquals(VisionApiStatus.FLAGGED, assessment.visionStatus)
+        assertTrue(assessment.reasons.any { it.contains("adult", ignoreCase = true) })
+    }
 }

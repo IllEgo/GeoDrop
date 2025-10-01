@@ -21,7 +21,8 @@ class GoogleVisionSafeSearchEvaluator(
     private val apiKey: String,
     private val endpoint: String = "https://vision.googleapis.com/v1/images:annotate",
     private val minimumLikelihood: Likelihood = Likelihood.LIKELY,
-    private val requestTimeoutMs: Int = 10_000
+    private val requestTimeoutMs: Int = 10_000,
+    private val safeSearchCallable: SafeSearchCallable? = null
 ) : DropSafetyEvaluator {
 
     override suspend fun assess(
@@ -31,11 +32,6 @@ class GoogleVisionSafeSearchEvaluator(
         mediaData: String?,
         mediaUrl: String?
     ): DropSafetyAssessment {
-        if (apiKey.isBlank()) {
-            Log.w(TAG, "Vision API key missing; skipping NSFW evaluation")
-            return safeAssessment(VisionApiStatus.NOT_CONFIGURED)
-        }
-
         val eligibleForVision = contentType == DropContentType.PHOTO &&
                 (mediaMimeType?.startsWith("image/") == true || !mediaData.isNullOrBlank() || !mediaUrl.isNullOrBlank())
 
@@ -43,25 +39,45 @@ class GoogleVisionSafeSearchEvaluator(
             return safeAssessment(VisionApiStatus.NOT_ELIGIBLE)
         }
 
-        val visionResult = try {
+        var directAttempted = false
+        var directFailed = false
+        var visionResult: VisionAssessment? = null
+
+        if (apiKey.isNotBlank()) {
+            directAttempted = true
+            try {
+                visionResult = withContext(Dispatchers.IO) {
+                    requestSafeSearch(mediaData, mediaUrl)
+                }
+            } catch (t: Throwable) {
+                Log.w(TAG, "Vision SafeSearch request failed", t)
+                directFailed = true
+            }
+        }
+
+        if (directAttempted && !directFailed) {
+            return finalizeAssessment(visionResult)
+        }
+
+        val fallbackUnavailableStatus = if (directAttempted) {
+            VisionApiStatus.ERROR
+        } else {
+            Log.i(TAG, "Vision API key missing; attempting callable fallback")
+            VisionApiStatus.NOT_CONFIGURED
+        }
+
+        val callable = safeSearchCallable ?: return safeAssessment(fallbackUnavailableStatus)
+
+        val callableResult = try {
             withContext(Dispatchers.IO) {
-                requestSafeSearch(mediaData, mediaUrl)
+                requestSafeSearchViaCallable(mediaData, callable)
             }
         } catch (t: Throwable) {
-            Log.w(TAG, "Vision SafeSearch request failed", t)
+            Log.w(TAG, "Vision SafeSearch callable fallback failed", t)
             return safeAssessment(VisionApiStatus.ERROR)
         }
 
-        val resolved = visionResult ?: return safeAssessment(VisionApiStatus.CLEARED)
-        if (!resolved.flagged) {
-            return safeAssessment(VisionApiStatus.CLEARED)
-        }
-
-        return DropSafetyAssessment(
-            isNsfw = true,
-            reasons = resolved.reasons,
-            visionStatus = VisionApiStatus.FLAGGED
-        )
+        return finalizeAssessment(callableResult)
     }
 
     private fun safeAssessment(status: VisionApiStatus): DropSafetyAssessment = DropSafetyAssessment(
@@ -121,13 +137,19 @@ class GoogleVisionSafeSearchEvaluator(
         }
     }
 
+    private fun requestSafeSearchViaCallable(
+        mediaData: String?,
+        callable: SafeSearchCallable
+    ): VisionAssessment? {
+        val payload = extractBase64Payload(mediaData) ?: return null
+        val response = callable.invoke(payload) ?: return null
+        return parseCallableResponse(response)
+    }
+
     private fun buildImagePayload(mediaData: String?, mediaUrl: String?): JSONObject? {
-        val trimmedData = mediaData?.trim()?.takeIf { it.isNotEmpty() }
-        if (!trimmedData.isNullOrBlank()) {
-            val payload = trimmedData.substringAfter(',', trimmedData)
-            if (payload.isNotBlank()) {
-                return JSONObject().apply { put("content", payload) }
-            }
+        val payload = extractBase64Payload(mediaData)
+        if (!payload.isNullOrBlank()) {
+            return JSONObject().apply { put("content", payload) }
         }
 
         val sanitizedUrl = mediaUrl?.trim()?.takeIf { it.startsWith("http://") || it.startsWith("https://") }
@@ -138,6 +160,12 @@ class GoogleVisionSafeSearchEvaluator(
         }
 
         return null
+    }
+
+    private fun extractBase64Payload(mediaData: String?): String? {
+        val trimmedData = mediaData?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        val payload = trimmedData.substringAfter(',', trimmedData).trim()
+        return payload.takeIf { it.isNotBlank() }
     }
 
     private fun buildEndpointUrl(): String {
@@ -158,9 +186,23 @@ class GoogleVisionSafeSearchEvaluator(
         }
 
         val annotation = first.optJSONObject("safeSearchAnnotation") ?: return null
-
         val adultLikelihood = Likelihood.fromResponse(annotation.optString("adult"))
         val racyLikelihood = Likelihood.fromResponse(annotation.optString("racy"))
+
+        return buildAssessment(adultLikelihood, racyLikelihood)
+    }
+
+    private fun parseCallableResponse(body: Map<String, Any?>): VisionAssessment? {
+        val adultLikelihood = Likelihood.fromResponse(body["adult"]?.toString())
+        val racyLikelihood = Likelihood.fromResponse(body["racy"]?.toString())
+
+        return buildAssessment(adultLikelihood, racyLikelihood)
+    }
+
+    private fun buildAssessment(
+        adultLikelihood: Likelihood,
+        racyLikelihood: Likelihood
+    ): VisionAssessment? {
 
         val reasons = mutableListOf<String>()
 
@@ -180,10 +222,27 @@ class GoogleVisionSafeSearchEvaluator(
         )
     }
 
+    private fun finalizeAssessment(result: VisionAssessment?): DropSafetyAssessment {
+        val resolved = result ?: return safeAssessment(VisionApiStatus.CLEARED)
+        if (!resolved.flagged) {
+            return safeAssessment(VisionApiStatus.CLEARED)
+        }
+
+        return DropSafetyAssessment(
+            isNsfw = true,
+            reasons = resolved.reasons,
+            visionStatus = VisionApiStatus.FLAGGED
+        )
+    }
+
     private data class VisionAssessment(
         val flagged: Boolean,
         val reasons: List<String>
     )
+
+    fun interface SafeSearchCallable {
+        suspend operator fun invoke(base64Payload: String): Map<String, Any?>?
+    }
 
     enum class Likelihood(val order: Int, val confidence: Double, val readableLabel: String) {
         UNKNOWN(0, 0.0, "Unknown"),
