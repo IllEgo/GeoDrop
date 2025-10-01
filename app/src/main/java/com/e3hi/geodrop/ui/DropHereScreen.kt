@@ -1018,6 +1018,7 @@ fun DropHereScreen(
         mediaInput: String?,
         mediaMimeType: String?,
         mediaData: String?,
+        mediaStoragePath: String?,
         redemptionCode: String?,
         redemptionLimit: Int?,
         nsfwAllowed: Boolean
@@ -1046,6 +1047,7 @@ fun DropHereScreen(
             mediaUrl = sanitizedMedia,
             mediaMimeType = sanitizedMime,
             mediaData = sanitizedData,
+            mediaStoragePath = mediaStoragePath?.takeIf { it.isNotBlank() },
             redemptionCode = if (dropType == DropType.RESTAURANT_COUPON) sanitizedRedemptionCode else null,
             redemptionLimit = if (dropType == DropType.RESTAURANT_COUPON) sanitizedRedemptionLimit else null
         )
@@ -1095,6 +1097,7 @@ fun DropHereScreen(
                     null
                 }
                 var mediaUrlResult: String? = null
+                var mediaStoragePathResult: String? = null
                 var mediaMimeTypeResult: String? = null
                 var mediaDataResult: String? = null
                 var dropNoteText = note.text
@@ -1113,6 +1116,7 @@ fun DropHereScreen(
                         mediaUrlResult = null
                         mediaMimeTypeResult = null
                         mediaDataResult = null
+                        mediaStoragePathResult = null
                     }
 
                     DropContentType.PHOTO -> {
@@ -1138,7 +1142,7 @@ fun DropHereScreen(
                             return@launch
                         }
 
-                        val uploaded = mediaStorage.uploadMedia(
+                        val uploadResult = mediaStorage.uploadMedia(
                             DropContentType.PHOTO,
                             photoBytes,
                             "image/jpeg",
@@ -1148,9 +1152,10 @@ fun DropHereScreen(
                             runCatching { File(path).delete() }
                         }
 
-                        mediaUrlResult = uploaded
+                        mediaUrlResult = uploadResult.downloadUrl
                         mediaMimeTypeResult = "image/jpeg"
                         mediaDataResult = null
+                        mediaStoragePathResult = uploadResult.storagePath
                     }
 
                     DropContentType.AUDIO -> {
@@ -1178,7 +1183,7 @@ fun DropHereScreen(
 
                         val mimeType = ctx.contentResolver.getType(uri) ?: "audio/mpeg"
 
-                        val uploaded = mediaStorage.uploadMedia(
+                        val uploadResult = mediaStorage.uploadMedia(
                             DropContentType.AUDIO,
                             audioBytes,
                             mimeType
@@ -1188,9 +1193,10 @@ fun DropHereScreen(
                             runCatching { ctx.contentResolver.delete(uri, null, null) }
                         }
 
-                        mediaUrlResult = uploaded
+                        mediaUrlResult = uploadResult.downloadUrl
                         mediaMimeTypeResult = mimeType
                         mediaDataResult = Base64.encodeToString(audioBytes, Base64.NO_WRAP)
+                        mediaStoragePathResult = uploadResult.storagePath
                     }
 
                     DropContentType.VIDEO -> {
@@ -1218,15 +1224,16 @@ fun DropHereScreen(
 
                         val mimeType = ctx.contentResolver.getType(uri) ?: "video/mp4"
 
-                        val uploaded = mediaStorage.uploadMedia(
+                        val uploadResult = mediaStorage.uploadMedia(
                             DropContentType.VIDEO,
                             videoBytes,
                             mimeType
                         )
 
-                        mediaUrlResult = uploaded
+                        mediaUrlResult = uploadResult.downloadUrl
                         mediaMimeTypeResult = mimeType
                         mediaDataResult = null
+                        mediaStoragePathResult = uploadResult.storagePath
                     }
                 }
 
@@ -1265,6 +1272,7 @@ fun DropHereScreen(
                     dropType = dropType,
                     noteText = dropNoteText,
                     mediaInput = mediaUrlResult,
+                    mediaStoragePath = mediaStoragePathResult,
                     mediaMimeType = mediaMimeTypeResult,
                     mediaData = mediaDataResult,
                     redemptionCode = redemptionCodeResult,

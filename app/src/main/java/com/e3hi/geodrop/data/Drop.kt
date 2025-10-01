@@ -17,6 +17,7 @@ data class Drop(
     val mediaUrl: String? = null,
     val mediaMimeType: String? = null,
     val mediaData: String? = null,
+    val mediaStoragePath: String? = null,
     val isNsfw: Boolean = false,
     val nsfwLabels: List<String> = emptyList(),
     val upvoteCount: Long = 0,

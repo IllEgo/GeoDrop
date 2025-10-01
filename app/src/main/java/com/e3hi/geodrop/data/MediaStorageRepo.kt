@@ -16,7 +16,7 @@ class MediaStorageRepo(
         contentType: DropContentType,
         data: ByteArray,
         mimeType: String?
-    ): String {
+    ): MediaUploadResult {
         val (folder, defaultMime, defaultExtension) = when (contentType) {
             DropContentType.TEXT -> Triple("other", "text/plain", "txt")
             DropContentType.PHOTO -> Triple("photos", "image/jpeg", "jpg")
@@ -36,7 +36,11 @@ class MediaStorageRepo(
             .build()
 
         ref.putBytes(data, metadata).await()
-        return ref.downloadUrl.await().toString()
+        val downloadUrl = ref.downloadUrl.await().toString()
+        return MediaUploadResult(
+            downloadUrl = downloadUrl,
+            storagePath = ref.path.trimStart('/')
+        )
     }
 
     companion object {
@@ -63,3 +67,8 @@ class MediaStorageRepo(
         }
     }
 }
+
+data class MediaUploadResult(
+    val downloadUrl: String,
+    val storagePath: String
+)
