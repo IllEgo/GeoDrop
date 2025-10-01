@@ -137,12 +137,12 @@ class GoogleVisionSafeSearchEvaluator(
         }
     }
 
-    private fun requestSafeSearchViaCallable(
+    private suspend fun requestSafeSearchViaCallable(
         mediaData: String?,
         callable: SafeSearchCallable
     ): VisionAssessment? {
         val payload = extractBase64Payload(mediaData) ?: return null
-        val response = callable.invoke(payload) ?: return null
+        val response = callable(payload) ?: return null
         return parseCallableResponse(response)
     }
 
