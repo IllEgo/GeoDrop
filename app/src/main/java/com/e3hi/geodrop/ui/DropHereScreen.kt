@@ -1018,6 +1018,7 @@ fun DropHereScreen(
         mediaInput: String?,
         mediaMimeType: String?,
         mediaData: String?,
+        mediaDataForSafety: String?,
         mediaStoragePath: String?,
         redemptionCode: String?,
         redemptionLimit: Int?,
@@ -1029,6 +1030,7 @@ fun DropHereScreen(
         val sanitizedRedemptionCode = redemptionCode?.trim()?.takeIf { it.isNotEmpty() }
         val sanitizedRedemptionLimit = redemptionLimit?.takeIf { it > 0 }
         val sanitizedData = mediaData?.takeIf { it.isNotBlank() }
+        val sanitizedSafetyData = mediaDataForSafety?.takeIf { it.isNotBlank() }
         val sanitizedText = when (contentType) {
             DropContentType.TEXT -> noteText.trim()
             DropContentType.PHOTO, DropContentType.AUDIO, DropContentType.VIDEO -> noteText.trim()
@@ -1056,7 +1058,7 @@ fun DropHereScreen(
             text = sanitizedText,
             contentType = contentType,
             mediaMimeType = sanitizedMime,
-            mediaData = sanitizedData,
+            mediaData = sanitizedSafetyData,
             mediaUrl = sanitizedMedia
         )
 
@@ -1100,6 +1102,7 @@ fun DropHereScreen(
                 var mediaStoragePathResult: String? = null
                 var mediaMimeTypeResult: String? = null
                 var mediaDataResult: String? = null
+                var mediaDataForSafetyResult: String? = null
                 var dropNoteText = note.text
                 var redemptionCodeResult: String? = null
                 var redemptionLimitResult: Int? = null
@@ -1155,6 +1158,7 @@ fun DropHereScreen(
                         mediaUrlResult = uploadResult.downloadUrl
                         mediaMimeTypeResult = "image/jpeg"
                         mediaDataResult = null
+                        mediaDataForSafetyResult = Base64.encodeToString(photoBytes, Base64.NO_WRAP)
                         mediaStoragePathResult = uploadResult.storagePath
                     }
 
@@ -1196,6 +1200,7 @@ fun DropHereScreen(
                         mediaUrlResult = uploadResult.downloadUrl
                         mediaMimeTypeResult = mimeType
                         mediaDataResult = Base64.encodeToString(audioBytes, Base64.NO_WRAP)
+                        mediaDataForSafetyResult = mediaDataResult
                         mediaStoragePathResult = uploadResult.storagePath
                     }
 
@@ -1233,6 +1238,7 @@ fun DropHereScreen(
                         mediaUrlResult = uploadResult.downloadUrl
                         mediaMimeTypeResult = mimeType
                         mediaDataResult = null
+                        mediaDataForSafetyResult = null
                         mediaStoragePathResult = uploadResult.storagePath
                     }
                 }
@@ -1272,9 +1278,10 @@ fun DropHereScreen(
                     dropType = dropType,
                     noteText = dropNoteText,
                     mediaInput = mediaUrlResult,
-                    mediaStoragePath = mediaStoragePathResult,
                     mediaMimeType = mediaMimeTypeResult,
                     mediaData = mediaDataResult,
+                    mediaDataForSafety = mediaDataForSafetyResult ?: mediaDataResult,
+                    mediaStoragePath = mediaStoragePathResult,
                     redemptionCode = redemptionCodeResult,
                     redemptionLimit = redemptionLimitResult,
                     nsfwAllowed = userProfile?.canViewNsfw() == true
