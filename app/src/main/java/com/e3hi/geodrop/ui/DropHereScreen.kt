@@ -2808,7 +2808,7 @@ private fun visionStatusMessage(
             if (reason != null) {
                 "Google Vision SafeSearch flagged this drop: $reason"
             } else {
-                "Google Vision SafeSearch flagged this drop as adult content."
+                "Google Vision SafeSearch flagged this drop as potentially unsafe content."
             }
         }
     }

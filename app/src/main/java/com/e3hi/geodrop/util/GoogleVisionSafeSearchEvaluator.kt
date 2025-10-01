@@ -186,32 +186,32 @@ class GoogleVisionSafeSearchEvaluator(
         }
 
         val annotation = first.optJSONObject("safeSearchAnnotation") ?: return null
-        val adultLikelihood = Likelihood.fromResponse(annotation.optString("adult"))
-        val racyLikelihood = Likelihood.fromResponse(annotation.optString("racy"))
+        val likelihoods = SafeSearchCategory.entries.associateWith { category ->
+            Likelihood.fromResponse(annotation.optString(category.responseKey))
+        }
 
-        return buildAssessment(adultLikelihood, racyLikelihood)
+        return buildAssessment(likelihoods)
     }
 
     private fun parseCallableResponse(body: Map<String, Any?>): VisionAssessment? {
-        val adultLikelihood = Likelihood.fromResponse(body["adult"]?.toString())
-        val racyLikelihood = Likelihood.fromResponse(body["racy"]?.toString())
+        val likelihoods = SafeSearchCategory.entries.associateWith { category ->
+            Likelihood.fromResponse(body[category.responseKey]?.toString())
+        }
 
-        return buildAssessment(adultLikelihood, racyLikelihood)
+        return buildAssessment(likelihoods)
     }
 
     private fun buildAssessment(
-        adultLikelihood: Likelihood,
-        racyLikelihood: Likelihood
+        likelihoods: Map<SafeSearchCategory, Likelihood>
     ): VisionAssessment? {
 
-        val reasons = mutableListOf<String>()
-
-        if (adultLikelihood.isAtLeast(minimumLikelihood)) {
-            reasons += "Google Vision flagged as adult (${adultLikelihood.readableLabel})"
-        }
-
-        if (racyLikelihood.isAtLeast(minimumLikelihood)) {
-            reasons += "Google Vision flagged as racy (${racyLikelihood.readableLabel})"
+        val reasons = SafeSearchCategory.entries.mapNotNull { category ->
+            val likelihood = likelihoods[category] ?: Likelihood.UNKNOWN
+            if (likelihood.isAtLeast(minimumLikelihood)) {
+                "Google Vision flagged as ${category.reasonDescription} (${likelihood.readableLabel})"
+            } else {
+                null
+            }
         }
 
         val flagged = reasons.isNotEmpty()
@@ -242,6 +242,14 @@ class GoogleVisionSafeSearchEvaluator(
 
     fun interface SafeSearchCallable {
         suspend operator fun invoke(base64Payload: String): Map<String, Any?>?
+    }
+
+    private enum class SafeSearchCategory(val responseKey: String, val reasonDescription: String) {
+        ADULT("adult", "adult"),
+        SPOOF("spoof", "spoofed"),
+        MEDICAL("medical", "medical"),
+        VIOLENCE("violence", "violent"),
+        RACY("racy", "racy")
     }
 
     enum class Likelihood(val order: Int, val confidence: Double, val readableLabel: String) {

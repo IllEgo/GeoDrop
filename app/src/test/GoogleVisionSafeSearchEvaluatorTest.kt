@@ -73,4 +73,30 @@ class GoogleVisionSafeSearchEvaluatorTest {
         assertEquals(VisionApiStatus.FLAGGED, assessment.visionStatus)
         assertTrue(assessment.reasons.any { it.contains("adult", ignoreCase = true) })
     }
+
+    @Test
+    fun `callable fallback flags nsfw content for other unsafe categories`() = runBlocking {
+        val evaluator = GoogleVisionSafeSearchEvaluator(
+            apiKey = "",
+            safeSearchCallable = GoogleVisionSafeSearchEvaluator.SafeSearchCallable {
+                mapOf(
+                    "violence" to "LIKELY",
+                    "medical" to "VERY_UNLIKELY"
+                )
+            }
+        )
+
+        val assessment = evaluator.assess(
+            text = null,
+            contentType = DropContentType.PHOTO,
+            mediaMimeType = "image/jpeg",
+            mediaData = "data:image/jpeg;base64,ZmFrZUJhc2U2NA==",
+            mediaUrl = null
+        )
+
+        assertTrue(assessment.isNsfw)
+        assertEquals(VisionApiStatus.FLAGGED, assessment.visionStatus)
+        assertTrue(assessment.reasons.any { it.contains("violent", ignoreCase = true) })
+        assertTrue(assessment.reasons.none { it.contains("medical", ignoreCase = true) })
+    }
 }
