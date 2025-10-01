@@ -15,7 +15,13 @@ android {
         versionCode 1
         versionName "1.0"
 
-        buildConfigField 'String', 'GOOGLE_VISION_API_KEY', '""'
+        def visionApiKey = (
+                project.findProperty('GOOGLE_VISION_API_KEY')
+                        ?: System.getenv('GOOGLE_VISION_API_KEY')
+        ) ?: ""
+
+        def escapedVisionKey = visionApiKey.toString().replace('"', '\\"')
+        buildConfigField 'String', 'GOOGLE_VISION_API_KEY', '"' + escapedVisionKey + '"'
     }
 
     compileOptions {
