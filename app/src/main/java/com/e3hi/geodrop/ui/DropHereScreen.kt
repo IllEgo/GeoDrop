@@ -1554,9 +1554,9 @@ fun DropHereScreen(
                 text = { Text(if (isSubmitting) "Dropping…" else "Drop something") }
             )
         },
-        snackbarHost = { hostState ->
+        snackbarHost = {
             SnackbarHost(
-                hostState = hostState,
+                hostState = snackbar,
                 modifier = Modifier.padding(bottom = 16.dp)
             )
         }
