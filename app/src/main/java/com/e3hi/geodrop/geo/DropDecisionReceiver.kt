@@ -17,6 +17,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
+import java.util.concurrent.TimeUnit
 
 /**
  * Handles user's response to a nearby drop notification (pick up vs ignore).
@@ -68,6 +69,20 @@ class DropDecisionReceiver : BroadcastReceiver() {
             ?.filter { it.isNotBlank() }
             ?: emptyList()
         val resolvedIsNsfw = isNsfw || nsfwLabels.isNotEmpty()
+        val decayDays = if (intent.hasExtra(EXTRA_DROP_DECAY_DAYS)) {
+            intent.getIntExtra(EXTRA_DROP_DECAY_DAYS, 0).takeIf { it > 0 }
+        } else {
+            null
+        }
+        val expiresAt = if (decayDays != null && createdAt != null) {
+            createdAt + TimeUnit.DAYS.toMillis(decayDays.toLong())
+        } else {
+            null
+        }
+        if (expiresAt != null && expiresAt <= System.currentTimeMillis()) {
+            Log.d(TAG, "Drop $dropId has expired; ignoring pick up action.")
+            return
+        }
 
         val inventory = NoteInventory(context)
         val note = CollectedNote(
@@ -88,7 +103,8 @@ class DropDecisionReceiver : BroadcastReceiver() {
             redemptionCount = redemptionCount,
             collectedAt = System.currentTimeMillis(),
             isNsfw = resolvedIsNsfw,
-            nsfwLabels = nsfwLabels
+            nsfwLabels = nsfwLabels,
+            decayDays = decayDays
         )
         inventory.saveCollected(note)
 
@@ -143,6 +159,7 @@ class DropDecisionReceiver : BroadcastReceiver() {
         const val EXTRA_DROP_REDEMPTION_COUNT = "extra_drop_redemption_count"
         const val EXTRA_DROP_IS_NSFW = "extra_drop_is_nsfw"
         const val EXTRA_DROP_NSFW_LABELS = "extra_drop_nsfw_labels"
+        const val EXTRA_DROP_DECAY_DAYS = "extra_drop_decay_days"
         private const val TAG = "DropDecisionReceiver"
     }
 }

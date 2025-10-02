@@ -112,6 +112,7 @@ import com.e3hi.geodrop.data.displayTitle
 import com.e3hi.geodrop.data.discoveryDescription
 import com.e3hi.geodrop.data.discoveryTitle
 import com.e3hi.geodrop.data.mediaLabel
+import com.e3hi.geodrop.data.decayAtMillis
 import com.e3hi.geodrop.data.FirestoreRepo
 import com.e3hi.geodrop.data.DropVoteType
 import com.e3hi.geodrop.data.MediaStorageRepo
@@ -167,7 +168,9 @@ import java.io.File
 import java.io.IOException
 import java.util.ArrayList
 import java.util.Locale
+import java.util.concurrent.TimeUnit
 import kotlin.math.asin
+import kotlin.math.ceil
 import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -525,6 +528,7 @@ fun DropHereScreen(
     var groupCodeInput by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
     var redemptionCodeInput by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
     var redemptionLimitInput by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
+    var decayDaysInput by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
     var isSubmitting by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
     var showOtherDropsMap by remember { mutableStateOf(false) }
@@ -630,6 +634,11 @@ fun DropHereScreen(
     }
 
     fun pickUpDrop(drop: Drop) {
+        val expiresAt = drop.decayAtMillis()
+        if (expiresAt != null && expiresAt <= System.currentTimeMillis()) {
+            snackbar.showMessage(scope, "This drop has already expired.")
+            return
+        }
         val currentLocation = otherDropsCurrentLocation
         val withinRange = currentLocation?.let {
             distanceBetweenMeters(it.latitude, it.longitude, drop.lat, drop.lng) <= 10.0
@@ -680,6 +689,7 @@ fun DropHereScreen(
                     ArrayList(drop.nsfwLabels)
                 )
             }
+            drop.decayDays?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_DECAY_DAYS, it) }
         }
 
         val result = runCatching { appContext.sendBroadcast(intent) }
@@ -978,6 +988,7 @@ fun DropHereScreen(
             redemptionCodeInput = TextFieldValue("")
             redemptionLimitInput = TextFieldValue("")
         }
+        decayDaysInput = TextFieldValue("")
         val baseStatus = "Dropped at (%.5f, %.5f)".format(lat, lng)
         val typeSummary = when (dropType) {
             DropType.RESTAURANT_COUPON -> "business offer"
@@ -1022,6 +1033,7 @@ fun DropHereScreen(
         mediaStoragePath: String?,
         redemptionCode: String?,
         redemptionLimit: Int?,
+        decayDays: Int?,
         nsfwAllowed: Boolean
     ): DropSafetyAssessment {
         val uid = FirebaseAuth.getInstance().currentUser?.uid ?: "anon"
@@ -1031,6 +1043,7 @@ fun DropHereScreen(
         val sanitizedRedemptionLimit = redemptionLimit?.takeIf { it > 0 }
         val sanitizedData = mediaData?.takeIf { it.isNotBlank() }
         val sanitizedSafetyData = mediaDataForSafety?.takeIf { it.isNotBlank() }
+        val sanitizedDecayDays = decayDays?.takeIf { it > 0 }
         val sanitizedText = when (contentType) {
             DropContentType.TEXT -> noteText.trim()
             DropContentType.PHOTO, DropContentType.AUDIO, DropContentType.VIDEO -> noteText.trim()
@@ -1051,7 +1064,8 @@ fun DropHereScreen(
             mediaData = sanitizedData,
             mediaStoragePath = mediaStoragePath?.takeIf { it.isNotBlank() },
             redemptionCode = if (dropType == DropType.RESTAURANT_COUPON) sanitizedRedemptionCode else null,
-            redemptionLimit = if (dropType == DropType.RESTAURANT_COUPON) sanitizedRedemptionLimit else null
+            redemptionLimit = if (dropType == DropType.RESTAURANT_COUPON) sanitizedRedemptionLimit else null,
+            decayDays = sanitizedDecayDays
         )
 
         val safety = dropSafetyEvaluator.assess(
@@ -1106,6 +1120,7 @@ fun DropHereScreen(
                 var dropNoteText = note.text
                 var redemptionCodeResult: String? = null
                 var redemptionLimitResult: Int? = null
+                var decayDaysResult: Int? = null
 
                 when (dropContentType) {
                     DropContentType.TEXT -> {
@@ -1264,6 +1279,22 @@ fun DropHereScreen(
                     }
                 }
 
+                val decayText = decayDaysInput.text.trim()
+                if (decayText.isNotEmpty()) {
+                    val parsedDecay = decayText.toIntOrNull()
+                    if (parsedDecay == null || parsedDecay <= 0) {
+                        isSubmitting = false
+                        snackbar.showMessage(scope, "Enter a valid number of days or leave it blank.")
+                        return@launch
+                    }
+                    if (parsedDecay > MAX_DECAY_DAYS) {
+                        isSubmitting = false
+                        snackbar.showMessage(scope, "Choose a decay up to $MAX_DECAY_DAYS days.")
+                        return@launch
+                    }
+                    decayDaysResult = parsedDecay
+                }
+
                 val (lat, lng) = getLatestLocation() ?: run {
                     isSubmitting = false
                     snackbar.showMessage(scope, "No location available. Turn on GPS & try again.")
@@ -1284,6 +1315,7 @@ fun DropHereScreen(
                     mediaStoragePath = mediaStoragePathResult,
                     redemptionCode = redemptionCodeResult,
                     redemptionLimit = redemptionLimitResult,
+                    decayDays = decayDaysResult,
                     nsfwAllowed = userProfile?.canViewNsfw() == true
                 )
                 val baseStatusMessage = status
@@ -1667,6 +1699,8 @@ fun DropHereScreen(
             onRedemptionCodeChange = { redemptionCodeInput = it },
             redemptionLimitInput = redemptionLimitInput,
             onRedemptionLimitChange = { redemptionLimitInput = it },
+            decayDaysInput = decayDaysInput,
+            onDecayDaysChange = { decayDaysInput = it },
             onManageGroupCodes = { showManageGroups = true },
             onSubmit = { submitDrop() },
             onDismiss = {
@@ -1739,6 +1773,7 @@ fun DropHereScreen(
                     if (drop.nsfwLabels.isNotEmpty()) {
                         putStringArrayListExtra("dropNsfwLabels", ArrayList(drop.nsfwLabels))
                     }
+                    drop.decayDays?.let { putExtra("dropDecayDays", it) }
                 }
                 ctx.startActivity(intent)
             },
@@ -1797,6 +1832,7 @@ fun DropHereScreen(
                     if (note.nsfwLabels.isNotEmpty()) {
                         putStringArrayListExtra("dropNsfwLabels", ArrayList(note.nsfwLabels))
                     }
+                    note.decayDays?.let { putExtra("dropDecayDays", it) }
                 }
                 ctx.startActivity(intent)
             },
@@ -2352,6 +2388,8 @@ private fun DropComposerDialog(
     onRedemptionCodeChange: (TextFieldValue) -> Unit,
     redemptionLimitInput: TextFieldValue,
     onRedemptionLimitChange: (TextFieldValue) -> Unit,
+    decayDaysInput: TextFieldValue,
+    onDecayDaysChange: (TextFieldValue) -> Unit,
     onManageGroupCodes: () -> Unit,
     onSubmit: () -> Unit,
     onDismiss: () -> Unit,
@@ -2457,6 +2495,21 @@ private fun DropComposerDialog(
                     minLines = noteMinLines,
                     modifier = Modifier.fillMaxWidth(),
                     supportingText = supportingTextContent
+                )
+
+                OutlinedTextField(
+                    value = decayDaysInput,
+                    onValueChange = onDecayDaysChange,
+                    label = { Text("Auto-delete after (days)") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Number,
+                        imeAction = ImeAction.Next
+                    ),
+                    supportingText = {
+                        Text("Leave blank to keep this drop forever (max $MAX_DECAY_DAYS days).")
+                    },
+                    modifier = Modifier.fillMaxWidth()
                 )
 
                 when (dropContentType) {
@@ -3530,6 +3583,27 @@ private fun BusinessDropAnalyticsCard(drop: Drop) {
                 text = redemptionStatus,
                 style = MaterialTheme.typography.bodyMedium
             )
+
+            val expirationLabel = drop.decayAtMillis()?.let { expireAt ->
+                val now = System.currentTimeMillis()
+                if (expireAt <= now) {
+                    "Auto-deleted"
+                } else {
+                    val remainingMillis = expireAt - now
+                    val remainingDays = ceil(
+                        remainingMillis.toDouble() /
+                                TimeUnit.DAYS.toMillis(1).toDouble()
+                    ).toInt().coerceAtLeast(1)
+                    if (remainingDays == 1) "Expires in 1 day" else "Expires in $remainingDays days"
+                }
+            }
+            expirationLabel?.let { label ->
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
 
             val voteSummary = "Votes: ${drop.voteScore()} (↑${drop.upvoteCount} / ↓${drop.downvoteCount})"
             Text(
@@ -5254,6 +5328,7 @@ private val DIVIDER_DRAG_HANDLE_HEIGHT = 24.dp
 private const val MAP_LIST_MIN_WEIGHT = 0.2f
 private const val MAP_LIST_MAX_WEIGHT = 0.8f
 private const val DEFAULT_MAP_WEIGHT = 0.5f
+private const val MAX_DECAY_DAYS = 365
 
 @Composable
 private fun DropVisibilitySection(

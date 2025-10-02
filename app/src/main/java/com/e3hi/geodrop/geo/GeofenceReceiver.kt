@@ -26,6 +26,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
+import java.util.concurrent.TimeUnit
 
 class GeofenceReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -76,6 +77,16 @@ class GeofenceReceiver : BroadcastReceiver() {
                             ?: doc.getBlob("mediaData")?.toBytes()?.let { Base64.encodeToString(it, Base64.NO_WRAP) }
                             ?: doc.getBlob("audioFile")?.toBytes()?.let { Base64.encodeToString(it, Base64.NO_WRAP) }
                         )
+                val decayDays = doc.getLong("decayDays")?.toInt()?.takeIf { it > 0 }
+                val expiresAt = if (decayDays != null && dropCreatedAt != null) {
+                    dropCreatedAt + TimeUnit.DAYS.toMillis(decayDays.toLong())
+                } else {
+                    null
+                }
+                if (expiresAt != null && expiresAt <= System.currentTimeMillis()) {
+                    Log.d("GeoDrop", "Skipping notification for drop $id because it expired.")
+                    return@launch
+                }
 
 
                 val open = Intent(context, DropDetailActivity::class.java).apply {
@@ -89,6 +100,7 @@ class GeofenceReceiver : BroadcastReceiver() {
                     dropMediaUrl?.let { putExtra("dropMediaUrl", it) }
                     dropMediaMimeType?.let { putExtra("dropMediaMimeType", it) }
                     dropMediaData?.let { putExtra("dropMediaData", it) }
+                    decayDays?.let { putExtra("dropDecayDays", it) }
                     putExtra(EXTRA_SHOW_DECISION_OPTIONS, true)
                 }
 
@@ -118,6 +130,7 @@ class GeofenceReceiver : BroadcastReceiver() {
                     dropMediaUrl?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_MEDIA_URL, it) }
                     dropMediaMimeType?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_MEDIA_MIME_TYPE, it) }
                     dropMediaData?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_MEDIA_DATA, it) }
+                    decayDays?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_DECAY_DAYS, it) }
                 }
 
                 val pickupPending = PendingIntent.getBroadcast(

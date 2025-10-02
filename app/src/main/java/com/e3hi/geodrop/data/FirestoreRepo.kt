@@ -190,6 +190,7 @@ class FirestoreRepo(
 
             if (!drop.isVisibleTo(userId, normalizedGroups)) return@mapNotNull null
             if (drop.isNsfw && !allowNsfw && drop.createdBy != userId) return@mapNotNull null
+            if (drop.isExpired()) return@mapNotNull null
 
             drop
         }
@@ -377,7 +378,8 @@ class FirestoreRepo(
             redemptionCode = withTimestamp.redemptionCode?.trim()?.takeIf { it.isNotEmpty() },
             redemptionLimit = withTimestamp.redemptionLimit?.takeIf { it > 0 },
             redemptionCount = withTimestamp.redemptionCount.coerceAtLeast(0),
-            redeemedBy = withTimestamp.redeemedBy.filterKeys { it.isNotBlank() }
+            redeemedBy = withTimestamp.redeemedBy.filterKeys { it.isNotBlank() },
+            decayDays = withTimestamp.decayDays?.takeIf { it > 0 }
         )
 
         return hashMapOf(
@@ -406,7 +408,8 @@ class FirestoreRepo(
             "redemptionCode" to sanitized.redemptionCode,
             "redemptionLimit" to sanitized.redemptionLimit,
             "redemptionCount" to sanitized.redemptionCount,
-            "redeemedBy" to sanitized.redeemedBy
+            "redeemedBy" to sanitized.redeemedBy,
+            "decayDays" to sanitized.decayDays
         )
     }
 }

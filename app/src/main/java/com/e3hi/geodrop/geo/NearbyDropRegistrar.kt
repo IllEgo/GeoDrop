@@ -10,6 +10,8 @@ import android.os.Looper
 import android.util.Log
 import androidx.core.content.ContextCompat
 import com.e3hi.geodrop.data.Drop
+import com.e3hi.geodrop.data.decayAtMillis
+import com.e3hi.geodrop.data.isExpired
 import com.e3hi.geodrop.data.toDrop
 import com.e3hi.geodrop.data.NoteInventory
 import com.e3hi.geodrop.util.GroupPreferences
@@ -132,14 +134,19 @@ class NearbyDropRegistrar {
                     val dropGroup = GroupPreferences.normalizeGroupCode(drop.groupCode)
                     if (dropGroup != null && dropGroup !in allowedGroups) continue
                     if (drop.isNsfw && !allowNsfw) continue
+                    if (drop.isExpired()) continue
 
                     val distance = distanceMeters(originLat, originLng, drop.lat, drop.lng)
                     if (distance <= maxMeters) {
+                        val expirationDuration = drop.decayAtMillis()?.let { expiry ->
+                            (expiry - System.currentTimeMillis()).coerceAtLeast(0L)
+                        }
+                        if (expirationDuration != null && expirationDuration == 0L) continue
                         toAdd += Geofence.Builder()
                             .setRequestId(id)
                             .setCircularRegion(drop.lat, drop.lng, 10f)
                             .setTransitionTypes(Geofence.GEOFENCE_TRANSITION_ENTER)
-                            .setExpirationDuration(Geofence.NEVER_EXPIRE)
+                            .setExpirationDuration(expirationDuration ?: Geofence.NEVER_EXPIRE)
                             .build()
                     }
                 }

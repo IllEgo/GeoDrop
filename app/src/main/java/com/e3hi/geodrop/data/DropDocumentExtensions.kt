@@ -25,8 +25,20 @@ internal fun DocumentSnapshot.toDrop(): Drop {
         else -> null
     } ?: base.nsfwLabels
 
+    val decayDays = when {
+        contains("decayDays") -> {
+            when (val raw = get("decayDays")) {
+                is Number -> raw.toInt().takeIf { it > 0 }
+                is String -> raw.toIntOrNull()?.takeIf { it > 0 }
+                else -> null
+            }
+        }
+        else -> null
+    } ?: base.decayDays
+
     return base.copy(
         isNsfw = nsfwFlag,
-        nsfwLabels = nsfwLabels
+        nsfwLabels = nsfwLabels,
+        decayDays = decayDays
     )
 }

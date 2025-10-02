@@ -9,6 +9,7 @@ data class Drop(
     val createdAt: Long = 0L,
     val isDeleted: Boolean = false,
     val deletedAt: Long? = null,
+    val decayDays: Int? = null,
     val groupCode: String? = null,
     val dropType: DropType = DropType.COMMUNITY,
     val businessId: String? = null,
@@ -57,6 +58,25 @@ fun Drop.isBusinessDrop(): Boolean = dropType != DropType.COMMUNITY
 fun Drop.isRedeemedBy(userId: String?): Boolean {
     if (userId.isNullOrBlank()) return false
     return redeemedBy.containsKey(userId)
+}
+
+private const val MILLIS_PER_DAY = 86_400_000L
+
+fun Drop.decayAtMillis(): Long? {
+    val days = decayDays?.takeIf { it > 0 } ?: return null
+    val created = createdAt.takeIf { it > 0L } ?: return null
+    return created + days * MILLIS_PER_DAY
+}
+
+fun Drop.isExpired(nowMillis: Long = System.currentTimeMillis()): Boolean {
+    val expireAt = decayAtMillis() ?: return false
+    return expireAt <= nowMillis
+}
+
+fun Drop.remainingDecayMillis(nowMillis: Long = System.currentTimeMillis()): Long? {
+    val expireAt = decayAtMillis() ?: return null
+    val remaining = expireAt - nowMillis
+    return if (remaining > 0) remaining else 0L
 }
 
 enum class DropVoteType(val value: Int) {

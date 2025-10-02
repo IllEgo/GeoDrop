@@ -100,7 +100,9 @@ import coil.request.ImageRequest
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.launch
+import kotlin.math.ceil
 
 class DropDetailActivity : ComponentActivity() {
 
@@ -113,6 +115,11 @@ class DropDetailActivity : ComponentActivity() {
         val initialLng = if (intent.hasExtra("dropLng")) intent.getDoubleExtra("dropLng", 0.0) else null
         val initialCreatedAt = intent.getLongExtra("dropCreatedAt", -1L).takeIf { it > 0L }
         val initialGroupCode = intent.getStringExtra("dropGroupCode")?.takeIf { it.isNotBlank() }
+        val initialDecayDays = if (intent.hasExtra("dropDecayDays")) {
+            intent.getIntExtra("dropDecayDays", 0).takeIf { it > 0 }
+        } else {
+            null
+        }
         val initialContentType = DropContentType.fromRaw(intent.getStringExtra("dropContentType"))
         val initialMediaUrl = intent.getStringExtra("dropMediaUrl")?.takeIf { it.isNotBlank() }
         val initialMediaMimeType = intent.getStringExtra("dropMediaMimeType")?.takeIf { it.isNotBlank() }
@@ -160,6 +167,7 @@ class DropDetailActivity : ComponentActivity() {
                                 mediaUrl = initialMediaUrl,
                                 mediaMimeType = initialMediaMimeType,
                                 mediaData = initialMediaData,
+                                decayDays = initialDecayDays,
                                 upvoteCount = 0,
                                 downvoteCount = 0,
                                 voteMap = emptyMap(),
@@ -198,6 +206,7 @@ class DropDetailActivity : ComponentActivity() {
                             mediaUrl = initialMediaUrl,
                             mediaMimeType = initialMediaMimeType,
                             mediaData = initialMediaData,
+                            decayDays = initialDecayDays,
                             upvoteCount = 0,
                             downvoteCount = 0,
                             voteMap = emptyMap(),
@@ -281,6 +290,10 @@ class DropDetailActivity : ComponentActivity() {
                             groupCode = doc.getString("groupCode")?.takeIf { it.isNotBlank() }
                                 ?: previousLoaded?.groupCode
                                 ?: initialGroupCode,
+                            decayDays = doc.getLong("decayDays")?.toInt()?.takeIf { it > 0 }
+                                ?: previousLoaded?.decayDays
+                                ?: initialLoaded?.decayDays
+                                ?: initialDecayDays,
                             contentType = doc.getString("contentType")?.let { DropContentType.fromRaw(it) }
                                 ?: previousLoaded?.contentType
                                 ?: initialContentType,
@@ -612,6 +625,49 @@ class DropDetailActivity : ComponentActivity() {
                                                 icon = it.icon,
                                                 containerColor = it.containerColor,
                                                 contentColor = it.contentColor
+                                            )
+                                        }
+                                        val decayTag = loadedState?.let { detail ->
+                                            val days = detail.decayDays?.takeIf { it > 0 }
+                                            val created = detail.createdAt
+                                            if (days != null && created != null) {
+                                                val expiresAt = created + TimeUnit.DAYS.toMillis(days.toLong())
+                                                val now = System.currentTimeMillis()
+                                                if (expiresAt <= now) {
+                                                    DropDetailTagData(
+                                                        label = "Expired",
+                                                        icon = Icons.Rounded.HourglassEmpty,
+                                                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                                                        contentColor = MaterialTheme.colorScheme.onErrorContainer
+                                                    )
+                                                } else {
+                                                    val remainingMillis = expiresAt - now
+                                                    val remainingDays = ceil(
+                                                        remainingMillis.toDouble() /
+                                                                TimeUnit.DAYS.toMillis(1).toDouble()
+                                                    ).toInt().coerceAtLeast(1)
+                                                    val label = if (remainingDays == 1) {
+                                                        "Expires in 1 day"
+                                                    } else {
+                                                        "Expires in $remainingDays days"
+                                                    }
+                                                    DropDetailTagData(
+                                                        label = label,
+                                                        icon = Icons.Rounded.HourglassEmpty,
+                                                        containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                                                        contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+                                                    )
+                                                }
+                                            } else {
+                                                null
+                                            }
+                                        }
+                                        decayTag?.let { data ->
+                                            DropDetailTag(
+                                                text = data.label,
+                                                icon = data.icon,
+                                                containerColor = data.containerColor,
+                                                contentColor = data.contentColor
                                             )
                                         }
                                         if (loadedState?.isNsfw == true) {
@@ -1233,6 +1289,7 @@ private fun DropDetailUiState.Loaded.toDropForVoting(): Drop {
         mediaUrl = mediaUrl,
         mediaMimeType = mediaMimeType,
         mediaData = mediaData,
+        decayDays = decayDays,
         isNsfw = isNsfw,
         nsfwLabels = nsfwLabels,
         upvoteCount = upvoteCount,
@@ -1558,6 +1615,7 @@ private sealed interface DropDetailUiState {
         val lng: Double?,
         val createdAt: Long?,
         val groupCode: String?,
+        val decayDays: Int? = null,
         val contentType: DropContentType = DropContentType.TEXT,
         val mediaUrl: String? = null,
         val mediaMimeType: String? = null,
