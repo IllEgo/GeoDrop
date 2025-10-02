@@ -71,6 +71,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Slider
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -134,6 +135,7 @@ import com.e3hi.geodrop.data.VisionApiStatus
 import com.e3hi.geodrop.geo.DropDecisionReceiver
 import com.e3hi.geodrop.geo.NearbyDropRegistrar
 import com.e3hi.geodrop.util.GroupPreferences
+import com.e3hi.geodrop.util.NotificationPreferences
 import com.e3hi.geodrop.util.formatTimestamp
 import com.e3hi.geodrop.util.DropBlockedBySafetyException
 import com.e3hi.geodrop.util.DropSafetyAssessment
@@ -516,6 +518,7 @@ fun DropHereScreen(
     val mediaStorage = remember { MediaStorageRepo() }
     val registrar = remember { NearbyDropRegistrar() }
     val groupPrefs = remember { GroupPreferences(ctx) }
+    val notificationPrefs = remember { NotificationPreferences(ctx) }
 
     var joinedGroups by remember { mutableStateOf(groupPrefs.getJoinedGroups()) }
     var dropVisibility by remember { mutableStateOf(DropVisibility.Public) }
@@ -556,6 +559,8 @@ fun DropHereScreen(
     var businessDashboardError by remember { mutableStateOf<String?>(null) }
     var businessDashboardRefreshToken by remember { mutableStateOf(0) }
     var selectedHomeDestination by rememberSaveable { mutableStateOf(HomeDestination.Explorer.name) }
+    var notificationRadius by remember { mutableStateOf(notificationPrefs.getNotificationRadiusMeters()) }
+    var showNotificationRadiusDialog by remember { mutableStateOf(false) }
 
     fun handleSignOut() {
         if (signingOut) return
@@ -765,11 +770,11 @@ fun DropHereScreen(
     }
 
     // Optional: also sync nearby on first open if already signed in
-    LaunchedEffect(joinedGroups) {
+    LaunchedEffect(joinedGroups, notificationRadius) {
         if (FirebaseAuth.getInstance().currentUser != null) {
             registrar.registerNearby(
                 ctx,
-                maxMeters = 300.0,
+                maxMeters = notificationRadius,
                 groupCodes = joinedGroups.toSet()
             )
         }
@@ -1473,6 +1478,18 @@ fun DropHereScreen(
                                 DropdownMenuItem(
                                     text = {
                                         Text(
+                                            "Notification radius (${notificationRadius.roundToInt()} m)"
+                                        )
+                                    },
+                                    leadingIcon = { Icon(Icons.Rounded.Map, contentDescription = null) },
+                                    onClick = {
+                                        showAccountMenu = false
+                                        showNotificationRadiusDialog = true
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
                                             if (nsfwEnabled) "Disable NSFW drops" else "Enable NSFW drops"
                                         )
                                     },
@@ -1843,6 +1860,27 @@ fun DropHereScreen(
         )
     }
 
+    if (showNotificationRadiusDialog) {
+        NotificationRadiusDialog(
+            initialRadius = notificationRadius,
+            onConfirm = { newRadius ->
+                notificationRadius = newRadius
+                notificationPrefs.setNotificationRadiusMeters(newRadius)
+                showNotificationRadiusDialog = false
+                snackbar.showMessage(
+                    scope,
+                    "We'll alert you to drops within ${newRadius.roundToInt()} meters."
+                )
+                registrar.registerNearby(
+                    ctx,
+                    maxMeters = newRadius,
+                    groupCodes = groupPrefs.getJoinedGroups().toSet()
+                )
+            },
+            onDismiss = { showNotificationRadiusDialog = false }
+        )
+    }
+
     if (showNsfwDialog) {
         NsfwPreferenceDialog(
             enabled = userProfile?.canViewNsfw() == true,
@@ -1869,7 +1907,7 @@ fun DropHereScreen(
                         snackbar.showMessage(scope, message)
                         registrar.registerNearby(
                             ctx,
-                            maxMeters = 300.0,
+                            maxMeters = notificationRadius,
                             groupCodes = groupPrefs.getJoinedGroups().toSet()
                         )
                     } catch (error: Exception) {
@@ -2866,6 +2904,59 @@ private fun visionStatusMessage(
         }
     }
 }
+
+@Composable
+private fun NotificationRadiusDialog(
+    initialRadius: Double,
+    onConfirm: (Double) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val minRadius = NotificationPreferences.MIN_RADIUS_METERS.toFloat()
+    val maxRadius = NotificationPreferences.MAX_RADIUS_METERS.toFloat()
+    val step = NOTIFICATION_RADIUS_STEP_METERS
+    val rawSteps = ((maxRadius - minRadius) / step).roundToInt()
+    val steps = (rawSteps - 1).coerceAtLeast(0)
+    var sliderValue by remember(initialRadius) {
+        mutableStateOf(initialRadius.toFloat().coerceIn(minRadius, maxRadius))
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Rounded.Map, contentDescription = null) },
+        title = { Text("Nearby notification radius") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Text("Choose how close a drop should be before we alert you.")
+                Text(
+                    text = "${sliderValue.roundToInt()} meters",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Medium
+                )
+                Slider(
+                    value = sliderValue,
+                    onValueChange = { value ->
+                        val snapped = (value / step).roundToInt() * step
+                        sliderValue = snapped.coerceIn(minRadius, maxRadius)
+                    },
+                    valueRange = minRadius..maxRadius,
+                    steps = steps,
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(sliderValue.toDouble()) }) {
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+private const val NOTIFICATION_RADIUS_STEP_METERS = 50f
 
 private fun formatCoordinate(value: Double): String {
     return String.format(Locale.US, "%.5f", value)

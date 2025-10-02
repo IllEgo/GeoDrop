@@ -14,6 +14,7 @@ import com.e3hi.geodrop.BuildConfig
 import com.e3hi.geodrop.ui.DropHereScreen
 import com.e3hi.geodrop.util.GoogleVisionSafeSearchEvaluator
 import com.e3hi.geodrop.util.GroupPreferences
+import com.e3hi.geodrop.util.NotificationPreferences
 import com.e3hi.geodrop.util.createNotificationChannelIfNeeded
 import com.e3hi.geodrop.geo.NearbyDropRegistrar
 import com.google.firebase.FirebaseApp
@@ -46,12 +47,13 @@ class MainActivity : ComponentActivity() {
         ensureRuntimePermissions()
 
         val groupPrefs = GroupPreferences(this)
+        val notificationPrefs = NotificationPreferences(this)
 
         authListener = AuthStateListener { firebaseAuth ->
             if (firebaseAuth.currentUser == null) return@AuthStateListener
             registrar.registerNearby(
                 this,
-                maxMeters = 300.0,
+                maxMeters = notificationPrefs.getNotificationRadiusMeters(),
                 groupCodes = groupPrefs.getJoinedGroups().toSet()
             )
         }
