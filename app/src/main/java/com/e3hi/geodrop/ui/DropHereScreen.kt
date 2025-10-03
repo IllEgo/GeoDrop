@@ -106,6 +106,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.e3hi.geodrop.R
+import com.e3hi.geodrop.data.BusinessCategory
 import com.e3hi.geodrop.data.CollectedNote
 import com.e3hi.geodrop.data.Drop
 import com.e3hi.geodrop.data.DropContentType
@@ -1567,6 +1568,7 @@ fun DropHereScreen(
                     .fillMaxSize()
                     .padding(innerPadding),
                 businessName = userProfile?.businessName,
+                businessCategories = userProfile?.businessCategories.orEmpty(),
                 joinedGroups = joinedGroups,
                 statusMessage = status,
                 onCreateDrop = {
@@ -1956,16 +1958,37 @@ fun DropHereScreen(
         }
         var onboardingError by remember { mutableStateOf<String?>(null) }
         var onboardingSubmitting by remember { mutableStateOf(false) }
+        val categoriesKey = userProfile?.businessCategories
+            ?.joinToString(separator = ",") { it.id }
+        var selectedCategoryIds by remember(categoriesKey) {
+            mutableStateOf(userProfile?.businessCategories?.map { it.id } ?: emptyList())
+        }
 
         BusinessOnboardingDialog(
             name = businessNameField,
+            selectedCategories = selectedCategoryIds
+                .mapNotNull { id -> BusinessCategory.fromId(id) }
+                .toSet(),
             onNameChange = { businessNameField = it },
+            onToggleCategory = { category ->
+                selectedCategoryIds = if (selectedCategoryIds.contains(category.id)) {
+                    selectedCategoryIds.filterNot { it == category.id }
+                } else {
+                    selectedCategoryIds + category.id
+                }
+            },
             isSubmitting = onboardingSubmitting,
             error = onboardingError,
             onSubmit = {
                 val trimmed = businessNameField.text.trim()
                 if (trimmed.isEmpty()) {
                     onboardingError = "Enter your business name."
+                    return@BusinessOnboardingDialog
+                }
+                val selectedCategories = selectedCategoryIds
+                    .mapNotNull { id -> BusinessCategory.fromId(id) }
+                if (selectedCategories.isEmpty()) {
+                    onboardingError = "Select at least one business category."
                     return@BusinessOnboardingDialog
                 }
                 val uid = currentUserId
@@ -1977,7 +2000,7 @@ fun DropHereScreen(
                 onboardingError = null
                 scope.launch {
                     try {
-                        val updated = repo.updateBusinessProfile(uid, trimmed)
+                        val updated = repo.updateBusinessProfile(uid, trimmed, selectedCategories)
                         userProfile = updated
                         showBusinessOnboarding = false
                         snackbar.showMessage(scope, "Business profile saved.")
@@ -2092,6 +2115,7 @@ private fun ExplorerAutoSignInScreen(
 private fun BusinessHomeScreen(
     modifier: Modifier = Modifier,
     businessName: String?,
+    businessCategories: List<BusinessCategory>,
     joinedGroups: List<String>,
     statusMessage: String?,
     onCreateDrop: () -> Unit,
@@ -2109,6 +2133,7 @@ private fun BusinessHomeScreen(
         item {
             BusinessHeroCard(
                 businessName = businessName,
+                businessCategories = businessCategories,
                 joinedGroups = joinedGroups,
                 onCreateDrop = onCreateDrop,
                 onManageGroups = onManageGroups
@@ -2182,6 +2207,7 @@ private fun BusinessHomeScreen(
 @Composable
 private fun BusinessHeroCard(
     businessName: String?,
+    businessCategories: List<BusinessCategory>,
     joinedGroups: List<String>,
     onCreateDrop: () -> Unit,
     onManageGroups: () -> Unit,
@@ -2193,6 +2219,9 @@ private fun BusinessHeroCard(
     } else {
         "Keep explorers engaged with timely offers and experiences from your team."
     }
+
+    val sortedCategories = businessCategories
+        .sortedWith(compareBy({ it.group.displayName }, { it.displayName }))
 
     ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
@@ -2218,6 +2247,37 @@ private fun BusinessHeroCard(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.9f)
                 )
+            }
+
+            if (sortedCategories.isNotEmpty()) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        text = "Business categories",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        fontWeight = FontWeight.SemiBold
+                    )
+
+                    sortedCategories
+                        .groupBy { it.group }
+                        .forEach { (group, categories) ->
+                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text(
+                                    text = group.displayName,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.9f),
+                                    fontWeight = FontWeight.Medium
+                                )
+                                categories.forEach { category ->
+                                    Text(
+                                        text = "• ${category.displayName}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
+                                    )
+                                }
+                            }
+                        }
+                }
             }
 
             Button(
@@ -3379,7 +3439,9 @@ private fun BusinessSignInDialog(
 @Composable
 private fun BusinessOnboardingDialog(
     name: TextFieldValue,
+    selectedCategories: Set<BusinessCategory>,
     onNameChange: (TextFieldValue) -> Unit,
+    onToggleCategory: (BusinessCategory) -> Unit,
     isSubmitting: Boolean,
     error: String?,
     onSubmit: () -> Unit,
@@ -3397,8 +3459,11 @@ private fun BusinessOnboardingDialog(
                 .fillMaxWidth()
                 .padding(16.dp)
         ) {
+            val scrollState = rememberScrollState()
             Column(
-                modifier = Modifier.padding(24.dp),
+                modifier = Modifier
+                    .padding(24.dp)
+                    .verticalScroll(scrollState),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Text(
@@ -3419,6 +3484,39 @@ private fun BusinessOnboardingDialog(
                     enabled = !isSubmitting,
                     modifier = Modifier.fillMaxWidth()
                 )
+
+                Text(
+                    text = "Select the categories that best describe your business.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                val groupedEntries = remember {
+                    BusinessCategory.entries.groupBy { it.group }.entries.toList()
+                }
+
+                groupedEntries.forEachIndexed { index, (group, options) ->
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text(
+                            text = group.displayName,
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+
+                        options.forEach { category ->
+                            BusinessCategoryOptionRow(
+                                category = category,
+                                selected = selectedCategories.contains(category),
+                                enabled = !isSubmitting,
+                                onToggle = { onToggleCategory(category) }
+                            )
+                        }
+                    }
+
+                    if (index != groupedEntries.lastIndex) {
+                        Spacer(Modifier.height(8.dp))
+                    }
+                }
 
                 error?.let { message ->
                     Text(
@@ -3459,6 +3557,57 @@ private fun BusinessOnboardingDialog(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun BusinessCategoryOptionRow(
+    category: BusinessCategory,
+    selected: Boolean,
+    enabled: Boolean,
+    onToggle: () -> Unit
+) {
+    val shape = RoundedCornerShape(16.dp)
+    val backgroundColor = if (selected) {
+        MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+    }
+    val borderColor = if (selected) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        MaterialTheme.colorScheme.outlineVariant
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(backgroundColor)
+            .border(BorderStroke(1.dp, borderColor), shape)
+            .clickable(enabled = enabled, role = Role.Checkbox) { onToggle() }
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Checkbox(
+            checked = selected,
+            onCheckedChange = null,
+            enabled = enabled
+        )
+
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                text = category.displayName,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = category.description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }

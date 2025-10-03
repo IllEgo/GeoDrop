@@ -65,6 +65,13 @@ class FirestoreRepo(
             UserRole.EXPLORER
         }
         val existingBusinessName = snapshot.getString("businessName")?.takeIf { it.isNotBlank() }
+        val existingBusinessCategories = snapshot.get("businessCategories")
+            ?.let { raw ->
+                (raw as? List<*>)
+                    ?.mapNotNull { item -> BusinessCategory.fromId(item?.toString()) }
+                    ?: emptyList()
+            }
+            ?: emptyList()
         val storedDisplayName = snapshot.getString("displayName")?.takeIf { it.isNotBlank() }
         val storedNsfwEnabled = snapshot.getBoolean("nsfwEnabled") == true
         val storedNsfwEnabledAt = snapshot.getLong("nsfwEnabledAt")?.takeIf { it > 0L }
@@ -74,6 +81,7 @@ class FirestoreRepo(
         if (!snapshot.exists()) {
             updates["role"] = existingRole.name
             updates["businessName"] = existingBusinessName
+            updates["businessCategories"] = existingBusinessCategories.map { it.id }
             updates["displayName"] = resolvedDisplayName
             updates["nsfwEnabled"] = storedNsfwEnabled
             updates["nsfwEnabledAt"] = storedNsfwEnabledAt
@@ -83,6 +91,9 @@ class FirestoreRepo(
             }
             if (resolvedDisplayName != null && resolvedDisplayName != storedDisplayName) {
                 updates["displayName"] = resolvedDisplayName
+            }
+            if (!snapshot.contains("businessCategories")) {
+                updates["businessCategories"] = existingBusinessCategories.map { it.id }
             }
             if (!snapshot.contains("nsfwEnabled")) {
                 updates["nsfwEnabled"] = storedNsfwEnabled
@@ -101,6 +112,7 @@ class FirestoreRepo(
             displayName = resolvedDisplayName,
             role = existingRole,
             businessName = existingBusinessName,
+            businessCategories = existingBusinessCategories,
             nsfwEnabled = storedNsfwEnabled,
             nsfwEnabledAt = storedNsfwEnabledAt
         )
@@ -121,7 +133,11 @@ class FirestoreRepo(
         return profile.copy(nsfwEnabled = enabled, nsfwEnabledAt = timestamp)
     }
 
-    suspend fun updateBusinessProfile(userId: String, businessName: String): UserProfile {
+    suspend fun updateBusinessProfile(
+        userId: String,
+        businessName: String,
+        categories: List<BusinessCategory>
+    ): UserProfile {
         val profile = ensureUserProfile(userId)
         if (userId.isBlank()) return profile
 
@@ -130,13 +146,22 @@ class FirestoreRepo(
             throw IllegalArgumentException("Business name cannot be empty")
         }
 
+        if (categories.isEmpty()) {
+            throw IllegalArgumentException("Select at least one business category")
+        }
+
         val updates = hashMapOf<String, Any?>(
             "businessName" to sanitizedName,
+            "businessCategories" to categories.map { it.id },
             "role" to UserRole.BUSINESS.name
         )
         users.document(userId).set(updates, SetOptions.merge()).await()
 
-        return profile.copy(role = UserRole.BUSINESS, businessName = sanitizedName)
+        return profile.copy(
+            role = UserRole.BUSINESS,
+            businessName = sanitizedName,
+            businessCategories = categories
+        )
     }
 
     suspend fun getDropsForUser(uid: String): List<Drop> {

@@ -5,6 +5,7 @@ data class UserProfile(
     val displayName: String? = null,
     val role: UserRole = UserRole.EXPLORER,
     val businessName: String? = null,
+    val businessCategories: List<BusinessCategory> = emptyList(),
     val nsfwEnabled: Boolean = false,
     val nsfwEnabledAt: Long? = null
 )
