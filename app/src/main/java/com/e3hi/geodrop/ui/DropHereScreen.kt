@@ -5748,11 +5748,35 @@ private fun BusinessDropTemplatesSection(
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
-        templates.forEach { template ->
+        if (templates.isNotEmpty()) {
+            var currentIndex by remember(templates) { mutableStateOf(0) }
+            val templateCount = templates.size
+            val currentTemplate = templates.getOrNull(currentIndex) ?: templates.first()
+
             BusinessDropTemplateCard(
-                template = template,
+                template = currentTemplate,
                 onApply = onApply
             )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Idea ${currentIndex + 1} of $templateCount",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                if (templateCount > 1) {
+                    OutlinedButton(
+                        onClick = { currentIndex = (currentIndex + 1) % templateCount }
+                    ) {
+                        Text("Next idea")
+                    }
+                }
+            }
         }
     }
 }
