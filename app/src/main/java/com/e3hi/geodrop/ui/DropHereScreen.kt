@@ -5737,6 +5737,8 @@ private fun BusinessDropTemplatesSection(
     templates: List<BusinessDropTemplate>,
     onApply: (BusinessDropTemplate) -> Unit
 ) {
+    var showSuggestions by remember(templates) { mutableStateOf(false) }
+
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -5748,32 +5750,90 @@ private fun BusinessDropTemplatesSection(
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
-        if (templates.isNotEmpty()) {
-            var currentIndex by remember(templates) { mutableStateOf(0) }
-            val templateCount = templates.size
-            val currentTemplate = templates.getOrNull(currentIndex) ?: templates.first()
+        OutlinedButton(onClick = { showSuggestions = true }) {
+            Text("Browse suggestions")
+        }
+    }
 
-            BusinessDropTemplateCard(
-                template = currentTemplate,
-                onApply = onApply
-            )
+    if (showSuggestions) {
+        BusinessDropTemplatesDialog(
+            templates = templates,
+            onApply = onApply,
+            onDismiss = { showSuggestions = false }
+        )
+    }
+}
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+@Composable
+private fun BusinessDropTemplatesDialog(
+    templates: List<BusinessDropTemplate>,
+    onApply: (BusinessDropTemplate) -> Unit,
+    onDismiss: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = MaterialTheme.shapes.large,
+            tonalElevation = 6.dp,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Drop ideas for your categories",
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(onClick = onDismiss) {
+                        Icon(
+                            imageVector = Icons.Rounded.Close,
+                            contentDescription = "Close drop ideas"
+                        )
+                    }
+                }
+
                 Text(
-                    text = "Idea ${currentIndex + 1} of $templateCount",
+                    text = "Use a template to pre-fill your drop with a ready-made idea.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
-                if (templateCount > 1) {
-                    OutlinedButton(
-                        onClick = { currentIndex = (currentIndex + 1) % templateCount }
-                    ) {
-                        Text("Next idea")
+                var currentIndex by remember(templates) { mutableStateOf(0) }
+                val templateCount = templates.size
+                val currentTemplate = templates.getOrNull(currentIndex) ?: templates.first()
+
+                BusinessDropTemplateCard(
+                    template = currentTemplate,
+                    onApply = { template ->
+                        onApply(template)
+                        onDismiss()
+                    }
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Idea ${currentIndex + 1} of $templateCount",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    if (templateCount > 1) {
+                        OutlinedButton(
+                            onClick = { currentIndex = (currentIndex + 1) % templateCount }
+                        ) {
+                            Text("Next idea")
+                        }
                     }
                 }
             }
