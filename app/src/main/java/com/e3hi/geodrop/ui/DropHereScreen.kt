@@ -158,6 +158,7 @@ import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.maps.model.LatLng
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
+import com.google.maps.android.compose.Circle
 import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.MapUiSettings
 import com.google.maps.android.compose.Marker
@@ -1761,6 +1762,7 @@ fun DropHereScreen(
             loading = otherDropsLoading,
             drops = otherDrops,
             currentLocation = otherDropsCurrentLocation,
+            notificationRadiusMeters = notificationRadius,
             error = otherDropsError,
             selectedId = otherDropsSelectedId,
             onSelect = { drop ->
@@ -4201,6 +4203,7 @@ private fun OtherDropsMapDialog(
     loading: Boolean,
     drops: List<Drop>,
     currentLocation: LatLng?,
+    notificationRadiusMeters: Double,
     error: String?,
     selectedId: String?,
     onSelect: (Drop) -> Unit,
@@ -4339,7 +4342,8 @@ private fun OtherDropsMapDialog(
                                     OtherDropsMap(
                                         drops = drops,
                                         selectedDropId = selectedId,
-                                        currentLocation = currentLocation
+                                        currentLocation = currentLocation,
+                                        notificationRadiusMeters = notificationRadiusMeters
                                     )
                                 }
 
@@ -5425,7 +5429,8 @@ private fun OtherDropRow(
 private fun OtherDropsMap(
     drops: List<Drop>,
     selectedDropId: String?,
-    currentLocation: LatLng?
+    currentLocation: LatLng?,
+    notificationRadiusMeters: Double
 ) {
     val cameraPositionState = rememberCameraPositionState()
     val uiSettings = remember { MapUiSettings(zoomControlsEnabled = true) }
@@ -5447,6 +5452,17 @@ private fun OtherDropsMap(
         uiSettings = uiSettings
     ) {
         currentLocation?.let { location ->
+            if (notificationRadiusMeters > 0.0) {
+                Circle(
+                    center = location,
+                    radius = notificationRadiusMeters,
+                    strokeColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
+                    strokeWidth = 2f,
+                    fillColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                    zIndex = 0f
+                )
+            }
+
             Marker(
                 state = MarkerState(location),
                 title = "Your current location",
