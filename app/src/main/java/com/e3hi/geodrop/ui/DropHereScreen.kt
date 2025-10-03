@@ -673,10 +673,14 @@ fun DropHereScreen(
         }
         val currentLocation = otherDropsCurrentLocation
         val withinRange = currentLocation?.let {
-            distanceBetweenMeters(it.latitude, it.longitude, drop.lat, drop.lng) <= 30.0
+            distanceBetweenMeters(it.latitude, it.longitude, drop.lat, drop.lng) <=
+                    DROP_PICKUP_RADIUS_METERS
         } ?: false
         if (!withinRange) {
-            snackbar.showMessage(scope, "Move within 30 meters to pick up this drop.")
+            snackbar.showMessage(
+                scope,
+                "Move within ${DROP_PICKUP_RADIUS_METERS.roundToInt()} meters to pick up this drop."
+            )
             return
         }
 
@@ -3359,6 +3363,7 @@ private fun NotificationRadiusDialog(
 }
 
 private const val NOTIFICATION_RADIUS_STEP_METERS = 50f
+private const val DROP_PICKUP_RADIUS_METERS = 30.0
 private const val MAX_BUSINESS_TEMPLATE_SUGGESTIONS = 6
 
 private fun formatCoordinate(value: Double): String {
@@ -5253,7 +5258,8 @@ private fun OtherDropRow(
     val distanceMeters = currentLocation?.let { location ->
         distanceBetweenMeters(location.latitude, location.longitude, drop.lat, drop.lng)
     }
-    val withinPickupRange = distanceMeters != null && distanceMeters <= 30.0
+    val withinPickupRange =
+        distanceMeters != null && distanceMeters <= DROP_PICKUP_RADIUS_METERS
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -5467,6 +5473,19 @@ private fun OtherDropsMap(
                 state = MarkerState(location),
                 title = "Your current location",
                 icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE),
+                zIndex = 1f
+            )
+        }
+
+        val selectedDrop = selectedDropId?.let { id -> drops.firstOrNull { it.id == id } }
+        selectedDrop?.let { drop ->
+            val dropPosition = LatLng(drop.lat, drop.lng)
+            Circle(
+                center = dropPosition,
+                radius = DROP_PICKUP_RADIUS_METERS,
+                strokeColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.6f),
+                strokeWidth = 2f,
+                fillColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f),
                 zIndex = 1f
             )
         }
