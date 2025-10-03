@@ -3,6 +3,7 @@ package com.e3hi.geodrop.geo
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.location.Location
 import android.util.Log
 import androidx.core.app.NotificationManagerCompat
 import com.e3hi.geodrop.data.CollectedNote
@@ -11,6 +12,8 @@ import com.e3hi.geodrop.data.DropType
 import com.e3hi.geodrop.data.FirestoreRepo
 import com.e3hi.geodrop.data.NoteInventory
 import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
+import com.google.android.gms.tasks.CancellationTokenSource
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -84,6 +87,11 @@ class DropDecisionReceiver : BroadcastReceiver() {
             return
         }
 
+        if (!isWithinPickupRange(context, lat, lng)) {
+            Log.d(TAG, "Ignoring pick up for drop $dropId because user is not within range.")
+            return
+        }
+
         val inventory = NoteInventory(context)
         val note = CollectedNote(
             id = dropId,
@@ -138,6 +146,27 @@ class DropDecisionReceiver : BroadcastReceiver() {
         }
     }
 
+    private suspend fun isWithinPickupRange(
+        context: Context,
+        dropLat: Double?,
+        dropLng: Double?
+    ): Boolean {
+        if (dropLat == null || dropLng == null) return true
+
+        val fused = LocationServices.getFusedLocationProviderClient(context)
+        val currentLocation = runCatching {
+            val token = CancellationTokenSource()
+            fused.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, token.token).await()
+        }.getOrNull() ?: runCatching {
+            fused.lastLocation.await()
+        }.getOrNull()
+
+        val location = currentLocation ?: return false
+        val results = FloatArray(1)
+        Location.distanceBetween(location.latitude, location.longitude, dropLat, dropLng, results)
+        return results[0] <= PICKUP_RADIUS_METERS
+    }
+
     companion object {
         const val ACTION_PICK_UP = "com.e3hi.geodrop.action.PICK_UP_DROP"
         const val ACTION_IGNORE = "com.e3hi.geodrop.action.IGNORE_DROP"
@@ -161,5 +190,6 @@ class DropDecisionReceiver : BroadcastReceiver() {
         const val EXTRA_DROP_NSFW_LABELS = "extra_drop_nsfw_labels"
         const val EXTRA_DROP_DECAY_DAYS = "extra_drop_decay_days"
         private const val TAG = "DropDecisionReceiver"
+        private const val PICKUP_RADIUS_METERS = 30.0f
     }
 }

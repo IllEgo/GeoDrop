@@ -671,10 +671,10 @@ fun DropHereScreen(
         }
         val currentLocation = otherDropsCurrentLocation
         val withinRange = currentLocation?.let {
-            distanceBetweenMeters(it.latitude, it.longitude, drop.lat, drop.lng) <= 10.0
+            distanceBetweenMeters(it.latitude, it.longitude, drop.lat, drop.lng) <= 30.0
         } ?: false
         if (!withinRange) {
-            snackbar.showMessage(scope, "Move closer to pick up this drop.")
+            snackbar.showMessage(scope, "Move within 30 meters to pick up this drop.")
             return
         }
 
@@ -5105,7 +5105,7 @@ private fun OtherDropRow(
     val distanceMeters = currentLocation?.let { location ->
         distanceBetweenMeters(location.latitude, location.longitude, drop.lat, drop.lng)
     }
-    val withinPickupRange = distanceMeters != null && distanceMeters <= 10.0
+    val withinPickupRange = distanceMeters != null && distanceMeters <= 30.0
 
     Card(
         modifier = Modifier.fillMaxWidth(),
