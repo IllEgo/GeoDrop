@@ -5900,6 +5900,7 @@ private fun BusinessDropTypeSection(
                     shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
                     onClick = { onDropTypeChange(option.type) },
                     selected = option.type == dropType,
+                    modifier = Modifier.weight(1f),
                     label = { Text(option.title) },
                     icon = { Icon(option.icon, contentDescription = null) }
                 )
