@@ -138,6 +138,7 @@ import com.e3hi.geodrop.geo.NearbyDropRegistrar
 import com.e3hi.geodrop.util.GroupPreferences
 import com.e3hi.geodrop.util.NotificationPreferences
 import com.e3hi.geodrop.util.formatTimestamp
+import com.e3hi.geodrop.util.TermsPreferences
 import com.e3hi.geodrop.util.DropBlockedBySafetyException
 import com.e3hi.geodrop.util.DropSafetyAssessment
 import com.e3hi.geodrop.util.DropSafetyEvaluator
@@ -190,6 +191,8 @@ fun DropHereScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     val auth = remember { FirebaseAuth.getInstance() }
     var currentUser by remember { mutableStateOf(auth.currentUser) }
+    val termsPrefs = remember(ctx) { TermsPreferences(ctx) }
+    var hasAcceptedTerms by remember { mutableStateOf(termsPrefs.hasAcceptedTerms()) }
     var signingIn by remember { mutableStateOf(false) }
     var signInError by remember { mutableStateOf<String?>(null) }
     var showBusinessSignIn by remember { mutableStateOf(false) }
@@ -446,14 +449,20 @@ fun DropHereScreen(
         onDispose { auth.removeAuthStateListener(listener) }
     }
 
-    LaunchedEffect(currentUser, businessAuthSubmitting, businessGoogleSigningIn, signingOut) {
+    LaunchedEffect(
+        currentUser,
+        businessAuthSubmitting,
+        businessGoogleSigningIn,
+        signingOut,
+        hasAcceptedTerms
+    ) {
         if (currentUser == null) {
             showAccountMenu = false
             if (!businessAuthSubmitting && !businessGoogleSigningIn) {
                 showBusinessSignIn = false
                 businessAuthMode = BusinessAuthMode.SIGN_IN
                 resetBusinessAuthFields(clearEmail = true)
-                if (!signingOut) {
+                if (!signingOut && hasAcceptedTerms) {
                     startExplorerSignIn()
                 }
             }
@@ -503,6 +512,19 @@ fun DropHereScreen(
     }
 
     if (currentUser == null) {
+        if (!hasAcceptedTerms) {
+            TermsAcceptanceScreen(
+                onAccept = {
+                    termsPrefs.recordAcceptance()
+                    hasAcceptedTerms = true
+                    startExplorerSignIn()
+                },
+                onExit = {
+                    (ctx as? Activity)?.finish()
+                }
+            )
+            return
+        }
         ExplorerAutoSignInScreen(
             isSigningIn = signingIn,
             error = signInError,
@@ -2053,6 +2075,165 @@ fun DropHereScreen(
         )
     }
 }
+
+@Composable
+private fun TermsAcceptanceScreen(
+    onAccept: () -> Unit,
+    onExit: () -> Unit
+) {
+    val scrollState = rememberScrollState()
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp)
+    ) {
+        Surface(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .fillMaxWidth(),
+            shape = RoundedCornerShape(24.dp),
+            tonalElevation = 6.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(24.dp)
+                    .fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = "Welcome to GeoDrop",
+                    style = MaterialTheme.typography.headlineSmall,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Text(
+                    text = TERMS_PRIVACY_SUMMARY,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Divider()
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 200.dp, max = 360.dp)
+                        .verticalScroll(scrollState)
+                        .border(
+                            BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                            RoundedCornerShape(12.dp)
+                        )
+                        .padding(16.dp)
+                ) {
+                    Text(
+                        text = TERMS_PRIVACY_EXCERPT,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        lineHeight = MaterialTheme.typography.bodySmall.lineHeight
+                    )
+                }
+                Text(
+                    text = "By tapping Accept & Continue you agree to these terms and policies.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(onClick = onExit) {
+                        Text("Exit app")
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(onClick = onAccept) {
+                        Text("Accept & Continue")
+                    }
+                }
+            }
+        }
+    }
+}
+
+private const val TERMS_PRIVACY_SUMMARY =
+    "GeoDrop uses your location and saved preferences to help you discover nearby drops. " +
+            "Please review and accept our Terms of Service and Privacy Policy before continuing."
+
+private val TERMS_PRIVACY_EXCERPT = """
+📜 GeoDrop – Terms of Service
+Last updated: 10/02/2025
+Welcome to GeoDrop! By using our app, you agree to the following:
+
+1. Use of the App
+You may use GeoDrop to create and discover location-based messages, media, or coupons (“drops”).
+You agree not to post harmful, illegal, hateful, or malicious content.
+You agree not to spam, harass, or misuse the service.
+
+2. Location Services
+GeoDrop uses your device’s location to notify you of nearby drops.
+You must grant location permissions for the app to function properly.
+
+3. User Content
+You are responsible for any content you drop.
+GeoDrop may remove content that violates these terms.
+Coupons, promotions, or offers from businesses are managed by those businesses — GeoDrop is not responsible for their accuracy or fulfillment.
+
+4. NSFW Content
+GeoDrop includes an optional NSFW (Not Safe For Work) feature.
+By enabling NSFW mode, you confirm you are at least 18 years old (or the age of majority in your country).
+NSFW content may include mature, adult, or offensive material.
+GeoDrop is not responsible for the nature of user-generated NSFW content.
+Businesses are prohibited from posting NSFW coupons or promotions.
+
+5. Accounts & Data
+Some features may require Firebase authentication (anonymous or registered).
+You are responsible for keeping your account secure.
+
+6. Disclaimers
+GeoDrop is provided “as is” without warranties.
+We are not responsible for user-generated content, third-party offers, or exposure to NSFW content once you have opted in.
+We are not liable for any loss, damage, or disputes that may arise from use of the app.
+
+7. Termination
+We may suspend or terminate accounts that violate these terms.
+
+🔒 GeoDrop – Privacy Policy
+Last updated: 10/02/2025
+
+Your privacy is important to us. This policy explains how we handle your data.
+
+1. Data We Collect
+Location data (to detect and notify nearby drops).
+Firebase UID / anonymous ID (for drop ownership and activity tracking).
+User content (text, images, audio, or video you drop).
+NSFW preference (whether you have NSFW mode enabled).
+Device information (basic analytics for improving performance).
+
+2. How We Use Data
+To display drops near you.
+To notify you of relevant content or coupons.
+To respect your NSFW setting by filtering flagged content accordingly.
+To maintain app performance and security.
+To help businesses offer location-based deals.
+
+3. Sharing of Data
+We do not sell your data.
+Some data is stored with Firebase (Google Cloud).
+If you redeem a coupon, your interaction may be shared with the issuing business.
+Your NSFW preference is only used within GeoDrop and is not shared with third parties.
+
+4. NSFW & Sensitive Content
+GeoDrop uses AI tools (e.g., Google Cloud Vision SafeSearch) to detect and flag explicit content.
+The system is not perfect, and inappropriate material may still appear.
+By enabling NSFW mode, you accept the risk of viewing mature or offensive material.
+
+5. User Rights
+You may request deletion of your account and content at any time.
+You may control location, notification, and NSFW permissions in your app settings.
+
+6. Children’s Privacy
+GeoDrop is not intended for children under 13.
+NSFW content is restricted to users 18+ only.
+""".trimIndent()
 
 @Composable
 private fun ExplorerAutoSignInScreen(
