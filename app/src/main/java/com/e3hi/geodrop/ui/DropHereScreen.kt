@@ -25,6 +25,7 @@ import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -2703,7 +2704,7 @@ private fun DropComposerDialog(
                     .fillMaxWidth()
                     .verticalScroll(scrollState)
                     .padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -2722,38 +2723,74 @@ private fun DropComposerDialog(
                     }
                 }
 
+                Text(
+                    text = "Complete the steps below to share something new with nearby explorers.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
                 if (userProfileLoading) {
                     LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                 }
 
                 userProfileError?.let { errorMessage ->
-                    Text(
-                        text = errorMessage,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error
-                    )
+                    Surface(
+                        tonalElevation = 2.dp,
+                        shape = MaterialTheme.shapes.medium,
+                        color = MaterialTheme.colorScheme.errorContainer
+                    ) {
+                        Text(
+                            text = errorMessage,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp)
+                        )
+                    }
                 }
 
                 if (isBusinessUser) {
-                    BusinessDropTypeSection(
-                        dropType = dropType,
-                        onDropTypeChange = onDropTypeChange,
-                        businessName = businessName
+                    DropComposerSection(
+                        title = "Business goal",
+                        description = "Choose the purpose for this drop before you add details.",
+                        leadingIcon = Icons.Rounded.Storefront
+                    ) {
+                        BusinessDropTypeSection(
+                            dropType = dropType,
+                            onDropTypeChange = onDropTypeChange,
+                            businessName = businessName,
+                            showHeader = false
+                        )
+                    }
+                }
+
+                DropComposerSection(
+                    title = "Content format",
+                    description = "Pick what explorers experience when they discover this drop.",
+                    leadingIcon = Icons.Rounded.Edit
+                ) {
+                    DropContentTypeSection(
+                        selected = dropContentType,
+                        onSelect = onDropContentTypeChange,
+                        showHeader = false
                     )
                 }
 
-                DropContentTypeSection(
-                    selected = dropContentType,
-                    onSelect = onDropContentTypeChange
-                )
-
                 if (isBusinessUser && dropType == DropType.RESTAURANT_COUPON) {
-                    BusinessRedemptionSection(
-                        redemptionCode = redemptionCodeInput,
-                        onRedemptionCodeChange = onRedemptionCodeChange,
-                        redemptionLimit = redemptionLimitInput,
-                        onRedemptionLimitChange = onRedemptionLimitChange
-                    )
+                    DropComposerSection(
+                        title = "Offer security",
+                        description = "Set a redemption code and optional limit so each guest redeems only once.",
+                        leadingIcon = Icons.Rounded.Flag
+                    ) {
+                        BusinessRedemptionSection(
+                            redemptionCode = redemptionCodeInput,
+                            onRedemptionCodeChange = onRedemptionCodeChange,
+                            redemptionLimit = redemptionLimitInput,
+                            onRedemptionLimitChange = onRedemptionLimitChange,
+                            showHeader = false
+                        )
+                    }
                 }
 
                 if (isBusinessUser) {
@@ -2762,14 +2799,21 @@ private fun DropComposerDialog(
                             .take(MAX_BUSINESS_TEMPLATE_SUGGESTIONS)
                     }
                     if (templateSuggestions.isNotEmpty()) {
-                        BusinessDropTemplatesSection(
-                            templates = templateSuggestions,
-                            onApply = { template ->
-                                onDropTypeChange(template.dropType)
-                                onDropContentTypeChange(template.contentType)
-                                onNoteChange(TextFieldValue(template.note))
-                            }
-                        )
+                        DropComposerSection(
+                            title = "Need inspiration?",
+                            description = "Browse suggested ideas based on your business categories.",
+                            leadingIcon = Icons.Rounded.Info
+                        ) {
+                            BusinessDropTemplatesSection(
+                                templates = templateSuggestions,
+                                onApply = { template ->
+                                    onDropTypeChange(template.dropType)
+                                    onDropContentTypeChange(template.contentType)
+                                    onNoteChange(TextFieldValue(template.note))
+                                },
+                                showHeader = false
+                            )
+                        }
                     }
                 }
 
@@ -2778,39 +2822,47 @@ private fun DropComposerDialog(
                     DropContentType.PHOTO, DropContentType.AUDIO, DropContentType.VIDEO -> "Caption (optional)"
                 }
                 val noteSupporting = when (dropContentType) {
-                    DropContentType.TEXT -> null
+                    DropContentType.TEXT -> "Share a friendly message, hint, or story for people who find this drop."
                     DropContentType.PHOTO -> "Add a short caption to go with your photo."
                     DropContentType.AUDIO -> "Add a short caption to go with your audio clip."
                     DropContentType.VIDEO -> "Add a short caption to go with your video clip."
                 }
                 val noteMinLines = if (dropContentType == DropContentType.TEXT) 3 else 1
-                val supportingTextContent: (@Composable () -> Unit)? = noteSupporting?.let { helper ->
-                    { Text(helper) }
+                DropComposerSection(
+                    title = noteLabel,
+                    description = noteSupporting,
+                    leadingIcon = Icons.Rounded.Edit
+                ) {
+                    OutlinedTextField(
+                        value = note,
+                        onValueChange = onNoteChange,
+                        label = null,
+                        placeholder = { Text("Write something memorable…") },
+                        minLines = noteMinLines,
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
 
-                OutlinedTextField(
-                    value = note,
-                    onValueChange = onNoteChange,
-                    label = { Text(noteLabel) },
-                    minLines = noteMinLines,
-                    modifier = Modifier.fillMaxWidth(),
-                    supportingText = supportingTextContent
-                )
-
-                OutlinedTextField(
-                    value = decayDaysInput,
-                    onValueChange = onDecayDaysChange,
-                    label = { Text("Auto-delete after (days)") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Number,
-                        imeAction = ImeAction.Next
-                    ),
-                    supportingText = {
-                        Text("Leave blank to keep this drop forever (max $MAX_DECAY_DAYS days).")
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                )
+                DropComposerSection(
+                    title = "Auto-delete",
+                    description = "Choose how long this drop should stay visible.",
+                    leadingIcon = Icons.Rounded.Refresh
+                ) {
+                    OutlinedTextField(
+                        value = decayDaysInput,
+                        onValueChange = onDecayDaysChange,
+                        label = { Text("Auto-delete after (days)") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Number,
+                            imeAction = ImeAction.Next
+                        ),
+                        supportingText = {
+                            Text("Leave blank to keep this drop forever (max $MAX_DECAY_DAYS days).")
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
 
                 when (dropContentType) {
                     DropContentType.PHOTO -> {
@@ -2831,27 +2883,33 @@ private fun DropComposerDialog(
                                 )
                             }
                         }
-                        MediaCaptureCard(
-                            title = "Attach a photo",
-                            description = "Snap a picture with your camera to pin at this location.",
-                            status = if (hasPhoto) "Photo ready to upload." else "No photo captured yet.",
-                            isReady = hasPhoto,
-                            primaryLabel = if (hasPhoto) "Retake photo" else "Open camera",
-                            primaryIcon = Icons.Rounded.PhotoCamera,
-                            onPrimary = {
-                                if (hasPhoto) {
-                                    onClearPhoto()
-                                }
-                                onCapturePhoto()
-                            },
-                            secondaryLabel = if (hasPhoto) "Remove photo" else null,
-                            onSecondary = if (hasPhoto) {
-                                { onClearPhoto() }
-                            } else {
-                                null
-                            },
-                            previewContent = photoPreview
-                        )
+                        DropComposerSection(
+                            title = "Photo attachment",
+                            description = "Capture a shot to pair with your drop.",
+                            leadingIcon = Icons.Rounded.PhotoCamera
+                        ) {
+                            MediaCaptureCard(
+                                title = "Attach a photo",
+                                description = "Snap a picture with your camera to pin at this location.",
+                                status = if (hasPhoto) "Photo ready to upload." else "No photo captured yet.",
+                                isReady = hasPhoto,
+                                primaryLabel = if (hasPhoto) "Retake photo" else "Open camera",
+                                primaryIcon = Icons.Rounded.PhotoCamera,
+                                onPrimary = {
+                                    if (hasPhoto) {
+                                        onClearPhoto()
+                                    }
+                                    onCapturePhoto()
+                                },
+                                secondaryLabel = if (hasPhoto) "Remove photo" else null,
+                                onSecondary = if (hasPhoto) {
+                                    { onClearPhoto() }
+                                } else {
+                                    null
+                                },
+                                previewContent = photoPreview
+                            )
+                        }
                     }
 
                     DropContentType.AUDIO -> {
@@ -2894,27 +2952,33 @@ private fun DropComposerDialog(
                         } else {
                             null
                         }
-                        MediaCaptureCard(
-                            title = "Record audio",
-                            description = "Capture a short voice note for anyone who discovers this drop.",
-                            status = if (hasAudio) "Audio message ready to upload." else "No recording yet.",
-                            isReady = hasAudio,
-                            primaryLabel = if (hasAudio) "Record again" else "Record audio",
-                            primaryIcon = Icons.Rounded.Mic,
-                            onPrimary = {
-                                if (hasAudio) {
-                                    onClearAudio()
-                                }
-                                onRecordAudio()
-                            },
-                            secondaryLabel = if (hasAudio) "Remove audio" else null,
-                            onSecondary = if (hasAudio) {
-                                { onClearAudio() }
-                            } else {
-                                null
-                            },
-                            previewContent = audioPreview
-                        )
+                        DropComposerSection(
+                            title = "Audio attachment",
+                            description = "Record a quick voice message for discoverers.",
+                            leadingIcon = Icons.Rounded.Mic
+                        ) {
+                            MediaCaptureCard(
+                                title = "Record audio",
+                                description = "Capture a short voice note for anyone who discovers this drop.",
+                                status = if (hasAudio) "Audio message ready to upload." else "No recording yet.",
+                                isReady = hasAudio,
+                                primaryLabel = if (hasAudio) "Record again" else "Record audio",
+                                primaryIcon = Icons.Rounded.Mic,
+                                onPrimary = {
+                                    if (hasAudio) {
+                                        onClearAudio()
+                                    }
+                                    onRecordAudio()
+                                },
+                                secondaryLabel = if (hasAudio) "Remove audio" else null,
+                                onSecondary = if (hasAudio) {
+                                    { onClearAudio() }
+                                } else {
+                                    null
+                                },
+                                previewContent = audioPreview
+                            )
+                        }
                     }
 
                     DropContentType.VIDEO -> {
@@ -2957,52 +3021,65 @@ private fun DropComposerDialog(
                         } else {
                             null
                         }
-                        MediaCaptureCard(
-                            title = "Record video",
-                            description = "Capture a short clip to share at this location.",
-                            status = if (hasVideo) "Video ready to upload." else "No video recorded yet.",
-                            isReady = hasVideo,
-                            primaryLabel = if (hasVideo) "Record again" else "Record video",
-                            primaryIcon = Icons.Rounded.Videocam,
-                            onPrimary = {
-                                if (hasVideo) {
-                                    onClearVideo()
-                                }
-                                onRecordVideo()
-                            },
-                            secondaryLabel = if (hasVideo) "Remove video" else null,
-                            onSecondary = if (hasVideo) {
-                                { onClearVideo() }
-                            } else {
-                                null
-                            },
-                            previewContent = videoPreview
-                        )
+                        DropComposerSection(
+                            title = "Video attachment",
+                            description = "Record a short clip to share at this location.",
+                            leadingIcon = Icons.Rounded.Videocam
+                        ) {
+                            MediaCaptureCard(
+                                title = "Record video",
+                                description = "Capture a short clip to share at this location.",
+                                status = if (hasVideo) "Video ready to upload." else "No video recorded yet.",
+                                isReady = hasVideo,
+                                primaryLabel = if (hasVideo) "Record again" else "Record video",
+                                primaryIcon = Icons.Rounded.Videocam,
+                                onPrimary = {
+                                    if (hasVideo) {
+                                        onClearVideo()
+                                    }
+                                    onRecordVideo()
+                                },
+                                secondaryLabel = if (hasVideo) "Remove video" else null,
+                                onSecondary = if (hasVideo) {
+                                    { onClearVideo() }
+                                } else {
+                                    null
+                                },
+                                previewContent = videoPreview
+                            )
+                        }
                     }
 
                     DropContentType.TEXT -> Unit
                 }
 
-                DropVisibilitySection(
-                    visibility = dropVisibility,
-                    onVisibilityChange = onDropVisibilityChange,
-                    groupCodeInput = groupCodeInput,
-                    onGroupCodeInputChange = onGroupCodeInputChange,
-                    joinedGroups = joinedGroups,
-                    onSelectGroupCode = onSelectGroupCode
-                )
-
-                OutlinedButton(
-                    onClick = onManageGroupCodes,
-                    enabled = !isSubmitting,
-                    modifier = Modifier.fillMaxWidth()
+                DropComposerSection(
+                    title = "Visibility",
+                    description = "Decide who can discover this drop.",
+                    leadingIcon = Icons.Rounded.Public
                 ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Groups,
-                        contentDescription = null
+                    DropVisibilitySection(
+                        visibility = dropVisibility,
+                        onVisibilityChange = onDropVisibilityChange,
+                        groupCodeInput = groupCodeInput,
+                        onGroupCodeInputChange = onGroupCodeInputChange,
+                        joinedGroups = joinedGroups,
+                        onSelectGroupCode = onSelectGroupCode,
+                        showHeader = false
                     )
-                    Spacer(Modifier.width(8.dp))
-                    Text("Manage group codes")
+
+                    OutlinedButton(
+                        onClick = onManageGroupCodes,
+                        enabled = !isSubmitting,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Groups,
+                            contentDescription = null
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text("Manage group codes")
+                    }
                 }
 
                 Button(
@@ -3024,6 +3101,67 @@ private fun DropComposerDialog(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun DropComposerSection(
+    title: String,
+    description: String?,
+    leadingIcon: ImageVector? = null,
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    ElevatedCard(
+        modifier = modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                leadingIcon?.let { icon ->
+                    Surface(
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                        shape = CircleShape
+                    ) {
+                        Box(
+                            modifier = Modifier.padding(10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = icon,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                }
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    description?.let { helper ->
+                        Text(
+                            text = helper,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+            content()
         }
     }
 }
@@ -4965,7 +5103,13 @@ private fun MediaCaptureCard(
                 Text(primaryLabel)
             }
             if (secondaryLabel != null && onSecondary != null) {
-                TextButton(onClick = onSecondary) {
+                OutlinedButton(
+                    onClick = onSecondary,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = contentColor
+                    )
+                ) {
                     Text(secondaryLabel)
                 }
             }
@@ -5606,7 +5750,8 @@ private fun ManageDropRow(
 @Composable
 private fun DropContentTypeSection(
     selected: DropContentType,
-    onSelect: (DropContentType) -> Unit
+    onSelect: (DropContentType) -> Unit,
+    showHeader: Boolean = true
 ) {
     val options = remember {
         listOf(
@@ -5641,7 +5786,9 @@ private fun DropContentTypeSection(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text("Drop content", style = MaterialTheme.typography.titleSmall)
+        if (showHeader) {
+            Text("Drop content", style = MaterialTheme.typography.titleSmall)
+        }
 
         SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
             options.forEachIndexed { index, option ->
@@ -5676,7 +5823,8 @@ private fun DropContentTypeSection(
 private fun BusinessDropTypeSection(
     dropType: DropType,
     onDropTypeChange: (DropType) -> Unit,
-    businessName: String?
+    businessName: String?,
+    showHeader: Boolean = true
 ) {
     val options = remember {
         listOf(
@@ -5707,7 +5855,9 @@ private fun BusinessDropTypeSection(
     ) {
         val header = businessName?.takeIf { it.isNotBlank() }?.let { "Business tools for $it" }
             ?: "Business tools"
-        Text(header, style = MaterialTheme.typography.titleSmall)
+        if (showHeader) {
+            Text(header, style = MaterialTheme.typography.titleSmall)
+        }
 
         SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
             options.forEachIndexed { index, option ->
@@ -5735,7 +5885,8 @@ private fun BusinessDropTypeSection(
 @Composable
 private fun BusinessDropTemplatesSection(
     templates: List<BusinessDropTemplate>,
-    onApply: (BusinessDropTemplate) -> Unit
+    onApply: (BusinessDropTemplate) -> Unit,
+    showHeader: Boolean = true
 ) {
     var showSuggestions by remember(templates) { mutableStateOf(false) }
 
@@ -5743,14 +5894,19 @@ private fun BusinessDropTemplatesSection(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text("Drop ideas for your categories", style = MaterialTheme.typography.titleSmall)
-        Text(
-            text = "Use a template to pre-fill your drop with a ready-made idea.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        if (showHeader) {
+            Text("Drop ideas for your categories", style = MaterialTheme.typography.titleSmall)
+            Text(
+                text = "Use a template to pre-fill your drop with a ready-made idea.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
 
-        OutlinedButton(onClick = { showSuggestions = true }) {
+        OutlinedButton(
+            onClick = { showSuggestions = true },
+            modifier = Modifier.fillMaxWidth()
+        ) {
             Text("Browse suggestions")
         }
     }
@@ -5970,13 +6126,16 @@ private fun BusinessRedemptionSection(
     redemptionCode: TextFieldValue,
     onRedemptionCodeChange: (TextFieldValue) -> Unit,
     redemptionLimit: TextFieldValue,
-    onRedemptionLimitChange: (TextFieldValue) -> Unit
+    onRedemptionLimitChange: (TextFieldValue) -> Unit,
+    showHeader: Boolean = true
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text("Offer security", style = MaterialTheme.typography.titleSmall)
+        if (showHeader) {
+            Text("Offer security", style = MaterialTheme.typography.titleSmall)
+        }
 
         OutlinedTextField(
             value = redemptionCode,
@@ -6013,13 +6172,16 @@ private fun DropVisibilitySection(
     groupCodeInput: TextFieldValue,
     onGroupCodeInputChange: (TextFieldValue) -> Unit,
     joinedGroups: List<String>,
-    onSelectGroupCode: (String) -> Unit
+    onSelectGroupCode: (String) -> Unit,
+    showHeader: Boolean = true
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text("Drop visibility", style = MaterialTheme.typography.titleSmall)
+        if (showHeader) {
+            Text("Drop visibility", style = MaterialTheme.typography.titleSmall)
+        }
 
         DropVisibilityOptionCard(
             title = "Public drop",
