@@ -108,6 +108,7 @@ import coil.request.ImageRequest
 import com.e3hi.geodrop.R
 import com.e3hi.geodrop.data.BusinessCategory
 import com.e3hi.geodrop.data.CollectedNote
+import com.e3hi.geodrop.data.BusinessDropTemplate
 import com.e3hi.geodrop.data.Drop
 import com.e3hi.geodrop.data.DropContentType
 import com.e3hi.geodrop.data.displayTitle
@@ -121,6 +122,7 @@ import com.e3hi.geodrop.data.MediaStorageRepo
 import com.e3hi.geodrop.data.NoteInventory
 import com.e3hi.geodrop.data.DropType
 import com.e3hi.geodrop.data.UserProfile
+import com.e3hi.geodrop.data.dropTemplatesFor
 import com.e3hi.geodrop.data.UserRole
 import com.e3hi.geodrop.data.canViewNsfw
 import com.e3hi.geodrop.data.RedemptionResult
@@ -1713,6 +1715,7 @@ fun DropHereScreen(
             isSubmitting = isSubmitting,
             isBusinessUser = userProfile?.isBusiness() == true,
             businessName = userProfile?.businessName,
+            businessCategories = userProfile?.businessCategories.orEmpty(),
             userProfileLoading = userProfileLoading,
             userProfileError = userProfileError,
             dropType = dropType,
@@ -2640,6 +2643,7 @@ private fun DropComposerDialog(
     isSubmitting: Boolean,
     isBusinessUser: Boolean,
     businessName: String?,
+    businessCategories: List<BusinessCategory>,
     userProfileLoading: Boolean,
     userProfileError: String?,
     dropType: DropType,
@@ -2750,6 +2754,23 @@ private fun DropComposerDialog(
                         redemptionLimit = redemptionLimitInput,
                         onRedemptionLimitChange = onRedemptionLimitChange
                     )
+                }
+
+                if (isBusinessUser) {
+                    val templateSuggestions = remember(businessCategories) {
+                        dropTemplatesFor(businessCategories)
+                            .take(MAX_BUSINESS_TEMPLATE_SUGGESTIONS)
+                    }
+                    if (templateSuggestions.isNotEmpty()) {
+                        BusinessDropTemplatesSection(
+                            templates = templateSuggestions,
+                            onApply = { template ->
+                                onDropTypeChange(template.dropType)
+                                onDropContentTypeChange(template.contentType)
+                                onNoteChange(TextFieldValue(template.note))
+                            }
+                        )
+                    }
                 }
 
                 val noteLabel = when (dropContentType) {
@@ -3198,6 +3219,7 @@ private fun NotificationRadiusDialog(
 }
 
 private const val NOTIFICATION_RADIUS_STEP_METERS = 50f
+private const val MAX_BUSINESS_TEMPLATE_SUGGESTIONS = 6
 
 private fun formatCoordinate(value: Double): String {
     return String.format(Locale.US, "%.5f", value)
@@ -5704,6 +5726,155 @@ private fun BusinessDropTypeSection(
             Text(
                 text = message,
                 style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun BusinessDropTemplatesSection(
+    templates: List<BusinessDropTemplate>,
+    onApply: (BusinessDropTemplate) -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text("Drop ideas for your categories", style = MaterialTheme.typography.titleSmall)
+        Text(
+            text = "Use a template to pre-fill your drop with a ready-made idea.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        templates.forEach { template ->
+            BusinessDropTemplateCard(
+                template = template,
+                onApply = onApply
+            )
+        }
+    }
+}
+
+@Composable
+private fun BusinessDropTemplateCard(
+    template: BusinessDropTemplate,
+    onApply: (BusinessDropTemplate) -> Unit
+) {
+    ElevatedCard(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = template.title,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = "Inspired by ${template.category.displayName}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            val dropTypeIcon = when (template.dropType) {
+                DropType.COMMUNITY -> Icons.Rounded.Public
+                DropType.RESTAURANT_COUPON -> Icons.Rounded.Storefront
+                DropType.TOUR_STOP -> Icons.Rounded.Flag
+            }
+            val dropTypeLabel = when (template.dropType) {
+                DropType.COMMUNITY -> "Community drop"
+                DropType.RESTAURANT_COUPON -> "Business offer"
+                DropType.TOUR_STOP -> "Tour stop"
+            }
+            val contentTypeIcon = when (template.contentType) {
+                DropContentType.TEXT -> Icons.Rounded.Edit
+                DropContentType.PHOTO -> Icons.Rounded.PhotoCamera
+                DropContentType.AUDIO -> Icons.Rounded.Mic
+                DropContentType.VIDEO -> Icons.Rounded.Videocam
+            }
+            val contentTypeLabel = when (template.contentType) {
+                DropContentType.TEXT -> "Text"
+                DropContentType.PHOTO -> "Photo"
+                DropContentType.AUDIO -> "Audio"
+                DropContentType.VIDEO -> "Video"
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                TemplateTag(text = dropTypeLabel, icon = dropTypeIcon)
+                TemplateTag(text = "$contentTypeLabel content", icon = contentTypeIcon)
+            }
+
+            Text(
+                text = template.description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            template.callToAction?.let { message ->
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+            ) {
+                Text(
+                    text = template.note,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(12.dp),
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            Button(
+                onClick = { onApply(template) },
+                modifier = Modifier.align(Alignment.End)
+            ) {
+                Text("Use this idea")
+            }
+        }
+    }
+}
+
+@Composable
+private fun TemplateTag(
+    text: String,
+    icon: ImageVector? = null
+) {
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
