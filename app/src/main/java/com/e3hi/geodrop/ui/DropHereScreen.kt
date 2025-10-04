@@ -126,6 +126,7 @@ import com.e3hi.geodrop.data.MediaStorageRepo
 import com.e3hi.geodrop.data.NoteInventory
 import com.e3hi.geodrop.data.DropType
 import com.e3hi.geodrop.data.UserProfile
+import com.e3hi.geodrop.data.UserMode
 import com.e3hi.geodrop.data.dropTemplatesFor
 import com.e3hi.geodrop.data.UserRole
 import com.e3hi.geodrop.data.canViewNsfw
@@ -204,6 +205,8 @@ fun DropHereScreen(
     var hasViewedOnboarding by remember { mutableStateOf(termsPrefs.hasViewedFirstRunOnboarding()) }
     var signingIn by remember { mutableStateOf(false) }
     var signInError by remember { mutableStateOf<String?>(null) }
+    var guestModeEnabled by rememberSaveable { mutableStateOf(false) }
+    var anonymousBrowseRequested by rememberSaveable { mutableStateOf(false) }
     var showBusinessSignIn by remember { mutableStateOf(false) }
     var businessAuthMode by remember { mutableStateOf(BusinessAuthMode.SIGN_IN) }
     var businessEmail by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
@@ -458,6 +461,22 @@ fun DropHereScreen(
         onDispose { auth.removeAuthStateListener(listener) }
     }
 
+    val userMode = when {
+        currentUser?.isAnonymous == true -> UserMode.ANONYMOUS_BROWSING
+        currentUser != null -> UserMode.SIGNED_IN
+        guestModeEnabled -> UserMode.GUEST
+        else -> null
+    }
+
+    LaunchedEffect(userMode) {
+        if (userMode == UserMode.ANONYMOUS_BROWSING || userMode == UserMode.SIGNED_IN) {
+            anonymousBrowseRequested = false
+        }
+        if (userMode == UserMode.SIGNED_IN) {
+            guestModeEnabled = false
+        }
+    }
+
     LaunchedEffect(
         currentUser,
         businessAuthSubmitting,
@@ -472,7 +491,12 @@ fun DropHereScreen(
                 showBusinessSignIn = false
                 businessAuthMode = BusinessAuthMode.SIGN_IN
                 resetBusinessAuthFields(clearEmail = true)
-                if (!signingOut && hasAcceptedTerms && hasViewedOnboarding) {
+                if (
+                    !signingOut &&
+                    hasAcceptedTerms &&
+                    hasViewedOnboarding &&
+                    anonymousBrowseRequested
+                ) {
                     startExplorerSignIn()
                 }
             }
@@ -521,37 +545,64 @@ fun DropHereScreen(
         }
     }
 
-    if (currentUser == null) {
-        if (!hasAcceptedTerms) {
-            TermsAcceptanceScreen(
-                onAccept = {
-                    termsPrefs.recordAcceptance()
-                    hasAcceptedTerms = true
-                },
-                onExit = {
-                    (ctx as? Activity)?.finish()
-                }
-            )
-            return
-        }
-
-        if (!hasViewedOnboarding) {
-            FirstRunOnboardingScreen(
-                onContinue = {
-                    termsPrefs.recordOnboardingViewed()
-                    hasViewedOnboarding = true
-                },
-                onExit = {
-                    (ctx as? Activity)?.finish()
-                }
-            )
-            return
-        }
-        ExplorerAutoSignInScreen(
-            isSigningIn = signingIn,
-            error = signInError,
-            onRetry = { startExplorerSignIn() }
+    if (!hasAcceptedTerms) {
+        TermsAcceptanceScreen(
+            onAccept = {
+                termsPrefs.recordAcceptance()
+                hasAcceptedTerms = true
+            },
+            onExit = {
+                (ctx as? Activity)?.finish()
+            }
         )
+        return
+    }
+
+    if (!hasViewedOnboarding) {
+        FirstRunOnboardingScreen(
+            onContinue = {
+                termsPrefs.recordOnboardingViewed()
+                hasViewedOnboarding = true
+            },
+            onExit = {
+                (ctx as? Activity)?.finish()
+            }
+        )
+        return
+    }
+
+    if (userMode == null) {
+        if (anonymousBrowseRequested) {
+            ExplorerAutoSignInScreen(
+                isSigningIn = signingIn,
+                error = signInError,
+                onRetry = { startExplorerSignIn() },
+                onCancel = {
+                    if (!signingIn) {
+                        anonymousBrowseRequested = false
+                        signInError = null
+                    }
+                }
+            )
+        } else {
+            UserModeSelectionScreen(
+                onSelectGuest = {
+                    guestModeEnabled = true
+                    signInError = null
+                },
+                onSelectAnonymous = {
+                    anonymousBrowseRequested = true
+                    signInError = null
+                    startExplorerSignIn()
+                },
+                onSelectSignIn = {
+                    anonymousBrowseRequested = false
+                    guestModeEnabled = false
+                    signInError = null
+                    openBusinessAuthDialog(BusinessAuthMode.SIGN_IN)
+                }
+            )
+        }
         return
     }
 
@@ -565,6 +616,19 @@ fun DropHereScreen(
     val groupPrefs = remember { GroupPreferences(ctx) }
     val explorerAccountStore = remember { ExplorerAccountStore(ctx) }
     val notificationPrefs = remember { NotificationPreferences(ctx) }
+
+    val canParticipate = userMode.canParticipate
+    val readOnlyParticipationMessage = when (userMode) {
+        UserMode.GUEST -> "Create an account to fully participate."
+        UserMode.ANONYMOUS_BROWSING -> "Sign in with an account to fully participate."
+        UserMode.SIGNED_IN -> null
+    }
+
+    fun participationRestriction(action: String): String = when (userMode) {
+        UserMode.GUEST -> "Create an account to $action."
+        UserMode.ANONYMOUS_BROWSING -> "Sign in with an account to $action."
+        UserMode.SIGNED_IN -> ""
+    }
 
     var joinedGroups by remember { mutableStateOf(groupPrefs.getJoinedGroups()) }
     var dropVisibility by remember { mutableStateOf(DropVisibility.Public) }
@@ -632,16 +696,8 @@ fun DropHereScreen(
         }
     }
 
-    fun handleSignOut() {
+    fun handleSignOut(switchToGuest: Boolean = false) {
         if (signingOut) return
-
-        val user = auth.currentUser
-        if (user?.isAnonymous == true) {
-            showAccountMenu = false
-            snackbar.showMessage(scope, "You're already exploring anonymously.")
-            return
-        }
-
 
         showAccountMenu = false
         signingOut = true
@@ -669,7 +725,14 @@ fun DropHereScreen(
 
             if (result.isSuccess) {
                 selectedHomeDestination = HomeDestination.Explorer.name
-                snackbar.showMessage(scope, "Signed out.")
+                guestModeEnabled = switchToGuest
+                anonymousBrowseRequested = false
+                val message = if (switchToGuest) {
+                    "Browsing as a guest."
+                } else {
+                    "Signed out."
+                }
+                snackbar.showMessage(scope, message)
             } else {
                 val message = result.exceptionOrNull()?.localizedMessage?.takeIf { it.isNotBlank() }
                     ?: "Couldn't sign out. Try again."
@@ -717,6 +780,10 @@ fun DropHereScreen(
     }
 
     fun pickUpDrop(drop: Drop) {
+        if (!canParticipate) {
+            snackbar.showMessage(scope, participationRestriction("pick up drops"))
+            return
+        }
         val expiresAt = drop.decayAtMillis()
         if (expiresAt != null && expiresAt <= System.currentTimeMillis()) {
             snackbar.showMessage(scope, "This drop has already expired.")
@@ -813,6 +880,10 @@ fun DropHereScreen(
     }
 
     fun submitVote(drop: Drop, desiredVote: DropVoteType) {
+        if (!canParticipate) {
+            snackbar.showMessage(scope, participationRestriction("vote on drops"))
+            return
+        }
         val userId = currentUserId
         if (userId.isNullOrBlank()) {
             snackbar.showMessage(scope, "Sign in to vote on drops.")
@@ -1183,6 +1254,10 @@ fun DropHereScreen(
 
     fun submitDrop() {
         if (isSubmitting) return
+        if (!canParticipate) {
+            snackbar.showMessage(scope, participationRestriction("share drops"))
+            return
+        }
         isSubmitting = true
         scope.launch {
             try {
@@ -1453,17 +1528,21 @@ fun DropHereScreen(
             otherDropsLoading = true
             otherDropsError = null
             otherDropsCurrentLocation = null
-            val uid = FirebaseAuth.getInstance().currentUser?.uid
-            if (uid == null) {
+            val rawUid = FirebaseAuth.getInstance().currentUser?.uid
+            val effectiveUid = when (userMode) {
+                UserMode.GUEST -> null
+                else -> rawUid
+            }
+            if (userMode != UserMode.GUEST && effectiveUid == null) {
                 otherDrops = emptyList()
                 otherDropsError = "Sign-in is still in progress. Try again in a moment."
                 otherDropsLoading = false
             } else {
                 try {
                     val drops = repo.getVisibleDropsForUser(
-                        uid,
+                        effectiveUid,
                         joinedGroups.toSet(),
-                        allowNsfw = userProfile?.canViewNsfw() == true
+                        allowNsfw = userProfile?.canViewNsfw() == true && canParticipate
                     )
                         .sortedByDescending { it.createdAt }
                     val filteredDrops = drops.filterNot { drop ->
@@ -1497,7 +1576,11 @@ fun DropHereScreen(
             myDropsDeletingId = null
             myDropsCurrentLocation = null
             val uid = FirebaseAuth.getInstance().currentUser?.uid
-            if (uid == null) {
+            if (!canParticipate) {
+                myDrops = emptyList()
+                myDropsLoading = false
+                myDropsError = participationRestriction("view your drops")
+            } else if (uid == null) {
                 myDropsLoading = false
                 myDropsError = "Sign-in is still in progress. Try again in a moment."
             } else {
@@ -1521,6 +1604,13 @@ fun DropHereScreen(
             myDropsDeletingId = null
             myDropsCurrentLocation = null
             myDropsSelectedId = null
+        }
+    }
+
+    LaunchedEffect(showDropComposer, canParticipate) {
+        if (showDropComposer && !canParticipate) {
+            showDropComposer = false
+            snackbar.showMessage(scope, participationRestriction("share drops"))
         }
     }
 
@@ -1556,40 +1646,83 @@ fun DropHereScreen(
                                 expanded = showAccountMenu,
                                 onDismissRequest = { showAccountMenu = false }
                             ) {
-                                val nsfwEnabled = userProfile?.canViewNsfw() == true
-                                DropdownMenuItem(
-                                    text = {
-                                        Text(
-                                            "Notification radius (${notificationRadius.roundToInt()} m)"
+                                when (userMode) {
+                                    UserMode.GUEST -> {
+                                        DropdownMenuItem(
+                                            text = { Text("Browse anonymously (read-only)") },
+                                            leadingIcon = { Icon(Icons.Rounded.Lock, contentDescription = null) },
+                                            onClick = {
+                                                showAccountMenu = false
+                                                anonymousBrowseRequested = true
+                                                signInError = null
+                                                startExplorerSignIn()
+                                            }
                                         )
-                                    },
-                                    leadingIcon = { Icon(Icons.Rounded.Map, contentDescription = null) },
-                                    onClick = {
-                                        showAccountMenu = false
-                                        showNotificationRadiusDialog = true
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = {
-                                        Text(
-                                            if (nsfwEnabled) "Disable NSFW drops" else "Enable NSFW drops"
+                                        DropdownMenuItem(
+                                            text = { Text("Sign in for full participation") },
+                                            leadingIcon = { Icon(Icons.Rounded.CheckCircle, contentDescription = null) },
+                                            onClick = {
+                                                showAccountMenu = false
+                                                anonymousBrowseRequested = false
+                                                guestModeEnabled = false
+                                                signInError = null
+                                                openBusinessAuthDialog(BusinessAuthMode.SIGN_IN)
+                                            }
                                         )
-                                    },
-                                    leadingIcon = { Icon(Icons.Rounded.Flag, contentDescription = null) },
-                                    onClick = {
-                                        showAccountMenu = false
-                                        nsfwUpdateError = null
-                                        showNsfwDialog = true
                                     }
-                                )
-                                if (isBusinessUser) {
+
+                                    UserMode.ANONYMOUS_BROWSING -> {
+                                        DropdownMenuItem(
+                                            text = { Text("Sign in for full participation") },
+                                            leadingIcon = { Icon(Icons.Rounded.CheckCircle, contentDescription = null) },
+                                            onClick = {
+                                                showAccountMenu = false
+                                                openBusinessAuthDialog(BusinessAuthMode.SIGN_IN)
+                                            }
+                                        )
+                                        DropdownMenuItem(
+                                            text = {
+                                                Text(if (signingOut) "Switching…" else "Switch to guest mode")
+                                            },
+                                            leadingIcon = { Icon(Icons.Rounded.Public, contentDescription = null) },
+                                            enabled = !signingOut,
+                                            onClick = { handleSignOut(switchToGuest = true) }
+                                        )
+                                    }
+
+                                    UserMode.SIGNED_IN -> Unit
+                                }
+
+                                if (canParticipate) {
+                                    val nsfwEnabled = userProfile?.canViewNsfw() == true
                                     DropdownMenuItem(
                                         text = {
-                                            Text(if (signingOut) "Signing out…" else "Sign out")
+                                            Text(
+                                                "Notification radius (${notificationRadius.roundToInt()} m)"
+                                            )
                                         },
-                                        leadingIcon = {
-                                            Icon(Icons.Rounded.Logout, contentDescription = null)
+                                        leadingIcon = { Icon(Icons.Rounded.Map, contentDescription = null) },
+                                        onClick = {
+                                            showAccountMenu = false
+                                            showNotificationRadiusDialog = true
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                if (nsfwEnabled) "Disable NSFW drops" else "Enable NSFW drops"
+                                            )
                                         },
+                                        leadingIcon = { Icon(Icons.Rounded.Flag, contentDescription = null) },
+                                        onClick = {
+                                            showAccountMenu = false
+                                            nsfwUpdateError = null
+                                            showNsfwDialog = true
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(if (signingOut) "Signing out…" else "Sign out") },
+                                        leadingIcon = { Icon(Icons.Rounded.Logout, contentDescription = null) },
                                         enabled = !signingOut,
                                         onClick = { handleSignOut() }
                                     )
@@ -1628,9 +1761,12 @@ fun DropHereScreen(
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = {
-                    if (!isSubmitting) {
-                        showDropComposer = true
+                    if (isSubmitting) return@ExtendedFloatingActionButton
+                    if (!canParticipate) {
+                        snackbar.showMessage(scope, participationRestriction("share drops"))
+                        return@ExtendedFloatingActionButton
                     }
+                    showDropComposer = true
                 },
                 icon = { Icon(Icons.Rounded.Place, contentDescription = null) },
                 text = { Text(if (isSubmitting) "Dropping…" else "Drop something") }
@@ -1675,10 +1811,22 @@ fun DropHereScreen(
                 contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 24.dp, bottom = 128.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
+                if (readOnlyParticipationMessage != null) {
+                    item {
+                        ReadOnlyModeCard(message = readOnlyParticipationMessage)
+                    }
+                }
+
                 item {
                     HeroCard(
                         joinedGroups = joinedGroups,
-                        onManageGroups = { showManageGroups = true }
+                        onManageGroups = {
+                            if (!canParticipate) {
+                                snackbar.showMessage(scope, participationRestriction("manage group codes"))
+                            } else {
+                                showManageGroups = true
+                            }
+                        }
                     )
                 }
 
@@ -1690,13 +1838,7 @@ fun DropHereScreen(
                             icon = Icons.Rounded.Map,
                             title = "Browse map",
                             description = "See every drop you can currently unlock.",
-                            onClick = {
-                                if (FirebaseAuth.getInstance().currentUser == null) {
-                                    snackbar.showMessage(scope, "Signing you in… please try again shortly.")
-                                } else {
-                                    showOtherDropsMap = true
-                                }
-                            }
+                            onClick = { showOtherDropsMap = true }
                         )
 
                         ActionCard(
@@ -1704,8 +1846,8 @@ fun DropHereScreen(
                             title = "My drops",
                             description = "Review, open, and manage the drops you've shared.",
                             onClick = {
-                                if (FirebaseAuth.getInstance().currentUser == null) {
-                                    snackbar.showMessage(scope, "Signing you in… please try again shortly.")
+                                if (!canParticipate) {
+                                    snackbar.showMessage(scope, participationRestriction("view and manage your drops"))
                                 } else {
                                     showMyDrops = true
                                 }
@@ -1751,8 +1893,8 @@ fun DropHereScreen(
                             title = "Business tools",
                             description = "Sign in or create a business account to share offers and guided tours.",
                             onClick = {
-                                if (FirebaseAuth.getInstance().currentUser == null) {
-                                    snackbar.showMessage(scope, "Signing you in… please try again shortly.")
+                                if (!canParticipate) {
+                                    snackbar.showMessage(scope, participationRestriction("access business tools"))
                                 } else {
                                     openBusinessAuthDialog(BusinessAuthMode.SIGN_IN)
                                 }
@@ -1831,6 +1973,10 @@ fun DropHereScreen(
             currentUserId = currentUserId,
             votingDropIds = votingDropIds,
             collectedDropIds = collectedDropIds,
+            canCollectDrops = canParticipate,
+            collectRestrictionMessage = if (canParticipate) null else participationRestriction("pick up drops"),
+            canVoteOnDrops = canParticipate,
+            voteRestrictionMessage = if (canParticipate) null else participationRestriction("vote on drops"),
             onVote = { drop, vote -> submitVote(drop, vote) },
             onDismiss = { showOtherDropsMap = false },
             onRetry = { otherDropsRefreshToken += 1 }
@@ -2504,7 +2650,8 @@ By accepting, you acknowledge that you have read and understood how GeoDrop hand
 private fun ExplorerAutoSignInScreen(
     isSigningIn: Boolean,
     error: String?,
-    onRetry: () -> Unit
+    onRetry: () -> Unit,
+    onCancel: () -> Unit
 ) {
     Box(
         modifier = Modifier
@@ -2519,12 +2666,12 @@ private fun ExplorerAutoSignInScreen(
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
             Text(
-                text = "Getting things ready",
+                text = "Starting anonymous browsing",
                 style = MaterialTheme.typography.headlineSmall,
                 textAlign = TextAlign.Center
             )
             Text(
-                text = "We're signing you in as an explorer so you can start dropping right away.",
+                text = "We're setting up a private browsing session so you can look around without an account.",
                 style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -2548,9 +2695,155 @@ private fun ExplorerAutoSignInScreen(
                         strokeWidth = 2.dp
                     )
                     Spacer(Modifier.width(8.dp))
-                    Text("Signing you in…")
+                    Text("Preparing…")
                 } else {
                     Text("Try again")
+                }
+            }
+            OutlinedButton(
+                onClick = onCancel,
+                enabled = !isSigningIn,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Back to mode selection")
+            }
+        }
+    }
+}
+
+@Composable
+private fun UserModeSelectionScreen(
+    onSelectGuest: () -> Unit,
+    onSelectAnonymous: () -> Unit,
+    onSelectSignIn: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
+        ) {
+            Text(
+                text = "Choose how to explore",
+                style = MaterialTheme.typography.headlineSmall,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Text(
+                text = "You can browse GeoDrop without an account or sign in to participate.",
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.Center,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            ElevatedCard(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(Icons.Rounded.Public, contentDescription = null)
+                        Text(
+                            text = "Continue as guest",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                    Text(
+                        text = "Read drop details without creating an account.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Button(
+                        onClick = onSelectGuest,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Start reading")
+                    }
+                }
+            }
+
+            ElevatedCard(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(Icons.Rounded.Lock, contentDescription = null)
+                        Text(
+                            text = "Browse anonymously",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                    Text(
+                        text = "Stay private with a temporary ID. You'll be in read-only mode.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    OutlinedButton(
+                        onClick = onSelectAnonymous,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Start anonymous browsing")
+                    }
+                }
+            }
+
+            ElevatedCard(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(Icons.Rounded.AccountCircle, contentDescription = null)
+                        Text(
+                            text = "Sign in or create account",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                    Text(
+                        text = "Join the community to drop, vote, and redeem offers.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Button(
+                        onClick = onSelectSignIn,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Sign in for full access")
+                    }
                 }
             }
         }
@@ -2781,6 +3074,36 @@ private fun HeroCard(
                 text = "Leave voice notes, photos, or text that unlock when explorers arrive nearby.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun ReadOnlyModeCard(message: String) {
+    ElevatedCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Info,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary
+            )
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface
             )
         }
     }
@@ -4471,6 +4794,10 @@ private fun OtherDropsMapDialog(
     currentUserId: String?,
     votingDropIds: Set<String>,
     collectedDropIds: Set<String>,
+    canCollectDrops: Boolean,
+    collectRestrictionMessage: String?,
+    canVoteOnDrops: Boolean,
+    voteRestrictionMessage: String?,
     onVote: (Drop, DropVoteType) -> Unit,
     onDismiss: () -> Unit,
     onRetry: () -> Unit
@@ -4639,13 +4966,23 @@ private fun OtherDropsMapDialog(
                                         verticalArrangement = Arrangement.spacedBy(12.dp)
                                     ) {
                                         items(drops, key = { it.id }) { drop ->
-                                            val canVote = isSignedIn && collectedDropIds.contains(drop.id)
+                                            val hasCollected = collectedDropIds.contains(drop.id)
+                                            val canVote = canVoteOnDrops && isSignedIn && hasCollected
+                                            val voteMessage = when {
+                                                !canVoteOnDrops -> voteRestrictionMessage
+                                                !isSignedIn -> "Sign in to vote on drops."
+                                                !hasCollected -> "Collect this drop to vote on it."
+                                                else -> null
+                                            }
                                             OtherDropRow(
                                                 drop = drop,
                                                 isSelected = drop.id == selectedId,
                                                 currentLocation = currentLocation,
                                                 userVote = drop.userVote(currentUserId),
                                                 canVote = canVote,
+                                                voteRestrictionMessage = voteMessage,
+                                                canPickUp = canCollectDrops,
+                                                pickupRestrictionMessage = collectRestrictionMessage,
                                                 isVoting = votingDropIds.contains(drop.id),
                                                 onSelect = { onSelect(drop) },
                                                 onVote = { vote -> onVote(drop, vote) },
@@ -5490,6 +5827,9 @@ private fun OtherDropRow(
     currentLocation: LatLng?,
     userVote: DropVoteType,
     canVote: Boolean,
+    voteRestrictionMessage: String?,
+    canPickUp: Boolean,
+    pickupRestrictionMessage: String?,
     isVoting: Boolean,
     onSelect: () -> Unit,
     onVote: (DropVoteType) -> Unit,
@@ -5666,18 +6006,26 @@ private fun OtherDropRow(
                     if (!canVote) {
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            text = "Collect this drop to vote on it.",
+                            text = voteRestrictionMessage ?: "Collect this drop to vote on it.",
                             style = MaterialTheme.typography.bodySmall,
                             color = supportingColor
                         )
                     }
                     if (withinPickupRange) {
                         Spacer(Modifier.height(12.dp))
-                        Button(
-                            onClick = onPickUp,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Pick up drop")
+                        if (canPickUp) {
+                            Button(
+                                onClick = onPickUp,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Pick up drop")
+                            }
+                        } else {
+                            Text(
+                                text = pickupRestrictionMessage ?: "Sign in to pick up drops.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = supportingColor
+                            )
                         }
                     }
                 }

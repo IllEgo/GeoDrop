@@ -88,6 +88,7 @@ import com.e3hi.geodrop.data.applyUserVote
 import com.e3hi.geodrop.data.requiresRedemption
 import com.e3hi.geodrop.data.isRedeemedBy
 import com.e3hi.geodrop.data.canViewNsfw
+import com.e3hi.geodrop.data.UserMode
 import com.e3hi.geodrop.geo.DropDecisionReceiver
 import com.e3hi.geodrop.ui.theme.GeoDropTheme
 import com.e3hi.geodrop.util.formatTimestamp
@@ -375,6 +376,12 @@ class DropDetailActivity : ComponentActivity() {
                         onDispose { auth.removeAuthStateListener(listener) }
                     }
                     val currentUserId = currentUser?.uid
+                    val userMode = when {
+                        currentUser?.isAnonymous == true -> UserMode.ANONYMOUS_BROWSING
+                        currentUser != null -> UserMode.SIGNED_IN
+                        else -> UserMode.GUEST
+                    }
+                    val canParticipate = userMode.canParticipate
                     val repo = remember { FirestoreRepo() }
                     val scope = rememberCoroutineScope()
                     var nsfwAllowed by remember { mutableStateOf(false) }
@@ -683,6 +690,14 @@ class DropDetailActivity : ComponentActivity() {
                                     loadedState?.let { detail ->
                                         val alreadyRedeemed = detail.redeemedBy.containsKey(currentUserId)
                                                 || detail.isRedeemed
+                                        val redemptionRestrictionMessage = when {
+                                            !canParticipate -> if (userMode == UserMode.ANONYMOUS_BROWSING) {
+                                                "Sign in with an account to redeem offers."
+                                            } else {
+                                                "Sign in to redeem offers."
+                                            }
+                                            else -> null
+                                        }
                                         BusinessDetailSection(
                                             state = detail,
                                             hasCollected = hasCollected,
@@ -696,7 +711,14 @@ class DropDetailActivity : ComponentActivity() {
                                             redeeming = redeeming,
                                             redemptionError = redemptionError,
                                             redemptionSuccess = redemptionSuccessMessage,
+                                            canRedeem = redemptionRestrictionMessage == null,
+                                            restrictionMessage = redemptionRestrictionMessage,
                                             onRedeem = {
+                                                if (!canParticipate) {
+                                                    redemptionError = redemptionRestrictionMessage
+                                                        ?: "Sign in to redeem this offer."
+                                                    return@BusinessDetailSection
+                                                }
                                                 val trimmed = redemptionCodeInput.text.trim()
                                                 if (trimmed.isEmpty()) {
                                                     redemptionError = "Enter the code shared by the business."
@@ -807,6 +829,11 @@ class DropDetailActivity : ComponentActivity() {
 
                                     val isDropOwner = loadedState?.createdBy == currentUserId
                                     val voteRestrictionMessage = when {
+                                        !canParticipate -> if (userMode == UserMode.ANONYMOUS_BROWSING) {
+                                            "Sign in with an account to vote on drops."
+                                        } else {
+                                            "Sign in to vote on drops."
+                                        }
                                         currentUserId.isNullOrBlank() -> "Sign in to vote on drops."
                                         isDropOwner -> "You can't vote on your own drop."
                                         !hasCollected -> "Collect this drop to vote on it."
@@ -1048,6 +1075,15 @@ class DropDetailActivity : ComponentActivity() {
                                         ) {
                                             Button(
                                                 onClick = {
+                                                    if (!canParticipate) {
+                                                        val message = if (userMode == UserMode.ANONYMOUS_BROWSING) {
+                                                            "Sign in with an account to collect drops."
+                                                        } else {
+                                                            "Sign in to collect drops."
+                                                        }
+                                                        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                                                        return@Button
+                                                    }
                                                     val current = loadedState ?: return@Button
                                                     decisionProcessing = true
                                                     val pickupIntent = Intent(appContext, DropDecisionReceiver::class.java).apply {
@@ -1077,7 +1113,7 @@ class DropDetailActivity : ComponentActivity() {
                                                         Toast.makeText(context, "Couldn't pick up this drop.", Toast.LENGTH_SHORT).show()
                                                     }
                                                 },
-                                                enabled = !decisionProcessing && loadedState != null,
+                                                enabled = canParticipate && !decisionProcessing && loadedState != null,
                                                 modifier = Modifier.weight(1f)
                                             ) {
                                                 Text("Pick up")
@@ -1103,11 +1139,22 @@ class DropDetailActivity : ComponentActivity() {
                                                         Toast.makeText(context, "Couldn't ignore this drop.", Toast.LENGTH_SHORT).show()
                                                     }
                                                 },
-                                                enabled = !decisionProcessing,
+                                                enabled = canParticipate && !decisionProcessing,
                                                 modifier = Modifier.weight(1f)
                                             ) {
                                                 Text("Ignore")
                                             }
+                                        }
+                                        if (!canParticipate) {
+                                            Text(
+                                                text = if (userMode == UserMode.ANONYMOUS_BROWSING) {
+                                                    "Sign in with an account to collect or ignore drops."
+                                                } else {
+                                                    "Sign in to collect or ignore drops."
+                                                },
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
                                         }
                                     }
                                 }
@@ -1400,6 +1447,8 @@ private fun BusinessDetailSection(
     redeeming: Boolean,
     redemptionError: String?,
     redemptionSuccess: String?,
+    canRedeem: Boolean,
+    restrictionMessage: String?,
     onRedeem: () -> Unit
 ) {
     if (state.dropType == DropType.COMMUNITY && state.businessName.isNullOrBlank()) return
@@ -1455,44 +1504,54 @@ private fun BusinessDetailSection(
                 }
 
                 else -> {
-                    OutlinedTextField(
-                        value = redemptionCode,
-                        onValueChange = onRedemptionCodeChange,
-                        label = { Text("Redemption code") },
-                        enabled = !redeeming,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    redemptionError?.let { message ->
-                        Text(
-                            text = message,
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
-
-                    redemptionSuccess?.let { message ->
-                        Text(
-                            text = message,
-                            color = MaterialTheme.colorScheme.tertiary,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
-
-                    Button(
-                        onClick = onRedeem,
-                        enabled = !redeeming,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        if (redeeming) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(18.dp),
-                                strokeWidth = 2.dp
+                    if (!canRedeem) {
+                        restrictionMessage?.let { message ->
+                            Text(
+                                text = message,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                            Spacer(Modifier.width(8.dp))
-                            Text("Redeeming…")
-                        } else {
-                            Text("Redeem offer")
+                        }
+                    } else {
+                        OutlinedTextField(
+                            value = redemptionCode,
+                            onValueChange = onRedemptionCodeChange,
+                            label = { Text("Redemption code") },
+                            enabled = !redeeming,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        redemptionError?.let { message ->
+                            Text(
+                                text = message,
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+
+                        redemptionSuccess?.let { message ->
+                            Text(
+                                text = message,
+                                color = MaterialTheme.colorScheme.tertiary,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+
+                        Button(
+                            onClick = onRedeem,
+                            enabled = !redeeming,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            if (redeeming) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text("Redeeming…")
+                            } else {
+                                Text("Redeem offer")
+                            }
                         }
                     }
                 }
