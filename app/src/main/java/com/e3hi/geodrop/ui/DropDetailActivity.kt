@@ -109,6 +109,8 @@ import java.io.IOException
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.launch
 import kotlin.math.ceil
+import com.e3hi.geodrop.R
+
 
 class DropDetailActivity : ComponentActivity() {
 
