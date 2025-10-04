@@ -207,16 +207,17 @@ fun DropHereScreen(
     var signInError by remember { mutableStateOf<String?>(null) }
     var guestModeEnabled by rememberSaveable { mutableStateOf(false) }
     var anonymousBrowseRequested by rememberSaveable { mutableStateOf(false) }
-    var showBusinessSignIn by remember { mutableStateOf(false) }
-    var businessAuthMode by remember { mutableStateOf(BusinessAuthMode.SIGN_IN) }
-    var businessEmail by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
-    var businessPassword by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
-    var businessConfirmPassword by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
-    var businessAuthSubmitting by remember { mutableStateOf(false) }
-    var businessAuthError by remember { mutableStateOf<String?>(null) }
-    var businessAuthStatus by remember { mutableStateOf<String?>(null) }
+    var showAccountSignIn by remember { mutableStateOf(false) }
+    var accountAuthMode by remember { mutableStateOf(AccountAuthMode.SIGN_IN) }
+    var accountType by remember { mutableStateOf(AccountType.EXPLORER) }
+    var accountEmail by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
+    var accountPassword by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
+    var accountConfirmPassword by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
+    var accountAuthSubmitting by remember { mutableStateOf(false) }
+    var accountAuthError by remember { mutableStateOf<String?>(null) }
+    var accountAuthStatus by remember { mutableStateOf<String?>(null) }
     var showBusinessOnboarding by remember { mutableStateOf(false) }
-    var businessGoogleSigningIn by remember { mutableStateOf(false) }
+    var accountGoogleSigningIn by remember { mutableStateOf(false) }
     var showAccountMenu by remember { mutableStateOf(false) }
     var signingOut by remember { mutableStateOf(false) }
     var showNsfwDialog by remember { mutableStateOf(false) }
@@ -237,23 +238,24 @@ fun DropHereScreen(
         )
     }
 
-    fun resetBusinessAuthFields(clearEmail: Boolean) {
+    fun resetAccountAuthFields(clearEmail: Boolean) {
         if (clearEmail) {
-            businessEmail = TextFieldValue("")
+            accountEmail = TextFieldValue("")
         }
-        businessPassword = TextFieldValue("")
-        businessConfirmPassword = TextFieldValue("")
-        businessAuthError = null
-        businessAuthStatus = null
+        accountPassword = TextFieldValue("")
+        accountConfirmPassword = TextFieldValue("")
+        accountAuthError = null
+        accountAuthStatus = null
         nsfwUpdateError = null
         nsfwUpdating = false
     }
 
-    fun dismissBusinessAuthDialog() {
-        if (businessAuthSubmitting || businessGoogleSigningIn) return
-        showBusinessSignIn = false
-        resetBusinessAuthFields(clearEmail = false)
-        businessAuthMode = BusinessAuthMode.SIGN_IN
+    fun dismissAccountAuthDialog() {
+        if (accountAuthSubmitting || accountGoogleSigningIn) return
+        showAccountSignIn = false
+        resetAccountAuthFields(clearEmail = false)
+        accountAuthMode = AccountAuthMode.SIGN_IN
+        accountType = AccountType.EXPLORER
     }
 
     fun startExplorerSignIn() {
@@ -280,57 +282,62 @@ fun DropHereScreen(
         }
     }
 
-    fun openBusinessAuthDialog(initialMode: BusinessAuthMode = BusinessAuthMode.SIGN_IN) {
-        if (businessAuthSubmitting || businessGoogleSigningIn) return
-        businessAuthMode = initialMode
-        resetBusinessAuthFields(clearEmail = true)
-        showBusinessSignIn = true
+    fun openAccountAuthDialog(
+        initialType: AccountType = AccountType.EXPLORER,
+        initialMode: AccountAuthMode = AccountAuthMode.SIGN_IN
+    ) {
+        if (accountAuthSubmitting || accountGoogleSigningIn) return
+        accountType = initialType
+        accountAuthMode = initialMode
+        resetAccountAuthFields(clearEmail = true)
+        showAccountSignIn = true
     }
 
-    fun performBusinessAuth() {
-        if (businessAuthSubmitting || businessGoogleSigningIn) return
+    fun performAccountAuth() {
+        if (accountAuthSubmitting || accountGoogleSigningIn) return
 
-        val email = businessEmail.text.trim()
-        val password = businessPassword.text
-        val confirm = businessConfirmPassword.text
+        val email = accountEmail.text.trim()
+        val password = accountPassword.text
+        val confirm = accountConfirmPassword.text
 
         when {
             email.isEmpty() -> {
-                businessAuthError = "Enter your email address."
+                accountAuthError = "Enter your email address."
                 return
             }
 
             !Patterns.EMAIL_ADDRESS.matcher(email).matches() -> {
-                businessAuthError = "Enter a valid email address."
+                accountAuthError = "Enter a valid email address."
                 return
             }
 
             password.length < 6 -> {
-                businessAuthError = "Password must be at least 6 characters."
+                accountAuthError = "Password must be at least 6 characters."
                 return
             }
 
-            businessAuthMode == BusinessAuthMode.REGISTER && confirm != password -> {
-                businessAuthError = "Passwords do not match."
+            accountAuthMode == AccountAuthMode.REGISTER && confirm != password -> {
+                accountAuthError = "Passwords do not match."
                 return
             }
         }
 
-        businessAuthSubmitting = true
-        businessAuthError = null
-        businessAuthStatus = null
+        accountAuthSubmitting = true
+        accountAuthError = null
+        accountAuthStatus = null
 
-        val selectedMode = businessAuthMode
+        val selectedMode = accountAuthMode
+        val selectedType = accountType
         val task = try {
             when (selectedMode) {
-                BusinessAuthMode.SIGN_IN -> auth.signInWithEmailAndPassword(email, password)
-                BusinessAuthMode.REGISTER -> auth.createUserWithEmailAndPassword(email, password)
+                AccountAuthMode.SIGN_IN -> auth.signInWithEmailAndPassword(email, password)
+                AccountAuthMode.REGISTER -> auth.createUserWithEmailAndPassword(email, password)
             }
         } catch (error: Exception) {
-            businessAuthSubmitting = false
-            businessAuthError = error.localizedMessage?.takeIf { it.isNotBlank() }
-                ?: if (selectedMode == BusinessAuthMode.REGISTER) {
-                    "Couldn't create your business account. Try again."
+            accountAuthSubmitting = false
+            accountAuthError = error.localizedMessage?.takeIf { it.isNotBlank() }
+                ?: if (selectedMode == AccountAuthMode.REGISTER) {
+                    "Couldn't create your account. Try again."
                 } else {
                     "Couldn't sign you in. Check your email and password."
                 }
@@ -338,57 +345,57 @@ fun DropHereScreen(
         }
 
         task.addOnCompleteListener { authTask ->
-            businessAuthSubmitting = false
+            accountAuthSubmitting = false
             if (authTask.isSuccessful) {
-                resetBusinessAuthFields(clearEmail = true)
-                showBusinessSignIn = false
-                if (selectedMode == BusinessAuthMode.REGISTER) {
+                resetAccountAuthFields(clearEmail = true)
+                showAccountSignIn = false
+                if (selectedType == AccountType.BUSINESS && selectedMode == AccountAuthMode.REGISTER) {
                     showBusinessOnboarding = true
                 }
             } else {
                 val message = authTask.exception?.localizedMessage?.takeIf { it.isNotBlank() }
-                    ?: if (selectedMode == BusinessAuthMode.REGISTER) {
-                        "Couldn't create your business account. Try again."
+                    ?: if (selectedMode == AccountAuthMode.REGISTER) {
+                        "Couldn't create your account. Try again."
                     } else {
                         "Couldn't sign you in. Check your email and password."
                     }
-                businessAuthError = message
+                accountAuthError = message
             }
         }
     }
 
-    fun sendBusinessPasswordReset() {
-        if (businessAuthSubmitting || businessGoogleSigningIn) return
+    fun sendAccountPasswordReset() {
+        if (accountAuthSubmitting || accountGoogleSigningIn) return
 
-        val email = businessEmail.text.trim()
+        val email = accountEmail.text.trim()
         if (!Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
-            businessAuthError = "Enter a valid email address to reset your password."
+            accountAuthError = "Enter a valid email address to reset your password."
             return
         }
 
-        businessAuthSubmitting = true
-        businessAuthError = null
-        businessAuthStatus = null
+        accountAuthSubmitting = true
+        accountAuthError = null
+        accountAuthStatus = null
 
         auth.sendPasswordResetEmail(email)
             .addOnCompleteListener { task ->
-                businessAuthSubmitting = false
+                accountAuthSubmitting = false
                 if (task.isSuccessful) {
-                    businessAuthStatus = "Password reset email sent to $email."
+                    accountAuthStatus = "Password reset email sent to $email."
                 } else {
                     val message = task.exception?.localizedMessage?.takeIf { it.isNotBlank() }
                         ?: "Couldn't send password reset email. Try again later."
-                    businessAuthError = message
+                    accountAuthError = message
                 }
             }
     }
 
-    val businessGoogleSignInLauncher = rememberLauncherForActivityResult(
+    val accountGoogleSignInLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if (result.resultCode != Activity.RESULT_OK) {
-            businessGoogleSigningIn = false
-            businessAuthError = if (result.resultCode == Activity.RESULT_CANCELED) {
+            accountGoogleSigningIn = false
+            accountAuthError = if (result.resultCode == Activity.RESULT_CANCELED) {
                 "Google sign-in was cancelled."
             } else {
                 "Google sign-in failed. Try again."
@@ -401,54 +408,56 @@ fun DropHereScreen(
             val account = signInTask.getResult(ApiException::class.java)
             val idToken = account?.idToken
             if (idToken.isNullOrBlank()) {
-                businessGoogleSigningIn = false
-                businessAuthError = "Google sign-in is misconfigured. Provide a valid web client ID."
+                accountGoogleSigningIn = false
+                accountAuthError = "Google sign-in is misconfigured. Provide a valid web client ID."
                 return@rememberLauncherForActivityResult
             }
 
-            businessAuthSubmitting = true
+            accountAuthSubmitting = true
             val credential = GoogleAuthProvider.getCredential(idToken, null)
             auth.signInWithCredential(credential)
                 .addOnCompleteListener { authTask ->
-                    businessAuthSubmitting = false
-                    businessGoogleSigningIn = false
+                    accountAuthSubmitting = false
+                    accountGoogleSigningIn = false
                     if (authTask.isSuccessful) {
-                        resetBusinessAuthFields(clearEmail = true)
-                        showBusinessSignIn = false
-                        if (authTask.result?.additionalUserInfo?.isNewUser == true) {
+                        resetAccountAuthFields(clearEmail = true)
+                        val selectedType = accountType
+                        showAccountSignIn = false
+                        val isNewUser = authTask.result?.additionalUserInfo?.isNewUser == true
+                        if (selectedType == AccountType.BUSINESS && isNewUser) {
                             showBusinessOnboarding = true
                         }
                     } else {
                         val message = authTask.exception?.localizedMessage?.takeIf { it.isNotBlank() }
                             ?: "Couldn't sign you in with Google. Try again."
-                        businessAuthError = message
+                        accountAuthError = message
                     }
                 }
         } catch (error: ApiException) {
-            businessGoogleSigningIn = false
-            businessAuthError = error.localizedMessage?.takeIf { it.isNotBlank() }
+            accountGoogleSigningIn = false
+            accountAuthError = error.localizedMessage?.takeIf { it.isNotBlank() }
                 ?: "Google sign-in failed. Try again."
         }
     }
 
-    fun startBusinessGoogleSignIn() {
-        if (businessAuthSubmitting || businessGoogleSigningIn) return
+    fun startAccountGoogleSignIn() {
+        if (accountAuthSubmitting || accountGoogleSigningIn) return
         if (defaultWebClientId.isBlank()) {
-            businessAuthError = "Google sign-in isn't configured. Add your default_web_client_id in strings.xml."
+            accountAuthError = "Google sign-in isn't configured. Add your default_web_client_id in strings.xml."
             return
         }
 
-        businessAuthError = null
-        businessAuthStatus = null
-        businessGoogleSigningIn = true
+        accountAuthError = null
+        accountAuthStatus = null
+        accountGoogleSigningIn = true
 
         runCatching { googleSignInClient.signOut() }
 
         runCatching {
-            businessGoogleSignInLauncher.launch(googleSignInClient.signInIntent)
+            accountGoogleSignInLauncher.launch(googleSignInClient.signInIntent)
         }.onFailure { error ->
-            businessGoogleSigningIn = false
-            businessAuthError = error.localizedMessage?.takeIf { it.isNotBlank() }
+            accountGoogleSigningIn = false
+            accountAuthError = error.localizedMessage?.takeIf { it.isNotBlank() }
                 ?: "Couldn't start Google sign-in."
         }
     }
@@ -479,18 +488,19 @@ fun DropHereScreen(
 
     LaunchedEffect(
         currentUser,
-        businessAuthSubmitting,
-        businessGoogleSigningIn,
+        accountAuthSubmitting,
+        accountGoogleSigningIn,
         signingOut,
         hasAcceptedTerms,
         hasViewedOnboarding
     ) {
         if (currentUser == null) {
             showAccountMenu = false
-            if (!businessAuthSubmitting && !businessGoogleSigningIn) {
-                showBusinessSignIn = false
-                businessAuthMode = BusinessAuthMode.SIGN_IN
-                resetBusinessAuthFields(clearEmail = true)
+            if (!accountAuthSubmitting && !accountGoogleSigningIn) {
+                showAccountSignIn = false
+                accountAuthMode = AccountAuthMode.SIGN_IN
+                accountType = AccountType.EXPLORER
+                resetAccountAuthFields(clearEmail = true)
                 if (
                     !signingOut &&
                     hasAcceptedTerms &&
@@ -599,7 +609,10 @@ fun DropHereScreen(
                     anonymousBrowseRequested = false
                     guestModeEnabled = false
                     signInError = null
-                    openBusinessAuthDialog(BusinessAuthMode.SIGN_IN)
+                    openAccountAuthDialog(
+                        initialType = AccountType.EXPLORER,
+                        initialMode = AccountAuthMode.SIGN_IN
+                    )
                 }
             )
         }
@@ -708,12 +721,12 @@ fun DropHereScreen(
         showOtherDropsMap = false
         showCollectedDrops = false
         showManageGroups = false
-        showBusinessSignIn = false
+        showAccountSignIn = false
         showNsfwDialog = false
         status = null
         signInError = null
-        businessAuthError = null
-        businessAuthStatus = null
+        accountAuthError = null
+        accountAuthStatus = null
 
         scope.launch {
             val result = runCatching {
@@ -1666,7 +1679,10 @@ fun DropHereScreen(
                                                 anonymousBrowseRequested = false
                                                 guestModeEnabled = false
                                                 signInError = null
-                                                openBusinessAuthDialog(BusinessAuthMode.SIGN_IN)
+                                                openAccountAuthDialog(
+                                                    initialType = AccountType.EXPLORER,
+                                                    initialMode = AccountAuthMode.SIGN_IN
+                                                )
                                             }
                                         )
                                     }
@@ -1677,7 +1693,10 @@ fun DropHereScreen(
                                             leadingIcon = { Icon(Icons.Rounded.CheckCircle, contentDescription = null) },
                                             onClick = {
                                                 showAccountMenu = false
-                                                openBusinessAuthDialog(BusinessAuthMode.SIGN_IN)
+                                                openAccountAuthDialog(
+                                                    initialType = AccountType.EXPLORER,
+                                                    initialMode = AccountAuthMode.SIGN_IN
+                                                )
                                             }
                                         )
                                         DropdownMenuItem(
@@ -1690,7 +1709,21 @@ fun DropHereScreen(
                                         )
                                     }
 
-                                    UserMode.SIGNED_IN -> Unit
+                                    UserMode.SIGNED_IN -> {
+                                        if (!isBusinessUser) {
+                                            DropdownMenuItem(
+                                                text = { Text("Sign in or create a business account") },
+                                                leadingIcon = { Icon(Icons.Rounded.Storefront, contentDescription = null) },
+                                                onClick = {
+                                                    showAccountMenu = false
+                                                    openAccountAuthDialog(
+                                                        initialType = AccountType.BUSINESS,
+                                                        initialMode = AccountAuthMode.SIGN_IN
+                                                    )
+                                                }
+                                            )
+                                        }
+                                    }
                                 }
 
                                 if (canParticipate) {
@@ -1896,7 +1929,10 @@ fun DropHereScreen(
                                 if (!canParticipate) {
                                     snackbar.showMessage(scope, participationRestriction("access business tools"))
                                 } else {
-                                    openBusinessAuthDialog(BusinessAuthMode.SIGN_IN)
+                                    openAccountAuthDialog(
+                                        initialType = AccountType.BUSINESS,
+                                        initialMode = AccountAuthMode.SIGN_IN
+                                    )
                                 }
                             }
                         )
@@ -2152,29 +2188,36 @@ fun DropHereScreen(
         )
     }
 
-    if (showBusinessSignIn) {
-        BusinessSignInDialog(
-            mode = businessAuthMode,
-            onModeChange = { mode ->
-                if (businessAuthSubmitting || businessGoogleSigningIn) return@BusinessSignInDialog
-                businessAuthMode = mode
-                businessAuthError = null
-                businessAuthStatus = null
+    if (showAccountSignIn) {
+        AccountSignInDialog(
+            accountType = accountType,
+            onAccountTypeChange = { type ->
+                if (accountAuthSubmitting || accountGoogleSigningIn) return@AccountSignInDialog
+                accountType = type
+                accountAuthError = null
+                accountAuthStatus = null
             },
-            email = businessEmail,
-            onEmailChange = { businessEmail = it },
-            password = businessPassword,
-            onPasswordChange = { businessPassword = it },
-            confirmPassword = businessConfirmPassword,
-            onConfirmPasswordChange = { businessConfirmPassword = it },
-            isSubmitting = businessAuthSubmitting,
-            isGoogleSigningIn = businessGoogleSigningIn,
-            error = businessAuthError,
-            status = businessAuthStatus,
-            onSubmit = { performBusinessAuth() },
-            onDismiss = { dismissBusinessAuthDialog() },
-            onForgotPassword = { sendBusinessPasswordReset() },
-            onGoogleSignIn = { startBusinessGoogleSignIn() }
+            mode = accountAuthMode,
+            onModeChange = { mode ->
+                if (accountAuthSubmitting || accountGoogleSigningIn) return@AccountSignInDialog
+                accountAuthMode = mode
+                accountAuthError = null
+                accountAuthStatus = null
+            },
+            email = accountEmail,
+            onEmailChange = { accountEmail = it },
+            password = accountPassword,
+            onPasswordChange = { accountPassword = it },
+            confirmPassword = accountConfirmPassword,
+            onConfirmPasswordChange = { accountConfirmPassword = it },
+            isSubmitting = accountAuthSubmitting,
+            isGoogleSigningIn = accountGoogleSigningIn,
+            error = accountAuthError,
+            status = accountAuthStatus,
+            onSubmit = { performAccountAuth() },
+            onDismiss = { dismissAccountAuthDialog() },
+            onForgotPassword = { sendAccountPasswordReset() },
+            onGoogleSignIn = { startAccountGoogleSignIn() }
         )
     }
 
@@ -2834,7 +2877,7 @@ private fun UserModeSelectionScreen(
                         )
                     }
                     Text(
-                        text = "Join the community to drop, vote, and redeem offers.",
+                        text = "Join as an explorer to participate or switch to a business account to share offers.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -2842,7 +2885,7 @@ private fun UserModeSelectionScreen(
                         onClick = onSelectSignIn,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Sign in for full access")
+                        Text("Sign in (explorer or business)")
                     }
                 }
             }
@@ -4169,9 +4212,11 @@ private fun CollectedDropsDialog(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun BusinessSignInDialog(
-    mode: BusinessAuthMode,
-    onModeChange: (BusinessAuthMode) -> Unit,
+private fun AccountSignInDialog(
+    accountType: AccountType,
+    onAccountTypeChange: (AccountType) -> Unit,
+    mode: AccountAuthMode,
+    onModeChange: (AccountAuthMode) -> Unit,
     email: TextFieldValue,
     onEmailChange: (TextFieldValue) -> Unit,
     password: TextFieldValue,
@@ -4207,28 +4252,57 @@ private fun BusinessSignInDialog(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Text(
-                    text = "Business account",
+                    text = when (accountType) {
+                        AccountType.EXPLORER -> "Explorer account"
+                        AccountType.BUSINESS -> "Business account"
+                    },
                     style = MaterialTheme.typography.titleLarge
                 )
 
                 SingleChoiceSegmentedButtonRow {
-                    BusinessAuthMode.entries.forEachIndexed { index, option ->
+                    AccountType.entries.forEachIndexed { index, type ->
                         SegmentedButton(
-                            shape = SegmentedButtonDefaults.itemShape(index = index, count = BusinessAuthMode.entries.size),
-                            selected = mode == option,
-                            onClick = { onModeChange(option) }
+                            shape = SegmentedButtonDefaults.itemShape(index, AccountType.entries.size),
+                            selected = accountType == type,
+                            onClick = { onAccountTypeChange(type) }
                         ) {
                             Text(
-                                text = when (option) {
-                                    BusinessAuthMode.SIGN_IN -> "Sign in"
-                                    BusinessAuthMode.REGISTER -> "Create account"
+                                text = when (type) {
+                                    AccountType.EXPLORER -> "Explorer"
+                                    AccountType.BUSINESS -> "Business"
                                 }
                             )
                         }
                     }
                 }
 
-                val isRegister = mode == BusinessAuthMode.REGISTER
+                Text(
+                    text = when (accountType) {
+                        AccountType.EXPLORER -> "Explorer accounts let you drop, vote, and collect rewards."
+                        AccountType.BUSINESS -> "Business accounts can publish offers and require business details."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                SingleChoiceSegmentedButtonRow {
+                    AccountAuthMode.entries.forEachIndexed { index, option ->
+                        SegmentedButton(
+                            shape = SegmentedButtonDefaults.itemShape(index, AccountAuthMode.entries.size),
+                            selected = mode == option,
+                            onClick = { onModeChange(option) }
+                        ) {
+                            Text(
+                                text = when (option) {
+                                    AccountAuthMode.SIGN_IN -> "Sign in"
+                                    AccountAuthMode.REGISTER -> "Create account"
+                                }
+                            )
+                        }
+                    }
+                }
+
+                val isRegister = mode == AccountAuthMode.REGISTER
 
                 OutlinedTextField(
                     value = email,
@@ -4324,8 +4398,8 @@ private fun BusinessSignInDialog(
                         } else {
                             Text(
                                 text = when (mode) {
-                                    BusinessAuthMode.SIGN_IN -> "Sign in"
-                                    BusinessAuthMode.REGISTER -> "Create account"
+                                    AccountAuthMode.SIGN_IN -> "Sign in"
+                                    AccountAuthMode.REGISTER -> "Create account"
                                 }
                             )
                         }
@@ -7007,10 +7081,12 @@ private data class BusinessDropTypeOption(
 
 private enum class HomeDestination { Explorer, Business }
 
-private enum class BusinessAuthMode {
+private enum class AccountAuthMode {
     SIGN_IN,
     REGISTER
 }
+
+private enum class AccountType { EXPLORER, BUSINESS }
 
 private enum class DropVisibility { Public, GroupOnly }
 
