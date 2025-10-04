@@ -75,6 +75,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
@@ -449,8 +450,8 @@ class DropDetailActivity : ComponentActivity() {
                     val shouldShowDecisionPrompt =
                         showDecisionOptions && dropId.isNotBlank() && !hasCollected && !isAlreadyIgnored && !decisionHandled
                     val defaultDecisionMessage = when {
-                        showDecisionOptions && hasCollected -> "You've already picked up this drop."
-                        showDecisionOptions && isAlreadyIgnored -> "You've already ignored this drop."
+                        showDecisionOptions && hasCollected -> stringResource(R.string.drop_detail_already_collected)
+                        showDecisionOptions && isAlreadyIgnored -> stringResource(R.string.drop_detail_already_ignored)
                         else -> null
                     }
                     val decisionMessage = decisionStatusMessage ?: defaultDecisionMessage
@@ -459,12 +460,12 @@ class DropDetailActivity : ComponentActivity() {
                     topBar = {
                         val activity = context as? ComponentActivity
                         CenterAlignedTopAppBar(
-                            title = { Text("Drop details") },
+                            title = { Text(stringResource(R.string.drop_detail_title)) },
                             navigationIcon = {
                                 IconButton(onClick = { activity?.onBackPressedDispatcher?.onBackPressed() }) {
                                     Icon(
                                         imageVector = Icons.Rounded.ArrowBack,
-                                        contentDescription = "Back"
+                                        contentDescription = stringResource(R.string.content_description_back)
                                     )
                                 }
                             }
@@ -507,13 +508,13 @@ class DropDetailActivity : ComponentActivity() {
                                             tint = MaterialTheme.colorScheme.error
                                         )
                                         Text(
-                                            text = "Adult content hidden",
+                                            text = stringResource(R.string.drop_detail_adult_content_hidden),
                                             style = MaterialTheme.typography.titleMedium,
                                             fontWeight = FontWeight.SemiBold
                                         )
                                     }
                                     Text(
-                                        text = "Enable 18+ drops from the GeoDrop home screen account menu to view this drop.",
+                                        text = stringResource(R.string.drop_detail_enable_adult_content_hint),
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )

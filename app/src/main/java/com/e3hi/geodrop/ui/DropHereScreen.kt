@@ -1699,13 +1699,13 @@ fun DropHereScreen(
         topBar = {
             Column {
                 TopAppBar(
-                    title = { Text("GeoDrop") },
+                    title = { Text(stringResource(R.string.app_name)) },
                     actions = {
                         Box {
                             IconButton(onClick = { showAccountMenu = !showAccountMenu }) {
                                 Icon(
                                     imageVector = Icons.Rounded.AccountCircle,
-                                    contentDescription = "Account options"
+                                    contentDescription = stringResource(R.string.content_description_account_options)
                                 )
                             }
 
@@ -1716,7 +1716,7 @@ fun DropHereScreen(
                                 when (userMode) {
                                     UserMode.GUEST -> {
                                         DropdownMenuItem(
-                                            text = { Text("Browse anonymously (read-only)") },
+                                            text = { Text(stringResource(R.string.menu_browse_anonymously)) },
                                             leadingIcon = { Icon(Icons.Rounded.Lock, contentDescription = null) },
                                             onClick = {
                                                 showAccountMenu = false
@@ -1726,7 +1726,7 @@ fun DropHereScreen(
                                             }
                                         )
                                         DropdownMenuItem(
-                                            text = { Text("Sign in for full participation") },
+                                            text = { Text(stringResource(R.string.menu_sign_in_full_participation)) },
                                             leadingIcon = { Icon(Icons.Rounded.CheckCircle, contentDescription = null) },
                                             onClick = {
                                                 showAccountMenu = false
@@ -1743,7 +1743,7 @@ fun DropHereScreen(
 
                                     UserMode.ANONYMOUS_BROWSING -> {
                                         DropdownMenuItem(
-                                            text = { Text("Sign in for full participation") },
+                                            text = { Text(stringResource(R.string.menu_sign_in_full_participation)) },
                                             leadingIcon = { Icon(Icons.Rounded.CheckCircle, contentDescription = null) },
                                             onClick = {
                                                 showAccountMenu = false
@@ -1755,7 +1755,11 @@ fun DropHereScreen(
                                         )
                                         DropdownMenuItem(
                                             text = {
-                                                Text(if (signingOut) "Switching…" else "Switch to guest mode")
+                                                Text(
+                                                    stringResource(
+                                                        if (signingOut) R.string.status_switching else R.string.menu_switch_to_guest
+                                                    )
+                                                )
                                             },
                                             leadingIcon = { Icon(Icons.Rounded.Public, contentDescription = null) },
                                             enabled = !signingOut,
@@ -1766,7 +1770,7 @@ fun DropHereScreen(
                                     UserMode.SIGNED_IN -> {
                                         if (!isBusinessUser) {
                                             DropdownMenuItem(
-                                                text = { Text("Sign in or create a business account") },
+                                                text = { Text(stringResource(R.string.menu_sign_in_business_account)) },
                                                 leadingIcon = { Icon(Icons.Rounded.Storefront, contentDescription = null) },
                                                 onClick = {
                                                     showAccountMenu = false
@@ -1785,7 +1789,10 @@ fun DropHereScreen(
                                     DropdownMenuItem(
                                         text = {
                                             Text(
-                                                "Notification radius (${notificationRadius.roundToInt()} m)"
+                                                stringResource(
+                                                    R.string.menu_notification_radius,
+                                                    notificationRadius.roundToInt()
+                                                )
                                             )
                                         },
                                         leadingIcon = { Icon(Icons.Rounded.Map, contentDescription = null) },
@@ -1797,7 +1804,13 @@ fun DropHereScreen(
                                     DropdownMenuItem(
                                         text = {
                                             Text(
-                                                if (nsfwEnabled) "Disable NSFW drops" else "Enable NSFW drops"
+                                                stringResource(
+                                                    if (nsfwEnabled) {
+                                                        R.string.menu_disable_nsfw_drops
+                                                    } else {
+                                                        R.string.menu_enable_nsfw_drops
+                                                    }
+                                                )
                                             )
                                         },
                                         leadingIcon = { Icon(Icons.Rounded.Flag, contentDescription = null) },
@@ -1808,7 +1821,13 @@ fun DropHereScreen(
                                         }
                                     )
                                     DropdownMenuItem(
-                                        text = { Text(if (signingOut) "Signing out…" else "Sign out") },
+                                        text = {
+                                            Text(
+                                                stringResource(
+                                                    if (signingOut) R.string.status_signing_out else R.string.menu_sign_out
+                                                )
+                                            )
+                                        },
                                         leadingIcon = { Icon(Icons.Rounded.Logout, contentDescription = null) },
                                         enabled = !signingOut,
                                         onClick = { handleSignOut() }
@@ -1833,10 +1852,12 @@ fun DropHereScreen(
                                 onClick = { selectedHomeDestination = option.name },
                                 label = {
                                     Text(
-                                        when (option) {
-                                            HomeDestination.Explorer -> "Explorer"
-                                            HomeDestination.Business -> "Business"
-                                        }
+                                        stringResource(
+                                            when (option) {
+                                                HomeDestination.Explorer -> R.string.home_destination_explorer
+                                                HomeDestination.Business -> R.string.home_destination_business
+                                            }
+                                        )
                                     )
                                 }
                             )
@@ -1856,7 +1877,13 @@ fun DropHereScreen(
                     showDropComposer = true
                 },
                 icon = { Icon(Icons.Rounded.Place, contentDescription = null) },
-                text = { Text(if (isSubmitting) "Dropping…" else "Drop something") }
+                text = {
+                    Text(
+                        stringResource(
+                            if (isSubmitting) R.string.status_dropping else R.string.action_drop_something
+                        )
+                    )
+                }
             )
         },
         snackbarHost = {
@@ -1917,21 +1944,21 @@ fun DropHereScreen(
                     )
                 }
 
-                item { SectionHeader(text = "Quick actions") }
+                item { SectionHeader(text = stringResource(R.string.section_quick_actions)) }
 
                 item {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         ActionCard(
                             icon = Icons.Rounded.Map,
-                            title = "Browse map",
-                            description = "See every drop you can currently unlock.",
+                            title = stringResource(R.string.action_browse_map_title),
+                            description = stringResource(R.string.action_browse_map_description),
                             onClick = { showOtherDropsMap = true }
                         )
 
                         ActionCard(
                             icon = Icons.Rounded.Inbox,
-                            title = "My drops",
-                            description = "Review, open, and manage the drops you've shared.",
+                            title = stringResource(R.string.action_my_drops_title),
+                            description = stringResource(R.string.action_my_drops_description),
                             onClick = {
                                 if (!canParticipate) {
                                     snackbar.showMessage(scope, participationRestriction("view and manage your drops"))
@@ -1943,21 +1970,34 @@ fun DropHereScreen(
 
                         ActionCard(
                             icon = Icons.Rounded.Bookmark,
-                            title = "Collected drops",
+                            title = stringResource(R.string.action_collected_drops_title),
                             description = when {
                                 collectedCount == 0 && hiddenNsfwCollectedCount > 0 -> {
                                     val plural = if (hiddenNsfwCollectedCount == 1) "drop" else "drops"
-                                    "Your NSFW settings are hiding $hiddenNsfwCollectedCount collected $plural."
+                                    stringResource(
+                                        R.string.action_collected_drops_hidden_nsfw,
+                                        hiddenNsfwCollectedCount,
+                                        plural
+                                    )
                                 }
                                 collectedCount == 0 -> {
-                                    "Open the drops you've saved for later."
+                                    stringResource(R.string.action_collected_drops_empty)
                                 }
                                 hiddenNsfwCollectedCount > 0 -> {
                                     val plural = if (collectedCount == 1) "drop" else "drops"
-                                    "Open the $collectedCount $plural you've saved. ($hiddenNsfwCollectedCount hidden by NSFW settings.)"
+                                    stringResource(
+                                        R.string.action_collected_drops_some_hidden,
+                                        collectedCount,
+                                        plural,
+                                        hiddenNsfwCollectedCount
+                                    )
                                 }
                                 else -> {
-                                    "Open the $collectedCount drop" + if (collectedCount == 1) " you've saved." else "s you've saved."
+                                    if (collectedCount == 1) {
+                                        stringResource(R.string.action_collected_drops_single)
+                                    } else {
+                                        stringResource(R.string.action_collected_drops_multiple, collectedCount)
+                                    }
                                 }
                             },
                             onClick = {

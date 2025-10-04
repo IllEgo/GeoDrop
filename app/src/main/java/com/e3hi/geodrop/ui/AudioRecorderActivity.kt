@@ -42,6 +42,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
@@ -104,7 +106,7 @@ class AudioRecorderActivity : ComponentActivity() {
         val file = try {
             File.createTempFile("geodrop_audio_", ".m4a", audioDir)
         } catch (e: IOException) {
-            onError("Couldn't prepare space for the recording. Try again.")
+            onError(getString(R.string.audio_recorder_prepare_error))
             null
         } ?: return false
 
@@ -116,7 +118,7 @@ class AudioRecorderActivity : ComponentActivity() {
             }
         } catch (e: Exception) {
             file.delete()
-            onError("Recording unavailable on this device.")
+            onError(getString(R.string.audio_recorder_unavailable_device))
             return false
         }
 
@@ -135,7 +137,7 @@ class AudioRecorderActivity : ComponentActivity() {
         } catch (e: Exception) {
             runCatching { recorder.release() }
             file.delete()
-            onError("Couldn't start recording. Try again.")
+            onError(getString(R.string.audio_recorder_start_error))
             false
         }
     }
@@ -158,13 +160,13 @@ class AudioRecorderActivity : ComponentActivity() {
         if (!success) {
             recordedFile?.delete()
             recordedFile = null
-            onError("Recording failed. Try again.")
+            onError(getString(R.string.audio_recorder_failed_error))
             return false
         }
 
         val file = recordedFile
         if (file == null || !file.exists()) {
-            onError("Recording unavailable. Try again.")
+            onError(getString(R.string.audio_recorder_unavailable_error))
             recordedFile = null
             return false
         }
@@ -227,6 +229,8 @@ private fun AudioRecorderRoute(
     var recordingStartTime by remember { mutableStateOf<Long?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
+    val context = LocalContext.current
+
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(isRecording, recordingStartTime) {
@@ -253,7 +257,7 @@ private fun AudioRecorderRoute(
             if (stopped) {
                 isRecording = false
                 hasRecording = true
-                statusMessage = "Recording saved."
+                statusMessage = context.getString(R.string.audio_recorder_status_saved)
                 recordingStartTime = null
             } else {
                 isRecording = false
@@ -272,7 +276,7 @@ private fun AudioRecorderRoute(
             if (started) {
                 isRecording = true
                 hasRecording = false
-                statusMessage = "Recording in progress..."
+                statusMessage = context.getString(R.string.audio_recorder_status_in_progress)
                 recordingStartTime = SystemClock.elapsedRealtime()
                 lastKnownDuration = 0L
             }
@@ -280,9 +284,12 @@ private fun AudioRecorderRoute(
     }
 
     val displayDurationText = when {
-        isRecording -> formatDuration(lastKnownDuration) + " (recording)"
-        hasRecording && lastKnownDuration > 0L -> "Recorded length: ${formatDuration(lastKnownDuration)}"
-        else -> "Tap start to capture a short voice note."
+        isRecording -> stringResource(R.string.audio_recorder_duration_recording, formatDuration(lastKnownDuration))
+        hasRecording && lastKnownDuration > 0L -> stringResource(
+            R.string.audio_recorder_duration_recorded,
+            formatDuration(lastKnownDuration)
+        )
+        else -> stringResource(R.string.audio_recorder_duration_prompt)
     }
 
     BackHandler { onCancel() }
@@ -290,10 +297,13 @@ private fun AudioRecorderRoute(
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Record audio") },
+                title = { Text(stringResource(R.string.audio_recorder_title)) },
                 navigationIcon = {
                     IconButton(onClick = onCancel) {
-                        Icon(imageVector = Icons.Filled.Close, contentDescription = "Cancel recording")
+                        Icon(
+                            imageVector = Icons.Filled.Close,
+                            contentDescription = stringResource(R.string.audio_recorder_cancel_cd)
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(),
@@ -310,7 +320,7 @@ private fun AudioRecorderRoute(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text(
-                text = "Capture a quick audio message for your drop.",
+                text = stringResource(R.string.audio_recorder_intro),
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.SemiBold
             )
@@ -325,9 +335,9 @@ private fun AudioRecorderRoute(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 val label = when {
-                    isRecording -> "Stop recording"
-                    hasRecording -> "Start new recording"
-                    else -> "Start recording"
+                    isRecording -> stringResource(R.string.audio_recorder_stop)
+                    hasRecording -> stringResource(R.string.audio_recorder_start_new)
+                    else -> stringResource(R.string.audio_recorder_start)
                 }
                 Text(label)
             }
@@ -337,7 +347,7 @@ private fun AudioRecorderRoute(
                     onClick = onFinish,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Use this recording")
+                    Text(stringResource(R.string.audio_recorder_use_recording))
                 }
 
                 TextButton(onClick = {
@@ -346,7 +356,7 @@ private fun AudioRecorderRoute(
                     lastKnownDuration = 0L
                     statusMessage = null
                 }) {
-                    Text("Discard recording")
+                    Text(stringResource(R.string.audio_recorder_discard_recording))
                 }
             }
 
@@ -361,7 +371,7 @@ private fun AudioRecorderRoute(
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "Make sure you're in a quiet spot so others can hear your message clearly.",
+                text = stringResource(R.string.audio_recorder_tip),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
