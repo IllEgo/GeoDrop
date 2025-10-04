@@ -22,6 +22,16 @@ android {
 
         def escapedVisionKey = visionApiKey.toString().replace('"', '\\"')
         buildConfigField 'String', 'GOOGLE_VISION_API_KEY', '"' + escapedVisionKey + '"'
+
+        def functionsRegion = (
+                project.findProperty('FIREBASE_FUNCTIONS_REGION')
+        ) ?: System.getenv('FIREBASE_FUNCTIONS_REGION') ?: 'us-central1'
+        def escapedFunctionsRegion = functionsRegion.toString().replace('"', '\\"')
+        buildConfigField(
+                'String',
+                'FIREBASE_FUNCTIONS_REGION',
+                '"' + escapedFunctionsRegion + '"'
+        )
     }
 
     compileOptions {
