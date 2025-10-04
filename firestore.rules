@@ -12,6 +12,33 @@ service cloud.firestore {
     return name is string && name.matches('^[a-z0-9._]{3,20}$');
   }
 
+  function voteValue(data, userId) {
+    return (data.voteMap is map && data.voteMap[userId] is int)
+      ? data.voteMap[userId]
+      : 0;
+  }
+
+  function voteCount(data, field) {
+    return (data[field] is int) ? data[field] : 0;
+  }
+
+  function isValidVoteTransition(before, after, userId) {
+    let previousVote = voteValue(before, userId);
+    let newVote = voteValue(after, userId);
+    let deltaUpvotes = voteCount(after, 'upvoteCount') - voteCount(before, 'upvoteCount');
+    let deltaDownvotes = voteCount(after, 'downvoteCount') - voteCount(before, 'downvoteCount');
+
+    return (previousVote in [-1, 0, 1])
+      && (newVote in [-1, 0, 1])
+      && ((previousVote == newVote && deltaUpvotes == 0 && deltaDownvotes == 0)
+        || (previousVote == 0 && newVote == 1 && deltaUpvotes == 1 && deltaDownvotes == 0)
+        || (previousVote == 0 && newVote == -1 && deltaUpvotes == 0 && deltaDownvotes == 1)
+        || (previousVote == 1 && newVote == 0 && deltaUpvotes == -1 && deltaDownvotes == 0)
+        || (previousVote == -1 && newVote == 0 && deltaUpvotes == 0 && deltaDownvotes == -1)
+        || (previousVote == -1 && newVote == 1 && deltaUpvotes == 1 && deltaDownvotes == -1)
+        || (previousVote == 1 && newVote == -1 && deltaUpvotes == -1 && deltaDownvotes == 1));
+  }
+
   match /databases/{database}/documents {
     match /users/{userId} {
       function hasOnlyAllowedUserFields() {
@@ -43,6 +70,16 @@ service cloud.firestore {
 
       allow delete: if isSignedIn()
         && resource.data.userId == request.auth.uid;
+    }
+
+    match /drops/{dropId} {
+      allow update: if isSignedIn()
+        && request.writeFields.hasOnly([
+          'voteMap.' + request.auth.uid,
+          'upvoteCount',
+          'downvoteCount'
+        ])
+        && isValidVoteTransition(resource.data, request.resource.data, request.auth.uid);
     }
   }
 }

@@ -7,6 +7,7 @@ import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldPath
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.SetOptions
 import com.google.firebase.firestore.ktx.firestore
@@ -613,30 +614,33 @@ class FirestoreRepo(
 
             var updatedUpvotes = currentUpvotes
             var updatedDownvotes = currentDownvotes
-            val updatedMap = currentMap.toMutableMap()
 
             when (previousVote) {
                 1 -> updatedUpvotes = (updatedUpvotes - 1).coerceAtLeast(0)
                 -1 -> updatedDownvotes = (updatedDownvotes - 1).coerceAtLeast(0)
             }
 
+            val voteFieldPath = "voteMap.$userId"
+            val updateData = hashMapOf<String, Any?>(
+                "upvoteCount" to updatedUpvotes,
+                "downvoteCount" to updatedDownvotes
+            )
+
             when (vote) {
                 DropVoteType.UPVOTE -> {
                     updatedUpvotes += 1
-                    updatedMap[userId] = 1L
+                    updateData["upvoteCount"] = updatedUpvotes
+                    updateData[voteFieldPath] = 1L
                 }
                 DropVoteType.DOWNVOTE -> {
                     updatedDownvotes += 1
-                    updatedMap[userId] = -1L
+                    updateData["downvoteCount"] = updatedDownvotes
+                    updateData[voteFieldPath] = -1L
                 }
-                DropVoteType.NONE -> updatedMap.remove(userId)
+                DropVoteType.NONE -> {
+                    updateData[voteFieldPath] = FieldValue.delete()
+                }
             }
-
-            val updateData = hashMapOf<String, Any?>(
-                "upvoteCount" to updatedUpvotes,
-                "downvoteCount" to updatedDownvotes,
-                "voteMap" to updatedMap
-            )
 
             transaction.update(docRef, updateData)
         }.await()
