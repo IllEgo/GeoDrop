@@ -5,6 +5,7 @@ import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldPath
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.SetOptions
 import com.google.firebase.firestore.ktx.firestore
@@ -411,12 +412,26 @@ class FirestoreRepo(
         val blockedCreators = if (userId.isNullOrBlank()) {
             emptySet()
         } else {
-            val snapshot = userBlockedCreatorsCollection(userId).get().await()
-            snapshot.documents.mapNotNull { doc ->
+            val snapshot = try {
+                userBlockedCreatorsCollection(userId).get().await()
+            } catch (error: FirebaseFirestoreException) {
+                if (error.code == FirebaseFirestoreException.Code.PERMISSION_DENIED) {
+                    Log.w(
+                        "GeoDrop",
+                        "Missing permission to load blocked creators for $userId; continuing without filters.",
+                        error
+                    )
+                    null
+                } else {
+                    throw error
+                }
+            }
+
+            snapshot?.documents?.mapNotNull { doc ->
                 val fromId = doc.id.takeIf { it.isNotBlank() }
                 val explicit = doc.getString("creatorId")?.takeIf { it.isNotBlank() }
                 fromId ?: explicit
-            }.toSet()
+            }?.toSet() ?: emptySet()
         }
 
         val snapshot = drops
