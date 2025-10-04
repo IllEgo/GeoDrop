@@ -463,7 +463,8 @@ fun DropHereScreen(
         businessAuthSubmitting,
         businessGoogleSigningIn,
         signingOut,
-        hasAcceptedTerms
+        hasAcceptedTerms,
+        hasViewedOnboarding
     ) {
         if (currentUser == null) {
             showAccountMenu = false
@@ -471,7 +472,7 @@ fun DropHereScreen(
                 showBusinessSignIn = false
                 businessAuthMode = BusinessAuthMode.SIGN_IN
                 resetBusinessAuthFields(clearEmail = true)
-                if (!signingOut && hasAcceptedTerms) {
+                if (!signingOut && hasAcceptedTerms && hasViewedOnboarding) {
                     startExplorerSignIn()
                 }
             }
@@ -521,11 +522,11 @@ fun DropHereScreen(
     }
 
     if (currentUser == null) {
-        if (!hasViewedOnboarding) {
-            FirstRunOnboardingScreen(
-                onContinue = {
-                    termsPrefs.recordOnboardingViewed()
-                    hasViewedOnboarding = true
+        if (!hasAcceptedTerms) {
+            TermsAcceptanceScreen(
+                onAccept = {
+                    termsPrefs.recordAcceptance()
+                    hasAcceptedTerms = true
                 },
                 onExit = {
                     (ctx as? Activity)?.finish()
@@ -534,12 +535,11 @@ fun DropHereScreen(
             return
         }
 
-        if (!hasAcceptedTerms) {
-            TermsAcceptanceScreen(
-                onAccept = {
-                    termsPrefs.recordAcceptance()
-                    hasAcceptedTerms = true
-                    startExplorerSignIn()
+        if (!hasViewedOnboarding) {
+            FirstRunOnboardingScreen(
+                onContinue = {
+                    termsPrefs.recordOnboardingViewed()
+                    hasViewedOnboarding = true
                 },
                 onExit = {
                     (ctx as? Activity)?.finish()
@@ -2135,6 +2135,14 @@ private fun TermsAcceptanceScreen(
     onExit: () -> Unit
 ) {
     val scrollState = rememberScrollState()
+    var selectedTab by remember { mutableStateOf(0) }
+    val agreementText = remember(selectedTab) {
+        if (selectedTab == 0) TERMS_OF_SERVICE_TEXT else PRIVACY_POLICY_TEXT
+    }
+
+    LaunchedEffect(selectedTab) {
+        scrollState.scrollTo(0)
+    }
 
     Box(
         modifier = Modifier
@@ -2166,6 +2174,18 @@ private fun TermsAcceptanceScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Divider()
+                TabRow(
+                    selectedTabIndex = selectedTab,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    TERMS_PRIVACY_TABS.forEachIndexed { index, title ->
+                        Tab(
+                            selected = selectedTab == index,
+                            onClick = { selectedTab = index },
+                            text = { Text(title) }
+                        )
+                    }
+                }
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -2178,7 +2198,7 @@ private fun TermsAcceptanceScreen(
                         .padding(16.dp)
                 ) {
                     Text(
-                        text = TERMS_PRIVACY_EXCERPT,
+                        text = agreementText,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface,
                         lineHeight = MaterialTheme.typography.bodySmall.lineHeight
@@ -2369,9 +2389,14 @@ private data class OnboardingSlide(
 
 private const val TERMS_PRIVACY_SUMMARY =
     "GeoDrop uses your location and saved preferences to help you discover nearby drops. " +
-            "Please review and accept our Terms of Service and Privacy Policy before continuing."
+            "Use the tabs below to review our Terms of Service and Privacy Policy, then accept to continue."
 
-private val TERMS_PRIVACY_EXCERPT = """
+private val TERMS_PRIVACY_TABS = listOf(
+    "Terms of Service",
+    "Privacy Policy"
+)
+
+private val TERMS_OF_SERVICE_TEXT = """
 📜 GeoDrop – Terms of Service
 Last updated: 10/02/2025
 Welcome to GeoDrop! By using our app, you agree to the following:
@@ -2398,54 +2423,73 @@ GeoDrop is not responsible for the nature of user-generated NSFW content.
 Businesses are prohibited from posting NSFW coupons or promotions.
 
 5. Accounts & Data
-Some features may require Firebase authentication (anonymous or registered).
-You are responsible for keeping your account secure.
+GeoDrop collects only the information needed to operate the service, such as your device ID, location (while you use the app), and any drops you create.
+We never sell your personal data.
+You may delete your account at any time from the in-app settings.
 
-6. Disclaimers
-GeoDrop is provided “as is” without warranties.
-We are not responsible for user-generated content, third-party offers, or exposure to NSFW content once you have opted in.
-We are not liable for any loss, damage, or disputes that may arise from use of the app.
+6. Business Accounts
+Business users must keep their account information up to date.
+Business users are responsible for honoring coupons or offers they distribute through GeoDrop.
+GeoDrop may suspend business accounts that violate these terms or applicable laws.
 
-7. Termination
-We may suspend or terminate accounts that violate these terms.
+7. Changes to the Terms
+We may update these terms from time to time. If the changes are material, we'll notify you in the app.
+Continuing to use GeoDrop after an update means you accept the revised terms.
 
-🔒 GeoDrop – Privacy Policy
+8. Contact
+Questions? Reach us at support@geodrop.app.
+
+📍 Location Notice
+GeoDrop relies on accurate GPS data. Turn on high accuracy mode for the best experience.
+
+📢 Notifications
+GeoDrop may send push notifications about nearby drops, reminders, or account updates. You can opt out in your device settings.
+
+🔒 Data Security
+We use industry-standard safeguards to protect your data. However, we cannot guarantee the security of information transmitted over the internet.
+
+By accepting, you agree to follow these terms whenever you use GeoDrop.
+""${'"'}.trimIndent()
+
+private val PRIVACY_POLICY_TEXT = ""${'"'}
+🔐 GeoDrop – Privacy Policy
 Last updated: 10/02/2025
 
-Your privacy is important to us. This policy explains how we handle your data.
+1. Information We Collect
+• Account basics: anonymous ID for explorers or email for business accounts.
+• Location data: precise GPS coordinates while you use key features like the map and background alerts for nearby drops.
+• Content you provide: text, media, and coupons that you create or redeem.
+• Device data: app version, device model, and crash diagnostics.
 
-1. Data We Collect
-Location data (to detect and notify nearby drops).
-Firebase UID / anonymous ID (for drop ownership and activity tracking).
-User content (text, images, audio, or video you drop).
-NSFW preference (whether you have NSFW mode enabled).
-Device information (basic analytics for improving performance).
+2. How We Use Information
+• Deliver core features such as finding and unlocking drops near you.
+• Maintain the safety of the community by moderating content and preventing abuse.
+• Provide analytics to improve app performance and plan future features.
+• Notify you about nearby drops, redemption reminders, or account changes.
 
-2. How We Use Data
-To display drops near you.
-To notify you of relevant content or coupons.
-To respect your NSFW setting by filtering flagged content accordingly.
-To maintain app performance and security.
-To help businesses offer location-based deals.
+3. Sharing & Disclosure
+• We never sell your personal information.
+• Drop content is shared with other explorers in the area based on your privacy settings.
+• Business partners only see analytics for drops they create.
+• Service providers (like cloud hosting and crash reporting) process data on our behalf under strict confidentiality agreements.
 
-3. Sharing of Data
-We do not sell your data.
-Some data is stored with Firebase (Google Cloud).
-If you redeem a coupon, your interaction may be shared with the issuing business.
-Your NSFW preference is only used within GeoDrop and is not shared with third parties.
+4. Your Choices
+• You can disable push notifications or location permissions at any time in system settings.
+• You may delete drops you posted or remove collected notes from your inventory.
+• Request account deletion or data export by emailing support@geodrop.app.
 
-4. NSFW & Sensitive Content
-GeoDrop uses AI tools (e.g., Google Cloud Vision SafeSearch) to detect and flag explicit content.
-The system is not perfect, and inappropriate material may still appear.
-By enabling NSFW mode, you accept the risk of viewing mature or offensive material.
-
-5. User Rights
-You may request deletion of your account and content at any time.
-You may control location, notification, and NSFW permissions in your app settings.
+5. Data Retention
+• Account and drop data are retained as long as your account is active.
+• We keep minimal logs for fraud prevention, typically no longer than 30 days.
 
 6. Children’s Privacy
-GeoDrop is not intended for children under 13.
-NSFW content is restricted to users 18+ only.
+• GeoDrop is not intended for children under 13.
+• NSFW mode is restricted to users 18+ only.
+
+7. Updates
+• We will notify you in-app or via email (for business accounts) when this policy changes.
+
+By accepting, you acknowledge that you have read and understood how GeoDrop handles your data.
 """.trimIndent()
 
 @Composable
