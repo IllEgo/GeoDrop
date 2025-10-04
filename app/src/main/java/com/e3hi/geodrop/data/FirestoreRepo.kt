@@ -27,6 +27,7 @@ class FirestoreRepo(
 ) {
     private val drops = db.collection("drops")
     private val users = db.collection("users")
+    private val usernames = db.collection("usernames")
     private val reports = db.collection("reports")
     private val functions = Firebase.functions("us-central1")
 
@@ -357,7 +358,7 @@ class FirestoreRepo(
         if (userId.isBlank()) return profile
 
         val sanitized = ExplorerUsername.sanitize(desiredUsername)
-        val claimed = claimExplorerUsernameRemote(sanitized)
+        val claimed = claimExplorerUsernameRemote(userId, sanitized)
 
         return profile.copy(username = claimed)
     }
@@ -405,7 +406,11 @@ class FirestoreRepo(
                     val sanitized = runCatching { ExplorerUsername.sanitize(previousUsername) }.getOrNull()
                     if (!sanitized.isNullOrBlank()) {
                         try {
-                            claimExplorerUsernameRemote(sanitized, transferFrom = previousUserId)
+                            claimExplorerUsernameRemote(
+                                userId = newUserId,
+                                sanitizedUsername = sanitized,
+                                transferFrom = previousUserId
+                            )
                         } catch (error: Exception) {
                             Log.w(
                                 "GeoDrop",
@@ -735,6 +740,7 @@ class FirestoreRepo(
 
 
     private suspend fun claimExplorerUsernameRemote(
+        userId: String,
         sanitizedUsername: String,
         transferFrom: String? = null
     ): String {
@@ -779,6 +785,15 @@ class FirestoreRepo(
                     )
                 }
 
+                FirebaseFunctionsException.Code.NOT_FOUND -> {
+                    Log.w(
+                        "GeoDrop",
+                        "claimExplorerUsername function missing; falling back to client transaction",
+                        error
+                    )
+                    return claimExplorerUsernameFallback(userId, sanitizedUsername, transferFrom)
+                }
+
                 else -> throw error
             }
         }
@@ -786,6 +801,50 @@ class FirestoreRepo(
         val data = result.data as? Map<*, *>
         val claimed = data?.get("username") as? String
         return claimed?.takeIf { it.isNotBlank() } ?: sanitizedUsername
+    }
+
+    private suspend fun claimExplorerUsernameFallback(
+        userId: String,
+        sanitizedUsername: String,
+        transferFrom: String?
+    ): String {
+        return try {
+            db.runTransaction { transaction ->
+                val userRef = users.document(userId)
+                val usernameRef = usernames.document(sanitizedUsername)
+
+                val userSnapshot = transaction.get(userRef)
+                val usernameSnapshot = transaction.get(usernameRef)
+
+                val currentUsername = userSnapshot.getString("username")?.takeIf { it.isNotBlank() }
+                val existingOwner = usernameSnapshot.getString("userId")?.takeIf { it.isNotBlank() }
+
+                if (existingOwner != null && existingOwner != userId) {
+                    if (transferFrom.isNullOrBlank() || transferFrom != existingOwner) {
+                        throw IllegalStateException(
+                            "That username is already taken. Try another one."
+                        )
+                    }
+                }
+
+                transaction.set(usernameRef, mapOf("userId" to userId), SetOptions.merge())
+
+                if (currentUsername != null && currentUsername != sanitizedUsername) {
+                    transaction.delete(usernames.document(currentUsername))
+                }
+
+                transaction.set(userRef, mapOf("username" to sanitizedUsername), SetOptions.merge())
+
+                sanitizedUsername
+            }.await()
+        } catch (error: IllegalStateException) {
+            throw error
+        } catch (error: Exception) {
+            throw IllegalStateException(
+                "Couldn't update your username. Try again.",
+                error
+            )
+        }
     }
 
 
