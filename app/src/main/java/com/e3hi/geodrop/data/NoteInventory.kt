@@ -4,6 +4,8 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.content.Intent
 import androidx.core.content.edit
+import java.util.HashSet
+import java.util.concurrent.CopyOnWriteArraySet
 import org.json.JSONArray
 import org.json.JSONException
 
@@ -14,6 +16,7 @@ class NoteInventory(context: Context) {
     private val prefs: SharedPreferences =
         context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     private val appContext = context.applicationContext
+    private val listeners = CopyOnWriteArraySet<ChangeListener>()
 
     fun getCollectedNotes(): List<CollectedNote> {
         val raw = prefs.getString(KEY_COLLECTED, null) ?: return emptyList()
@@ -41,12 +44,14 @@ class NoteInventory(context: Context) {
         persistCollected(current)
         removeIgnored(note.id)
         broadcastChange(changeType = CHANGE_COLLECTED, dropId = note.id)
+        notifyListeners(ChangeOrigin.LOCAL)
     }
 
     fun removeCollected(id: String) {
         val current = getCollectedNotes().filterNot { it.id == id }
         persistCollected(current)
         broadcastChange(changeType = CHANGE_REMOVED, dropId = id)
+        notifyListeners(ChangeOrigin.LOCAL)
     }
 
     fun markIgnored(id: String) {
@@ -54,6 +59,7 @@ class NoteInventory(context: Context) {
         if (ignored.add(id)) {
             prefs.edit { putStringSet(KEY_IGNORED, ignored) }
             broadcastChange(changeType = CHANGE_IGNORED, dropId = id)
+            notifyListeners(ChangeOrigin.LOCAL)
         }
     }
 
@@ -76,6 +82,7 @@ class NoteInventory(context: Context) {
         current[idx] = updated
         persistCollected(current)
         broadcastChange(changeType = CHANGE_COLLECTED, dropId = id)
+        notifyListeners(ChangeOrigin.LOCAL)
     }
 
     fun isCollected(id: String): Boolean {
@@ -91,6 +98,45 @@ class NoteInventory(context: Context) {
     fun getIgnoredDropIds(): Set<String> {
         val stored = prefs.getStringSet(KEY_IGNORED, emptySet()) ?: emptySet()
         return stored.toSet()
+    }
+
+    fun getSnapshot(): Snapshot = Snapshot(
+        collectedNotes = getCollectedNotes(),
+        ignoredDropIds = getIgnoredDropIds()
+    )
+
+    fun replaceFromRemote(snapshot: Snapshot) {
+        val previousCollected = getCollectedNotes()
+        val previousIgnored = getIgnoredDropIds()
+
+        persistCollected(snapshot.collectedNotes)
+        prefs.edit { putStringSet(KEY_IGNORED, HashSet(snapshot.ignoredDropIds)) }
+
+        val previousCollectedMap = previousCollected.associateBy { it.id }
+        val newCollectedMap = snapshot.collectedNotes.associateBy { it.id }
+
+        val addedCollected = newCollectedMap.keys - previousCollectedMap.keys
+        val removedCollected = previousCollectedMap.keys - newCollectedMap.keys
+
+        val ignoredAdded = snapshot.ignoredDropIds - previousIgnored
+        snapshot.collectedNotes.forEach { note ->
+            val previous = previousCollectedMap[note.id]
+            if (previous == null || previous != note) {
+                broadcastChange(CHANGE_COLLECTED, note.id)
+            }
+        }
+        removedCollected.forEach { id -> broadcastChange(CHANGE_REMOVED, id) }
+        ignoredAdded.forEach { id -> broadcastChange(CHANGE_IGNORED, id) }
+
+        notifyListeners(ChangeOrigin.REMOTE)
+    }
+
+    fun addChangeListener(listener: ChangeListener) {
+        listeners.add(listener)
+    }
+
+    fun removeChangeListener(listener: ChangeListener) {
+        listeners.remove(listener)
     }
 
     private fun persistCollected(notes: List<CollectedNote>) {
@@ -134,5 +180,26 @@ class NoteInventory(context: Context) {
         private const val KEY_COLLECTED = "collected_notes"
         private const val KEY_COLLECTED_IDS = "collected_note_ids"
         private const val KEY_IGNORED = "ignored_drop_ids"
+    }
+
+    data class Snapshot(
+        val collectedNotes: List<CollectedNote>,
+        val ignoredDropIds: Set<String>
+    )
+
+    enum class ChangeOrigin {
+        LOCAL,
+        REMOTE
+    }
+
+    fun interface ChangeListener {
+        fun onInventoryChanged(snapshot: Snapshot, origin: ChangeOrigin)
+    }
+
+    private fun notifyListeners(origin: ChangeOrigin) {
+        val snapshot = getSnapshot()
+        listeners.forEach { listener ->
+            listener.onInventoryChanged(snapshot, origin)
+        }
     }
 }

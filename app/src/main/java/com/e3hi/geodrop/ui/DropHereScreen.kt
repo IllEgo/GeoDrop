@@ -124,6 +124,7 @@ import com.e3hi.geodrop.data.FirestoreRepo
 import com.e3hi.geodrop.data.DropVoteType
 import com.e3hi.geodrop.data.MediaStorageRepo
 import com.e3hi.geodrop.data.NoteInventory
+import com.e3hi.geodrop.data.UserDataSyncRepository
 import com.e3hi.geodrop.data.DropType
 import com.e3hi.geodrop.data.UserProfile
 import com.e3hi.geodrop.data.UserMode
@@ -662,6 +663,7 @@ fun DropHereScreen(
     val groupPrefs = remember { GroupPreferences(ctx) }
     val explorerAccountStore = remember { ExplorerAccountStore(ctx) }
     val notificationPrefs = remember { NotificationPreferences(ctx) }
+    val userDataSync = remember { UserDataSyncRepository(repo, groupPrefs, noteInventory, scope) }
 
     val canParticipate = userMode.canParticipate
     val readOnlyParticipationMessage = when (userMode) {
@@ -717,6 +719,25 @@ fun DropHereScreen(
     var selectedHomeDestination by rememberSaveable { mutableStateOf(HomeDestination.Explorer.name) }
     var notificationRadius by remember { mutableStateOf(notificationPrefs.getNotificationRadiusMeters()) }
     var showNotificationRadiusDialog by remember { mutableStateOf(false) }
+
+    DisposableEffect(groupPrefs) {
+        val listener = GroupPreferences.ChangeListener { groups, _ ->
+            joinedGroups = groups
+        }
+        groupPrefs.addChangeListener(listener)
+        joinedGroups = groupPrefs.getJoinedGroups()
+        onDispose { groupPrefs.removeChangeListener(listener) }
+    }
+
+    DisposableEffect(currentUser?.uid) {
+        val uid = currentUser?.uid
+        if (uid.isNullOrBlank()) {
+            userDataSync.stop()
+        } else {
+            userDataSync.start(uid)
+        }
+        onDispose { userDataSync.stop() }
+    }
 
     LaunchedEffect(currentUser?.uid) {
         val user = currentUser ?: return@LaunchedEffect

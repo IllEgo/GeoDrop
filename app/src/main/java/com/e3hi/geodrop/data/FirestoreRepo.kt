@@ -2,12 +2,15 @@ package com.e3hi.geodrop.data
 
 import android.util.Log
 import com.google.firebase.firestore.DocumentReference
+import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldPath
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.SetOptions
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
 import com.e3hi.geodrop.util.GroupPreferences
+import java.util.Locale
 import kotlinx.coroutines.tasks.await
 
 /**
@@ -21,6 +24,12 @@ class FirestoreRepo(
 ) {
     private val drops = db.collection("drops")
     private val users = db.collection("users")
+
+    private fun userGroupsCollection(userId: String) =
+        users.document(userId).collection("groups")
+
+    private fun userInventoryCollection(userId: String) =
+        users.document(userId).collection("inventory")
 
     /**
      * NEW: Suspend API. Writes a drop and returns the new document id.
@@ -51,6 +60,163 @@ class FirestoreRepo(
                 Log.e("GeoDrop", "Create drop FAILED", e)
                 onError(e)
             }
+    }
+
+    suspend fun fetchUserGroups(userId: String): List<String> {
+        if (userId.isBlank()) return emptyList()
+
+        val snapshot = userGroupsCollection(userId).get().await()
+        return snapshot.documents
+            .mapNotNull { doc ->
+                val code = doc.getString("code") ?: doc.id
+                GroupPreferences.normalizeGroupCode(code)
+            }
+            .distinct()
+            .sorted()
+    }
+
+    suspend fun replaceUserGroups(userId: String, codes: Collection<String>) {
+        if (userId.isBlank()) return
+
+        val normalized = codes
+            .mapNotNull { GroupPreferences.normalizeGroupCode(it) }
+            .distinct()
+
+        val collection = userGroupsCollection(userId)
+        val existing = collection.get().await()
+
+        db.runBatch { batch ->
+            existing.documents.forEach { doc -> batch.delete(doc.reference) }
+            normalized.forEach { code ->
+                val data = hashMapOf(
+                    "code" to code,
+                    "updatedAt" to System.currentTimeMillis()
+                )
+                batch.set(collection.document(code), data)
+            }
+        }.await()
+    }
+
+    fun listenForUserGroups(
+        userId: String,
+        onChanged: (List<String>) -> Unit,
+        onError: (Exception) -> Unit = {}
+    ): ListenerRegistration? {
+        if (userId.isBlank()) return null
+
+        return userGroupsCollection(userId).addSnapshotListener { snapshot, error ->
+            if (error != null) {
+                onError(error)
+                return@addSnapshotListener
+            }
+            if (snapshot == null) {
+                onChanged(emptyList())
+                return@addSnapshotListener
+            }
+
+            val codes = snapshot.documents
+                .mapNotNull { doc ->
+                    val code = doc.getString("code") ?: doc.id
+                    GroupPreferences.normalizeGroupCode(code)
+                }
+                .distinct()
+                .sorted()
+            onChanged(codes)
+        }
+    }
+
+    suspend fun fetchUserInventory(userId: String): NoteInventory.Snapshot {
+        if (userId.isBlank()) return NoteInventory.Snapshot(emptyList(), emptySet())
+
+        val snapshot = userInventoryCollection(userId).get().await()
+        val collected = mutableListOf<CollectedNote>()
+        val ignored = mutableSetOf<String>()
+
+        snapshot.documents.forEach { doc ->
+            when (doc.getString("state")?.lowercase(Locale.US) ?: STATE_COLLECTED) {
+                STATE_IGNORED -> {
+                    val id = doc.id.takeIf { it.isNotBlank() }
+                        ?: doc.getString("id")
+                    if (!id.isNullOrBlank()) {
+                        ignored += id
+                    }
+                }
+                else -> {
+                    doc.toCollectedNoteOrNull()?.let { collected += it }
+                }
+            }
+        }
+
+        collected.sortByDescending { it.collectedAt }
+        return NoteInventory.Snapshot(collected, ignored)
+    }
+
+    suspend fun replaceUserInventory(userId: String, snapshot: NoteInventory.Snapshot) {
+        if (userId.isBlank()) return
+
+        val collection = userInventoryCollection(userId)
+        val existing = collection.get().await()
+
+        db.runBatch { batch ->
+            existing.documents.forEach { doc -> batch.delete(doc.reference) }
+
+            snapshot.collectedNotes.forEach { note ->
+                val data = note.toFirestoreData().toMutableMap()
+                data["state"] = STATE_COLLECTED
+                data["updatedAt"] = System.currentTimeMillis()
+                batch.set(collection.document(note.id), data)
+            }
+
+            snapshot.ignoredDropIds.forEach { rawId ->
+                val id = rawId.trim()
+                if (id.isNotEmpty()) {
+                    val data = hashMapOf(
+                        "state" to STATE_IGNORED,
+                        "id" to id,
+                        "updatedAt" to System.currentTimeMillis()
+                    )
+                    batch.set(collection.document(id), data)
+                }
+            }
+        }.await()
+    }
+
+    fun listenForUserInventory(
+        userId: String,
+        onChanged: (NoteInventory.Snapshot) -> Unit,
+        onError: (Exception) -> Unit = {}
+    ): ListenerRegistration? {
+        if (userId.isBlank()) return null
+
+        return userInventoryCollection(userId).addSnapshotListener { snapshot, error ->
+            if (error != null) {
+                onError(error)
+                return@addSnapshotListener
+            }
+            if (snapshot == null) {
+                onChanged(NoteInventory.Snapshot(emptyList(), emptySet()))
+                return@addSnapshotListener
+            }
+
+            val collected = mutableListOf<CollectedNote>()
+            val ignored = mutableSetOf<String>()
+
+            snapshot.documents.forEach { doc ->
+                when (doc.getString("state")?.lowercase(Locale.US) ?: STATE_COLLECTED) {
+                    STATE_IGNORED -> {
+                        val id = doc.id.takeIf { it.isNotBlank() }
+                            ?: doc.getString("id")
+                        if (!id.isNullOrBlank()) {
+                            ignored += id
+                        }
+                    }
+                    else -> doc.toCollectedNoteOrNull()?.let { collected += it }
+                }
+            }
+
+            collected.sortByDescending { it.collectedAt }
+            onChanged(NoteInventory.Snapshot(collected, ignored))
+        }
     }
 
     suspend fun ensureUserProfile(userId: String, displayName: String? = null): UserProfile {
@@ -471,6 +637,84 @@ class FirestoreRepo(
             "redeemedBy" to sanitized.redeemedBy,
             "decayDays" to sanitized.decayDays
         )
+    }
+
+    private fun DocumentSnapshot.toCollectedNoteOrNull(): CollectedNote? {
+        val noteId = id.takeIf { it.isNotBlank() } ?: getString("id") ?: return null
+        val collectedAt = getLong("collectedAt") ?: return null
+        val nsfwLabels = (get("nsfwLabels") as? List<*>)
+            ?.mapNotNull { value -> value?.toString()?.takeIf { it.isNotBlank() } }
+            ?: emptyList()
+
+        return CollectedNote(
+            id = noteId,
+            text = getString("text") ?: "",
+            contentType = DropContentType.fromRaw(getString("contentType")),
+            mediaUrl = getString("mediaUrl")?.takeIf { it.isNotBlank() },
+            mediaMimeType = getString("mediaMimeType")?.takeIf { it.isNotBlank() },
+            mediaData = getString("mediaData")?.takeIf { it.isNotBlank() },
+            lat = getDouble("lat"),
+            lng = getDouble("lng"),
+            groupCode = GroupPreferences.normalizeGroupCode(getString("groupCode")),
+            dropCreatedAt = getLong("dropCreatedAt"),
+            decayDays = when (val raw = get("decayDays")) {
+                is Number -> raw.toInt().takeIf { it > 0 }
+                is String -> raw.toIntOrNull()?.takeIf { it > 0 }
+                else -> null
+            },
+            dropType = DropType.fromRaw(getString("dropType")),
+            businessId = getString("businessId")?.takeIf { it.isNotBlank() },
+            businessName = getString("businessName")?.takeIf { it.isNotBlank() },
+            redemptionLimit = when (val raw = get("redemptionLimit")) {
+                is Number -> raw.toInt()
+                is String -> raw.toIntOrNull()
+                else -> null
+            },
+            redemptionCount = when (val raw = get("redemptionCount")) {
+                is Number -> raw.toInt()
+                is String -> raw.toIntOrNull() ?: 0
+                else -> 0
+            },
+            isRedeemed = getBoolean("isRedeemed") == true,
+            redeemedAt = getLong("redeemedAt"),
+            collectedAt = collectedAt,
+            isNsfw = (getBoolean("isNsfw") == true) || nsfwLabels.isNotEmpty(),
+            nsfwLabels = nsfwLabels
+        )
+    }
+
+    private fun CollectedNote.toFirestoreData(): Map<String, Any?> {
+        val data = mutableMapOf<String, Any?>(
+            "id" to id,
+            "text" to text,
+            "contentType" to contentType.name,
+            "collectedAt" to collectedAt,
+            "dropType" to dropType.name,
+            "redemptionCount" to redemptionCount,
+            "isRedeemed" to isRedeemed,
+            "isNsfw" to isNsfw,
+            "nsfwLabels" to nsfwLabels
+        )
+        mediaUrl?.takeIf { it.isNotBlank() }?.let { data["mediaUrl"] = it }
+        mediaMimeType?.takeIf { it.isNotBlank() }?.let { data["mediaMimeType"] = it }
+        mediaData?.takeIf { it.isNotBlank() }?.let { data["mediaData"] = it }
+        lat?.let { data["lat"] = it }
+        lng?.let { data["lng"] = it }
+        groupCode?.let { code ->
+            GroupPreferences.normalizeGroupCode(code)?.let { normalized -> data["groupCode"] = normalized }
+        }
+        dropCreatedAt?.let { data["dropCreatedAt"] = it }
+        decayDays?.let { data["decayDays"] = it }
+        businessId?.takeIf { it.isNotBlank() }?.let { data["businessId"] = it }
+        businessName?.takeIf { it.isNotBlank() }?.let { data["businessName"] = it }
+        redemptionLimit?.let { data["redemptionLimit"] = it }
+        redeemedAt?.let { data["redeemedAt"] = it }
+        return data
+    }
+
+    private companion object {
+        private const val STATE_COLLECTED = "collected"
+        private const val STATE_IGNORED = "ignored"
     }
 }
 
