@@ -25,6 +25,8 @@ import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -69,6 +71,8 @@ import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.ThumbDown
 import androidx.compose.material.icons.rounded.ThumbUp
 import androidx.compose.material3.*
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -83,6 +87,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.ContentScale
@@ -3270,6 +3275,7 @@ private fun BusinessHeroCard(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun HeroCard(
     joinedGroups: List<String>,
@@ -3279,25 +3285,103 @@ private fun HeroCard(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(28.dp),
         colors = CardDefaults.elevatedCardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer
+            containerColor = Color.Transparent
         )
     ) {
-        Column(
-            modifier = Modifier.padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(28.dp))
         ) {
-            Text(
-                text = "Drop something at your spot",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onPrimaryContainer
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .background(
+                        Brush.linearGradient(
+                            colors = listOf(
+                                MaterialTheme.colorScheme.primary,
+                                MaterialTheme.colorScheme.tertiary
+                            )
+                        )
+                    )
             )
 
-            Text(
-                text = "Leave voice notes, photos, or text that unlock when explorers arrive nearby.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .background(Color.Black.copy(alpha = 0.35f))
             )
+
+            Column(
+                modifier = Modifier
+                    .padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                val contentColor = MaterialTheme.colorScheme.onPrimary
+
+                Text(
+                    text = "Drop something at your spot",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = contentColor
+                )
+
+                Text(
+                    text = "Leave voice notes, photos, or text that unlock when explorers arrive nearby.",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = contentColor.copy(alpha = 0.9f)
+                )
+
+                if (joinedGroups.isNotEmpty()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            text = "You're connected with",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = contentColor.copy(alpha = 0.95f),
+                            fontWeight = FontWeight.Medium
+                        )
+
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            joinedGroups.forEach { group ->
+                                AssistChip(
+                                    onClick = onManageGroups,
+                                    label = {
+                                        Text(
+                                            text = group,
+                                            color = contentColor
+                                        )
+                                    },
+                                    colors = AssistChipDefaults.assistChipColors(
+                                        containerColor = Color.White.copy(alpha = 0.2f),
+                                        labelColor = contentColor
+                                    ),
+                                    border = BorderStroke(
+                                        width = 1.dp,
+                                        color = Color.White.copy(alpha = 0.4f)
+                                    )
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    Text(
+                        text = "Join or create groups to collaborate on drops.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = contentColor.copy(alpha = 0.8f)
+                    )
+                }
+
+                TextButton(onClick = onManageGroups) {
+                    Text(
+                        text = "Manage group codes",
+                        color = contentColor,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
         }
     }
 }
