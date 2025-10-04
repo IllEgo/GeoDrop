@@ -56,6 +56,8 @@ dependencies {
     implementation("com.google.firebase:firebase-messaging-ktx")
     implementation("com.google.firebase:firebase-storage-ktx")
     implementation("com.google.firebase:firebase-functions-ktx")
+    implementation("com.google.firebase:firebase-appcheck-playintegrity")
+    debugImplementation("com.google.firebase:firebase-appcheck-debug")
 
     // Play Services Location (for geofencing / fused location)
     implementation("com.google.android.gms:play-services-location:21.3.0")
