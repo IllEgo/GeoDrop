@@ -18,6 +18,51 @@ const moderationQueueRef = (path: string) =>
     .collection(MODERATION_QUEUE_COLLECTION)
     .doc(encodeStoragePath(path));
 
+const USERNAME_MIN_LENGTH = 3;
+const USERNAME_MAX_LENGTH = 20;
+const USERNAME_PATTERN = /^[a-z0-9._]+$/;
+
+type ClaimExplorerUsernameRequest = {
+  desiredUsername?: string;
+  allowTransferFrom?: string;
+};
+
+const sanitizeExplorerUsername = (raw: unknown): string => {
+  const value = typeof raw === "string" ? raw : String(raw ?? "");
+  const trimmed = value.trim();
+  if (trimmed.length < USERNAME_MIN_LENGTH) {
+    throw new functions.https.HttpsError(
+      "invalid-argument",
+      "Username must be at least 3 characters long.",
+      {reason: "TOO_SHORT"}
+    );
+  }
+  if (trimmed.length > USERNAME_MAX_LENGTH) {
+    throw new functions.https.HttpsError(
+      "invalid-argument",
+      "Username must be at most 20 characters long.",
+      {reason: "TOO_LONG"}
+    );
+  }
+
+  const normalized = trimmed.toLocaleLowerCase("en-US");
+  if (!USERNAME_PATTERN.test(normalized)) {
+    throw new functions.https.HttpsError(
+      "invalid-argument",
+      "Username contains invalid characters.",
+      {reason: "INVALID_CHARACTERS"}
+    );
+  }
+
+  return normalized;
+};
+
+const normalizeTransferId = (raw: unknown): string | undefined => {
+  if (typeof raw !== "string") return undefined;
+  const trimmed = raw.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+};
+
 // HTTPS callable — SafeSearch from base64
 export const safeSearch = functions
   .region("us-central1")
@@ -41,6 +86,57 @@ export const safeSearch = functions
       violence: s?.violence,
       racy: s?.racy,
     };
+  });
+
+export const claimExplorerUsername = functions
+  .region("us-central1")
+  .https.onCall(async (data: ClaimExplorerUsernameRequest, context) => {
+    const uid = context.auth?.uid;
+    if (!uid) {
+      throw new functions.https.HttpsError(
+        "unauthenticated",
+        "Sign in again to update your username."
+      );
+    }
+
+    const sanitized = sanitizeExplorerUsername(data?.desiredUsername);
+    const allowTransferFrom = normalizeTransferId(data?.allowTransferFrom);
+
+    const firestore = admin.firestore();
+    const usernames = firestore.collection("usernames");
+    const users = firestore.collection("users");
+
+    await firestore.runTransaction(async (transaction) => {
+      const userRef = users.doc(uid);
+      const usernameRef = usernames.doc(sanitized);
+
+      const [userSnapshot, usernameSnapshot] = await Promise.all([
+        transaction.get(userRef),
+        transaction.get(usernameRef),
+      ]);
+
+      const currentUsername = userSnapshot.get("username") as string | undefined;
+      const existingOwner = usernameSnapshot.get("userId") as string | undefined;
+
+      if (existingOwner && existingOwner !== uid) {
+        if (!allowTransferFrom || allowTransferFrom !== existingOwner) {
+          throw new functions.https.HttpsError(
+            "already-exists",
+            "That username is already taken. Try another one."
+          );
+        }
+      }
+
+      transaction.set(usernameRef, {userId: uid}, {merge: true});
+
+      if (currentUsername && currentUsername !== sanitized) {
+        transaction.delete(usernames.doc(currentUsername));
+      }
+
+      transaction.set(userRef, {username: sanitized}, {merge: true});
+    });
+
+    return {username: sanitized};
   });
 
 // Storage trigger — analyze photo uploads under drops/photos

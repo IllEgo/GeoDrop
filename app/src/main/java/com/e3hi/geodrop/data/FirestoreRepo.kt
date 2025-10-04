@@ -9,6 +9,8 @@ import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.SetOptions
 import com.google.firebase.firestore.ktx.firestore
+import com.google.firebase.functions.FirebaseFunctionsException
+import com.google.firebase.functions.ktx.functions
 import com.google.firebase.ktx.Firebase
 import com.e3hi.geodrop.util.GroupPreferences
 import java.util.Locale
@@ -26,7 +28,7 @@ class FirestoreRepo(
     private val drops = db.collection("drops")
     private val users = db.collection("users")
     private val reports = db.collection("reports")
-    private val usernames = db.collection("usernames")
+    private val functions = Firebase.functions("us-central1")
 
     private fun userGroupsCollection(userId: String) =
         users.document(userId).collection("groups")
@@ -355,35 +357,9 @@ class FirestoreRepo(
         if (userId.isBlank()) return profile
 
         val sanitized = ExplorerUsername.sanitize(desiredUsername)
-        val userDoc = users.document(userId)
-        val usernameDoc = usernames.document(sanitized)
+        val claimed = claimExplorerUsernameRemote(sanitized)
 
-        db.runTransaction { transaction ->
-            val userSnapshot = transaction.get(userDoc)
-            val currentUsername = userSnapshot.getString("username")?.takeIf { it.isNotBlank() }
-
-            val existingClaim = transaction.get(usernameDoc)
-            if (existingClaim.exists()) {
-                val owner = existingClaim.getString("userId")
-                if (!owner.isNullOrBlank() && owner != userId) {
-                    throw IllegalStateException("That username is already taken. Try another one.")
-                }
-            }
-
-            transaction.set(usernameDoc, mapOf("userId" to userId))
-
-            if (!currentUsername.isNullOrBlank() && currentUsername != sanitized) {
-                transaction.delete(usernames.document(currentUsername))
-            }
-
-            if (currentUsername != sanitized) {
-                transaction.set(userDoc, mapOf("username" to sanitized), SetOptions.merge())
-            }
-
-            sanitized
-        }.await()
-
-        return profile.copy(username = sanitized)
+        return profile.copy(username = claimed)
     }
 
     suspend fun getDropsForUser(uid: String): List<Drop> {
@@ -426,9 +402,18 @@ class FirestoreRepo(
                 users.document(newUserId).set(data, SetOptions.merge()).await()
                 val previousUsername = previousProfile.getString("username")?.takeIf { it.isNotBlank() }
                 if (!previousUsername.isNullOrBlank()) {
-                    usernames.document(previousUsername)
-                        .set(mapOf("userId" to newUserId), SetOptions.merge())
-                        .await()
+                    val sanitized = runCatching { ExplorerUsername.sanitize(previousUsername) }.getOrNull()
+                    if (!sanitized.isNullOrBlank()) {
+                        try {
+                            claimExplorerUsernameRemote(sanitized, transferFrom = previousUserId)
+                        } catch (error: Exception) {
+                            Log.w(
+                                "GeoDrop",
+                                "Failed to transfer username $previousUsername from $previousUserId",
+                                error
+                            )
+                        }
+                    }
                 }
             }
 
@@ -746,6 +731,61 @@ class FirestoreRepo(
             Log.e("GeoDrop", "Redeem drop failed", error)
             RedemptionResult.Error(error.localizedMessage)
         }
+    }
+
+
+    private suspend fun claimExplorerUsernameRemote(
+        sanitizedUsername: String,
+        transferFrom: String? = null
+    ): String {
+        val payload = hashMapOf<String, Any?>("desiredUsername" to sanitizedUsername)
+        if (!transferFrom.isNullOrBlank()) {
+            payload["allowTransferFrom"] = transferFrom
+        }
+
+        val callable = functions.getHttpsCallable("claimExplorerUsername")
+
+        val result = try {
+            callable.call(payload).await()
+        } catch (error: FirebaseFunctionsException) {
+            when (error.code) {
+                FirebaseFunctionsException.Code.ALREADY_EXISTS -> {
+                    throw IllegalStateException(
+                        "That username is already taken. Try another one.",
+                        error
+                    )
+                }
+
+                FirebaseFunctionsException.Code.INVALID_ARGUMENT -> {
+                    val reason = (error.details as? Map<*, *>)
+                        ?.get("reason")
+                        ?.toString()
+                    val validationError = when (reason) {
+                        "TOO_SHORT" -> ExplorerUsername.ValidationError.TOO_SHORT
+                        "TOO_LONG" -> ExplorerUsername.ValidationError.TOO_LONG
+                        "INVALID_CHARACTERS" -> ExplorerUsername.ValidationError.INVALID_CHARACTERS
+                        else -> null
+                    }
+                    if (validationError != null) {
+                        throw ExplorerUsername.InvalidUsernameException(validationError)
+                    }
+                    throw error
+                }
+
+                FirebaseFunctionsException.Code.UNAUTHENTICATED -> {
+                    throw IllegalStateException(
+                        "Sign in again to update your username.",
+                        error
+                    )
+                }
+
+                else -> throw error
+            }
+        }
+
+        val data = result.data as? Map<*, *>
+        val claimed = data?.get("username") as? String
+        return claimed?.takeIf { it.isNotBlank() } ?: sanitizedUsername
     }
 
 
