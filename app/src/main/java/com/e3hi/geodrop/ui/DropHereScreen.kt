@@ -138,6 +138,7 @@ import com.e3hi.geodrop.data.isBusiness
 import com.e3hi.geodrop.data.VisionApiStatus
 import com.e3hi.geodrop.geo.DropDecisionReceiver
 import com.e3hi.geodrop.geo.NearbyDropRegistrar
+import com.e3hi.geodrop.util.ExplorerAccountStore
 import com.e3hi.geodrop.util.GroupPreferences
 import com.e3hi.geodrop.util.NotificationPreferences
 import com.e3hi.geodrop.util.formatTimestamp
@@ -545,6 +546,7 @@ fun DropHereScreen(
     val mediaStorage = remember { MediaStorageRepo() }
     val registrar = remember { NearbyDropRegistrar() }
     val groupPrefs = remember { GroupPreferences(ctx) }
+    val explorerAccountStore = remember { ExplorerAccountStore(ctx) }
     val notificationPrefs = remember { NotificationPreferences(ctx) }
 
     var joinedGroups by remember { mutableStateOf(groupPrefs.getJoinedGroups()) }
@@ -588,6 +590,30 @@ fun DropHereScreen(
     var selectedHomeDestination by rememberSaveable { mutableStateOf(HomeDestination.Explorer.name) }
     var notificationRadius by remember { mutableStateOf(notificationPrefs.getNotificationRadiusMeters()) }
     var showNotificationRadiusDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(currentUser?.uid) {
+        val user = currentUser ?: return@LaunchedEffect
+        if (!user.isAnonymous) return@LaunchedEffect
+
+        val storedExplorerId = explorerAccountStore.getLastExplorerUid()
+        if (storedExplorerId.isNullOrBlank()) {
+            explorerAccountStore.setLastExplorerUid(user.uid)
+            return@LaunchedEffect
+        }
+
+        if (storedExplorerId == user.uid) return@LaunchedEffect
+
+        val migrationResult = runCatching {
+            repo.migrateExplorerAccount(storedExplorerId, user.uid)
+        }
+
+        if (migrationResult.isSuccess) {
+            explorerAccountStore.setLastExplorerUid(user.uid)
+            myDropsRefreshToken += 1
+        } else {
+            Log.e("GeoDrop", "Explorer account migration failed", migrationResult.exceptionOrNull())
+        }
+    }
 
     fun handleSignOut() {
         if (signingOut) return

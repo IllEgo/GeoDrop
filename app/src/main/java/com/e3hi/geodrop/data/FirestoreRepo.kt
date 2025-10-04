@@ -194,6 +194,30 @@ class FirestoreRepo(
         }
     }
 
+    suspend fun migrateExplorerAccount(previousUserId: String, newUserId: String) {
+        if (previousUserId.isBlank() || newUserId.isBlank() || previousUserId == newUserId) return
+
+        try {
+            val previousProfile = users.document(previousUserId).get().await()
+            if (previousProfile.exists()) {
+                val data = previousProfile.data ?: emptyMap<String, Any?>()
+                users.document(newUserId).set(data, SetOptions.merge()).await()
+            }
+
+            val existingDrops = drops
+                .whereEqualTo("createdBy", previousUserId)
+                .get()
+                .await()
+
+            existingDrops.documents.forEach { doc ->
+                doc.reference.update("createdBy", newUserId).await()
+            }
+        } catch (error: Exception) {
+            Log.e("GeoDrop", "Failed to migrate explorer account", error)
+            throw error
+        }
+    }
+
     suspend fun getVisibleDropsForUser(
         userId: String?,
         allowedGroups: Set<String>,
