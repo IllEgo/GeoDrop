@@ -1445,12 +1445,10 @@ class DropDetailActivity : ComponentActivity() {
                             errorMessage = reportError
                         )
                     }
+                }
             }
-            }
-
+        }
     }
-}
-
 }
 
 @Composable
