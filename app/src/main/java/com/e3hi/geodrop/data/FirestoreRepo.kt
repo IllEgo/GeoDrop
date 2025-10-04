@@ -59,11 +59,7 @@ class FirestoreRepo(
         val docRef = users.document(userId)
         val snapshot = docRef.get().await()
 
-        val existingRole = if (snapshot.exists()) {
-            UserRole.fromRaw(snapshot.getString("role"))
-        } else {
-            UserRole.EXPLORER
-        }
+        val storedRoleRaw = snapshot.getString("role")
         val existingBusinessName = snapshot.getString("businessName")?.takeIf { it.isNotBlank() }
         val existingBusinessCategories = snapshot.get("businessCategories")
             ?.let { raw ->
@@ -72,6 +68,21 @@ class FirestoreRepo(
                     ?: emptyList()
             }
             ?: emptyList()
+        val hasBusinessMetadata = !existingBusinessName.isNullOrBlank() || existingBusinessCategories.isNotEmpty()
+        // Older business accounts may not have an explicit role stored yet, so infer it from
+        // business metadata to keep their access.
+        val existingRole = when {
+            !storedRoleRaw.isNullOrBlank() -> {
+                val parsed = UserRole.fromRaw(storedRoleRaw)
+                if (parsed == UserRole.EXPLORER && hasBusinessMetadata) {
+                    UserRole.BUSINESS
+                } else {
+                    parsed
+                }
+            }
+            hasBusinessMetadata -> UserRole.BUSINESS
+            else -> UserRole.EXPLORER
+        }
         val storedDisplayName = snapshot.getString("displayName")?.takeIf { it.isNotBlank() }
         val storedNsfwEnabled = snapshot.getBoolean("nsfwEnabled") == true
         val storedNsfwEnabledAt = snapshot.getLong("nsfwEnabledAt")?.takeIf { it > 0L }
