@@ -83,9 +83,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -4409,8 +4412,36 @@ private fun AccountSignInDialog(
     onGoogleSignIn: () -> Unit
 ) {
     val isBusy = isSubmitting || isGoogleSigningIn
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    val hideKeyboardAndClearFocus = {
+        keyboardController?.hide()
+        focusManager.clearFocus(force = true)
+    }
+    val submitWithKeyboardDismiss = {
+        hideKeyboardAndClearFocus()
+        onSubmit()
+    }
+    val dismissWithKeyboardDismiss = {
+        hideKeyboardAndClearFocus()
+        onDismiss()
+    }
+    val forgotPasswordWithKeyboardDismiss = {
+        hideKeyboardAndClearFocus()
+        onForgotPassword()
+    }
+    val googleSignInWithKeyboardDismiss = {
+        hideKeyboardAndClearFocus()
+        onGoogleSignIn()
+    }
+
     Dialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = {
+            if (!isBusy) {
+                dismissWithKeyboardDismiss()
+            }
+        },
         properties = DialogProperties(
             dismissOnBackPress = !isBusy,
             dismissOnClickOutside = !isBusy
@@ -4489,6 +4520,9 @@ private fun AccountSignInDialog(
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.Email,
                         imeAction = ImeAction.Next
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onNext = { focusManager.moveFocus(FocusDirection.Next) }
                     )
                 )
 
@@ -4502,7 +4536,16 @@ private fun AccountSignInDialog(
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.Password,
                         imeAction = if (isRegister) ImeAction.Next else ImeAction.Done
-                    )
+                    ),
+                    keyboardActions = if (isRegister) {
+                        KeyboardActions(
+                            onNext = { focusManager.moveFocus(FocusDirection.Next) }
+                        )
+                    } else {
+                        KeyboardActions(
+                            onDone = { submitWithKeyboardDismiss() }
+                        )
+                    }
                 )
 
                 if (isRegister) {
@@ -4516,6 +4559,9 @@ private fun AccountSignInDialog(
                         keyboardOptions = KeyboardOptions(
                             keyboardType = KeyboardType.Password,
                             imeAction = ImeAction.Done
+                        ),
+                        keyboardActions = KeyboardActions(
+                            onDone = { submitWithKeyboardDismiss() }
                         )
                     )
                 }
@@ -4538,7 +4584,7 @@ private fun AccountSignInDialog(
 
                 if (!isRegister) {
                     TextButton(
-                        onClick = onForgotPassword,
+                        onClick = forgotPasswordWithKeyboardDismiss,
                         enabled = !isBusy,
                         modifier = Modifier.align(Alignment.End)
                     ) {
@@ -4552,7 +4598,7 @@ private fun AccountSignInDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     OutlinedButton(
-                        onClick = onDismiss,
+                        onClick = dismissWithKeyboardDismiss,
                         enabled = !isBusy,
                         modifier = Modifier.weight(1f)
                     ) {
@@ -4560,7 +4606,7 @@ private fun AccountSignInDialog(
                     }
 
                     Button(
-                        onClick = onSubmit,
+                        onClick = submitWithKeyboardDismiss,
                         enabled = !isBusy,
                         modifier = Modifier.weight(1f)
                     ) {
@@ -4592,7 +4638,7 @@ private fun AccountSignInDialog(
                     textAlign = TextAlign.Center
                 )
                 OutlinedButton(
-                    onClick = onGoogleSignIn,
+                    onClick = googleSignInWithKeyboardDismiss,
                     enabled = !isBusy,
                     modifier = Modifier.fillMaxWidth()
                 ) {
