@@ -29,7 +29,7 @@ android {
             "String",
             "FIREBASE_FUNCTIONS_REGION",
             "\"$escapedFunctionsRegion\""
-        )v
+        )
     }
 
     compileOptions {
