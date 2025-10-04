@@ -29,6 +29,8 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -198,6 +200,7 @@ fun DropHereScreen(
     var currentUser by remember { mutableStateOf(auth.currentUser) }
     val termsPrefs = remember(ctx) { TermsPreferences(ctx) }
     var hasAcceptedTerms by remember { mutableStateOf(termsPrefs.hasAcceptedTerms()) }
+    var hasViewedOnboarding by remember { mutableStateOf(termsPrefs.hasViewedFirstRunOnboarding()) }
     var signingIn by remember { mutableStateOf(false) }
     var signInError by remember { mutableStateOf<String?>(null) }
     var showBusinessSignIn by remember { mutableStateOf(false) }
@@ -517,6 +520,19 @@ fun DropHereScreen(
     }
 
     if (currentUser == null) {
+        if (!hasViewedOnboarding) {
+            FirstRunOnboardingScreen(
+                onContinue = {
+                    termsPrefs.recordOnboardingViewed()
+                    hasViewedOnboarding = true
+                },
+                onExit = {
+                    (ctx as? Activity)?.finish()
+                }
+            )
+            return
+        }
+
         if (!hasAcceptedTerms) {
             TermsAcceptanceScreen(
                 onAccept = {
@@ -2189,6 +2205,165 @@ private fun TermsAcceptanceScreen(
         }
     }
 }
+
+@Composable
+private fun FirstRunOnboardingScreen(
+    onContinue: () -> Unit,
+    onExit: () -> Unit
+) {
+    val slides = remember {
+        listOf(
+            OnboardingSlide(
+                icon = Icons.Rounded.Map,
+                title = "Discover nearby drops",
+                description = "See stories, rewards, and community posts pinned to real-world locations around you."
+            ),
+            OnboardingSlide(
+                icon = Icons.Rounded.Place,
+                title = "Collect and redeem",
+                description = "Walk up to a drop to unlock it, save it to your inventory, and redeem special offers in person."
+            ),
+            OnboardingSlide(
+                icon = Icons.Rounded.Storefront,
+                title = "Share your own moments",
+                description = "Create drops with photos, audio, or coupons so nearby explorers can discover your business or story."
+            )
+        )
+    }
+    val pagerState = rememberPagerState(pageCount = { slides.size })
+    val scope = rememberCoroutineScope()
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp)
+    ) {
+        Surface(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .fillMaxWidth(),
+            shape = RoundedCornerShape(24.dp),
+            tonalElevation = 6.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(24.dp)
+                    .fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Welcome to GeoDrop",
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(onClick = onContinue) {
+                        Text("Skip")
+                    }
+                }
+
+                HorizontalPager(
+                    state = pagerState,
+                    modifier = Modifier.fillMaxWidth()
+                ) { page ->
+                    val slide = slides[page]
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Surface(
+                            modifier = Modifier.size(140.dp),
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primaryContainer
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = slide.icon,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.size(72.dp)
+                                )
+                            }
+                        }
+
+                        Text(
+                            text = slide.title,
+                            style = MaterialTheme.typography.titleMedium,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        Text(
+                            text = slide.description,
+                            style = MaterialTheme.typography.bodyMedium,
+                            textAlign = TextAlign.Center,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    slides.forEachIndexed { index, _ ->
+                        val isSelected = pagerState.currentPage == index
+                        Box(
+                            modifier = Modifier
+                                .padding(horizontal = 4.dp)
+                                .height(8.dp)
+                                .width(if (isSelected) 24.dp else 8.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    if (isSelected) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.surfaceVariant
+                                )
+                        )
+                    }
+                }
+
+                Button(
+                    onClick = {
+                        if (pagerState.currentPage == slides.lastIndex) {
+                            onContinue()
+                        } else {
+                            scope.launch {
+                                pagerState.animateScrollToPage(pagerState.currentPage + 1)
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(if (pagerState.currentPage == slides.lastIndex) "Continue" else "Next")
+                }
+            }
+        }
+
+        TextButton(
+            onClick = onExit,
+            modifier = Modifier.align(Alignment.BottomStart)
+        ) {
+            Text("Exit app")
+        }
+    }
+}
+
+private data class OnboardingSlide(
+    val icon: ImageVector,
+    val title: String,
+    val description: String
+)
 
 private const val TERMS_PRIVACY_SUMMARY =
     "GeoDrop uses your location and saved preferences to help you discover nearby drops. " +
