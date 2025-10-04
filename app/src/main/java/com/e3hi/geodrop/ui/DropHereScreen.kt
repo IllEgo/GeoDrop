@@ -2449,9 +2449,9 @@ GeoDrop may send push notifications about nearby drops, reminders, or account up
 We use industry-standard safeguards to protect your data. However, we cannot guarantee the security of information transmitted over the internet.
 
 By accepting, you agree to follow these terms whenever you use GeoDrop.
-""${'"'}.trimIndent()
+""".trimIndent()
 
-private val PRIVACY_POLICY_TEXT = ""${'"'}
+private val PRIVACY_POLICY_TEXT = """
 🔐 GeoDrop – Privacy Policy
 Last updated: 10/02/2025
 
