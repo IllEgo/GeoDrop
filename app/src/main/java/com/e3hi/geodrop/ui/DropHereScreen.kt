@@ -581,6 +581,39 @@ fun DropHereScreen(
         return
     }
 
+    if (showAccountSignIn) {
+        AccountSignInDialog(
+            accountType = accountType,
+            onAccountTypeChange = { type ->
+                if (accountAuthSubmitting || accountGoogleSigningIn) return@AccountSignInDialog
+                accountType = type
+                accountAuthError = null
+                accountAuthStatus = null
+            },
+            mode = accountAuthMode,
+            onModeChange = { mode ->
+                if (accountAuthSubmitting || accountGoogleSigningIn) return@AccountSignInDialog
+                accountAuthMode = mode
+                accountAuthError = null
+                accountAuthStatus = null
+            },
+            email = accountEmail,
+            onEmailChange = { accountEmail = it },
+            password = accountPassword,
+            onPasswordChange = { accountPassword = it },
+            confirmPassword = accountConfirmPassword,
+            onConfirmPasswordChange = { accountConfirmPassword = it },
+            isSubmitting = accountAuthSubmitting,
+            isGoogleSigningIn = accountGoogleSigningIn,
+            error = accountAuthError,
+            status = accountAuthStatus,
+            onSubmit = { performAccountAuth() },
+            onDismiss = { dismissAccountAuthDialog() },
+            onForgotPassword = { sendAccountPasswordReset() },
+            onGoogleSignIn = { startAccountGoogleSignIn() }
+        )
+    }
+
     if (userMode == null) {
         if (anonymousBrowseRequested) {
             ExplorerAutoSignInScreen(
@@ -2185,39 +2218,6 @@ fun DropHereScreen(
                 }
             },
             onDismiss = { showNsfwDialog = false }
-        )
-    }
-
-    if (showAccountSignIn) {
-        AccountSignInDialog(
-            accountType = accountType,
-            onAccountTypeChange = { type ->
-                if (accountAuthSubmitting || accountGoogleSigningIn) return@AccountSignInDialog
-                accountType = type
-                accountAuthError = null
-                accountAuthStatus = null
-            },
-            mode = accountAuthMode,
-            onModeChange = { mode ->
-                if (accountAuthSubmitting || accountGoogleSigningIn) return@AccountSignInDialog
-                accountAuthMode = mode
-                accountAuthError = null
-                accountAuthStatus = null
-            },
-            email = accountEmail,
-            onEmailChange = { accountEmail = it },
-            password = accountPassword,
-            onPasswordChange = { accountPassword = it },
-            confirmPassword = accountConfirmPassword,
-            onConfirmPasswordChange = { accountConfirmPassword = it },
-            isSubmitting = accountAuthSubmitting,
-            isGoogleSigningIn = accountGoogleSigningIn,
-            error = accountAuthError,
-            status = accountAuthStatus,
-            onSubmit = { performAccountAuth() },
-            onDismiss = { dismissAccountAuthDialog() },
-            onForgotPassword = { sendAccountPasswordReset() },
-            onGoogleSignIn = { startAccountGoogleSignIn() }
         )
     }
 
