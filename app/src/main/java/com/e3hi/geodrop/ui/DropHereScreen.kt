@@ -678,6 +678,7 @@ fun DropHereScreen(
     val userDataSync = remember { UserDataSyncRepository(repo, groupPrefs, noteInventory, scope) }
 
     val canParticipate = userMode.canParticipate
+    val hasExplorerAccount = userMode != UserMode.GUEST
     val readOnlyParticipationMessage = when (userMode) {
         UserMode.GUEST -> "Create an account to fully participate."
         UserMode.ANONYMOUS_BROWSING -> "Sign in with an account to fully participate."
@@ -1724,7 +1725,7 @@ fun DropHereScreen(
             myDropsDeletingId = null
             myDropsCurrentLocation = null
             val uid = FirebaseAuth.getInstance().currentUser?.uid
-            if (!canParticipate) {
+            if (!hasExplorerAccount) {
                 myDrops = emptyList()
                 myDropsLoading = false
                 myDropsError = participationRestriction("view your drops")
@@ -2062,7 +2063,7 @@ fun DropHereScreen(
                             title = stringResource(R.string.action_my_drops_title),
                             description = stringResource(R.string.action_my_drops_description),
                             onClick = {
-                                if (!canParticipate) {
+                                if (!hasExplorerAccount) {
                                     snackbar.showMessage(scope, participationRestriction("view and manage your drops"))
                                 } else {
                                     showMyDrops = true
