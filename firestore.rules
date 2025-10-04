@@ -104,7 +104,8 @@ service cloud.firestore {
           'redemptionLimit',
           'redemptionCount',
           'redeemedBy',
-          'decayDays'
+          'decayDays',
+          'collectedBy'
         ]);
       }
 
@@ -121,7 +122,8 @@ service cloud.firestore {
         && request.writeFields.hasOnly([
           'voteMap.' + request.auth.uid,
           'upvoteCount',
-          'downvoteCount'
+          'downvoteCount',
+          'collectedBy.' + request.auth.uid
         ])
         && isValidVoteTransition(resource.data, request.resource.data, request.auth.uid);
     }
