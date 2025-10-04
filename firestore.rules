@@ -73,6 +73,7 @@ service cloud.firestore {
     }
 
     match /drops/{dropId} {
+      allow get, list: if isSignedIn() || request.auth == null;
       allow update: if isSignedIn()
         && request.writeFields.hasOnly([
           'voteMap.' + request.auth.uid,
