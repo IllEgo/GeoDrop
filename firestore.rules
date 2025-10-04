@@ -74,6 +74,49 @@ service cloud.firestore {
 
     match /drops/{dropId} {
       allow get, list: if isSignedIn() || request.auth == null;
+      function hasOnlyAllowedDropFields() {
+        return request.resource.data.keys().hasOnly([
+          'text',
+          'lat',
+          'lng',
+          'createdBy',
+          'createdAt',
+          'isDeleted',
+          'deletedAt',
+          'groupCode',
+          'dropType',
+          'businessId',
+          'businessName',
+          'contentType',
+          'mediaUrl',
+          'mediaMimeType',
+          'mediaData',
+          'mediaStoragePath',
+          'isNsfw',
+          'nsfw',
+          'nsfwLabels',
+          'upvoteCount',
+          'downvoteCount',
+          'voteMap',
+          'reportCount',
+          'reportedBy',
+          'redemptionCode',
+          'redemptionLimit',
+          'redemptionCount',
+          'redeemedBy',
+          'decayDays'
+        ]);
+      }
+
+      function isExplorer() {
+        return isSignedIn()
+          && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+          && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'EXPLORER';
+      }
+
+      allow create: if isExplorer()
+        && request.resource.data.createdBy == request.auth.uid
+        && hasOnlyAllowedDropFields();
       allow update: if isSignedIn()
         && request.writeFields.hasOnly([
           'voteMap.' + request.auth.uid,
