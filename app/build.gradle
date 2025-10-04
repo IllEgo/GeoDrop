@@ -58,6 +58,8 @@ dependencies {
     implementation platform('com.google.firebase:firebase-bom:33.2.0')
     implementation 'com.google.firebase:firebase-storage-ktx'
     implementation 'com.google.firebase:firebase-functions-ktx'
+    implementation 'com.google.firebase:firebase-appcheck-playintegrity'
+    debugImplementation 'com.google.firebase:firebase-appcheck-debug'
 
     // Firebase Auth (PLAIN, not -ktx)
     implementation 'com.google.firebase:firebase-auth'
