@@ -15,6 +15,7 @@ import com.google.firebase.functions.ktx.functions
 import com.google.firebase.ktx.Firebase
 import com.e3hi.geodrop.util.GroupPreferences
 import java.util.Locale
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.tasks.await
 
 /**
@@ -31,6 +32,7 @@ class FirestoreRepo(
     private val usernames = db.collection("usernames")
     private val reports = db.collection("reports")
     private val functions = Firebase.functions(BuildConfig.FIREBASE_FUNCTIONS_REGION)
+    private val claimExplorerUsernameCallableUnavailable = AtomicBoolean(false)
 
     private fun userGroupsCollection(userId: String) =
         users.document(userId).collection("groups")
@@ -745,6 +747,10 @@ class FirestoreRepo(
         sanitizedUsername: String,
         transferFrom: String? = null
     ): String {
+        if (claimExplorerUsernameCallableUnavailable.get()) {
+            return claimExplorerUsernameFallback(userId, sanitizedUsername, transferFrom)
+        }
+
         val payload = hashMapOf<String, Any?>("desiredUsername" to sanitizedUsername)
         if (!transferFrom.isNullOrBlank()) {
             payload["allowTransferFrom"] = transferFrom
@@ -787,11 +793,15 @@ class FirestoreRepo(
                 }
 
                 FirebaseFunctionsException.Code.NOT_FOUND -> {
-                    Log.w(
-                        "GeoDrop",
-                        "claimExplorerUsername function missing; falling back to client transaction",
-                        error
-                    )
+                    val alreadyMarkedMissing =
+                        claimExplorerUsernameCallableUnavailable.getAndSet(true)
+                    if (!alreadyMarkedMissing) {
+                        Log.w(
+                            "GeoDrop",
+                            "claimExplorerUsername function missing; falling back to client transaction",
+                            error
+                        )
+                    }
                     return claimExplorerUsernameFallback(userId, sanitizedUsername, transferFrom)
                 }
 
