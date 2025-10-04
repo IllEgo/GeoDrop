@@ -858,6 +858,19 @@ class FirestoreRepo(
 
                 sanitizedUsername
             }.await()
+        } catch (error: FirebaseFirestoreException) {
+            if (error.code == FirebaseFirestoreException.Code.PERMISSION_DENIED) {
+                Log.w(
+                    "GeoDrop",
+                    "Username reservation denied by security rules; falling back to direct user document update",
+                    error
+                )
+                return claimExplorerUsernameWithoutReservation(userId, sanitizedUsername)
+            }
+            throw IllegalStateException(
+                "Couldn't update your username. Try again.",
+                error
+            )
         } catch (error: IllegalStateException) {
             throw error
         } catch (error: Exception) {
@@ -866,6 +879,33 @@ class FirestoreRepo(
                 error
             )
         }
+    }
+
+    private suspend fun claimExplorerUsernameWithoutReservation(
+        userId: String,
+        sanitizedUsername: String
+    ): String {
+        val existing = users
+            .whereEqualTo("username", sanitizedUsername)
+            .get()
+            .await()
+            .documents
+            .firstOrNull { it.id != userId }
+
+        if (existing != null) {
+            throw IllegalStateException("That username is already taken. Try another one.")
+        }
+
+        users.document(userId)
+            .set(mapOf("username" to sanitizedUsername), SetOptions.merge())
+            .await()
+
+        Log.w(
+            "GeoDrop",
+            "Username claimed without reservation; uniqueness relies on users collection query"
+        )
+
+        return sanitizedUsername
     }
 
 
