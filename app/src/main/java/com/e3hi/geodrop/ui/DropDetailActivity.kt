@@ -1362,86 +1362,90 @@ class DropDetailActivity : ComponentActivity() {
 
                     }
                 }
-            }
-        }
 
-            if (reportDialogOpen) {
-                val loadedState = state as? DropDetailUiState.Loaded
-                ReportDropDialog(
-                    reasons = reportReasons,
-                    selectedReasons = reportSelectedReasons,
-                    onReasonToggle = { code ->
-                        reportSelectedReasons = if (reportSelectedReasons.contains(code)) {
-                            reportSelectedReasons - code
-                        } else {
-                            reportSelectedReasons + code
-                        }
-                    },
-                    onDismiss = {
-                        if (!reportProcessing) {
-                            reportDialogOpen = false
-                            reportError = null
-                        }
-                    },
-                    onSubmit = submit@{
-                        val userId = currentUserId
-                        if (userId.isNullOrBlank()) {
-                            Toast.makeText(context, "Sign in to report drops.", Toast.LENGTH_SHORT).show()
-                            return@submit
-                        }
-                        if (dropId.isBlank()) {
-                            reportError = "Drop information is missing."
-                            return@submit
-                        }
-                        val detail = loadedState ?: return@submit
-                        if (reportSelectedReasons.isEmpty()) {
-                            reportError = "Select at least one reason."
-                            return@submit
-                        }
-                        reportProcessing = true
-                        reportError = null
-                        scope.launch {
-                            try {
-                                repo.submitDropReport(
-                                    dropId = dropId,
-                                    reporterId = userId,
-                                    reasonCodes = reportSelectedReasons,
-                                    additionalContext = mapOf(
-                                        "source" to "detail_screen",
-                                        "contentType" to detail.contentType.name,
-                                        "hasMedia" to (detail.mediaUrl != null || detail.mediaData != null)
-                                    )
-                                )
-                                reportDialogOpen = false
-                                val currentLoaded = state as? DropDetailUiState.Loaded ?: detail
-                                val alreadyReported = currentLoaded.reportedBy.containsKey(userId)
-                                val updatedReportedBy = currentLoaded.reportedBy.toMutableMap()
-                                updatedReportedBy[userId] = System.currentTimeMillis()
-                                val updatedCount = if (alreadyReported) {
-                                    currentLoaded.reportCount
+                    if (reportDialogOpen) {
+                        val loadedState = state as? DropDetailUiState.Loaded
+                        ReportDropDialog(
+                            reasons = reportReasons,
+                            selectedReasons = reportSelectedReasons,
+                            onReasonToggle = { code ->
+                                reportSelectedReasons = if (reportSelectedReasons.contains(code)) {
+                                    reportSelectedReasons - code
                                 } else {
-                                    currentLoaded.reportCount + 1
+                                    reportSelectedReasons + code
                                 }
-                                state = currentLoaded.copy(
-                                    reportedBy = updatedReportedBy,
-                                    reportCount = updatedCount
-                                )
-                                noteInventory.markIgnored(dropId)
-                                decisionHandled = true
-                                decisionStatusMessage = "Thanks for your report. We'll review it soon."
-                                Toast.makeText(context, "Report submitted.", Toast.LENGTH_SHORT).show()
-                            } catch (error: Exception) {
-                                val message = error.localizedMessage?.takeIf { it.isNotBlank() }
-                                    ?: "Couldn't submit report. Try again."
-                                reportError = message
-                            } finally {
-                                reportProcessing = false
+                            },
+                            onDismiss = {
+                                if (!reportProcessing) {
+                                    reportDialogOpen = false
+                                    reportError = null
+                                }
+                            },
+                            onSubmit = submit@{
+                                val userId = currentUserId
+                                if (userId.isNullOrBlank()) {
+                                    Toast.makeText(
+                                        context,
+                                        "Sign in to report drops.",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                    return@submit
+                                }
+                                if (dropId.isBlank()) {
+                                    reportError = "Drop information is missing."
+                                    return@submit
+                                }
+                                val detail = loadedState ?: return@submit
+                                if (reportSelectedReasons.isEmpty()) {
+                                    reportError = "Select at least one reason."
+                                    return@submit
+                                }
+                                reportProcessing = true
+                            reportError = null
+                                scope.launch {
+                                    try {
+                                        repo.submitDropReport(
+                                            dropId = dropId,
+                                            reporterId = userId,
+                                            reasonCodes = reportSelectedReasons,
+                                            additionalContext = mapOf(
+                                                "source" to "detail_screen",
+                                                "contentType" to detail.contentType.name,
+                                                "hasMedia" to (detail.mediaUrl != null || detail.mediaData != null)
+                                            )
+                                    )
+                                        reportDialogOpen = false
+                                        val currentLoaded = state as? DropDetailUiState.Loaded ?: detail
+                                        val alreadyReported = currentLoaded.reportedBy.containsKey(userId)
+                                        val updatedReportedBy = currentLoaded.reportedBy.toMutableMap()
+                                        updatedReportedBy[userId] = System.currentTimeMillis()
+                                        val updatedCount = if (alreadyReported) {
+                                            currentLoaded.reportCount
+                                        } else {
+                                            currentLoaded.reportCount + 1
+                                        }
+                                        state = currentLoaded.copy(
+                                            reportedBy = updatedReportedBy,
+                                            reportCount = updatedCount
+                                        )
+                                        noteInventory.markIgnored(dropId)
+                                        decisionHandled = true
+                                        decisionStatusMessage = "Thanks for your report. We'll review it soon."
+                                        Toast.makeText(context, "Report submitted.", Toast.LENGTH_SHORT).show()
+                                    } catch (error: Exception) {
+                                        val message = error.localizedMessage?.takeIf { it.isNotBlank() }
+                                            ?: "Couldn't submit report. Try again."
+                                        reportError = message
+                                    } finally {
+                                        reportProcessing = false
+                                }
                             }
-                        }
-                    },
-                    isSubmitting = reportProcessing,
-                    errorMessage = reportError
-                )
+                            },
+                            isSubmitting = reportProcessing,
+                            errorMessage = reportError
+                        )
+                    }
+            }
             }
 
     }
