@@ -805,6 +805,15 @@ class FirestoreRepo(
                     return claimExplorerUsernameFallback(userId, sanitizedUsername, transferFrom)
                 }
 
+                FirebaseFunctionsException.Code.PERMISSION_DENIED -> {
+                    Log.w(
+                        "GeoDrop",
+                        "claimExplorerUsername permission denied; falling back to client transaction",
+                        error
+                    )
+                    return claimExplorerUsernameFallback(userId, sanitizedUsername, transferFrom)
+                }
+
                 FirebaseFunctionsException.Code.UNAVAILABLE,
                 FirebaseFunctionsException.Code.DEADLINE_EXCEEDED -> {
                     Log.w(
