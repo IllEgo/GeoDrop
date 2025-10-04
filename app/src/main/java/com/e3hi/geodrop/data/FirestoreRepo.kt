@@ -805,6 +805,16 @@ class FirestoreRepo(
                     return claimExplorerUsernameFallback(userId, sanitizedUsername, transferFrom)
                 }
 
+                FirebaseFunctionsException.Code.UNAVAILABLE,
+                FirebaseFunctionsException.Code.DEADLINE_EXCEEDED -> {
+                    Log.w(
+                        "GeoDrop",
+                        "claimExplorerUsername function unavailable; falling back to client transaction",
+                        error
+                    )
+                    return claimExplorerUsernameFallback(userId, sanitizedUsername, transferFrom)
+                }
+
                 else -> throw error
             }
         }
