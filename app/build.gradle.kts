@@ -20,6 +20,16 @@ android {
             ?: ""
         val escapedVisionKey = visionApiKey.replace("\"", "\\\"")
         buildConfigField("String", "GOOGLE_VISION_API_KEY", "\"$escapedVisionKey\"")
+
+        val functionsRegion = (project.findProperty("FIREBASE_FUNCTIONS_REGION") as String?)
+            ?: System.getenv("FIREBASE_FUNCTIONS_REGION")
+            ?: "us-central1"
+        val escapedFunctionsRegion = functionsRegion.replace("\"", "\\\"")
+        buildConfigField(
+            "String",
+            "FIREBASE_FUNCTIONS_REGION",
+            "\"$escapedFunctionsRegion\""
+        )v
     }
 
     compileOptions {

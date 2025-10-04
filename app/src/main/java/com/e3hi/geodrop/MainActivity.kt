@@ -62,7 +62,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             val apiKey = remember { fetchVisionApiKey() }
             val safeSearchCallable = remember {
-                val functions = FirebaseFunctions.getInstance("us-central1")
+                val functions = FirebaseFunctions.getInstance(BuildConfig.FIREBASE_FUNCTIONS_REGION)
                 GoogleVisionSafeSearchEvaluator.SafeSearchCallable { payload ->
                     val result = functions
                         .getHttpsCallable("safeSearch")

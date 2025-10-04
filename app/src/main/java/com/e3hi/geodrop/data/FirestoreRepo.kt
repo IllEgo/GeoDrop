@@ -1,6 +1,7 @@
 package com.e3hi.geodrop.data
 
 import android.util.Log
+import com.e3hi.geodrop.BuildConfig
 import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldPath
@@ -29,7 +30,7 @@ class FirestoreRepo(
     private val users = db.collection("users")
     private val usernames = db.collection("usernames")
     private val reports = db.collection("reports")
-    private val functions = Firebase.functions("us-central1")
+    private val functions = Firebase.functions(BuildConfig.FIREBASE_FUNCTIONS_REGION)
 
     private fun userGroupsCollection(userId: String) =
         users.document(userId).collection("groups")
