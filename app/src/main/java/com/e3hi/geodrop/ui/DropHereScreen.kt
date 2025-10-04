@@ -635,6 +635,14 @@ fun DropHereScreen(
     fun handleSignOut() {
         if (signingOut) return
 
+        val user = auth.currentUser
+        if (user?.isAnonymous == true) {
+            showAccountMenu = false
+            snackbar.showMessage(scope, "You're already exploring anonymously.")
+            return
+        }
+
+
         showAccountMenu = false
         signingOut = true
         showBusinessDashboard = false
