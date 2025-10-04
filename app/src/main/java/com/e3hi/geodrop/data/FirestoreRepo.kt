@@ -26,6 +26,7 @@ class FirestoreRepo(
     private val drops = db.collection("drops")
     private val users = db.collection("users")
     private val reports = db.collection("reports")
+    private val usernames = db.collection("usernames")
 
     private fun userGroupsCollection(userId: String) =
         users.document(userId).collection("groups")
@@ -255,6 +256,7 @@ class FirestoreRepo(
             else -> UserRole.EXPLORER
         }
         val storedDisplayName = snapshot.getString("displayName")?.takeIf { it.isNotBlank() }
+        val storedUsername = snapshot.getString("username")?.takeIf { it.isNotBlank() }
         val storedNsfwEnabled = snapshot.getBoolean("nsfwEnabled") == true
         val storedNsfwEnabledAt = snapshot.getLong("nsfwEnabledAt")?.takeIf { it > 0L }
         val resolvedDisplayName = storedDisplayName ?: displayName?.takeIf { it.isNotBlank() }
@@ -265,6 +267,7 @@ class FirestoreRepo(
             updates["businessName"] = existingBusinessName
             updates["businessCategories"] = existingBusinessCategories.map { it.id }
             updates["displayName"] = resolvedDisplayName
+            storedUsername?.let { updates["username"] = it }
             updates["nsfwEnabled"] = storedNsfwEnabled
             updates["nsfwEnabledAt"] = storedNsfwEnabledAt
         } else {
@@ -292,6 +295,7 @@ class FirestoreRepo(
         return UserProfile(
             id = userId,
             displayName = resolvedDisplayName,
+            username = storedUsername,
             role = existingRole,
             businessName = existingBusinessName,
             businessCategories = existingBusinessCategories,
@@ -346,6 +350,42 @@ class FirestoreRepo(
         )
     }
 
+    suspend fun updateExplorerUsername(userId: String, desiredUsername: String): UserProfile {
+        val profile = ensureUserProfile(userId)
+        if (userId.isBlank()) return profile
+
+        val sanitized = ExplorerUsername.sanitize(desiredUsername)
+        val userDoc = users.document(userId)
+        val usernameDoc = usernames.document(sanitized)
+
+        db.runTransaction { transaction ->
+            val userSnapshot = transaction.get(userDoc)
+            val currentUsername = userSnapshot.getString("username")?.takeIf { it.isNotBlank() }
+
+            val existingClaim = transaction.get(usernameDoc)
+            if (existingClaim.exists()) {
+                val owner = existingClaim.getString("userId")
+                if (!owner.isNullOrBlank() && owner != userId) {
+                    throw IllegalStateException("That username is already taken. Try another one.")
+                }
+            }
+
+            transaction.set(usernameDoc, mapOf("userId" to userId))
+
+            if (!currentUsername.isNullOrBlank() && currentUsername != sanitized) {
+                transaction.delete(usernames.document(currentUsername))
+            }
+
+            if (currentUsername != sanitized) {
+                transaction.set(userDoc, mapOf("username" to sanitized), SetOptions.merge())
+            }
+
+            sanitized
+        }.await()
+
+        return profile.copy(username = sanitized)
+    }
+
     suspend fun getDropsForUser(uid: String): List<Drop> {
         val snapshot = drops
             .whereEqualTo("createdBy", uid)
@@ -384,6 +424,12 @@ class FirestoreRepo(
             if (previousProfile.exists()) {
                 val data = previousProfile.data ?: emptyMap<String, Any?>()
                 users.document(newUserId).set(data, SetOptions.merge()).await()
+                val previousUsername = previousProfile.getString("username")?.takeIf { it.isNotBlank() }
+                if (!previousUsername.isNullOrBlank()) {
+                    usernames.document(previousUsername)
+                        .set(mapOf("userId" to newUserId), SetOptions.merge())
+                        .await()
+                }
             }
 
             val existingDrops = drops

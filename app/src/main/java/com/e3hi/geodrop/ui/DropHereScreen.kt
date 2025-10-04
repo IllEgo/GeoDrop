@@ -34,6 +34,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -90,6 +91,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.TextFieldValue
@@ -127,6 +129,7 @@ import com.e3hi.geodrop.data.NoteInventory
 import com.e3hi.geodrop.data.UserDataSyncRepository
 import com.e3hi.geodrop.data.DropType
 import com.e3hi.geodrop.data.UserProfile
+import com.e3hi.geodrop.data.ExplorerUsername
 import com.e3hi.geodrop.data.UserMode
 import com.e3hi.geodrop.data.dropTemplatesFor
 import com.e3hi.geodrop.data.UserRole
@@ -220,6 +223,12 @@ fun DropHereScreen(
     var showBusinessOnboarding by remember { mutableStateOf(false) }
     var accountGoogleSigningIn by remember { mutableStateOf(false) }
     var showAccountMenu by remember { mutableStateOf(false) }
+    var showExplorerProfile by remember { mutableStateOf(false) }
+    var explorerUsernameField by rememberSaveable(stateSaver = TextFieldValue.Saver) {
+        mutableStateOf(TextFieldValue(""))
+    }
+    var explorerProfileSubmitting by remember { mutableStateOf(false) }
+    var explorerProfileError by remember { mutableStateOf<String?>(null) }
     var signingOut by remember { mutableStateOf(false) }
     var showNsfwDialog by remember { mutableStateOf(false) }
     var nsfwUpdating by remember { mutableStateOf(false) }
@@ -778,9 +787,12 @@ fun DropHereScreen(
         showAccountSignIn = false
         showNsfwDialog = false
         status = null
+        showExplorerProfile = false
         signInError = null
         accountAuthError = null
         accountAuthStatus = null
+        explorerProfileError = null
+        explorerProfileSubmitting = false
 
         scope.launch {
             val result = runCatching {
@@ -844,6 +856,60 @@ fun DropHereScreen(
 
     fun clearVideo() {
         capturedVideoUri = null
+    }
+
+    fun saveExplorerUsername() {
+        if (explorerProfileSubmitting) return
+
+        val userId = currentUserId
+        if (userId.isNullOrBlank()) {
+            explorerProfileError = ctx.getString(R.string.explorer_profile_error_sign_in)
+            return
+        }
+
+        val desired = explorerUsernameField.text
+        val sanitized = try {
+            ExplorerUsername.sanitize(desired)
+        } catch (error: ExplorerUsername.InvalidUsernameException) {
+            explorerProfileError = when (error.reason) {
+                ExplorerUsername.ValidationError.TOO_SHORT -> ctx.getString(R.string.explorer_profile_error_too_short)
+                ExplorerUsername.ValidationError.TOO_LONG -> ctx.getString(R.string.explorer_profile_error_too_long)
+                ExplorerUsername.ValidationError.INVALID_CHARACTERS ->
+                    ctx.getString(R.string.explorer_profile_error_invalid_characters)
+            }
+            return
+        }
+
+        explorerProfileSubmitting = true
+        explorerProfileError = null
+
+        scope.launch {
+            try {
+                val updated = repo.updateExplorerUsername(userId, sanitized)
+                userProfile = updated
+                showExplorerProfile = false
+                val usernameForMessage = updated.username ?: sanitized
+                snackbar.showMessage(
+                    scope,
+                    ctx.getString(R.string.explorer_profile_status_saved, "@$usernameForMessage")
+                )
+            } catch (error: ExplorerUsername.InvalidUsernameException) {
+                explorerProfileError = when (error.reason) {
+                    ExplorerUsername.ValidationError.TOO_SHORT -> ctx.getString(R.string.explorer_profile_error_too_short)
+                    ExplorerUsername.ValidationError.TOO_LONG -> ctx.getString(R.string.explorer_profile_error_too_long)
+                    ExplorerUsername.ValidationError.INVALID_CHARACTERS ->
+                        ctx.getString(R.string.explorer_profile_error_invalid_characters)
+                }
+            } catch (error: IllegalStateException) {
+                explorerProfileError = error.localizedMessage?.takeIf { it.isNotBlank() }
+                    ?: ctx.getString(R.string.explorer_profile_error_taken)
+            } catch (error: Exception) {
+                explorerProfileError = error.localizedMessage?.takeIf { it.isNotBlank() }
+                    ?: ctx.getString(R.string.explorer_profile_error_generic)
+            } finally {
+                explorerProfileSubmitting = false
+            }
+        }
     }
 
     fun pickUpDrop(drop: Drop) {
@@ -1007,6 +1073,10 @@ fun DropHereScreen(
             userProfileError = null
             userProfileLoading = false
             dropType = DropType.COMMUNITY
+            explorerUsernameField = TextFieldValue("")
+            explorerProfileSubmitting = false
+            explorerProfileError = null
+            showExplorerProfile = false
         } else {
             userProfileLoading = true
             userProfileError = null
@@ -1017,6 +1087,14 @@ fun DropHereScreen(
             } finally {
                 userProfileLoading = false
             }
+        }
+    }
+
+    LaunchedEffect(showExplorerProfile) {
+        if (showExplorerProfile) {
+            explorerUsernameField = TextFieldValue(userProfile?.username.orEmpty())
+            explorerProfileSubmitting = false
+            explorerProfileError = null
         }
     }
 
@@ -1769,6 +1847,27 @@ fun DropHereScreen(
 
                                     UserMode.SIGNED_IN -> {
                                         if (!isBusinessUser) {
+                                            val explorerUsername = userProfile?.username?.takeIf { it.isNotBlank() }
+                                            DropdownMenuItem(
+                                                text = {
+                                                    Text(
+                                                        explorerUsername?.let {
+                                                            stringResource(
+                                                                R.string.menu_edit_username_with_value,
+                                                                it
+                                                            )
+                                                        } ?: stringResource(R.string.menu_set_username)
+                                                    )
+                                                },
+                                                leadingIcon = { Icon(Icons.Rounded.Edit, contentDescription = null) },
+                                                onClick = {
+                                                    showAccountMenu = false
+                                                    explorerProfileError = null
+                                                    explorerProfileSubmitting = false
+                                                    explorerUsernameField = TextFieldValue(explorerUsername.orEmpty())
+                                                    showExplorerProfile = true
+                                                }
+                                            )
                                             DropdownMenuItem(
                                                 text = { Text(stringResource(R.string.menu_sign_in_business_account)) },
                                                 leadingIcon = { Icon(Icons.Rounded.Storefront, contentDescription = null) },
@@ -2217,6 +2316,22 @@ fun DropHereScreen(
             onRemove = { note ->
                 noteInventory.removeCollected(note.id)
                 collectedNotes = noteInventory.getCollectedNotes()
+            }
+        )
+    }
+
+    if (showExplorerProfile) {
+        ExplorerProfileDialog(
+            currentUsername = userProfile?.username,
+            username = explorerUsernameField,
+            onUsernameChange = { explorerUsernameField = it },
+            isSubmitting = explorerProfileSubmitting,
+            error = explorerProfileError,
+            onSubmit = { saveExplorerUsername() },
+            onDismiss = {
+                if (!explorerProfileSubmitting) {
+                    showExplorerProfile = false
+                }
             }
         )
     }
@@ -4490,6 +4605,117 @@ private fun AccountSignInDialog(
                         Text("Connecting to Google…")
                     } else {
                         Text("Sign in with Google")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ExplorerProfileDialog(
+    currentUsername: String?,
+    username: TextFieldValue,
+    onUsernameChange: (TextFieldValue) -> Unit,
+    isSubmitting: Boolean,
+    error: String?,
+    onSubmit: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    Dialog(
+        onDismissRequest = {
+            if (!isSubmitting) onDismiss()
+        }
+    ) {
+        Surface(
+            shape = MaterialTheme.shapes.large,
+            tonalElevation = 6.dp,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            val scrollState = rememberScrollState()
+            Column(
+                modifier = Modifier
+                    .padding(24.dp)
+                    .verticalScroll(scrollState),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = stringResource(R.string.explorer_profile_title),
+                    style = MaterialTheme.typography.titleLarge
+                )
+
+                Text(
+                    text = stringResource(R.string.explorer_profile_description),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                currentUsername?.takeIf { it.isNotBlank() }?.let { existing ->
+                    Text(
+                        text = stringResource(R.string.explorer_profile_current_username, "@$existing"),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                OutlinedTextField(
+                    value = username,
+                    onValueChange = onUsernameChange,
+                    label = { Text(stringResource(R.string.explorer_profile_username_label)) },
+                    placeholder = { Text(stringResource(R.string.explorer_profile_username_placeholder)) },
+                    singleLine = true,
+                    enabled = !isSubmitting,
+                    keyboardOptions = KeyboardOptions(
+                        capitalization = KeyboardCapitalization.None,
+                        autoCorrect = false,
+                        keyboardType = KeyboardType.Ascii,
+                        imeAction = ImeAction.Done
+                    ),
+                    keyboardActions = KeyboardActions(onDone = { onSubmit() }),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Text(
+                    text = stringResource(R.string.explorer_profile_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                error?.let { message ->
+                    Text(
+                        text = message,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        enabled = !isSubmitting,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Cancel")
+                    }
+
+                    Button(
+                        onClick = onSubmit,
+                        enabled = !isSubmitting,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        if (isSubmitting) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Text(stringResource(R.string.explorer_profile_save))
+                        }
                     }
                 }
             }

@@ -4,7 +4,8 @@
     <string name="notif_channel_desc">Alerts when you enter a drop area</string>
     <string name="google_maps_key">AIzaSyDD9c_0xHim_ITvXZlHY67b_m_SR-9DUJs</string>
     <string name="default_web_client_id"></string>
-    <string name="drag_to_resize">Drag to resize</string><string name="content_description_account_options">Account options</string>
+    <string name="drag_to_resize">Drag to resize</string>
+    <string name="content_description_account_options">Account options</string>
     <string name="menu_browse_anonymously">Browse anonymously (read-only)</string>
     <string name="menu_sign_in_full_participation">Sign in for full participation</string>
     <string name="status_switching">Switching…</string>
@@ -55,4 +56,20 @@
     <string name="audio_recorder_use_recording">Use this recording</string>
     <string name="audio_recorder_discard_recording">Discard recording</string>
     <string name="audio_recorder_tip">Make sure you\'re in a quiet spot so others can hear your message clearly.</string>
+    <string name="menu_set_username">Set explorer username</string>
+    <string name="menu_edit_username_with_value">Change explorer username (@%1$s)</string>
+    <string name="explorer_profile_title">Explorer profile</string>
+    <string name="explorer_profile_description">Choose a unique username so other explorers can recognize you.</string>
+    <string name="explorer_profile_current_username">Current username: %1$s</string>
+    <string name="explorer_profile_username_label">Username</string>
+    <string name="explorer_profile_username_placeholder">@username</string>
+    <string name="explorer_profile_hint">Usernames can include letters, numbers, underscores, and periods. Keep it between 3 and 20 characters.</string>
+    <string name="explorer_profile_error_sign_in">Sign in again to update your username.</string>
+    <string name="explorer_profile_error_too_short">Usernames must be at least 3 characters.</string>
+    <string name="explorer_profile_error_too_long">Usernames can be at most 20 characters.</string>
+    <string name="explorer_profile_error_invalid_characters">Use only letters, numbers, underscores, or periods.</string>
+    <string name="explorer_profile_error_taken">That username is already taken. Try another one.</string>
+    <string name="explorer_profile_error_generic">Couldn\'t update your username. Try again.</string>
+    <string name="explorer_profile_save">Save username</string>
+    <string name="explorer_profile_status_saved">Username updated to %1$s.</string>
 </resources>
