@@ -24,6 +24,8 @@ data class Drop(
     val upvoteCount: Long = 0,
     val downvoteCount: Long = 0,
     val voteMap: Map<String, Long> = emptyMap(),
+    val reportCount: Long = 0,
+    val reportedBy: Map<String, Long> = emptyMap(),
     val redemptionCode: String? = null,
     val redemptionLimit: Int? = null,
     val redemptionCount: Int = 0,

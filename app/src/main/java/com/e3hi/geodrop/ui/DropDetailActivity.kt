@@ -38,10 +38,12 @@ import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.material.icons.rounded.Place
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Public
+import androidx.compose.material.icons.rounded.Report
 import androidx.compose.material.icons.rounded.ThumbDown
 import androidx.compose.material.icons.rounded.ThumbUp
 import androidx.compose.material.icons.rounded.Videocam
 import androidx.compose.material3.Button
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
@@ -52,9 +54,11 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.DisposableEffect
@@ -172,6 +176,8 @@ class DropDetailActivity : ComponentActivity() {
                                 upvoteCount = 0,
                                 downvoteCount = 0,
                                 voteMap = emptyMap(),
+                                reportCount = 0,
+                                reportedBy = emptyMap(),
                                 createdBy = null,
                                 dropType = initialDropType,
                                 businessName = initialBusinessName,
@@ -211,6 +217,8 @@ class DropDetailActivity : ComponentActivity() {
                             upvoteCount = 0,
                             downvoteCount = 0,
                             voteMap = emptyMap(),
+                            reportCount = 0,
+                            reportedBy = emptyMap(),
                             createdBy = null,
                             dropType = initialDropType,
                             businessName = initialBusinessName,
@@ -261,6 +269,7 @@ class DropDetailActivity : ComponentActivity() {
                         val initialLoaded = initialState as? DropDetailUiState.Loaded
                         val sanitizedVoteMap = parseVoteMap(doc.get("voteMap"))
                         val sanitizedRedeemedMap = parseRedeemedMap(doc.get("redeemedBy"))
+                        val sanitizedReportedBy = parseReportedBy(doc.get("reportedBy"))
                         val resolvedNsfwFlag = when {
                             doc.contains("isNsfw") -> doc.getBoolean("isNsfw") == true
                             doc.contains("nsfw") -> doc.getBoolean("nsfw") == true
@@ -324,6 +333,14 @@ class DropDetailActivity : ComponentActivity() {
                                 ?: previousLoaded?.voteMap
                                 ?: initialLoaded?.voteMap
                                 ?: emptyMap(),
+                            reportCount = doc.getLong("reportCount")
+                                ?: previousLoaded?.reportCount
+                                ?: initialLoaded?.reportCount
+                                ?: 0L,
+                            reportedBy = sanitizedReportedBy
+                                ?: previousLoaded?.reportedBy
+                                ?: initialLoaded?.reportedBy
+                                ?: emptyMap(),
                             createdBy = doc.getString("createdBy")?.takeIf { it.isNotBlank() }
                                 ?: previousLoaded?.createdBy
                                 ?: initialLoaded?.createdBy,
@@ -383,6 +400,7 @@ class DropDetailActivity : ComponentActivity() {
                     }
                     val canParticipate = userMode.canParticipate
                     val repo = remember { FirestoreRepo() }
+                    val reportReasons = remember { DefaultReportReasons }
                     val scope = rememberCoroutineScope()
                     var nsfwAllowed by remember { mutableStateOf(false) }
                     LaunchedEffect(currentUserId) {
@@ -398,6 +416,11 @@ class DropDetailActivity : ComponentActivity() {
                     var decisionStatusMessage by remember(dropId) { mutableStateOf<String?>(null) }
                     var decisionProcessing by remember(dropId) { mutableStateOf(false) }
                     var isVoting by remember(dropId) { mutableStateOf(false) }
+                    var reportDialogOpen by remember(dropId) { mutableStateOf(false) }
+                    var reportSelectedReasons by remember(dropId) { mutableStateOf(setOf<String>()) }
+                    var reportProcessing by remember(dropId) { mutableStateOf(false) }
+                    var reportError by remember(dropId) { mutableStateOf<String?>(null) }
+                    var blockProcessing by remember(dropId) { mutableStateOf(false) }
                     var hasCollected by remember(dropId) {
                         mutableStateOf(dropId.isNotBlank() && noteInventory.isCollected(dropId))
                     }
@@ -1160,6 +1183,151 @@ class DropDetailActivity : ComponentActivity() {
                                 }
                             }
 
+                            val showModerationActions = loadedState != null &&
+                                    !loadedState.createdBy.isNullOrBlank() &&
+                                    loadedState.createdBy != currentUserId
+
+                            if (showModerationActions) {
+                                val creatorId = loadedState!!.createdBy.orEmpty()
+                                val alreadyReported = loadedState.reportedBy.containsKey(currentUserId)
+                                ElevatedCard(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(20.dp)
+                                ) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(20.dp),
+                                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        Text(
+                                            text = "Keep GeoDrop safe",
+                                            style = MaterialTheme.typography.titleMedium
+                                        )
+                                        Text(
+                                            text = "Report suspicious drops or block this creator if you don't want to see their posts again.",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                        ) {
+                                            val signedIn = !currentUserId.isNullOrBlank()
+                                            OutlinedButton(
+                                                onClick = {
+                                                    if (!signedIn) {
+                                                        Toast.makeText(
+                                                            context,
+                                                            "Sign in to report drops.",
+                                                            Toast.LENGTH_SHORT
+                                                        ).show()
+                                                        return@OutlinedButton
+                                                    }
+                                                    reportSelectedReasons = emptySet()
+                                                    reportError = null
+                                                    reportDialogOpen = true
+                                                },
+                                                enabled = !reportProcessing && !alreadyReported && signedIn,
+                                                modifier = Modifier.weight(1f)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Rounded.Report,
+                                                    contentDescription = null
+                                                )
+                                                Spacer(Modifier.width(8.dp))
+                                                Text(if (alreadyReported) "Reported" else "Report")
+                                            }
+
+                                            OutlinedButton(
+                                                onClick = {
+                                                    val userId = currentUserId
+                                                    if (userId.isNullOrBlank()) {
+                                                        Toast.makeText(
+                                                            context,
+                                                            "Sign in to block creators.",
+                                                            Toast.LENGTH_SHORT
+                                                        ).show()
+                                                        return@OutlinedButton
+                                                    }
+                                                    if (!canParticipate) {
+                                                        val message = if (userMode == UserMode.ANONYMOUS_BROWSING) {
+                                                            "Sign in with an account to block creators."
+                                                        } else {
+                                                            "Sign in to block creators."
+                                                        }
+                                                        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                                                        return@OutlinedButton
+                                                    }
+                                                    if (dropId.isBlank()) {
+                                                        Toast.makeText(
+                                                            context,
+                                                            "Drop information is missing.",
+                                                            Toast.LENGTH_SHORT
+                                                        ).show()
+                                                        return@OutlinedButton
+                                                    }
+                                                    blockProcessing = true
+                                                    scope.launch {
+                                                        try {
+                                                            repo.blockDropCreator(userId, creatorId)
+                                                            noteInventory.markIgnored(dropId)
+                                                            decisionHandled = true
+                                                            decisionStatusMessage = "Creator blocked. You won't see their drops anymore."
+                                                            Toast.makeText(
+                                                                context,
+                                                                "Creator blocked.",
+                                                                Toast.LENGTH_SHORT
+                                                            ).show()
+                                                        } catch (error: Exception) {
+                                                            val message = error.localizedMessage?.takeIf { it.isNotBlank() }
+                                                                ?: "Couldn't block this creator. Try again."
+                                                            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                                                        } finally {
+                                                            blockProcessing = false
+                                                        }
+                                                    }
+                                                },
+                                                enabled = !blockProcessing && canParticipate && !currentUserId.isNullOrBlank(),
+                                                modifier = Modifier.weight(1f)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Rounded.Block,
+                                                    contentDescription = null
+                                                )
+                                                Spacer(Modifier.width(8.dp))
+                                                Text("Block creator")
+                                            }
+                                        }
+                                        if (!canParticipate || currentUserId.isNullOrBlank()) {
+                                            Text(
+                                                text = if (currentUserId.isNullOrBlank()) {
+                                                    "Sign in to report or block this creator."
+                                                } else {
+                                                    "Upgrade to a full account to block creators."
+                                                },
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                        if (alreadyReported) {
+                                            Text(
+                                                text = "Thanks for your report. We'll review it soon.",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                        reportError?.let { errorMessage ->
+                                            Text(
+                                                text = errorMessage,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.error
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
                             decisionMessage?.let { messageText ->
                                 Surface(
                                     color = MaterialTheme.colorScheme.secondaryContainer,
@@ -1196,6 +1364,86 @@ class DropDetailActivity : ComponentActivity() {
                 }
             }
         }
+
+            if (reportDialogOpen) {
+                val loadedState = state as? DropDetailUiState.Loaded
+                ReportDropDialog(
+                    reasons = reportReasons,
+                    selectedReasons = reportSelectedReasons,
+                    onReasonToggle = { code ->
+                        reportSelectedReasons = if (reportSelectedReasons.contains(code)) {
+                            reportSelectedReasons - code
+                        } else {
+                            reportSelectedReasons + code
+                        }
+                    },
+                    onDismiss = {
+                        if (!reportProcessing) {
+                            reportDialogOpen = false
+                            reportError = null
+                        }
+                    },
+                    onSubmit = submit@{
+                        val userId = currentUserId
+                        if (userId.isNullOrBlank()) {
+                            Toast.makeText(context, "Sign in to report drops.", Toast.LENGTH_SHORT).show()
+                            return@submit
+                        }
+                        if (dropId.isBlank()) {
+                            reportError = "Drop information is missing."
+                            return@submit
+                        }
+                        val detail = loadedState ?: return@submit
+                        if (reportSelectedReasons.isEmpty()) {
+                            reportError = "Select at least one reason."
+                            return@submit
+                        }
+                        reportProcessing = true
+                        reportError = null
+                        scope.launch {
+                            try {
+                                repo.submitDropReport(
+                                    dropId = dropId,
+                                    reporterId = userId,
+                                    reasonCodes = reportSelectedReasons,
+                                    additionalContext = mapOf(
+                                        "source" to "detail_screen",
+                                        "contentType" to detail.contentType.name,
+                                        "hasMedia" to (detail.mediaUrl != null || detail.mediaData != null)
+                                    )
+                                )
+                                reportDialogOpen = false
+                                val currentLoaded = state as? DropDetailUiState.Loaded ?: detail
+                                val alreadyReported = currentLoaded.reportedBy.containsKey(userId)
+                                val updatedReportedBy = currentLoaded.reportedBy.toMutableMap()
+                                updatedReportedBy[userId] = System.currentTimeMillis()
+                                val updatedCount = if (alreadyReported) {
+                                    currentLoaded.reportCount
+                                } else {
+                                    currentLoaded.reportCount + 1
+                                }
+                                state = currentLoaded.copy(
+                                    reportedBy = updatedReportedBy,
+                                    reportCount = updatedCount
+                                )
+                                noteInventory.markIgnored(dropId)
+                                decisionHandled = true
+                                decisionStatusMessage = "Thanks for your report. We'll review it soon."
+                                Toast.makeText(context, "Report submitted.", Toast.LENGTH_SHORT).show()
+                            } catch (error: Exception) {
+                                val message = error.localizedMessage?.takeIf { it.isNotBlank() }
+                                    ?: "Couldn't submit report. Try again."
+                                reportError = message
+                            } finally {
+                                reportProcessing = false
+                            }
+                        }
+                    },
+                    isSubmitting = reportProcessing,
+                    errorMessage = reportError
+                )
+            }
+
     }
 }
 
@@ -1342,6 +1590,8 @@ private fun DropDetailUiState.Loaded.toDropForVoting(): Drop {
         upvoteCount = upvoteCount,
         downvoteCount = downvoteCount,
         voteMap = voteMap,
+        reportCount = reportCount,
+        reportedBy = reportedBy,
         createdBy = createdBy.orEmpty(),
         dropType = dropType,
         businessId = businessId,
@@ -1403,6 +1653,119 @@ private fun parseRedeemedMap(raw: Any?): Map<String, Long>? {
         }
     }
     return result
+}
+
+private fun parseReportedBy(raw: Any?): Map<String, Long>? {
+    if (raw !is Map<*, *>) return null
+    if (raw.isEmpty()) return emptyMap()
+
+    val result = mutableMapOf<String, Long>()
+    raw.forEach { (key, value) ->
+        val keyString = key as? String ?: return@forEach
+        val timestamp = when (value) {
+            is Number -> value.toLong()
+            is String -> value.toLongOrNull()
+            is Map<*, *> -> {
+                val nested = value["reportedAt"]
+                when (nested) {
+                    is Number -> nested.toLong()
+                    is String -> nested.toLongOrNull()
+                    else -> null
+                }
+            }
+            is Boolean -> if (value) 0L else null
+            else -> null
+        }
+        if (timestamp != null) {
+            result[keyString] = timestamp
+        }
+    }
+    return result
+}
+
+private data class ReportReason(val code: String, val label: String)
+
+private val DefaultReportReasons = listOf(
+    ReportReason("spam", "Spam or misleading"),
+    ReportReason("harassment", "Harassment or hate"),
+    ReportReason("nsfw", "Sexual or adult content"),
+    ReportReason("violence", "Violence or dangerous activity"),
+    ReportReason("other", "Something else")
+)
+
+@Composable
+private fun ReportDropDialog(
+    reasons: List<ReportReason>,
+    selectedReasons: Set<String>,
+    onReasonToggle: (String) -> Unit,
+    onDismiss: () -> Unit,
+    onSubmit: () -> Unit,
+    isSubmitting: Boolean,
+    errorMessage: String?
+) {
+    AlertDialog(
+        onDismissRequest = {
+            if (!isSubmitting) {
+                onDismiss()
+            }
+        },
+        title = { Text("Report drop") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    text = "Select one or more reasons so our team can review this drop.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                reasons.forEach { reason ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(
+                            checked = reason.code in selectedReasons,
+                            onCheckedChange = { onReasonToggle(reason.code) },
+                            enabled = !isSubmitting
+                        )
+                        Text(
+                            text = reason.label,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(start = 8.dp)
+                        )
+                    }
+                }
+                errorMessage?.let { message ->
+                    Text(
+                        text = message,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = onSubmit,
+                enabled = !isSubmitting
+            ) {
+                if (isSubmitting) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(Modifier.width(8.dp))
+                }
+                Text("Submit")
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                enabled = !isSubmitting
+            ) {
+                Text("Cancel")
+            }
+        }
+    )
 }
 
 private data class DropDetailTagData(
@@ -1682,6 +2045,8 @@ private sealed interface DropDetailUiState {
         val upvoteCount: Long = 0,
         val downvoteCount: Long = 0,
         val voteMap: Map<String, Long> = emptyMap(),
+        val reportCount: Long = 0,
+        val reportedBy: Map<String, Long> = emptyMap(),
         val createdBy: String? = null,
         val dropType: DropType = DropType.COMMUNITY,
         val businessName: String? = null,

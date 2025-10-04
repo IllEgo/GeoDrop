@@ -24,12 +24,16 @@ class FirestoreRepo(
 ) {
     private val drops = db.collection("drops")
     private val users = db.collection("users")
+    private val reports = db.collection("reports")
 
     private fun userGroupsCollection(userId: String) =
         users.document(userId).collection("groups")
 
     private fun userInventoryCollection(userId: String) =
         users.document(userId).collection("inventory")
+
+    private fun userBlockedCreatorsCollection(userId: String) =
+        users.document(userId).collection("blockedCreators")
 
     /**
      * NEW: Suspend API. Writes a drop and returns the new document id.
@@ -404,6 +408,17 @@ class FirestoreRepo(
             .mapNotNull { GroupPreferences.normalizeGroupCode(it) }
             .toSet()
 
+        val blockedCreators = if (userId.isNullOrBlank()) {
+            emptySet()
+        } else {
+            val snapshot = userBlockedCreatorsCollection(userId).get().await()
+            snapshot.documents.mapNotNull { doc ->
+                val fromId = doc.id.takeIf { it.isNotBlank() }
+                val explicit = doc.getString("creatorId")?.takeIf { it.isNotBlank() }
+                fromId ?: explicit
+            }.toSet()
+        }
+
         val snapshot = drops
             .whereEqualTo("isDeleted", false)
             .get()
@@ -416,10 +431,93 @@ class FirestoreRepo(
 
             if (!drop.isVisibleTo(userId, normalizedGroups)) return@mapNotNull null
             if (drop.isNsfw && !allowNsfw && drop.createdBy != userId) return@mapNotNull null
+            if (!userId.isNullOrBlank() && drop.reportedBy.containsKey(userId)) return@mapNotNull null
+            if (!drop.createdBy.isNullOrBlank() && drop.createdBy in blockedCreators) return@mapNotNull null
             if (drop.isExpired()) return@mapNotNull null
 
             drop
         }
+    }
+
+    suspend fun submitDropReport(
+        dropId: String,
+        reporterId: String,
+        reasonCodes: Collection<String>,
+        additionalContext: Map<String, Any?> = emptyMap()
+    ) {
+        if (dropId.isBlank() || reporterId.isBlank()) return
+
+        val sanitizedReasons = reasonCodes
+            .mapNotNull { code ->
+                val trimmed = code.trim()
+                trimmed.takeIf { it.isNotEmpty() }
+            }
+            .distinct()
+            .ifEmpty { listOf("unspecified") }
+
+        val now = System.currentTimeMillis()
+        val dropRef = drops.document(dropId)
+        val dropSnapshot = runCatching { dropRef.get().await() }.getOrNull()
+        val dropExists = dropSnapshot?.exists() == true
+        val dropMetadata = dropSnapshot
+            ?.takeIf { it.exists() }
+            ?.toDrop()
+            ?.toModerationSnapshot()
+
+        val reportData = hashMapOf<String, Any?>(
+            "dropId" to dropId,
+            "reportedBy" to reporterId,
+            "reportedAt" to now,
+            "reasonCodes" to sanitizedReasons,
+            "status" to "pending"
+        )
+
+        if (additionalContext.isNotEmpty()) {
+            reportData["context"] = additionalContext
+        }
+        if (dropMetadata != null) {
+            reportData["dropSnapshot"] = dropMetadata
+        }
+
+        reports.add(reportData).await()
+
+        if (!dropExists) return
+
+        db.runTransaction { transaction ->
+            val snapshot = transaction.get(dropRef)
+            if (!snapshot.exists()) {
+                return@runTransaction
+            }
+
+            @Suppress("UNCHECKED_CAST")
+            val current = snapshot.get("reportedBy") as? Map<String, Any?>
+            val alreadyReported = current?.containsKey(reporterId) == true
+            val updates = hashMapOf<String, Any?>(
+                "reportedBy.$reporterId" to now
+            )
+            if (!alreadyReported) {
+                val currentCount = snapshot.getLong("reportCount") ?: 0L
+                updates["reportCount"] = currentCount + 1
+            }
+
+            transaction.set(dropRef, updates, SetOptions.merge())
+        }.await()
+    }
+
+    suspend fun blockDropCreator(userId: String, creatorId: String) {
+        if (userId.isBlank()) return
+        val sanitized = creatorId.trim()
+        if (sanitized.isEmpty()) return
+
+        val data = hashMapOf<String, Any?>(
+            "creatorId" to sanitized,
+            "blockedAt" to System.currentTimeMillis()
+        )
+
+        userBlockedCreatorsCollection(userId)
+            .document(sanitized)
+            .set(data, SetOptions.merge())
+            .await()
     }
 
     suspend fun deleteDrop(dropId: String) {
@@ -605,6 +703,7 @@ class FirestoreRepo(
             redemptionLimit = withTimestamp.redemptionLimit?.takeIf { it > 0 },
             redemptionCount = withTimestamp.redemptionCount.coerceAtLeast(0),
             redeemedBy = withTimestamp.redeemedBy.filterKeys { it.isNotBlank() },
+            reportedBy = withTimestamp.reportedBy.filterKeys { it.isNotBlank() },
             decayDays = withTimestamp.decayDays?.takeIf { it > 0 }
         )
 
@@ -631,6 +730,8 @@ class FirestoreRepo(
             "upvoteCount" to sanitized.upvoteCount,
             "downvoteCount" to sanitized.downvoteCount,
             "voteMap" to sanitized.voteMap,
+            "reportCount" to sanitized.reportCount,
+            "reportedBy" to sanitized.reportedBy,
             "redemptionCode" to sanitized.redemptionCode,
             "redemptionLimit" to sanitized.redemptionLimit,
             "redemptionCount" to sanitized.redemptionCount,
@@ -712,6 +813,35 @@ class FirestoreRepo(
         return data
     }
 
+    private fun Drop.toModerationSnapshot(): Map<String, Any?> {
+        val data = mutableMapOf<String, Any?>()
+        if (id.isNotBlank()) data["id"] = id
+        if (text.isNotBlank()) data["text"] = text
+        data["contentType"] = contentType.name
+        data["createdAt"] = createdAt
+        if (createdBy.isNotBlank()) data["createdBy"] = createdBy
+        lat.takeIf { it != 0.0 }?.let { data["lat"] = it }
+        lng.takeIf { it != 0.0 }?.let { data["lng"] = it }
+        groupCode?.takeIf { it.isNotBlank() }?.let { data["groupCode"] = it }
+        data["dropType"] = dropType.name
+        businessId?.takeIf { it.isNotBlank() }?.let { data["businessId"] = it }
+        businessName?.takeIf { it.isNotBlank() }?.let { data["businessName"] = it }
+        if (!mediaUrl.isNullOrBlank()) data["mediaUrl"] = mediaUrl
+        if (!mediaMimeType.isNullOrBlank()) data["mediaMimeType"] = mediaMimeType
+        if (!mediaStoragePath.isNullOrBlank()) data["mediaStoragePath"] = mediaStoragePath
+        data["isNsfw"] = isNsfw
+        if (nsfwLabels.isNotEmpty()) data["nsfwLabels"] = nsfwLabels
+        data["upvoteCount"] = upvoteCount
+        data["downvoteCount"] = downvoteCount
+        if (decayDays != null) data["decayDays"] = decayDays
+        if (reportCount > 0) data["reportCount"] = reportCount
+        if (reportedBy.isNotEmpty()) data["reportedBy"] = reportedBy.keys
+        if (redemptionLimit != null) data["redemptionLimit"] = redemptionLimit
+        if (redemptionCount > 0) data["redemptionCount"] = redemptionCount
+        if (redeemedBy.isNotEmpty()) data["redeemedBy"] = redeemedBy
+        return data
+    }
+
     private companion object {
         private const val STATE_COLLECTED = "collected"
         private const val STATE_IGNORED = "ignored"
@@ -735,5 +865,6 @@ sealed class RedemptionResult {
 private fun Drop.isVisibleTo(userId: String?, allowedGroups: Set<String>): Boolean {
     if (userId != null && createdBy == userId) return false
     val dropGroup = GroupPreferences.normalizeGroupCode(groupCode)
+    if (userId != null && reportedBy.containsKey(userId)) return false
     return dropGroup == null || dropGroup in allowedGroups
 }
