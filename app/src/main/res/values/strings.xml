@@ -36,6 +36,8 @@
     <string name="metric_hidden">Hidden</string>
     <string name="metric_templates">Templates</string>
     <string name="metric_groups">Groups</string>
+    <string name="metric_open_redemptions">Open redemptions</string>
+    <string name="metric_expiring_offers">Expiring soon (%1$d)</string>
     <string name="drop_detail_already_collected">You\'ve already picked up this drop.</string>
     <string name="drop_detail_already_ignored">You\'ve already ignored this drop.</string>
     <string name="drop_detail_title">Drop details</string>

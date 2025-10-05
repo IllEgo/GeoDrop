@@ -130,7 +130,6 @@ import com.e3hi.geodrop.data.displayTitle
 import com.e3hi.geodrop.data.discoveryDescription
 import com.e3hi.geodrop.data.discoveryTitle
 import com.e3hi.geodrop.data.mediaLabel
-import com.e3hi.geodrop.data.decayAtMillis
 import com.e3hi.geodrop.data.FirestoreRepo
 import com.e3hi.geodrop.data.DropVoteType
 import com.e3hi.geodrop.data.MediaStorageRepo
@@ -153,6 +152,9 @@ import com.e3hi.geodrop.data.userVote
 import com.e3hi.geodrop.data.voteScore
 import com.e3hi.geodrop.data.isBusiness
 import com.e3hi.geodrop.data.VisionApiStatus
+import com.e3hi.geodrop.data.isExpired
+import com.e3hi.geodrop.data.remainingDecayMillis
+import com.e3hi.geodrop.data.decayAtMillis
 import com.e3hi.geodrop.geo.DropDecisionReceiver
 import com.e3hi.geodrop.geo.NearbyDropRegistrar
 import com.e3hi.geodrop.util.ExplorerAccountStore
@@ -1158,27 +1160,6 @@ fun DropHereScreen(
         }
     }
 
-    LaunchedEffect(showBusinessDashboard, businessDashboardRefreshToken, currentUserId) {
-        if (showBusinessDashboard) {
-            if (userProfile?.isBusiness() == true && !currentUserId.isNullOrBlank()) {
-                businessDashboardLoading = true
-                businessDashboardError = null
-                try {
-                    businessDrops = repo.getBusinessDrops(currentUserId)
-                } catch (error: Exception) {
-                    businessDashboardError = error.localizedMessage ?: "Couldn't load your dashboard."
-                } finally {
-                    businessDashboardLoading = false
-                }
-            } else {
-                businessDrops = emptyList()
-            }
-        } else {
-            businessDashboardLoading = false
-            businessDashboardError = null
-        }
-    }
-
     var pendingPhotoPath by remember { mutableStateOf<String?>(null) }
     var pendingPermissionAction by remember { mutableStateOf<(() -> Unit)?>(null) }
     var pendingAudioPermissionAction by remember { mutableStateOf<(() -> Unit)?>(null) }
@@ -1788,6 +1769,65 @@ fun DropHereScreen(
     val currentHomeDestination = runCatching { HomeDestination.valueOf(selectedHomeDestination) }
         .getOrDefault(HomeDestination.Explorer)
 
+    LaunchedEffect(
+        isBusinessUser,
+        currentHomeDestination,
+        showBusinessDashboard,
+        businessDashboardRefreshToken,
+        currentUserId
+    ) {
+        val userId = currentUserId
+        val shouldFetch = isBusinessUser && !userId.isNullOrBlank() &&
+                (showBusinessDashboard || currentHomeDestination == HomeDestination.Business)
+
+        if (shouldFetch) {
+            if (showBusinessDashboard) {
+                businessDashboardLoading = true
+                businessDashboardError = null
+            }
+
+            try {
+                businessDrops = repo.getBusinessDrops(userId!!)
+            } catch (error: Exception) {
+                if (showBusinessDashboard) {
+                    businessDashboardError = error.localizedMessage ?: "Couldn't load your dashboard."
+                }
+            } finally {
+                if (showBusinessDashboard) {
+                    businessDashboardLoading = false
+                }
+            }
+        } else {
+            if (!showBusinessDashboard) {
+                businessDashboardLoading = false
+                businessDashboardError = null
+            }
+
+            if (!isBusinessUser || userId.isNullOrBlank()) {
+                businessDrops = emptyList()
+            }
+        }
+    }
+
+    val businessHomeMetrics = remember(
+        isBusinessUser,
+        businessDrops,
+        myDrops,
+        myDropCountHint,
+        myDropPendingReviewHint
+    ) {
+        if (!isBusinessUser) {
+            BusinessHomeMetrics.Empty
+        } else {
+            deriveBusinessHomeMetrics(
+                businessDrops = businessDrops,
+                fallbackDrops = myDrops,
+                myDropCountHint = myDropCountHint,
+                myDropPendingReviewHint = myDropPendingReviewHint
+            )
+        }
+    }
+
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         topBar = {
@@ -2016,9 +2056,8 @@ fun DropHereScreen(
                 businessName = userProfile?.businessName,
                 businessCategories = userProfile?.businessCategories.orEmpty(),
                 joinedGroups = joinedGroups,
-                myDropCountHint = myDropCountHint,
-                pendingReviewCountHint = myDropPendingReviewHint,
                 statusMessage = status,
+                metrics = businessHomeMetrics,
                 onCreateDrop = {
                     if (!isSubmitting) {
                         showDropComposer = true
@@ -3132,15 +3171,80 @@ private fun UserModeSelectionScreen(
     }
 }
 
-@Composable
+private data class BusinessHomeMetrics(
+    val liveDropCount: Int,
+    val pendingReviewCount: Int,
+    val unresolvedRedemptionCount: Int,
+    val expiringOfferCount: Int
+) {
+    companion object {
+        val Empty = BusinessHomeMetrics(0, 0, 0, 0)
+    }
+}
+
+private val BUSINESS_EXPIRING_SOON_THRESHOLD_MILLIS = TimeUnit.DAYS.toMillis(3)
+
+private fun deriveBusinessHomeMetrics(
+    businessDrops: List<Drop>,
+    fallbackDrops: List<Drop>,
+    myDropCountHint: Int?,
+    myDropPendingReviewHint: Int?
+): BusinessHomeMetrics {
+    val sourceDrops = when {
+        businessDrops.isNotEmpty() -> businessDrops
+        fallbackDrops.isNotEmpty() -> fallbackDrops
+        else -> emptyList()
+    }
+
+    if (sourceDrops.isEmpty()) {
+        return BusinessHomeMetrics(
+            liveDropCount = myDropCountHint ?: 0,
+            pendingReviewCount = myDropPendingReviewHint ?: 0,
+            unresolvedRedemptionCount = 0,
+            expiringOfferCount = 0
+        )
+    }
+
+    val now = System.currentTimeMillis()
+    val businessEntries = sourceDrops
+        .filter { it.isBusinessDrop() && !it.isDeleted }
+
+    if (businessEntries.isEmpty()) {
+        return BusinessHomeMetrics(
+            liveDropCount = myDropCountHint ?: 0,
+            pendingReviewCount = myDropPendingReviewHint ?: 0,
+            unresolvedRedemptionCount = 0,
+            expiringOfferCount = 0
+        )
+    }
+
+    val liveDropCount = businessEntries.count { !it.isExpired(now) }
+    val pendingReviewCount = businessEntries.count { it.reportCount > 0 }
+    val unresolvedRedemptionCount = businessEntries.count { drop ->
+        if (drop.isExpired(now) || !drop.requiresRedemption()) return@count false
+        val remaining = drop.remainingRedemptions()
+        remaining == null || remaining > 0
+    }
+    val expiringOfferCount = businessEntries.count { drop ->
+        val remaining = drop.remainingDecayMillis(now) ?: return@count false
+        remaining in 1..BUSINESS_EXPIRING_SOON_THRESHOLD_MILLIS
+    }
+
+    return BusinessHomeMetrics(
+        liveDropCount = liveDropCount,
+        pendingReviewCount = pendingReviewCount,
+        unresolvedRedemptionCount = unresolvedRedemptionCount,
+        expiringOfferCount = expiringOfferCount
+    )
+}
+
 private fun BusinessHomeScreen(
     modifier: Modifier = Modifier,
     businessName: String?,
     businessCategories: List<BusinessCategory>,
     joinedGroups: List<String>,
-    myDropCountHint: Int?,
-    pendingReviewCountHint: Int?,
     statusMessage: String?,
+    metrics: BusinessHomeMetrics,
     onCreateDrop: () -> Unit,
     onViewDashboard: () -> Unit,
     onUpdateBusinessProfile: () -> Unit,
@@ -3149,8 +3253,10 @@ private fun BusinessHomeScreen(
     onSignOut: () -> Unit,
 ) {
     val templateCount = remember(businessCategories) { dropTemplatesFor(businessCategories).size }
-    val activeDropCount = myDropCountHint ?: 0
-    val pendingReviewCount = pendingReviewCountHint ?: 0
+    val activeDropCount = metrics.liveDropCount
+    val pendingReviewCount = metrics.pendingReviewCount
+    val unresolvedRedemptionCount = metrics.unresolvedRedemptionCount
+    val expiringOfferCount = metrics.expiringOfferCount
     val groupCount = joinedGroups.size
 
     LazyColumn(
@@ -3193,22 +3299,12 @@ private fun BusinessHomeScreen(
                     description = "Review performance and make changes to the drops you've shared.",
                     onClick = onViewMyDrops,
                     trailingContent = {
-                        if (activeDropCount > 0 || pendingReviewCount > 0) {
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                if (activeDropCount > 0) {
-                                    CountBadge(count = activeDropCount)
-                                }
-                                if (pendingReviewCount > 0) {
-                                    MetricPill(
-                                        label = stringResource(R.string.metric_pending_reviews),
-                                        value = pendingReviewCount
-                                    )
-                                }
-                            }
-                        }
+                        BusinessActionSummary(
+                            liveDropCount = activeDropCount,
+                            pendingReviewCount = pendingReviewCount,
+                            unresolvedRedemptionCount = unresolvedRedemptionCount,
+                            expiringOfferCount = expiringOfferCount
+                        )
                     }
                 )
 
@@ -3239,22 +3335,12 @@ private fun BusinessHomeScreen(
                     description = "Track discoveries, redemptions, and engagement in one place.",
                     onClick = onViewDashboard,
                     trailingContent = {
-                        if (activeDropCount > 0 || pendingReviewCount > 0) {
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                if (activeDropCount > 0) {
-                                    CountBadge(count = activeDropCount)
-                                }
-                                if (pendingReviewCount > 0) {
-                                    MetricPill(
-                                        label = stringResource(R.string.metric_pending_reviews),
-                                        value = pendingReviewCount
-                                    )
-                                }
-                            }
-                        }
+                        BusinessActionSummary(
+                            liveDropCount = activeDropCount,
+                            pendingReviewCount = pendingReviewCount,
+                            unresolvedRedemptionCount = unresolvedRedemptionCount,
+                            expiringOfferCount = expiringOfferCount
+                        )
                     }
                 )
 
@@ -3754,6 +3840,76 @@ private fun MetricPill(
                 text = label,
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+private enum class StatusChipTone { Accent, Warning }
+
+@Composable
+private fun StatusChip(
+    text: String,
+    tone: StatusChipTone,
+    modifier: Modifier = Modifier
+) {
+    val (containerColor, contentColor) = when (tone) {
+        StatusChipTone.Accent -> MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.onTertiaryContainer
+        StatusChipTone.Warning -> MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.onErrorContainer
+    }
+
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(50),
+        color = containerColor
+    ) {
+        Text(
+            text = text,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            style = MaterialTheme.typography.labelMedium,
+            color = contentColor,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun BusinessActionSummary(
+    liveDropCount: Int,
+    pendingReviewCount: Int,
+    unresolvedRedemptionCount: Int,
+    expiringOfferCount: Int
+) {
+    if (liveDropCount <= 0 && pendingReviewCount <= 0 && unresolvedRedemptionCount <= 0 && expiringOfferCount <= 0) {
+        return
+    }
+
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        if (liveDropCount > 0) {
+            CountBadge(count = liveDropCount)
+        }
+        if (pendingReviewCount > 0) {
+            MetricPill(
+                label = stringResource(R.string.metric_pending_reviews),
+                value = pendingReviewCount
+            )
+        }
+        if (unresolvedRedemptionCount > 0) {
+            MetricPill(
+                label = stringResource(R.string.metric_open_redemptions),
+                value = unresolvedRedemptionCount
+            )
+        }
+        if (expiringOfferCount > 0) {
+            StatusChip(
+                text = stringResource(R.string.metric_expiring_offers, expiringOfferCount),
+                tone = StatusChipTone.Warning
             )
         }
     }
