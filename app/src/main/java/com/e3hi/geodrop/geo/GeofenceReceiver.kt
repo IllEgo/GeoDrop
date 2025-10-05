@@ -63,6 +63,7 @@ class GeofenceReceiver : BroadcastReceiver() {
                 }
 
                 val dropText = doc.getString("text")?.takeIf { it.isNotBlank() }
+                val dropDescription = doc.getString("description")?.takeIf { it.isNotBlank() }
                 val dropLat = doc.getDouble("lat")
                 val dropLng = doc.getDouble("lng")
                 val dropCreatedAt = doc.getLong("createdAt")?.takeIf { it > 0L }
@@ -92,6 +93,7 @@ class GeofenceReceiver : BroadcastReceiver() {
                 val open = Intent(context, DropDetailActivity::class.java).apply {
                     putExtra("dropId", id)
                     dropText?.let { putExtra("dropText", it) }
+                    dropDescription?.let { putExtra("dropDescription", it) }
                     dropLat?.let { putExtra("dropLat", it) }
                     dropLng?.let { putExtra("dropLng", it) }
                     dropCreatedAt?.let { putExtra("dropCreatedAt", it) }
@@ -122,6 +124,7 @@ class GeofenceReceiver : BroadcastReceiver() {
                     action = DropDecisionReceiver.ACTION_PICK_UP
                     putExtra(DropDecisionReceiver.EXTRA_DROP_ID, id)
                     dropText?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_TEXT, it) }
+                    dropDescription?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_DESCRIPTION, it) }
                     dropLat?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_LAT, it) }
                     dropLng?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_LNG, it) }
                     dropCreatedAt?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_CREATED_AT, it) }

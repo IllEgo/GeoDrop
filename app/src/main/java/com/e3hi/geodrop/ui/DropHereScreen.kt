@@ -54,6 +54,7 @@ import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.Bookmark
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.Inbox
@@ -660,6 +661,7 @@ fun DropHereScreen(
     var dropContentType by remember { mutableStateOf(DropContentType.TEXT) }
     var dropType by remember { mutableStateOf(DropType.COMMUNITY) }
     var note by remember { mutableStateOf(TextFieldValue("")) }
+    var description by remember { mutableStateOf(TextFieldValue("")) }
     var capturedPhotoPath by rememberSaveable { mutableStateOf<String?>(null) }
     var capturedAudioUri by rememberSaveable { mutableStateOf<String?>(null) }
     var capturedVideoUri by rememberSaveable { mutableStateOf<String?>(null) }
@@ -910,6 +912,9 @@ fun DropHereScreen(
             putExtra(DropDecisionReceiver.EXTRA_DROP_ID, drop.id)
             if (drop.text.isNotBlank()) {
                 putExtra(DropDecisionReceiver.EXTRA_DROP_TEXT, drop.text)
+            }
+            if (drop.description.isNotBlank()) {
+                putExtra(DropDecisionReceiver.EXTRA_DROP_DESCRIPTION, drop.description)
             }
             putExtra(DropDecisionReceiver.EXTRA_DROP_CONTENT_TYPE, drop.contentType.name)
             drop.mediaUrl?.takeIf { it.isNotBlank() }?.let {
@@ -1231,6 +1236,7 @@ fun DropHereScreen(
     ) {
         isSubmitting = false
         note = TextFieldValue("")
+        description = TextFieldValue("")
         capturedPhotoPath = null
         clearAudio()
         clearVideo()
@@ -1277,6 +1283,7 @@ fun DropHereScreen(
         contentType: DropContentType,
         dropType: DropType,
         noteText: String,
+        descriptionText: String,
         mediaInput: String?,
         mediaMimeType: String?,
         mediaData: String?,
@@ -1295,12 +1302,11 @@ fun DropHereScreen(
         val sanitizedData = mediaData?.takeIf { it.isNotBlank() }
         val sanitizedSafetyData = mediaDataForSafety?.takeIf { it.isNotBlank() }
         val sanitizedDecayDays = decayDays?.takeIf { it > 0 }
-        val sanitizedText = when (contentType) {
-            DropContentType.TEXT -> noteText.trim()
-            DropContentType.PHOTO, DropContentType.AUDIO, DropContentType.VIDEO -> noteText.trim()
-        }
+        val sanitizedText = noteText.trim()
+        val sanitizedDescription = descriptionText.trim()
         val d = Drop(
             text = sanitizedText,
+            description = sanitizedDescription,
             lat = lat,
             lng = lng,
             createdBy = uid,
@@ -1319,8 +1325,13 @@ fun DropHereScreen(
             decayDays = sanitizedDecayDays
         )
 
+        val safetyText = listOf(sanitizedText, sanitizedDescription)
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .joinToString(separator = "\n")
+            .takeIf { it.isNotBlank() }
         val safety = dropSafetyEvaluator.assess(
-            text = sanitizedText,
+            text = safetyText,
             contentType = contentType,
             mediaMimeType = sanitizedMime,
             mediaData = sanitizedSafetyData,
@@ -1373,6 +1384,7 @@ fun DropHereScreen(
                 var mediaDataResult: String? = null
                 var mediaDataForSafetyResult: String? = null
                 var dropNoteText = note.text
+                var dropDescriptionText = description.text
                 var redemptionCodeResult: String? = null
                 var redemptionLimitResult: Int? = null
                 var decayDaysResult: Int? = null
@@ -1556,6 +1568,7 @@ fun DropHereScreen(
                     return@launch
                 }
 
+                val dropDescription = dropDescriptionText.trim()
                 val safety = addDropAt(
                     lat = lat,
                     lng = lng,
@@ -1563,6 +1576,7 @@ fun DropHereScreen(
                     contentType = dropContentType,
                     dropType = dropType,
                     noteText = dropNoteText,
+                    descriptionText = dropDescription,
                     mediaInput = mediaUrlResult,
                     mediaMimeType = mediaMimeTypeResult,
                     mediaData = mediaDataResult,
@@ -2134,6 +2148,8 @@ fun DropHereScreen(
             onDropContentTypeChange = { dropContentType = it },
             note = note,
             onNoteChange = { note = it },
+            description = description,
+            onDescriptionChange = { description = it },
             capturedPhotoPath = capturedPhotoPath,
             onCapturePhoto = { ensureCameraAndLaunch() },
             onClearPhoto = { clearPhoto() },
@@ -2218,6 +2234,7 @@ fun DropHereScreen(
                 val intent = Intent(ctx, DropDetailActivity::class.java).apply {
                     putExtra("dropId", drop.id)
                     if (drop.text.isNotBlank()) putExtra("dropText", drop.text)
+                    if (drop.description.isNotBlank()) putExtra("dropDescription", drop.description)
                     putExtra("dropContentType", drop.contentType.name)
                     putExtra("dropLat", drop.lat)
                     putExtra("dropLng", drop.lng)
@@ -2276,6 +2293,9 @@ fun DropHereScreen(
                 val intent = Intent(ctx, DropDetailActivity::class.java).apply {
                     putExtra("dropId", note.id)
                     if (note.text.isNotBlank()) putExtra("dropText", note.text)
+                    note.description?.takeIf { it.isNotBlank() }?.let {
+                        putExtra("dropDescription", it)
+                    }
                     note.lat?.let { putExtra("dropLat", it) }
                     note.lng?.let { putExtra("dropLng", it) }
                     note.dropCreatedAt?.let { putExtra("dropCreatedAt", it) }
@@ -3767,6 +3787,8 @@ private fun DropComposerDialog(
     onDropContentTypeChange: (DropContentType) -> Unit,
     note: TextFieldValue,
     onNoteChange: (TextFieldValue) -> Unit,
+    description: TextFieldValue,
+    onDescriptionChange: (TextFieldValue) -> Unit,
     capturedPhotoPath: String?,
     onCapturePhoto: () -> Unit,
     onClearPhoto: () -> Unit,
@@ -3924,6 +3946,7 @@ private fun DropComposerDialog(
                                     onDropTypeChange(template.dropType)
                                     onDropContentTypeChange(template.contentType)
                                     onNoteChange(TextFieldValue(template.note))
+                                    onDescriptionChange(TextFieldValue(template.title))
                                 },
                                 showHeader = false
                             )
@@ -3953,6 +3976,21 @@ private fun DropComposerDialog(
                         label = null,
                         placeholder = { Text("Write something memorable…") },
                         minLines = noteMinLines,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                DropComposerSection(
+                    title = "Description",
+                    description = "Add more context so explorers know what to expect when they find this drop.",
+                    leadingIcon = Icons.Rounded.Description
+                ) {
+                    OutlinedTextField(
+                        value = description,
+                        onValueChange = onDescriptionChange,
+                        label = null,
+                        placeholder = { Text("Share more details…") },
+                        minLines = 2,
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
@@ -5880,14 +5918,14 @@ private fun CollectedNoteCard(
                 )
             }
 
-            val preview = note.text.ifBlank {
-                when (note.contentType) {
+            val preview = note.description?.takeIf { it.isNotBlank() }
+                ?: note.text.takeIf { it.isNotBlank() }
+                ?: when (note.contentType) {
                     DropContentType.TEXT -> "(No message)"
                     DropContentType.PHOTO -> "Photo drop"
                     DropContentType.AUDIO -> "Audio drop"
                     DropContentType.VIDEO -> "Video drop"
                 }
-            }
             Text(
                 text = preview,
                 style = MaterialTheme.typography.bodyLarge,
@@ -5909,7 +5947,7 @@ private fun CollectedNoteCard(
 
                         AsyncImage(
                             model = imageRequest,
-                            contentDescription = note.text.ifBlank { "Photo drop" },
+                            contentDescription = preview,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .heightIn(min = 160.dp, max = 280.dp)
@@ -6594,13 +6632,16 @@ private fun OtherDropRow(
             null
         }
     }
-    val previewText = drop.text.takeIf { it.isNotBlank() }
-        ?: when (drop.contentType) {
+    val previewText = when {
+        drop.description.isNotBlank() -> drop.description
+        drop.text.isNotBlank() -> drop.text
+        else -> when (drop.contentType) {
             DropContentType.PHOTO -> "Preview the photo below."
             DropContentType.AUDIO -> "Use the player below to listen to this drop."
             DropContentType.VIDEO -> "Use the player below to watch this drop."
             DropContentType.TEXT -> null
         }
+    }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -7015,7 +7056,11 @@ private fun OtherDropsMap(
         drops.forEach { drop ->
             val position = LatLng(drop.lat, drop.lng)
             val snippetParts = mutableListOf<String>()
-            val snippetDescription = drop.text.takeIf { it.isNotBlank() }
+            val snippetDescription = when {
+                drop.description.isNotBlank() -> drop.description
+                drop.text.isNotBlank() -> drop.text
+                else -> null
+            }
                 ?: when (drop.contentType) {
                     DropContentType.PHOTO -> "Preview the photo in the drop list."
                     DropContentType.AUDIO -> "Open the drop list to play this recording."

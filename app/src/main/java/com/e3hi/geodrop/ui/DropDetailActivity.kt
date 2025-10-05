@@ -120,6 +120,7 @@ class DropDetailActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val dropId = intent.getStringExtra("dropId").orEmpty()
         val initialText = intent.getStringExtra("dropText")
+        val initialDescription = intent.getStringExtra("dropDescription")?.takeIf { it.isNotBlank() }
         val initialLat = if (intent.hasExtra("dropLat")) intent.getDoubleExtra("dropLat", 0.0) else null
         val initialLng = if (intent.hasExtra("dropLng")) intent.getDoubleExtra("dropLng", 0.0) else null
         val initialCreatedAt = intent.getLongExtra("dropCreatedAt", -1L).takeIf { it > 0L }
@@ -168,6 +169,7 @@ class DropDetailActivity : ComponentActivity() {
                         ) {
                             DropDetailUiState.Loaded(
                                 text = initialText,
+                                description = initialDescription,
                                 lat = initialLat,
                                 lng = initialLng,
                                 createdAt = initialCreatedAt,
@@ -200,6 +202,7 @@ class DropDetailActivity : ComponentActivity() {
                         }
                     } else if (
                         initialText != null ||
+                        initialDescription != null ||
                         initialLat != null ||
                         initialLng != null ||
                         initialCreatedAt != null ||
@@ -209,6 +212,7 @@ class DropDetailActivity : ComponentActivity() {
                     ) {
                         DropDetailUiState.Loaded(
                             text = initialText,
+                            description = initialDescription,
                             lat = initialLat,
                             lng = initialLng,
                             createdAt = initialCreatedAt,
@@ -296,6 +300,10 @@ class DropDetailActivity : ComponentActivity() {
                             text = doc.getString("text")?.takeIf { it.isNotBlank() }
                                 ?: previousLoaded?.text
                                 ?: initialText,
+                            description = doc.getString("description")?.takeIf { it.isNotBlank() }
+                                ?: previousLoaded?.description
+                                ?: initialLoaded?.description
+                                ?: initialDescription,
                             lat = doc.getDouble("lat") ?: previousLoaded?.lat ?: initialLat,
                             lng = doc.getDouble("lng") ?: previousLoaded?.lng ?: initialLng,
                             createdAt = doc.getLong("createdAt")?.takeIf { it > 0L }
@@ -540,7 +548,9 @@ class DropDetailActivity : ComponentActivity() {
                                         DropContentType.AUDIO -> "Audio drop"
                                         DropContentType.VIDEO -> "Video drop"
                                     }
-                                    current.text?.takeIf { it.isNotBlank() } ?: fallback
+                                    current.text?.takeIf { it.isNotBlank() }
+                                        ?: current.description?.takeIf { it.isNotBlank() }
+                                        ?: fallback
                                 }
                                 DropDetailUiState.Loading -> "Loading…"
                                 DropDetailUiState.Deleted -> "Not available"
@@ -841,6 +851,14 @@ class DropDetailActivity : ComponentActivity() {
                                             }
                                         }
                                         Text(message, style = MaterialTheme.typography.bodyLarge)
+                                        loadedState?.description?.takeIf { it.isNotBlank() }?.let { desc ->
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            Text(
+                                                text = desc,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
                                     }
 
                                     if (state is DropDetailUiState.Deleted) {
@@ -932,7 +950,9 @@ class DropDetailActivity : ComponentActivity() {
 
                                             AsyncImage(
                                                 model = imageRequest,
-                                                contentDescription = loadedState.text ?: "Photo drop",
+                                                contentDescription = loadedState.text
+                                                    ?: loadedState.description
+                                                    ?: "Photo drop",
                                                 modifier = Modifier
                                                     .fillMaxWidth()
                                                     .heightIn(min = 180.dp, max = 360.dp)
@@ -1122,6 +1142,9 @@ class DropDetailActivity : ComponentActivity() {
                                                         action = DropDecisionReceiver.ACTION_PICK_UP
                                                         putExtra(DropDecisionReceiver.EXTRA_DROP_ID, dropId)
                                                         current.text?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_TEXT, it) }
+                                                        current.description?.takeIf { it.isNotBlank() }?.let {
+                                                            putExtra(DropDecisionReceiver.EXTRA_DROP_DESCRIPTION, it)
+                                                        }
                                                         current.lat?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_LAT, it) }
                                                         current.lng?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_LNG, it) }
                                                         current.createdAt?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_CREATED_AT, it) }
@@ -1579,6 +1602,7 @@ private fun DropDetailUiState.Loaded.applyUserVoteLocal(
 private fun DropDetailUiState.Loaded.toDropForVoting(): Drop {
     return Drop(
         text = text.orEmpty(),
+        description = description.orEmpty(),
         lat = lat ?: 0.0,
         lng = lng ?: 0.0,
         createdAt = createdAt ?: 0L,
@@ -2041,6 +2065,7 @@ private fun MediaAttachment.asUriOrNull(): Uri? = when (this) {
 private sealed interface DropDetailUiState {
     data class Loaded(
         val text: String?,
+        val description: String?,
         val lat: Double?,
         val lng: Double?,
         val createdAt: Long?,

@@ -926,6 +926,7 @@ class FirestoreRepo(
         val withTimestamp = if (createdAt > 0L) this else copy(createdAt = System.currentTimeMillis())
         val sanitized = withTimestamp.copy(
             text = withTimestamp.text.trim(),
+            description = withTimestamp.description.trim(),
             mediaUrl = withTimestamp.mediaUrl?.trim()?.takeIf { it.isNotEmpty() },
             mediaMimeType = withTimestamp.mediaMimeType?.trim()?.takeIf { it.isNotEmpty() },
             mediaData = withTimestamp.mediaData?.trim()?.takeIf { it.isNotEmpty() },
@@ -943,6 +944,7 @@ class FirestoreRepo(
 
         return hashMapOf(
             "text" to sanitized.text,
+            "description" to sanitized.description.takeIf { it.isNotEmpty() },
             "lat" to sanitized.lat,
             "lng" to sanitized.lng,
             "createdBy" to sanitized.createdBy,
@@ -984,6 +986,7 @@ class FirestoreRepo(
         return CollectedNote(
             id = noteId,
             text = getString("text") ?: "",
+            description = getString("description")?.takeIf { it.isNotBlank() },
             contentType = DropContentType.fromRaw(getString("contentType")),
             mediaUrl = getString("mediaUrl")?.takeIf { it.isNotBlank() },
             mediaMimeType = getString("mediaMimeType")?.takeIf { it.isNotBlank() },
@@ -1022,6 +1025,7 @@ class FirestoreRepo(
         val data = mutableMapOf<String, Any?>(
             "id" to id,
             "text" to text,
+            "description" to description,
             "contentType" to contentType.name,
             "collectedAt" to collectedAt,
             "dropType" to dropType.name,

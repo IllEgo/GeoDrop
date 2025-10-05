@@ -50,6 +50,7 @@ class DropDecisionReceiver : BroadcastReceiver() {
 
     private suspend fun handlePickUp(context: Context, intent: Intent, dropId: String) {
         val text = intent.getStringExtra(EXTRA_DROP_TEXT) ?: ""
+        val description = intent.getStringExtra(EXTRA_DROP_DESCRIPTION)
         val contentType = DropContentType.fromRaw(intent.getStringExtra(EXTRA_DROP_CONTENT_TYPE))
         val mediaUrl = intent.getStringExtra(EXTRA_DROP_MEDIA_URL)
         val mediaMimeType = intent.getStringExtra(EXTRA_DROP_MEDIA_MIME_TYPE)
@@ -96,6 +97,7 @@ class DropDecisionReceiver : BroadcastReceiver() {
         val note = CollectedNote(
             id = dropId,
             text = text,
+            description = description?.takeIf { it.isNotBlank() },
             contentType = contentType,
             mediaUrl = mediaUrl,
             mediaMimeType = mediaMimeType,
@@ -173,6 +175,7 @@ class DropDecisionReceiver : BroadcastReceiver() {
 
         const val EXTRA_DROP_ID = "extra_drop_id"
         const val EXTRA_DROP_TEXT = "extra_drop_text"
+        const val EXTRA_DROP_DESCRIPTION = "extra_drop_description"
         const val EXTRA_DROP_CONTENT_TYPE = "extra_drop_content_type"
         const val EXTRA_DROP_MEDIA_URL = "extra_drop_media_url"
         const val EXTRA_DROP_MEDIA_MIME_TYPE = "extra_drop_media_mime_type"

@@ -9,6 +9,7 @@ import org.json.JSONObject
 data class CollectedNote(
     val id: String,
     val text: String,
+    val description: String? = null,
     val contentType: DropContentType,
     val mediaUrl: String?,
     val mediaMimeType: String?,
@@ -33,6 +34,7 @@ data class CollectedNote(
         return JSONObject().apply {
             put(KEY_ID, id)
             put(KEY_TEXT, text)
+            putOpt(KEY_DESCRIPTION, description)
             put(KEY_CONTENT_TYPE, contentType.name)
             putOpt(KEY_MEDIA_URL, mediaUrl)
             putOpt(KEY_MEDIA_MIME, mediaMimeType)
@@ -58,6 +60,7 @@ data class CollectedNote(
     companion object {
         private const val KEY_ID = "id"
         private const val KEY_TEXT = "text"
+        private const val KEY_DESCRIPTION = "description"
         private const val KEY_CONTENT_TYPE = "contentType"
         private const val KEY_MEDIA_URL = "mediaUrl"
         private const val KEY_MEDIA_MIME = "mediaMimeType"
@@ -81,6 +84,7 @@ data class CollectedNote(
         fun fromJson(json: JSONObject): CollectedNote {
             val id = json.optString(KEY_ID)
             val text = json.optString(KEY_TEXT)
+            val description = json.optString(KEY_DESCRIPTION).takeIf { it.isNotBlank() }
             val contentType = DropContentType.fromRaw(json.optString(KEY_CONTENT_TYPE))
             val mediaUrl = json.optString(KEY_MEDIA_URL).takeIf { it.isNotBlank() }
             val mediaMimeType = json.optString(KEY_MEDIA_MIME).takeIf { it.isNotBlank() }
@@ -113,6 +117,7 @@ data class CollectedNote(
             return CollectedNote(
                 id = id,
                 text = text,
+                description = description,
                 contentType = contentType,
                 mediaUrl = mediaUrl,
                 mediaMimeType = mediaMimeType,
