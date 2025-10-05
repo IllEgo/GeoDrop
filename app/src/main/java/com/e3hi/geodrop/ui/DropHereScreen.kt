@@ -2197,25 +2197,6 @@ fun DropHereScreen(
                     }
                 }
 
-                if (!isBusinessUser) {
-                    item {
-                        ActionCard(
-                            icon = Icons.Rounded.Storefront,
-                            title = "Business tools",
-                            description = "Sign in or create a business account to share offers and guided tours.",
-                            onClick = {
-                                if (!canParticipate) {
-                                    snackbar.showMessage(scope, participationRestriction("access business tools"))
-                                } else {
-                                    openAccountAuthDialog(
-                                        initialType = AccountType.BUSINESS,
-                                        initialMode = AccountAuthMode.SIGN_IN
-                                    )
-                                }
-                            }
-                        )
-                    }
-                }
                 status?.let { message ->
                     item { StatusCard(message = message) }
                 }
