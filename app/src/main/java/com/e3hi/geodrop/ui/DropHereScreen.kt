@@ -1766,8 +1766,12 @@ fun DropHereScreen(
     val hiddenNsfwCollectedCount = collectedNotes.size - visibleCollectedNotes.size
     val collectedCount = visibleCollectedNotes.size
     val isBusinessUser = userProfile?.isBusiness() == true
-    val currentHomeDestination = runCatching { HomeDestination.valueOf(selectedHomeDestination) }
-        .getOrDefault(HomeDestination.Explorer)
+    val currentHomeDestination = if (isBusinessUser) {
+        HomeDestination.Business
+    } else {
+        runCatching { HomeDestination.valueOf(selectedHomeDestination) }
+            .getOrDefault(HomeDestination.Explorer)
+    }
 
     LaunchedEffect(
         isBusinessUser,
@@ -1999,7 +2003,7 @@ fun DropHereScreen(
                             .padding(horizontal = 16.dp)
                             .padding(top = 8.dp, bottom = 12.dp)
                     ) {
-                        val options = listOf(HomeDestination.Explorer, HomeDestination.Business)
+                        val options = listOf(HomeDestination.Business)
                         options.forEachIndexed { index, option ->
                             SegmentedButton(
                                 shape = SegmentedButtonDefaults.itemShape(index, options.size),
@@ -3238,6 +3242,7 @@ private fun deriveBusinessHomeMetrics(
     )
 }
 
+@Composable
 private fun BusinessHomeScreen(
     modifier: Modifier = Modifier,
     businessName: String?,
