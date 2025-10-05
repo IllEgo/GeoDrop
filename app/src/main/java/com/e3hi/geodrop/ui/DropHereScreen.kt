@@ -492,7 +492,7 @@ fun DropHereScreen(
                 accountType = AccountType.EXPLORER
                 resetAccountAuthFields(clearEmail = true)
             }
-        } else
+        } else {
             guestModeEnabled = false
         }
     }
