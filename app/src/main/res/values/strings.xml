@@ -76,4 +76,5 @@
     <string name="explorer_profile_error_generic">Couldn\'t update your username. Try again.</string>
     <string name="explorer_profile_save">Save username</string>
     <string name="explorer_profile_status_saved">Username updated to %1$s.</string>
+    <string name="explorer_profile_status_claiming">Finishing your explorer setup…</string>
 </resources>

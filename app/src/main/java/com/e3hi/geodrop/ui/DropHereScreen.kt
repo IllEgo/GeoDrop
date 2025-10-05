@@ -229,9 +229,11 @@ fun DropHereScreen(
     var accountEmail by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
     var accountPassword by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
     var accountConfirmPassword by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
+    var accountUsername by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
     var accountAuthSubmitting by remember { mutableStateOf(false) }
     var accountAuthError by remember { mutableStateOf<String?>(null) }
     var accountAuthStatus by remember { mutableStateOf<String?>(null) }
+    var pendingExplorerUsername by remember { mutableStateOf<String?>(null) }
     var showBusinessOnboarding by remember { mutableStateOf(false) }
     var accountGoogleSigningIn by remember { mutableStateOf(false) }
     var showAccountMenu by remember { mutableStateOf(false) }
@@ -266,6 +268,7 @@ fun DropHereScreen(
         }
         accountPassword = TextFieldValue("")
         accountConfirmPassword = TextFieldValue("")
+        accountUsername = TextFieldValue("")
         accountAuthError = null
         accountAuthStatus = null
         nsfwUpdateError = null
@@ -300,6 +303,9 @@ fun DropHereScreen(
         val email = accountEmail.text.trim()
         val password = accountPassword.text
         val confirm = accountConfirmPassword.text
+        val username = accountUsername.text
+        val needsExplorerUsername = accountAuthMode == AccountAuthMode.REGISTER && accountType == AccountType.EXPLORER
+        var sanitizedExplorerUsername: String? = null
 
         when {
             email.isEmpty() -> {
@@ -320,6 +326,24 @@ fun DropHereScreen(
             accountAuthMode == AccountAuthMode.REGISTER && confirm != password -> {
                 accountAuthError = "Passwords do not match."
                 return
+            }
+
+            needsExplorerUsername -> {
+                sanitizedExplorerUsername = try {
+                    ExplorerUsername.sanitize(username)
+                } catch (error: ExplorerUsername.InvalidUsernameException) {
+                    accountAuthError = when (error.reason) {
+                        ExplorerUsername.ValidationError.TOO_SHORT ->
+                            ctx.getString(R.string.explorer_profile_error_too_short)
+
+                        ExplorerUsername.ValidationError.TOO_LONG ->
+                            ctx.getString(R.string.explorer_profile_error_too_long)
+
+                        ExplorerUsername.ValidationError.INVALID_CHARACTERS ->
+                            ctx.getString(R.string.explorer_profile_error_invalid_characters)
+                    }
+                    return
+                }
             }
         }
 
@@ -346,14 +370,21 @@ fun DropHereScreen(
         }
 
         task.addOnCompleteListener { authTask ->
-            accountAuthSubmitting = false
             if (authTask.isSuccessful) {
+                if (sanitizedExplorerUsername != null) {
+                    accountAuthStatus = ctx.getString(R.string.explorer_profile_status_claiming)
+                    pendingExplorerUsername = sanitizedExplorerUsername
+                    return@addOnCompleteListener
+                }
+
+                accountAuthSubmitting = false
                 resetAccountAuthFields(clearEmail = true)
                 showAccountSignIn = false
                 if (selectedType == AccountType.BUSINESS && selectedMode == AccountAuthMode.REGISTER) {
                     showBusinessOnboarding = true
                 }
             } else {
+                accountAuthSubmitting = false
                 val message = authTask.exception?.localizedMessage?.takeIf { it.isNotBlank() }
                     ?: if (selectedMode == AccountAuthMode.REGISTER) {
                         "Couldn't create your account. Try again."
@@ -596,6 +627,8 @@ fun DropHereScreen(
             onPasswordChange = { accountPassword = it },
             confirmPassword = accountConfirmPassword,
             onConfirmPasswordChange = { accountConfirmPassword = it },
+            username = accountUsername,
+            onUsernameChange = { accountUsername = it },
             isSubmitting = accountAuthSubmitting,
             isGoogleSigningIn = accountGoogleSigningIn,
             error = accountAuthError,
@@ -796,6 +829,53 @@ fun DropHereScreen(
     var userProfileError by remember { mutableStateOf<String?>(null) }
 
     val currentUserId = currentUser?.uid
+
+    LaunchedEffect(pendingExplorerUsername, currentUserId) {
+        val desired = pendingExplorerUsername
+        val userId = currentUserId
+        if (desired.isNullOrBlank() || userId.isNullOrBlank()) return@LaunchedEffect
+
+        val updateResult = runCatching { repo.updateExplorerUsername(userId, desired) }
+        pendingExplorerUsername = null
+
+        updateResult.onSuccess { updated ->
+            userProfile = updated
+            accountAuthSubmitting = false
+            accountAuthStatus = null
+            resetAccountAuthFields(clearEmail = true)
+            showAccountSignIn = false
+            val usernameForMessage = updated.username ?: desired
+            snackbar.showMessage(
+                scope,
+                ctx.getString(R.string.explorer_profile_status_saved, "@$usernameForMessage")
+            )
+        }.onFailure { error ->
+            accountAuthSubmitting = false
+            accountAuthStatus = null
+            val message = when (error) {
+                is ExplorerUsername.InvalidUsernameException -> when (error.reason) {
+                    ExplorerUsername.ValidationError.TOO_SHORT ->
+                        ctx.getString(R.string.explorer_profile_error_too_short)
+
+                    ExplorerUsername.ValidationError.TOO_LONG ->
+                        ctx.getString(R.string.explorer_profile_error_too_long)
+
+                    ExplorerUsername.ValidationError.INVALID_CHARACTERS ->
+                        ctx.getString(R.string.explorer_profile_error_invalid_characters)
+                }
+
+                is IllegalStateException -> ctx.getString(R.string.explorer_profile_error_taken)
+                else -> ctx.getString(R.string.explorer_profile_error_generic)
+            }
+            resetAccountAuthFields(clearEmail = true)
+            showAccountSignIn = false
+            explorerUsernameField = TextFieldValue(desired)
+            explorerProfileError = message
+            explorerProfileSubmitting = false
+            showExplorerProfile = true
+            snackbar.showMessage(scope, message)
+        }
+    }
 
     suspend fun getLatestLocation(): Pair<Double, Double>? = withContext(Dispatchers.IO) {
         val fresh = try {
@@ -4749,6 +4829,8 @@ private fun AccountSignInDialog(
     onPasswordChange: (TextFieldValue) -> Unit,
     confirmPassword: TextFieldValue,
     onConfirmPasswordChange: (TextFieldValue) -> Unit,
+    username: TextFieldValue,
+    onUsernameChange: (TextFieldValue) -> Unit,
     isSubmitting: Boolean,
     isGoogleSigningIn: Boolean,
     error: String?,
@@ -4859,6 +4941,34 @@ private fun AccountSignInDialog(
                 }
 
                 val isRegister = mode == AccountAuthMode.REGISTER
+                val requiresExplorerUsername = isRegister && accountType == AccountType.EXPLORER
+
+                if (requiresExplorerUsername) {
+                    OutlinedTextField(
+                        value = username,
+                        onValueChange = onUsernameChange,
+                        label = { Text(stringResource(R.string.explorer_profile_username_label)) },
+                        placeholder = { Text(stringResource(R.string.explorer_profile_username_placeholder)) },
+                        enabled = !isBusy,
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(
+                            capitalization = KeyboardCapitalization.None,
+                            autoCorrect = false,
+                            keyboardType = KeyboardType.Ascii,
+                            imeAction = ImeAction.Next
+                        ),
+                        keyboardActions = KeyboardActions(
+                            onNext = { focusManager.moveFocus(FocusDirection.Next) }
+                        )
+                    )
+
+                    Text(
+                        text = stringResource(R.string.explorer_profile_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
 
                 OutlinedTextField(
                     value = email,
