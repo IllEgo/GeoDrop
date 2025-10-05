@@ -6578,6 +6578,7 @@ private fun OtherDropRow(
     }
     val withinPickupRange =
         distanceMeters != null && distanceMeters <= DROP_PICKUP_RADIUS_METERS
+    val canPreviewContent = withinPickupRange
     val context = LocalContext.current
     val mediaAttachment = remember(
         context,
@@ -6638,7 +6639,7 @@ private fun OtherDropRow(
                 )
             }
 
-            if (!previewText.isNullOrBlank()) {
+            if (canPreviewContent && !previewText.isNullOrBlank()) {
                 Spacer(Modifier.height(4.dp))
                 Text(
                     text = previewText,
@@ -6646,6 +6647,13 @@ private fun OtherDropRow(
                     color = supportingColor,
                     maxLines = if (isSelected) Int.MAX_VALUE else 3,
                     overflow = TextOverflow.Ellipsis
+                )
+            } else if (!canPreviewContent) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = "Move closer to preview this drop.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = supportingColor
                 )
             }
 
@@ -6681,7 +6689,7 @@ private fun OtherDropRow(
                         )
                     }
 
-                    if (drop.contentType == DropContentType.PHOTO) {
+                    if (canPreviewContent && drop.contentType == DropContentType.PHOTO) {
                         val mediaUrl = drop.mediaLabel()
                         if (!mediaUrl.isNullOrBlank()) {
                             Spacer(Modifier.height(12.dp))
@@ -6704,7 +6712,7 @@ private fun OtherDropRow(
                         }
                     }
 
-                    if (drop.contentType == DropContentType.AUDIO || drop.contentType == DropContentType.VIDEO) {
+                    if (canPreviewContent && (drop.contentType == DropContentType.AUDIO || drop.contentType == DropContentType.VIDEO)) {
                         Spacer(Modifier.height(12.dp))
                         AttachmentPreviewSection(
                             contentType = drop.contentType,
