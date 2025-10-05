@@ -2307,6 +2307,24 @@ fun DropHereScreen(
                     Toast.makeText(ctx, "You can't report your own drop.", Toast.LENGTH_SHORT).show()
                     return@OtherDropsMapDialog
                 }
+                val hasCollected = collectedDropIds.contains(drop.id)
+                val withinPickupRange = otherDropsCurrentLocation?.let { location ->
+                    distanceBetweenMeters(
+                        location.latitude,
+                        location.longitude,
+                        drop.lat,
+                        drop.lng
+                    ) <= DROP_PICKUP_RADIUS_METERS
+                } ?: false
+                if (!hasCollected && !withinPickupRange) {
+                    val radiusMeters = DROP_PICKUP_RADIUS_METERS.roundToInt()
+                    Toast.makeText(
+                        ctx,
+                        "Move within ${'$'}radiusMeters meters to report this drop, or collect it first.",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    return@OtherDropsMapDialog
+                }
                 if (drop.reportedBy.containsKey(userId)) {
                     Toast.makeText(ctx, "You've already reported this drop.", Toast.LENGTH_SHORT).show()
                     return@OtherDropsMapDialog
@@ -5966,6 +5984,14 @@ private fun OtherDropsMapDialog(
                                         items(drops, key = { it.id }) { drop ->
                                             val hasCollected = collectedDropIds.contains(drop.id)
                                             val canVote = canVoteOnDrops && isSignedIn && hasCollected
+                                            val withinPickupRange = currentLocation?.let { location ->
+                                                distanceBetweenMeters(
+                                                    location.latitude,
+                                                    location.longitude,
+                                                    drop.lat,
+                                                    drop.lng
+                                                ) <= DROP_PICKUP_RADIUS_METERS
+                                            } ?: false
                                             val voteMessage = when {
                                                 !canVoteOnDrops -> voteRestrictionMessage
                                                 !isSignedIn -> "Sign in to vote on drops."
@@ -5974,11 +6000,14 @@ private fun OtherDropsMapDialog(
                                             }
                                             val isOwnDrop = currentUserId != null && drop.createdBy == currentUserId
                                             val alreadyReported = currentUserId?.let { drop.reportedBy.containsKey(it) } == true
-                                            val canReport = isSignedIn && !isOwnDrop
+                                            val canReport =
+                                                isSignedIn && !isOwnDrop && (hasCollected || withinPickupRange)
                                             val reportMessage = when {
                                                 isOwnDrop -> "You created this drop."
                                                 !isSignedIn -> "Sign in to report drops."
                                                 alreadyReported -> "Thanks for your report. We'll review it soon."
+                                                !hasCollected && !withinPickupRange ->
+                                                    "Move within ${DROP_PICKUP_RADIUS_METERS.roundToInt()} meters to report this drop, or collect it first."
                                                 else -> null
                                             }
                                             val showReportButton = !isOwnDrop
