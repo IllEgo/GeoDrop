@@ -3386,16 +3386,21 @@ private fun HeroCard(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 val contentColor = MaterialTheme.colorScheme.onPrimary
+                val (heroTitle, heroDescription) = if (showGroups) {
+                    "Drop something at your spot" to "Leave voice notes, photos, or text that unlock when explorers arrive nearby."
+                } else {
+                    "Preview GeoDrop experiences" to "Browse the map to explore nearby explorer adventures and business drops before you sign up."
+                }
 
                 Text(
-                    text = "Drop something at your spot",
+                    text = heroTitle,
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.SemiBold,
                     color = contentColor
                 )
 
                 Text(
-                    text = "Leave voice notes, photos, or text that unlock when explorers arrive nearby.",
+                    text = heroDescription,
                     style = MaterialTheme.typography.bodyLarge,
                     color = contentColor.copy(alpha = 0.9f)
                 )
@@ -3452,7 +3457,7 @@ private fun HeroCard(
                     }
                 } else {
                     Text(
-                        text = "Create an account to join groups and collaborate on drops.",
+                        text = "Create an account to join groups, add your own drops, and collaborate with friends.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = contentColor.copy(alpha = 0.85f)
                     )
