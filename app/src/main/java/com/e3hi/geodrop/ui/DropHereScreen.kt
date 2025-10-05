@@ -6875,7 +6875,7 @@ private fun AttachmentPreviewSection(
             if (attachment == null) {
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    text = header,
+                    text = "Attachment unavailable.",
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold
                 )
