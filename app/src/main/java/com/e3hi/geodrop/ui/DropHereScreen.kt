@@ -71,6 +71,7 @@ import androidx.compose.material.icons.rounded.DragHandle
 import androidx.compose.material.icons.rounded.Videocam
 import androidx.compose.material.icons.rounded.Storefront
 import androidx.compose.material.icons.rounded.Flag
+import androidx.compose.material.icons.rounded.Report
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.ThumbDown
@@ -713,6 +714,13 @@ fun DropHereScreen(
     var otherDropsRefreshToken by remember { mutableStateOf(0) }
     var nearbyDropCountHint by remember { mutableStateOf<Int?>(null) }
     var votingDropIds by remember { mutableStateOf(setOf<String>()) }
+    val dropReportReasons = remember { DefaultReportReasons }
+    var browseReportDialogOpen by remember { mutableStateOf(false) }
+    var browseReportSelectedReasons by remember { mutableStateOf(setOf<String>()) }
+    var browseReportError by remember { mutableStateOf<String?>(null) }
+    var browseReportProcessing by remember { mutableStateOf(false) }
+    var browseReportTarget by remember { mutableStateOf<Drop?>(null) }
+    var browseReportingDropId by remember { mutableStateOf<String?>(null) }
     var showMyDrops by remember { mutableStateOf(false) }
     var myDrops by remember { mutableStateOf<List<Drop>>(emptyList()) }
     var myDropsLoading by remember { mutableStateOf(false) }
@@ -2288,8 +2296,125 @@ fun DropHereScreen(
             canVoteOnDrops = canParticipate,
             voteRestrictionMessage = if (canParticipate) null else participationRestriction("vote on drops"),
             onVote = { drop, vote -> submitVote(drop, vote) },
-            onDismiss = { showOtherDropsMap = false },
+            onReport = { drop ->
+                if (browseReportProcessing) return@OtherDropsMapDialog
+                val userId = currentUserId
+                if (userId.isNullOrBlank()) {
+                    Toast.makeText(ctx, "Sign in to report drops.", Toast.LENGTH_SHORT).show()
+                    return@OtherDropsMapDialog
+                }
+                if (drop.createdBy == userId) {
+                    Toast.makeText(ctx, "You can't report your own drop.", Toast.LENGTH_SHORT).show()
+                    return@OtherDropsMapDialog
+                }
+                if (drop.reportedBy.containsKey(userId)) {
+                    Toast.makeText(ctx, "You've already reported this drop.", Toast.LENGTH_SHORT).show()
+                    return@OtherDropsMapDialog
+                }
+                browseReportTarget = drop
+                browseReportSelectedReasons = emptySet()
+                browseReportError = null
+                browseReportDialogOpen = true
+            },
+            reportingDropId = browseReportingDropId,
+            onDismiss = {
+                showOtherDropsMap = false
+                if (!browseReportProcessing) {
+                    browseReportDialogOpen = false
+                    browseReportTarget = null
+                    browseReportSelectedReasons = emptySet()
+                    browseReportError = null
+                    browseReportingDropId = null
+                }
+            },
             onRetry = { otherDropsRefreshToken += 1 }
+        )
+    }
+
+    if (browseReportDialogOpen) {
+        val targetDrop = browseReportTarget
+        ReportDropDialog(
+            reasons = dropReportReasons,
+            selectedReasons = browseReportSelectedReasons,
+            onReasonToggle = { code ->
+                browseReportSelectedReasons = if (browseReportSelectedReasons.contains(code)) {
+                    browseReportSelectedReasons - code
+                } else {
+                    browseReportSelectedReasons + code
+                }
+            },
+            onDismiss = {
+                if (!browseReportProcessing) {
+                    browseReportDialogOpen = false
+                    browseReportTarget = null
+                    browseReportSelectedReasons = emptySet()
+                    browseReportError = null
+                    browseReportingDropId = null
+                }
+            },
+            onSubmit = submit@{
+                val userId = currentUserId
+                val drop = targetDrop
+                if (userId.isNullOrBlank()) {
+                    Toast.makeText(ctx, "Sign in to report drops.", Toast.LENGTH_SHORT).show()
+                    return@submit
+                }
+                if (drop == null || drop.id.isBlank()) {
+                    browseReportError = "Drop information is missing."
+                    return@submit
+                }
+                if (browseReportSelectedReasons.isEmpty()) {
+                    browseReportError = "Select at least one reason."
+                    return@submit
+                }
+                browseReportProcessing = true
+                browseReportError = null
+                browseReportingDropId = drop.id
+                scope.launch {
+                    try {
+                        repo.submitDropReport(
+                            dropId = drop.id,
+                            reporterId = userId,
+                            reasonCodes = browseReportSelectedReasons,
+                            additionalContext = mapOf(
+                                "source" to "browse_map",
+                                "contentType" to drop.contentType.name,
+                                "hasMedia" to (drop.mediaUrl != null || drop.mediaData != null),
+                                "dropType" to drop.dropType.name
+                            )
+                        )
+                        browseReportDialogOpen = false
+                        browseReportTarget = null
+                        browseReportSelectedReasons = emptySet()
+                        browseReportError = null
+                        val now = System.currentTimeMillis()
+                        otherDrops = otherDrops.map { existing ->
+                            if (existing.id == drop.id) {
+                                val updatedReportedBy = existing.reportedBy.toMutableMap()
+                                val already = updatedReportedBy.containsKey(userId)
+                                updatedReportedBy[userId] = now
+                                val updatedCount = if (already) existing.reportCount else existing.reportCount + 1
+                                existing.copy(
+                                    reportedBy = updatedReportedBy,
+                                    reportCount = updatedCount
+                                )
+                            } else {
+                                existing
+                            }
+                        }
+                        Toast.makeText(ctx, "Report submitted.", Toast.LENGTH_SHORT).show()
+                    } catch (error: Exception) {
+                        val message = error.localizedMessage?.takeIf { it.isNotBlank() }
+                            ?: "Couldn't submit report. Try again."
+                        browseReportError = message
+                    } finally {
+                        browseReportProcessing = false
+                        browseReportingDropId = null
+                    }
+                }
+            },
+            isSubmitting = browseReportProcessing,
+            errorMessage = browseReportError
         )
     }
 
@@ -5665,6 +5790,8 @@ private fun OtherDropsMapDialog(
     canVoteOnDrops: Boolean,
     voteRestrictionMessage: String?,
     onVote: (Drop, DropVoteType) -> Unit,
+    onReport: (Drop) -> Unit,
+    reportingDropId: String?,
     onDismiss: () -> Unit,
     onRetry: () -> Unit
 ) {
@@ -5845,6 +5972,17 @@ private fun OtherDropsMapDialog(
                                                 !hasCollected -> "Collect this drop to vote on it."
                                                 else -> null
                                             }
+                                            val isOwnDrop = currentUserId != null && drop.createdBy == currentUserId
+                                            val alreadyReported = currentUserId?.let { drop.reportedBy.containsKey(it) } == true
+                                            val canReport = isSignedIn && !isOwnDrop
+                                            val reportMessage = when {
+                                                isOwnDrop -> "You created this drop."
+                                                !isSignedIn -> "Sign in to report drops."
+                                                alreadyReported -> "Thanks for your report. We'll review it soon."
+                                                else -> null
+                                            }
+                                            val showReportButton = !isOwnDrop
+                                            val isReporting = reportingDropId == drop.id
                                             OtherDropRow(
                                                 drop = drop,
                                                 isSelected = drop.id == selectedId,
@@ -5855,9 +5993,15 @@ private fun OtherDropsMapDialog(
                                                 canPickUp = canCollectDrops,
                                                 pickupRestrictionMessage = collectRestrictionMessage,
                                                 isVoting = votingDropIds.contains(drop.id),
+                                                showReport = showReportButton,
+                                                canReport = canReport,
+                                                alreadyReported = alreadyReported,
+                                                reportRestrictionMessage = reportMessage,
+                                                isReporting = isReporting,
                                                 onSelect = { onSelect(drop) },
                                                 onVote = { vote -> onVote(drop, vote) },
-                                                onPickUp = { onPickUp(drop) }
+                                                onPickUp = { onPickUp(drop) },
+                                                onReport = { onReport(drop) }
                                             )
                                         }
                                     }
@@ -6702,9 +6846,15 @@ private fun OtherDropRow(
     canPickUp: Boolean,
     pickupRestrictionMessage: String?,
     isVoting: Boolean,
+    showReport: Boolean,
+    canReport: Boolean,
+    alreadyReported: Boolean,
+    reportRestrictionMessage: String?,
+    isReporting: Boolean,
     onSelect: () -> Unit,
     onVote: (DropVoteType) -> Unit,
-    onPickUp: () -> Unit
+    onPickUp: () -> Unit,
+    onReport: () -> Unit
 ) {
     val containerColor = if (isSelected) {
         MaterialTheme.colorScheme.primaryContainer
@@ -6948,6 +7098,39 @@ private fun OtherDropRow(
                             style = MaterialTheme.typography.bodySmall,
                             color = supportingColor
                         )
+                    }
+                    if (showReport) {
+                        Spacer(Modifier.height(12.dp))
+                        OutlinedButton(
+                            onClick = onReport,
+                            enabled = canReport && !alreadyReported && !isReporting,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            if (isReporting) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Icon(Icons.Rounded.Report, contentDescription = null)
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = when {
+                                    isReporting -> "Reporting..."
+                                    alreadyReported -> "Reported"
+                                    else -> "Report drop"
+                                }
+                            )
+                        }
+                        reportRestrictionMessage?.let { message ->
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                text = message,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = supportingColor
+                            )
+                        }
                     }
                     if (withinPickupRange) {
                         Spacer(Modifier.height(12.dp))

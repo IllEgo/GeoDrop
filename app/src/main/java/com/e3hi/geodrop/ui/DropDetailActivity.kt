@@ -44,7 +44,6 @@ import androidx.compose.material.icons.rounded.ThumbDown
 import androidx.compose.material.icons.rounded.ThumbUp
 import androidx.compose.material.icons.rounded.Videocam
 import androidx.compose.material3.Button
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
@@ -55,7 +54,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -1708,91 +1706,6 @@ private fun parseReportedBy(raw: Any?): Map<String, Long>? {
         }
     }
     return result
-}
-
-private data class ReportReason(val code: String, val label: String)
-
-private val DefaultReportReasons = listOf(
-    ReportReason("spam", "Spam or misleading"),
-    ReportReason("harassment", "Harassment or hate"),
-    ReportReason("nsfw", "Sexual or adult content"),
-    ReportReason("violence", "Violence or dangerous activity"),
-    ReportReason("other", "Something else")
-)
-
-@Composable
-private fun ReportDropDialog(
-    reasons: List<ReportReason>,
-    selectedReasons: Set<String>,
-    onReasonToggle: (String) -> Unit,
-    onDismiss: () -> Unit,
-    onSubmit: () -> Unit,
-    isSubmitting: Boolean,
-    errorMessage: String?
-) {
-    AlertDialog(
-        onDismissRequest = {
-            if (!isSubmitting) {
-                onDismiss()
-            }
-        },
-        title = { Text("Report drop") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(
-                    text = "Select one or more reasons so our team can review this drop.",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-                reasons.forEach { reason ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Checkbox(
-                            checked = reason.code in selectedReasons,
-                            onCheckedChange = { onReasonToggle(reason.code) },
-                            enabled = !isSubmitting
-                        )
-                        Text(
-                            text = reason.label,
-                            style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.padding(start = 8.dp)
-                        )
-                    }
-                }
-                errorMessage?.let { message ->
-                    Text(
-                        text = message,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = onSubmit,
-                enabled = !isSubmitting
-            ) {
-                if (isSubmitting) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(16.dp),
-                        strokeWidth = 2.dp
-                    )
-                    Spacer(Modifier.width(8.dp))
-                }
-                Text("Submit")
-            }
-        },
-        dismissButton = {
-            TextButton(
-                onClick = onDismiss,
-                enabled = !isSubmitting
-            ) {
-                Text("Cancel")
-            }
-        }
-    )
 }
 
 private data class DropDetailTagData(
