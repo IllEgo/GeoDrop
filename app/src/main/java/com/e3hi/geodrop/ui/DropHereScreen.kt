@@ -2002,24 +2002,22 @@ fun DropHereScreen(
             }
         },
         floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = {
-                    if (isSubmitting) return@ExtendedFloatingActionButton
-                    if (!canParticipate) {
-                        snackbar.showMessage(scope, participationRestriction("share drops"))
-                        return@ExtendedFloatingActionButton
-                    }
-                    showDropComposer = true
-                },
-                icon = { Icon(Icons.Rounded.Place, contentDescription = null) },
-                text = {
-                    Text(
-                        stringResource(
-                            if (isSubmitting) R.string.status_dropping else R.string.action_drop_something
+            if (canParticipate) {
+                ExtendedFloatingActionButton(
+                    onClick = {
+                        if (isSubmitting) return@ExtendedFloatingActionButton
+                        showDropComposer = true
+                    },
+                    icon = { Icon(Icons.Rounded.Place, contentDescription = null) },
+                    text = {
+                        Text(
+                            stringResource(
+                                if (isSubmitting) R.string.status_dropping else R.string.action_drop_something
+                            )
                         )
-                    )
-                }
-            )
+                    }
+                )
+            }
         },
         snackbarHost = {
             SnackbarHost(
