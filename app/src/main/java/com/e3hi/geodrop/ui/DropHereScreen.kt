@@ -2070,6 +2070,7 @@ fun DropHereScreen(
                 item {
                     HeroCard(
                         joinedGroups = joinedGroups,
+                        showGroups = userMode != UserMode.GUEST,
                         onManageGroups = {
                             if (!canParticipate) {
                                 snackbar.showMessage(scope, participationRestriction("manage group codes"))
@@ -2103,36 +2104,38 @@ fun DropHereScreen(
                             }
                         )
 
-                        ActionCard(
-                            icon = Icons.Rounded.Inbox,
-                            title = stringResource(R.string.action_my_drops_title),
-                            description = stringResource(R.string.action_my_drops_description),
-                            onClick = {
-                                if (!hasExplorerAccount) {
-                                    snackbar.showMessage(scope, participationRestriction("view and manage your drops"))
-                                } else {
-                                    showMyDrops = true
-                                }
-                            },
-                            trailingContent = {
-                                if (totalMyDrops > 0 || pendingMyDropReviews > 0) {
-                                    Row(
-                                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        if (totalMyDrops > 0) {
-                                            CountBadge(count = totalMyDrops)
-                                        }
-                                        if (pendingMyDropReviews > 0) {
-                                            MetricPill(
-                                                label = stringResource(R.string.metric_pending_reviews),
-                                                value = pendingMyDropReviews
-                                            )
+                        if (hasExplorerAccount) {
+                            ActionCard(
+                                icon = Icons.Rounded.Inbox,
+                                title = stringResource(R.string.action_my_drops_title),
+                                description = stringResource(R.string.action_my_drops_description),
+                                onClick = {
+                                    if (!hasExplorerAccount) {
+                                        snackbar.showMessage(scope, participationRestriction("view and manage your drops"))
+                                    } else {
+                                        showMyDrops = true
+                                    }
+                                },
+                                trailingContent = {
+                                    if (totalMyDrops > 0 || pendingMyDropReviews > 0) {
+                                        Row(
+                                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            if (totalMyDrops > 0) {
+                                                CountBadge(count = totalMyDrops)
+                                            }
+                                            if (pendingMyDropReviews > 0) {
+                                                MetricPill(
+                                                    label = stringResource(R.string.metric_pending_reviews),
+                                                    value = pendingMyDropReviews
+                                                )
+                                            }
                                         }
                                     }
                                 }
-                            }
-                        )
+                            )
+                        }
 
                         ActionCard(
                             icon = Icons.Rounded.Bookmark,
@@ -3567,6 +3570,7 @@ private fun BusinessHeroCard(
 @Composable
 private fun HeroCard(
     joinedGroups: List<String>,
+    showGroups: Boolean,
     onManageGroups: () -> Unit,
 ) {
     ElevatedCard(
@@ -3620,53 +3624,61 @@ private fun HeroCard(
                     color = contentColor.copy(alpha = 0.9f)
                 )
 
-                if (joinedGroups.isNotEmpty()) {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(
-                            text = "You're connected with",
-                            style = MaterialTheme.typography.labelLarge,
-                            color = contentColor.copy(alpha = 0.95f),
-                            fontWeight = FontWeight.Medium
-                        )
+                if (showGroups) {
+                    if (joinedGroups.isNotEmpty()) {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(
+                                text = "You're connected with",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = contentColor.copy(alpha = 0.95f),
+                                fontWeight = FontWeight.Medium
+                            )
 
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            joinedGroups.forEach { group ->
-                                AssistChip(
-                                    onClick = onManageGroups,
-                                    label = {
-                                        Text(
-                                            text = group,
-                                            color = contentColor
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                joinedGroups.forEach { group ->
+                                    AssistChip(
+                                        onClick = onManageGroups,
+                                        label = {
+                                            Text(
+                                                text = group,
+                                                color = contentColor
+                                            )
+                                        },
+                                        colors = AssistChipDefaults.assistChipColors(
+                                            containerColor = Color.White.copy(alpha = 0.2f),
+                                            labelColor = contentColor
+                                        ),
+                                        border = BorderStroke(
+                                            width = 1.dp,
+                                            color = Color.White.copy(alpha = 0.4f)
                                         )
-                                    },
-                                    colors = AssistChipDefaults.assistChipColors(
-                                        containerColor = Color.White.copy(alpha = 0.2f),
-                                        labelColor = contentColor
-                                    ),
-                                    border = BorderStroke(
-                                        width = 1.dp,
-                                        color = Color.White.copy(alpha = 0.4f)
                                     )
-                                )
+                                }
                             }
                         }
+                    } else {
+                        Text(
+                            text = "Join or create groups to collaborate on drops.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = contentColor.copy(alpha = 0.8f)
+                        )
+                    }
+
+                    TextButton(onClick = onManageGroups) {
+                        Text(
+                            text = "Manage group codes",
+                            color = contentColor,
+                            fontWeight = FontWeight.SemiBold
+                        )
                     }
                 } else {
                     Text(
-                        text = "Join or create groups to collaborate on drops.",
+                        text = "Create an account to join groups and collaborate on drops.",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = contentColor.copy(alpha = 0.8f)
-                    )
-                }
-
-                TextButton(onClick = onManageGroups) {
-                    Text(
-                        text = "Manage group codes",
-                        color = contentColor,
-                        fontWeight = FontWeight.SemiBold
+                        color = contentColor.copy(alpha = 0.85f)
                     )
                 }
             }
