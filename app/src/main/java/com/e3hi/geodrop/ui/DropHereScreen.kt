@@ -6828,77 +6828,128 @@ private fun AttachmentPreviewSection(
     attachment: DropMediaAttachment?,
     onOpen: (DropMediaAttachment) -> Unit
 ) {
-    val iconData: ImageVector
-    val header: String
-    val description: String
-    val actionLabel: String
     when (contentType) {
         DropContentType.AUDIO -> {
-            iconData = Icons.Rounded.GraphicEq
-            header = "Audio clip"
-            description = "Tap to listen to this recording."
-            actionLabel = "Play audio"
-        }
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.GraphicEq,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Column {
+                        Text(
+                            text = "Audio clip",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = "Tap to listen to this recording.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
 
-        DropContentType.VIDEO -> {
-            iconData = Icons.Rounded.PlayArrow
-            header = "Video clip"
-            description = "Tap to watch this clip."
-            actionLabel = "Play video"
-        }
+            Spacer(Modifier.height(8.dp))
 
-        else -> return
-    }
+            Button(
+                onClick = { attachment?.let(onOpen) },
+                enabled = attachment != null,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Play audio")
+            }
 
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Icon(
-                imageVector = iconData,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary
-            )
-            Column {
+            if (attachment == null) {
+                Spacer(Modifier.height(4.dp))
                 Text(
                     text = header,
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold
                 )
+            }
+        }
+
+        DropContentType.VIDEO -> {
+            val videoUri = attachment?.asUriOrNull()
+
+            if (videoUri != null) {
+                DropVideoPlayer(
+                    videoUri = videoUri,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(Modifier.height(8.dp))
+
                 Text(
-                    text = description,
+                    text = "Tap play to watch this clip.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+
+                Spacer(Modifier.height(8.dp))
+            }
+
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.PlayArrow,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Column {
+                        Text(
+                            text = "Video clip",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = if (videoUri != null) {
+                                "Watch here or open it in another app."
+                            } else {
+                                "Attachment unavailable."
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            Button(
+                onClick = { attachment?.let(onOpen) },
+                enabled = attachment != null,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(if (videoUri != null) "Open video externally" else "Play video")
             }
         }
-    }
 
-    Spacer(Modifier.height(8.dp))
-
-    Button(
-        onClick = { attachment?.let(onOpen) },
-        enabled = attachment != null,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Text(actionLabel)
-    }
-
-    if (attachment == null) {
-        Spacer(Modifier.height(4.dp))
-        Text(
-            text = "Attachment unavailable.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        else -> return
     }
 }
 
@@ -7130,6 +7181,11 @@ private data class DropDecodedMedia(val uri: Uri, val mimeType: String)
 private sealed class DropMediaAttachment {
     data class Link(val url: String) : DropMediaAttachment()
     data class Local(val uri: Uri, val mimeType: String) : DropMediaAttachment()
+}
+
+private fun DropMediaAttachment.asUriOrNull(): Uri? = when (this) {
+    is DropMediaAttachment.Link -> url.takeIf { it.isNotBlank() }?.let { Uri.parse(it) }
+    is DropMediaAttachment.Local -> uri
 }
 
 @Composable

@@ -940,11 +940,21 @@ class DropDetailActivity : ComponentActivity() {
                                             )
                                         }
                                     }
-                                    if (loadedState?.contentType == DropContentType.VIDEO && loadedState.mediaUrl != null) {
+                                    if (loadedState?.contentType == DropContentType.VIDEO) {
+                                        Spacer(Modifier.height(12.dp))
+                                        val videoUri = mediaAttachment?.asUriOrNull()
+
+                                        if (videoUri != null) {
+                                            DropVideoPlayer(
+                                                videoUri = videoUri,
+                                                modifier = Modifier.fillMaxWidth()
+                                            )
+
+                                            Spacer(Modifier.height(8.dp))
+                                        }
+
                                         Surface(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(top = 12.dp),
+                                            modifier = Modifier.fillMaxWidth(),
                                             shape = RoundedCornerShape(12.dp),
                                             color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
                                         ) {
@@ -962,25 +972,31 @@ class DropDetailActivity : ComponentActivity() {
                                                 )
                                                 Column {
                                                     Text(
-                                                        text = "Video attached",
+                                                        text = "Video clip",
                                                         style = MaterialTheme.typography.bodyMedium,
                                                         fontWeight = FontWeight.SemiBold
                                                     )
                                                     Text(
-                                                        text = "Tap below to play this clip.",
+                                                        text = if (videoUri != null) {
+                                                            "Watch here or open it in another app."
+                                                        } else {
+                                                            "Attachment unavailable."
+                                                        },
                                                         style = MaterialTheme.typography.bodySmall,
                                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                                     )
                                                 }
                                             }
                                         }
+
+                                        Spacer(Modifier.height(12.dp))
                                     }
                                     if (loadedState != null && mediaAttachment != null) {
                                         val buttonLabel = when (loadedState.contentType) {
                                             DropContentType.TEXT -> "Open attachment"
                                             DropContentType.PHOTO -> "View photo"
                                             DropContentType.AUDIO -> "Play audio"
-                                            DropContentType.VIDEO -> "Play video"
+                                            DropContentType.VIDEO -> "Open video externally"
                                         }
                                         Button(
                                             onClick = {
@@ -2014,6 +2030,11 @@ private fun decodeBase64ToTempFile(
 private sealed class MediaAttachment {
     data class Link(val url: String) : MediaAttachment()
     data class Local(val uri: Uri, val mimeType: String) : MediaAttachment()
+}
+
+private fun MediaAttachment.asUriOrNull(): Uri? = when (this) {
+    is MediaAttachment.Link -> url.takeIf { it.isNotBlank() }?.let { Uri.parse(it) }
+    is MediaAttachment.Local -> uri
 }
 
 private sealed interface DropDetailUiState {
