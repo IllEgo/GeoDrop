@@ -2137,61 +2137,63 @@ fun DropHereScreen(
                             )
                         }
 
-                        ActionCard(
-                            icon = Icons.Rounded.Bookmark,
-                            title = stringResource(R.string.action_collected_drops_title),
-                            description = when {
-                                collectedCount == 0 && hiddenNsfwCollectedCount > 0 -> {
-                                    val plural = if (hiddenNsfwCollectedCount == 1) "drop" else "drops"
-                                    stringResource(
-                                        R.string.action_collected_drops_hidden_nsfw,
-                                        hiddenNsfwCollectedCount,
-                                        plural
-                                    )
-                                }
-                                collectedCount == 0 -> {
-                                    stringResource(R.string.action_collected_drops_empty)
-                                }
-                                hiddenNsfwCollectedCount > 0 -> {
-                                    val plural = if (collectedCount == 1) "drop" else "drops"
-                                    stringResource(
-                                        R.string.action_collected_drops_some_hidden,
-                                        collectedCount,
-                                        plural,
-                                        hiddenNsfwCollectedCount
-                                    )
-                                }
-                                else -> {
-                                    if (collectedCount == 1) {
-                                        stringResource(R.string.action_collected_drops_single)
-                                    } else {
-                                        stringResource(R.string.action_collected_drops_multiple, collectedCount)
+                        if (canParticipate) {
+                            ActionCard(
+                                icon = Icons.Rounded.Bookmark,
+                                title = stringResource(R.string.action_collected_drops_title),
+                                description = when {
+                                    collectedCount == 0 && hiddenNsfwCollectedCount > 0 -> {
+                                        val plural = if (hiddenNsfwCollectedCount == 1) "drop" else "drops"
+                                        stringResource(
+                                            R.string.action_collected_drops_hidden_nsfw,
+                                            hiddenNsfwCollectedCount,
+                                            plural
+                                        )
                                     }
-                                }
-                            },
-                            onClick = {
-                                collectedNotes = noteInventory.getCollectedNotes()
-                                showCollectedDrops = true
-                            },
-                            trailingContent = {
-                                if (collectedCount > 0 || hiddenNsfwCollectedCount > 0) {
-                                    Row(
-                                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        if (collectedCount > 0) {
-                                            CountBadge(count = collectedCount)
-                                        }
-                                        if (hiddenNsfwCollectedCount > 0) {
-                                            MetricPill(
-                                                label = stringResource(R.string.metric_hidden),
-                                                value = hiddenNsfwCollectedCount
-                                            )
+                                    collectedCount == 0 -> {
+                                        stringResource(R.string.action_collected_drops_empty)
+                                    }
+                                    hiddenNsfwCollectedCount > 0 -> {
+                                        val plural = if (collectedCount == 1) "drop" else "drops"
+                                        stringResource(
+                                            R.string.action_collected_drops_some_hidden,
+                                            collectedCount,
+                                            plural,
+                                            hiddenNsfwCollectedCount
+                                        )
+                                    }
+                                    else -> {
+                                        if (collectedCount == 1) {
+                                            stringResource(R.string.action_collected_drops_single)
+                                        } else {
+                                            stringResource(R.string.action_collected_drops_multiple, collectedCount)
                                         }
                                     }
+                                },
+                                onClick = {
+                                    collectedNotes = noteInventory.getCollectedNotes()
+                                    showCollectedDrops = true
+                                },
+                                trailingContent = {
+                                    if (collectedCount > 0 || hiddenNsfwCollectedCount > 0) {
+                                        Row(
+                                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            if (collectedCount > 0) {
+                                                CountBadge(count = collectedCount)
+                                            }
+                                            if (hiddenNsfwCollectedCount > 0) {
+                                                MetricPill(
+                                                    label = stringResource(R.string.metric_hidden),
+                                                    value = hiddenNsfwCollectedCount
+                                                )
+                                            }
+                                        }
+                                    }
                                 }
-                            }
-                        )
+                            )
+                        }
                     }
                 }
 
