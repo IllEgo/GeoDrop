@@ -3284,11 +3284,13 @@ private fun BusinessHomeScreen(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun BusinessHeroCard(
     businessName: String?,
     businessCategories: List<BusinessCategory>,
     joinedGroups: List<String>,
+    brandImageUrl: String? = null,
     onCreateDrop: () -> Unit,
     onManageGroups: () -> Unit,
 ) {
@@ -3303,6 +3305,11 @@ private fun BusinessHeroCard(
     val sortedCategories = businessCategories
         .sortedWith(compareBy({ it.group.displayName }, { it.displayName }))
 
+    val avatarBackground = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.08f)
+    val avatarBorder = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.2f)
+    val chipContainer = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+    val chipBorder = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.2f)
+
     ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(28.dp),
@@ -3314,19 +3321,53 @@ private fun BusinessHeroCard(
             modifier = Modifier.padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(72.dp)
+                        .clip(CircleShape)
+                        .background(avatarBackground)
+                        .border(width = 1.dp, color = avatarBorder, shape = CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (!brandImageUrl.isNullOrBlank()) {
+                        val context = LocalContext.current
+                        AsyncImage(
+                            model = ImageRequest.Builder(context)
+                                .data(brandImageUrl)
+                                .crossfade(true)
+                                .build(),
+                            contentDescription = businessName?.let { "$it brand logo" },
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.matchParentSize()
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Rounded.Storefront,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.size(32.dp)
+                        )
+                    }
+                }
 
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.9f)
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.9f)
+                    )
+                }
             }
 
             if (sortedCategories.isNotEmpty()) {
@@ -3341,22 +3382,89 @@ private fun BusinessHeroCard(
                     sortedCategories
                         .groupBy { it.group }
                         .forEach { (group, categories) ->
-                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                 Text(
                                     text = group.displayName,
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.9f),
                                     fontWeight = FontWeight.Medium
                                 )
-                                categories.forEach { category ->
-                                    Text(
-                                        text = "• ${category.displayName}",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
-                                    )
+
+                                FlowRow(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    categories.forEach { category ->
+                                        AssistChip(
+                                            onClick = {},
+                                            enabled = false,
+                                            label = {
+                                                Text(
+                                                    text = category.displayName,
+                                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                                )
+                                            },
+                                            colors = AssistChipDefaults.assistChipColors(
+                                                containerColor = chipContainer,
+                                                labelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                                disabledContainerColor = chipContainer,
+                                                disabledLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                            ),
+                                            border = BorderStroke(
+                                                width = 1.dp,
+                                                color = chipBorder
+                                            )
+                                        )
+                                    }
                                 }
                             }
                         }
+                }
+            }
+
+            if (joinedGroups.isNotEmpty()) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Active access codes",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        fontWeight = FontWeight.SemiBold
+                    )
+
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        joinedGroups.forEach { code ->
+                            AssistChip(
+                                onClick = onManageGroups,
+                                label = {
+                                    Text(
+                                        text = code,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Rounded.CheckCircle,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                },
+                                colors = AssistChipDefaults.assistChipColors(
+                                    containerColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.12f),
+                                    labelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    leadingIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                ),
+                                border = BorderStroke(
+                                    width = 1.dp,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.3f)
+                                )
+                            )
+                        }
+                    }
                 }
             }
 
