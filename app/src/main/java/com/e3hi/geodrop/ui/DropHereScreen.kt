@@ -1998,30 +1998,6 @@ fun DropHereScreen(
                 )
                 if (isBusinessUser) {
                     Divider()
-                    SingleChoiceSegmentedButtonRow(
-                        modifier = Modifier
-                            .padding(horizontal = 16.dp)
-                            .padding(top = 8.dp, bottom = 12.dp)
-                    ) {
-                        val options = listOf(HomeDestination.Business)
-                        options.forEachIndexed { index, option ->
-                            SegmentedButton(
-                                shape = SegmentedButtonDefaults.itemShape(index, options.size),
-                                selected = currentHomeDestination == option,
-                                onClick = { selectedHomeDestination = option.name },
-                                label = {
-                                    Text(
-                                        stringResource(
-                                            when (option) {
-                                                HomeDestination.Explorer -> R.string.home_destination_explorer
-                                                HomeDestination.Business -> R.string.home_destination_business
-                                            }
-                                        )
-                                    )
-                                }
-                            )
-                        }
-                    }
                 }
             }
         },
