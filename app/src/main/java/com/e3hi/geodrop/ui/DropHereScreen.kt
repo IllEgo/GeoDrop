@@ -224,6 +224,7 @@ fun DropHereScreen(
     var showAccountSignIn by remember { mutableStateOf(false) }
     var accountAuthMode by remember { mutableStateOf(AccountAuthMode.SIGN_IN) }
     var accountType by remember { mutableStateOf(AccountType.EXPLORER) }
+    var accountTypeSelectionLocked by remember { mutableStateOf(false) }
     var accountEmail by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
     var accountPassword by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
     var accountConfirmPassword by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
@@ -276,13 +277,16 @@ fun DropHereScreen(
         resetAccountAuthFields(clearEmail = false)
         accountAuthMode = AccountAuthMode.SIGN_IN
         accountType = AccountType.EXPLORER
+        accountTypeSelectionLocked = false
     }
 
     fun openAccountAuthDialog(
         initialType: AccountType = AccountType.EXPLORER,
-        initialMode: AccountAuthMode = AccountAuthMode.SIGN_IN
+        initialMode: AccountAuthMode = AccountAuthMode.SIGN_IN,
+        lockAccountType: Boolean = false
     ) {
         if (accountAuthSubmitting || accountGoogleSigningIn) return
+        accountTypeSelectionLocked = lockAccountType
         accountType = initialType
         accountAuthMode = initialMode
         resetAccountAuthFields(clearEmail = true)
@@ -567,8 +571,13 @@ fun DropHereScreen(
     if (showAccountSignIn) {
         AccountSignInDialog(
             accountType = accountType,
+            canChangeAccountType = !accountTypeSelectionLocked,
             onAccountTypeChange = { type ->
-                if (accountAuthSubmitting || accountGoogleSigningIn) return@AccountSignInDialog
+                if (
+                    accountAuthSubmitting ||
+                    accountGoogleSigningIn ||
+                    accountTypeSelectionLocked
+                ) return@AccountSignInDialog
                 accountType = type
                 accountAuthError = null
                 accountAuthStatus = null
@@ -598,18 +607,27 @@ fun DropHereScreen(
     }
 
     if (userMode == null) {
-    UserModeSelectionScreen(
-        onSelectGuest = {
-            guestModeEnabled = true
-        },
-        onSelectSignIn = {
-            guestModeEnabled = false
-            openAccountAuthDialog(
-                initialType = AccountType.EXPLORER,
-                initialMode = AccountAuthMode.SIGN_IN
-            )
-        }
-    )
+        UserModeSelectionScreen(
+            onSelectGuest = {
+                guestModeEnabled = true
+            },
+            onSelectExplorerSignIn = {
+                guestModeEnabled = false
+                openAccountAuthDialog(
+                    initialType = AccountType.EXPLORER,
+                    initialMode = AccountAuthMode.SIGN_IN,
+                    lockAccountType = true
+                )
+            },
+            onSelectBusinessSignIn = {
+                guestModeEnabled = false
+                openAccountAuthDialog(
+                    initialType = AccountType.BUSINESS,
+                    initialMode = AccountAuthMode.SIGN_IN,
+                    lockAccountType = true
+                )
+            }
+        )
         return
     }
 
@@ -1797,7 +1815,8 @@ fun DropHereScreen(
                                                 guestModeEnabled = false
                                                 openAccountAuthDialog(
                                                     initialType = AccountType.EXPLORER,
-                                                    initialMode = AccountAuthMode.SIGN_IN
+                                                    initialMode = AccountAuthMode.SIGN_IN,
+                                                    lockAccountType = true
                                                 )
                                             }
                                         )
@@ -1833,7 +1852,8 @@ fun DropHereScreen(
                                                     showAccountMenu = false
                                                     openAccountAuthDialog(
                                                         initialType = AccountType.BUSINESS,
-                                                        initialMode = AccountAuthMode.SIGN_IN
+                                                        initialMode = AccountAuthMode.SIGN_IN,
+                                                        lockAccountType = true
                                                     )
                                                 }
                                             )
@@ -2835,7 +2855,8 @@ By accepting, you acknowledge that you have read and understood how GeoDrop hand
 @Composable
 private fun UserModeSelectionScreen(
     onSelectGuest: () -> Unit,
-    onSelectSignIn: () -> Unit
+    onSelectExplorerSignIn: () -> Unit,
+    onSelectBusinessSignIn: () -> Unit
 ) {
     Box(
         modifier = Modifier
@@ -2919,15 +2940,26 @@ private fun UserModeSelectionScreen(
                         )
                     }
                     Text(
-                        text = "Join as an explorer to participate or switch to a business account to share offers.",
+                        text = "Choose the right sign-in experience for how you plan to use GeoDrop.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Button(
-                        onClick = onSelectSignIn,
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Sign in (explorer or business)")
+                        Button(
+                            onClick = onSelectExplorerSignIn,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Explorer sign in")
+                        }
+                        OutlinedButton(
+                            onClick = onSelectBusinessSignIn,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Business sign in")
+                        }
                     }
                 }
             }
@@ -4669,6 +4701,7 @@ private fun CollectedDropsDialog(
 @Composable
 private fun AccountSignInDialog(
     accountType: AccountType,
+    canChangeAccountType: Boolean,
     onAccountTypeChange: (AccountType) -> Unit,
     mode: AccountAuthMode,
     onModeChange: (AccountAuthMode) -> Unit,
@@ -4742,19 +4775,21 @@ private fun AccountSignInDialog(
                     style = MaterialTheme.typography.titleLarge
                 )
 
-                SingleChoiceSegmentedButtonRow {
-                    AccountType.entries.forEachIndexed { index, type ->
-                        SegmentedButton(
-                            shape = SegmentedButtonDefaults.itemShape(index, AccountType.entries.size),
-                            selected = accountType == type,
-                            onClick = { onAccountTypeChange(type) }
-                        ) {
-                            Text(
-                                text = when (type) {
-                                    AccountType.EXPLORER -> "Explorer"
-                                    AccountType.BUSINESS -> "Business"
-                                }
-                            )
+                if (canChangeAccountType) {
+                    SingleChoiceSegmentedButtonRow {
+                        AccountType.entries.forEachIndexed { index, type ->
+                            SegmentedButton(
+                                shape = SegmentedButtonDefaults.itemShape(index, AccountType.entries.size),
+                                selected = accountType == type,
+                                onClick = { onAccountTypeChange(type) }
+                            ) {
+                                Text(
+                                    text = when (type) {
+                                        AccountType.EXPLORER -> "Explorer"
+                                        AccountType.BUSINESS -> "Business"
+                                    }
+                                )
+                            }
                         }
                     }
                 }
