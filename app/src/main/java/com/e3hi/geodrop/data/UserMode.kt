@@ -8,9 +8,6 @@ enum class UserMode {
     /** Browsing without any account — can only read drops. */
     GUEST,
 
-    /** Temporary anonymous account that stays private but remains read-only. */
-    ANONYMOUS_BROWSING,
-
     /** Standard signed-in account with full participation rights. */
     SIGNED_IN;
 

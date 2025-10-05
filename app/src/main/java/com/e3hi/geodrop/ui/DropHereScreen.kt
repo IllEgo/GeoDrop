@@ -218,10 +218,7 @@ fun DropHereScreen(
     val termsPrefs = remember(ctx) { TermsPreferences(ctx) }
     var hasAcceptedTerms by remember { mutableStateOf(termsPrefs.hasAcceptedTerms()) }
     var hasViewedOnboarding by remember { mutableStateOf(termsPrefs.hasViewedFirstRunOnboarding()) }
-    var signingIn by remember { mutableStateOf(false) }
-    var signInError by remember { mutableStateOf<String?>(null) }
     var guestModeEnabled by rememberSaveable { mutableStateOf(false) }
-    var anonymousBrowseRequested by rememberSaveable { mutableStateOf(false) }
     var showAccountSignIn by remember { mutableStateOf(false) }
     var accountAuthMode by remember { mutableStateOf(AccountAuthMode.SIGN_IN) }
     var accountType by remember { mutableStateOf(AccountType.EXPLORER) }
@@ -277,30 +274,6 @@ fun DropHereScreen(
         resetAccountAuthFields(clearEmail = false)
         accountAuthMode = AccountAuthMode.SIGN_IN
         accountType = AccountType.EXPLORER
-    }
-
-    fun startExplorerSignIn() {
-        if (signingIn || signingOut) return
-
-        signInError = null
-        signingIn = true
-
-        runCatching {
-            auth.signInAnonymously()
-                .addOnCompleteListener { task ->
-                    signingIn = false
-                    if (!task.isSuccessful) {
-                        val message = task.exception?.localizedMessage?.takeIf { it.isNotBlank() }
-                            ?: "Couldn't sign you in. Check your connection and try again."
-                        signInError = message
-                    }
-                }
-        }.onFailure { throwable ->
-            signingIn = false
-            val message = throwable.localizedMessage?.takeIf { it.isNotBlank() }
-                ?: "Couldn't sign you in. Check your connection and try again."
-            signInError = message
-        }
     }
 
     fun openAccountAuthDialog(
@@ -492,16 +465,12 @@ fun DropHereScreen(
     }
 
     val userMode = when {
-        currentUser?.isAnonymous == true -> UserMode.ANONYMOUS_BROWSING
         currentUser != null -> UserMode.SIGNED_IN
         guestModeEnabled -> UserMode.GUEST
         else -> null
     }
 
     LaunchedEffect(userMode) {
-        if (userMode == UserMode.ANONYMOUS_BROWSING || userMode == UserMode.SIGNED_IN) {
-            anonymousBrowseRequested = false
-        }
         if (userMode == UserMode.SIGNED_IN) {
             guestModeEnabled = false
         }
@@ -522,18 +491,9 @@ fun DropHereScreen(
                 accountAuthMode = AccountAuthMode.SIGN_IN
                 accountType = AccountType.EXPLORER
                 resetAccountAuthFields(clearEmail = true)
-                if (
-                    !signingOut &&
-                    hasAcceptedTerms &&
-                    hasViewedOnboarding &&
-                    anonymousBrowseRequested
-                ) {
-                    startExplorerSignIn()
-                }
             }
-        } else {
-            signingIn = false
-            signInError = null
+        } else
+            guestModeEnabled = false
         }
     }
 
@@ -636,40 +596,18 @@ fun DropHereScreen(
     }
 
     if (userMode == null) {
-        if (anonymousBrowseRequested) {
-            ExplorerAutoSignInScreen(
-                isSigningIn = signingIn,
-                error = signInError,
-                onRetry = { startExplorerSignIn() },
-                onCancel = {
-                    if (!signingIn) {
-                        anonymousBrowseRequested = false
-                        signInError = null
-                    }
-                }
-            )
-        } else {
-            UserModeSelectionScreen(
-                onSelectGuest = {
-                    guestModeEnabled = true
-                    signInError = null
-                },
-                onSelectAnonymous = {
-                    anonymousBrowseRequested = true
-                    signInError = null
-                    startExplorerSignIn()
-                },
-                onSelectSignIn = {
-                    anonymousBrowseRequested = false
-                    guestModeEnabled = false
-                    signInError = null
-                    openAccountAuthDialog(
-                        initialType = AccountType.EXPLORER,
-                        initialMode = AccountAuthMode.SIGN_IN
-                    )
-                }
+    UserModeSelectionScreen(
+        onSelectGuest = {
+            guestModeEnabled = true
+        },
+        onSelectSignIn = {
+            guestModeEnabled = false
+            openAccountAuthDialog(
+                initialType = AccountType.EXPLORER,
+                initialMode = AccountAuthMode.SIGN_IN
             )
         }
+    )
         return
     }
 
@@ -689,13 +627,11 @@ fun DropHereScreen(
     val hasExplorerAccount = userMode != UserMode.GUEST
     val readOnlyParticipationMessage = when (userMode) {
         UserMode.GUEST -> "Create an account to fully participate."
-        UserMode.ANONYMOUS_BROWSING -> "Sign in with an account to fully participate."
         UserMode.SIGNED_IN -> null
     }
 
     fun participationRestriction(action: String): String = when (userMode) {
         UserMode.GUEST -> "Create an account to $action."
-        UserMode.ANONYMOUS_BROWSING -> "Sign in with an account to $action."
         UserMode.SIGNED_IN -> ""
     }
 
@@ -803,7 +739,6 @@ fun DropHereScreen(
         showNsfwDialog = false
         status = null
         showExplorerProfile = false
-        signInError = null
         accountAuthError = null
         accountAuthStatus = null
         explorerProfileError = null
@@ -820,7 +755,6 @@ fun DropHereScreen(
             if (result.isSuccess) {
                 selectedHomeDestination = HomeDestination.Explorer.name
                 guestModeEnabled = switchToGuest
-                anonymousBrowseRequested = false
                 val message = if (switchToGuest) {
                     "Browsing as a guest."
                 } else {
@@ -1854,54 +1788,16 @@ fun DropHereScreen(
                                 when (userMode) {
                                     UserMode.GUEST -> {
                                         DropdownMenuItem(
-                                            text = { Text(stringResource(R.string.menu_browse_anonymously)) },
-                                            leadingIcon = { Icon(Icons.Rounded.Lock, contentDescription = null) },
-                                            onClick = {
-                                                showAccountMenu = false
-                                                anonymousBrowseRequested = true
-                                                signInError = null
-                                                startExplorerSignIn()
-                                            }
-                                        )
-                                        DropdownMenuItem(
                                             text = { Text(stringResource(R.string.menu_sign_in_full_participation)) },
                                             leadingIcon = { Icon(Icons.Rounded.CheckCircle, contentDescription = null) },
                                             onClick = {
                                                 showAccountMenu = false
-                                                anonymousBrowseRequested = false
                                                 guestModeEnabled = false
-                                                signInError = null
                                                 openAccountAuthDialog(
                                                     initialType = AccountType.EXPLORER,
                                                     initialMode = AccountAuthMode.SIGN_IN
                                                 )
                                             }
-                                        )
-                                    }
-
-                                    UserMode.ANONYMOUS_BROWSING -> {
-                                        DropdownMenuItem(
-                                            text = { Text(stringResource(R.string.menu_sign_in_full_participation)) },
-                                            leadingIcon = { Icon(Icons.Rounded.CheckCircle, contentDescription = null) },
-                                            onClick = {
-                                                showAccountMenu = false
-                                                openAccountAuthDialog(
-                                                    initialType = AccountType.EXPLORER,
-                                                    initialMode = AccountAuthMode.SIGN_IN
-                                                )
-                                            }
-                                        )
-                                        DropdownMenuItem(
-                                            text = {
-                                                Text(
-                                                    stringResource(
-                                                        if (signingOut) R.string.status_switching else R.string.menu_switch_to_guest
-                                                    )
-                                                )
-                                            },
-                                            leadingIcon = { Icon(Icons.Rounded.Public, contentDescription = null) },
-                                            enabled = !signingOut,
-                                            onClick = { handleSignOut(switchToGuest = true) }
                                         )
                                     }
 
@@ -2895,7 +2791,7 @@ private val PRIVACY_POLICY_TEXT = """
 Last updated: 10/02/2025
 
 1. Information We Collect
-• Account basics: anonymous ID for explorers or email for business accounts.
+• Account basics: email address for explorer and business accounts.
 • Location data: precise GPS coordinates while you use key features like the map and background alerts for nearby drops.
 • Content you provide: text, media, and coupons that you create or redeem.
 • Device data: app version, device model, and crash diagnostics.
@@ -2932,74 +2828,8 @@ By accepting, you acknowledge that you have read and understood how GeoDrop hand
 """.trimIndent()
 
 @Composable
-private fun ExplorerAutoSignInScreen(
-    isSigningIn: Boolean,
-    error: String?,
-    onRetry: () -> Unit,
-    onCancel: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .align(Alignment.Center)
-                .fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(20.dp)
-        ) {
-            Text(
-                text = "Starting anonymous browsing",
-                style = MaterialTheme.typography.headlineSmall,
-                textAlign = TextAlign.Center
-            )
-            Text(
-                text = "We're setting up a private browsing session so you can look around without an account.",
-                style = MaterialTheme.typography.bodyMedium,
-                textAlign = TextAlign.Center,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            error?.let { message ->
-                Text(
-                    text = message,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.error,
-                    textAlign = TextAlign.Center
-                )
-            }
-            Button(
-                onClick = onRetry,
-                enabled = !isSigningIn,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                if (isSigningIn) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        strokeWidth = 2.dp
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text("Preparing…")
-                } else {
-                    Text("Try again")
-                }
-            }
-            OutlinedButton(
-                onClick = onCancel,
-                enabled = !isSigningIn,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Back to mode selection")
-            }
-        }
-    }
-}
-
-@Composable
 private fun UserModeSelectionScreen(
     onSelectGuest: () -> Unit,
-    onSelectAnonymous: () -> Unit,
     onSelectSignIn: () -> Unit
 ) {
     Box(
@@ -3058,41 +2888,6 @@ private fun UserModeSelectionScreen(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text("Start reading")
-                    }
-                }
-            }
-
-            ElevatedCard(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Icon(Icons.Rounded.Lock, contentDescription = null)
-                        Text(
-                            text = "Browse anonymously",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                    Text(
-                        text = "Stay private with a temporary ID. You'll be in read-only mode.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    OutlinedButton(
-                        onClick = onSelectAnonymous,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Start anonymous browsing")
                     }
                 }
             }

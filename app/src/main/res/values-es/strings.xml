@@ -6,10 +6,7 @@
     <string name="default_web_client_id"></string>
     <string name="drag_to_resize">Arrastra para redimensionar</string>
     <string name="content_description_account_options">Opciones de cuenta</string>
-    <string name="menu_browse_anonymously">Navegar de forma anónima (solo lectura)</string>
     <string name="menu_sign_in_full_participation">Inicia sesión para participar por completo</string>
-    <string name="status_switching">Cambiando…</string>
-    <string name="menu_switch_to_guest">Cambiar al modo invitado</string>
     <string name="menu_sign_in_business_account">Inicia sesión o crea una cuenta de negocio</string>
     <string name="menu_notification_radius">Radio de notificación (%1$d m)</string>
     <string name="menu_disable_nsfw_drops">Desactivar drops NSFW</string>

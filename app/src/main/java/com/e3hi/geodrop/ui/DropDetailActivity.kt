@@ -396,10 +396,10 @@ class DropDetailActivity : ComponentActivity() {
                         onDispose { auth.removeAuthStateListener(listener) }
                     }
                     val currentUserId = currentUser?.uid
-                    val userMode = when {
-                        currentUser?.isAnonymous == true -> UserMode.ANONYMOUS_BROWSING
-                        currentUser != null -> UserMode.SIGNED_IN
-                        else -> UserMode.GUEST
+                    val userMode = if (currentUser != null) {
+                        UserMode.SIGNED_IN
+                    } else {
+                        UserMode.GUEST
                     }
                     val canParticipate = userMode.canParticipate
                     val repo = remember { FirestoreRepo() }
@@ -717,11 +717,8 @@ class DropDetailActivity : ComponentActivity() {
                                         val alreadyRedeemed = detail.redeemedBy.containsKey(currentUserId)
                                                 || detail.isRedeemed
                                         val redemptionRestrictionMessage = when {
-                                            !canParticipate -> if (userMode == UserMode.ANONYMOUS_BROWSING) {
-                                                "Sign in with an account to redeem offers."
-                                            } else {
-                                                "Sign in to redeem offers."
-                                            }
+                                            !canParticipate -> "Sign in to redeem offers."
+
                                             else -> null
                                         }
                                         BusinessDetailSection(
@@ -855,11 +852,7 @@ class DropDetailActivity : ComponentActivity() {
 
                                     val isDropOwner = loadedState?.createdBy == currentUserId
                                     val voteRestrictionMessage = when {
-                                        !canParticipate -> if (userMode == UserMode.ANONYMOUS_BROWSING) {
-                                            "Sign in with an account to vote on drops."
-                                        } else {
-                                            "Sign in to vote on drops."
-                                        }
+                                        !canParticipate -> "Sign in to vote on drops."
                                         currentUserId.isNullOrBlank() -> "Sign in to vote on drops."
                                         isDropOwner -> "You can't vote on your own drop."
                                         !hasCollected -> "Collect this drop to vote on it."
@@ -1102,11 +1095,7 @@ class DropDetailActivity : ComponentActivity() {
                                             Button(
                                                 onClick = {
                                                     if (!canParticipate) {
-                                                        val message = if (userMode == UserMode.ANONYMOUS_BROWSING) {
-                                                            "Sign in with an account to collect drops."
-                                                        } else {
-                                                            "Sign in to collect drops."
-                                                        }
+                                                        val message = "Sign in to collect drops."
                                                         Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
                                                         return@Button
                                                     }
@@ -1173,11 +1162,7 @@ class DropDetailActivity : ComponentActivity() {
                                         }
                                         if (!canParticipate) {
                                             Text(
-                                                text = if (userMode == UserMode.ANONYMOUS_BROWSING) {
-                                                    "Sign in with an account to collect or ignore drops."
-                                                } else {
-                                                    "Sign in to collect or ignore drops."
-                                                },
+                                                text = "Sign in to collect or ignore drops.",
                                                 style = MaterialTheme.typography.bodySmall,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
@@ -1254,11 +1239,7 @@ class DropDetailActivity : ComponentActivity() {
                                                         return@OutlinedButton
                                                     }
                                                     if (!canParticipate) {
-                                                        val message = if (userMode == UserMode.ANONYMOUS_BROWSING) {
-                                                            "Sign in with an account to block creators."
-                                                        } else {
-                                                            "Sign in to block creators."
-                                                        }
+                                                        val message = "Sign in to block creators."
                                                         Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
                                                         return@OutlinedButton
                                                     }
