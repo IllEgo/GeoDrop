@@ -2163,7 +2163,10 @@ fun DropHereScreen(
             votingDropIds = votingDropIds,
             collectedDropIds = collectedDropIds,
             canCollectDrops = canParticipate,
-            collectRestrictionMessage = if (canParticipate) null else participationRestriction("pick up drops"),
+            collectRestrictionMessage = when (userMode) {
+                UserMode.GUEST -> "Preview drops nearby, then create an account to pick them up when you're ready."
+                UserMode.SIGNED_IN -> null
+            },
             canVoteOnDrops = canParticipate,
             voteRestrictionMessage = if (canParticipate) null else participationRestriction("vote on drops"),
             onVote = { drop, vote -> submitVote(drop, vote) },
@@ -5626,8 +5629,13 @@ private fun OtherDropsMapDialog(
                                         .weight(listWeight)
                                 ) {
                                     val isSignedIn = !currentUserId.isNullOrBlank()
+                                    val browseMessage = if (canCollectDrops) {
+                                        "Select a drop to focus on the map. If you're close enough, pick it up here."
+                                    } else {
+                                        "Select a drop to focus on the map and preview what's nearby. Create an account to collect drops when you're ready."
+                                    }
                                     Text(
-                                        text = "Select a drop to focus on the map. If you're close enough, pick it up here.",
+                                        text = browseMessage,
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         modifier = Modifier
@@ -6700,7 +6708,8 @@ private fun OtherDropRow(
                             }
                         } else {
                             Text(
-                                text = pickupRestrictionMessage ?: "Sign in to pick up drops.",
+                                text = pickupRestrictionMessage
+                                    ?: "Preview this drop while browsing as a guest. Sign in to pick it up nearby.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = supportingColor
                             )
