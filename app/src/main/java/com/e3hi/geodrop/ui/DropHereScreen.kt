@@ -13,6 +13,8 @@ import android.util.Base64
 import android.util.Log
 import android.util.Patterns
 import android.provider.MediaStore
+import android.webkit.MimeTypeMap
+import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
@@ -52,6 +54,7 @@ import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.Bookmark
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.Inbox
 import androidx.compose.material.icons.rounded.Info
@@ -127,8 +130,6 @@ import com.e3hi.geodrop.data.BusinessDropTemplate
 import com.e3hi.geodrop.data.Drop
 import com.e3hi.geodrop.data.DropContentType
 import com.e3hi.geodrop.data.displayTitle
-import com.e3hi.geodrop.data.discoveryDescription
-import com.e3hi.geodrop.data.discoveryTitle
 import com.e3hi.geodrop.data.mediaLabel
 import com.e3hi.geodrop.data.FirestoreRepo
 import com.e3hi.geodrop.data.DropVoteType
@@ -193,6 +194,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.FileOutputStream
 import java.io.IOException
 import java.util.ArrayList
 import java.util.Locale
@@ -5594,7 +5596,7 @@ private fun OtherDropsMapDialog(
                                     .onSizeChanged { containerHeight = it.height }
                             ) {
                                 Text(
-                                    text = "Collect a drop to reveal its contents.",
+                                    text = "Preview what's inside each drop and pick it up when you're close enough.",
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier
@@ -6541,6 +6543,28 @@ private fun OtherDropRow(
     }
     val withinPickupRange =
         distanceMeters != null && distanceMeters <= DROP_PICKUP_RADIUS_METERS
+    val context = LocalContext.current
+    val mediaAttachment = remember(
+        context,
+        drop.id,
+        drop.mediaUrl,
+        drop.mediaData,
+        drop.mediaMimeType,
+        drop.contentType
+    ) {
+        if (drop.contentType == DropContentType.AUDIO || drop.contentType == DropContentType.VIDEO) {
+            resolveDropMediaAttachment(context, drop)
+        } else {
+            null
+        }
+    }
+    val previewText = drop.text.takeIf { it.isNotBlank() }
+        ?: when (drop.contentType) {
+            DropContentType.PHOTO -> "Preview the photo below."
+            DropContentType.AUDIO -> "Use the player below to listen to this drop."
+            DropContentType.VIDEO -> "Use the player below to watch this drop."
+            DropContentType.TEXT -> null
+        }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -6557,10 +6581,12 @@ private fun OtherDropRow(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = drop.discoveryTitle(),
+                    text = drop.displayTitle(),
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    maxLines = if (isSelected) Int.MAX_VALUE else 2,
+                    overflow = TextOverflow.Ellipsis
                 )
 
                 if (drop.isNsfw) {
@@ -6577,14 +6603,14 @@ private fun OtherDropRow(
                 )
             }
 
-            val description = drop.discoveryDescription()
-            if (description.isNotBlank()) {
+            if (!previewText.isNullOrBlank()) {
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    text = description,
+                    text = previewText,
                     style = MaterialTheme.typography.bodyMedium,
                     color = supportingColor,
-                    maxLines = if (isSelected) Int.MAX_VALUE else 2
+                    maxLines = if (isSelected) Int.MAX_VALUE else 3,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
 
@@ -6617,6 +6643,38 @@ private fun OtherDropRow(
                             text = "Group $groupCode",
                             style = MaterialTheme.typography.bodySmall,
                             color = supportingColor
+                        )
+                    }
+
+                    if (drop.contentType == DropContentType.PHOTO) {
+                        val mediaUrl = drop.mediaLabel()
+                        if (!mediaUrl.isNullOrBlank()) {
+                            Spacer(Modifier.height(12.dp))
+                            val imageRequest = remember(mediaUrl) {
+                                ImageRequest.Builder(context)
+                                    .data(mediaUrl)
+                                    .crossfade(true)
+                                    .build()
+                            }
+
+                            AsyncImage(
+                                model = imageRequest,
+                                contentDescription = drop.displayTitle(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(min = 160.dp, max = 280.dp)
+                                    .clip(RoundedCornerShape(12.dp)),
+                                contentScale = ContentScale.Crop
+                            )
+                        }
+                    }
+
+                    if (drop.contentType == DropContentType.AUDIO || drop.contentType == DropContentType.VIDEO) {
+                        Spacer(Modifier.height(12.dp))
+                        AttachmentPreviewSection(
+                            contentType = drop.contentType,
+                            attachment = mediaAttachment,
+                            onOpen = { attachment -> openDropMediaAttachment(context, attachment) }
                         )
                     }
 
@@ -6722,6 +6780,86 @@ private fun OtherDropRow(
 }
 
 @Composable
+private fun AttachmentPreviewSection(
+    contentType: DropContentType,
+    attachment: DropMediaAttachment?,
+    onOpen: (DropMediaAttachment) -> Unit
+) {
+    val iconData: ImageVector
+    val header: String
+    val description: String
+    val actionLabel: String
+    when (contentType) {
+        DropContentType.AUDIO -> {
+            iconData = Icons.Rounded.GraphicEq
+            header = "Audio clip"
+            description = "Tap to listen to this recording."
+            actionLabel = "Play audio"
+        }
+
+        DropContentType.VIDEO -> {
+            iconData = Icons.Rounded.PlayArrow
+            header = "Video clip"
+            description = "Tap to watch this clip."
+            actionLabel = "Play video"
+        }
+
+        else -> return
+    }
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Icon(
+                imageVector = iconData,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary
+            )
+            Column {
+                Text(
+                    text = header,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+
+    Spacer(Modifier.height(8.dp))
+
+    Button(
+        onClick = { attachment?.let(onOpen) },
+        enabled = attachment != null,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text(actionLabel)
+    }
+
+    if (attachment == null) {
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = "Attachment unavailable.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
 private fun OtherDropsMap(
     drops: List<Drop>,
     selectedDropId: String?,
@@ -6783,7 +6921,16 @@ private fun OtherDropsMap(
         drops.forEach { drop ->
             val position = LatLng(drop.lat, drop.lng)
             val snippetParts = mutableListOf<String>()
-            snippetParts.add(drop.discoveryDescription())
+            val snippetDescription = drop.text.takeIf { it.isNotBlank() }
+                ?: when (drop.contentType) {
+                    DropContentType.PHOTO -> "Preview the photo in the drop list."
+                    DropContentType.AUDIO -> "Open the drop list to play this recording."
+                    DropContentType.VIDEO -> "Open the drop list to watch this clip."
+                    DropContentType.TEXT -> ""
+                }
+            if (!snippetDescription.isNullOrBlank()) {
+                snippetParts.add(snippetDescription)
+            }
             formatTimestamp(drop.createdAt)?.let { snippetParts.add("Dropped $it") }
             drop.groupCode?.takeIf { !it.isNullOrBlank() }?.let { snippetParts.add("Group $it") }
             snippetParts.add("Lat: %.5f, Lng: %.5f".format(drop.lat, drop.lng))
@@ -6802,7 +6949,7 @@ private fun OtherDropsMap(
 
             Marker(
                 state = MarkerState(position),
-                title = drop.discoveryTitle(),
+                title = drop.displayTitle(),
                 snippet = snippetParts.joinToString("\n"),
                 icon = markerIcon,
                 alpha = if (isSelected) 1f else 0.9f,
@@ -6853,6 +7000,93 @@ private fun formatVoteScore(score: Long): String {
         score < 0 -> score.toString()
         else -> "0"
     }
+}
+
+private fun resolveDropMediaAttachment(context: Context, drop: Drop): DropMediaAttachment? {
+    val data = drop.mediaData?.takeIf { it.isNotBlank() }
+    val preferredMime = drop.mediaMimeType?.takeIf { it.isNotBlank() }
+    if (data != null) {
+        val (subDir, defaultMime, defaultExtension) = when (drop.contentType) {
+            DropContentType.AUDIO -> Triple("audio", preferredMime ?: "audio/mpeg", "m4a")
+            DropContentType.VIDEO -> Triple("video", preferredMime ?: "video/mp4", "mp4")
+            else -> Triple("media", preferredMime ?: "application/octet-stream", "bin")
+        }
+
+        decodeDropMediaToTempFile(
+            context = context,
+            base64Data = data,
+            mimeType = preferredMime,
+            subDir = subDir,
+            defaultMime = defaultMime,
+            defaultExtension = defaultExtension
+        )?.let { decoded ->
+            return DropMediaAttachment.Local(decoded.uri, decoded.mimeType)
+        }
+    }
+
+    val url = drop.mediaUrl?.takeIf { it.isNotBlank() } ?: return null
+    return DropMediaAttachment.Link(url)
+}
+
+private fun decodeDropMediaToTempFile(
+    context: Context,
+    base64Data: String,
+    mimeType: String?,
+    subDir: String,
+    defaultMime: String,
+    defaultExtension: String
+): DropDecodedMedia? {
+    return try {
+        val bytes = Base64.decode(base64Data, Base64.DEFAULT)
+        val resolvedMime = mimeType?.takeIf { it.isNotBlank() } ?: defaultMime
+        val extension = MimeTypeMap.getSingleton()
+            .getExtensionFromMimeType(resolvedMime)
+            ?.takeIf { it.isNotBlank() }
+            ?: defaultExtension
+        val directory = File(context.cacheDir, subDir).apply { if (!exists()) mkdirs() }
+        val file = File.createTempFile("geodrop_media_", ".${extension}", directory)
+        FileOutputStream(file).use { output -> output.write(bytes) }
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        DropDecodedMedia(uri, resolvedMime)
+    } catch (error: Exception) {
+        Log.e("GeoDrop", "Failed to decode drop media", error)
+        null
+    }
+}
+
+private fun openDropMediaAttachment(context: Context, attachment: DropMediaAttachment) {
+    when (attachment) {
+        is DropMediaAttachment.Link -> {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(attachment.url))
+            runCatching { context.startActivity(intent) }
+                .onFailure {
+                    Toast.makeText(context, "No app found to open this media.", Toast.LENGTH_SHORT).show()
+                }
+        }
+
+        is DropMediaAttachment.Local -> {
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(attachment.uri, attachment.mimeType)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            context.grantUriPermission(
+                context.packageName,
+                attachment.uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION
+            )
+            runCatching { context.startActivity(intent) }
+                .onFailure {
+                    Toast.makeText(context, "No app found to open this media.", Toast.LENGTH_SHORT).show()
+                }
+        }
+    }
+}
+
+private data class DropDecodedMedia(val uri: Uri, val mimeType: String)
+
+private sealed class DropMediaAttachment {
+    data class Link(val url: String) : DropMediaAttachment()
+    data class Local(val uri: Uri, val mimeType: String) : DropMediaAttachment()
 }
 
 @Composable
