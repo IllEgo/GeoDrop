@@ -16,6 +16,7 @@ import android.provider.MediaStore
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.background
@@ -717,6 +718,7 @@ fun DropHereScreen(
     var otherDropsCurrentLocation by remember { mutableStateOf<LatLng?>(null) }
     var otherDropsSelectedId by remember { mutableStateOf<String?>(null) }
     var otherDropsRefreshToken by remember { mutableStateOf(0) }
+    var nearbyDropCountHint by remember { mutableStateOf<Int?>(null) }
     var votingDropIds by remember { mutableStateOf(setOf<String>()) }
     var showMyDrops by remember { mutableStateOf(false) }
     var myDrops by remember { mutableStateOf<List<Drop>>(emptyList()) }
@@ -726,6 +728,8 @@ fun DropHereScreen(
     var myDropsCurrentLocation by remember { mutableStateOf<LatLng?>(null) }
     var myDropsDeletingId by remember { mutableStateOf<String?>(null) }
     var myDropsSelectedId by remember { mutableStateOf<String?>(null) }
+    var myDropCountHint by remember { mutableStateOf<Int?>(null) }
+    var myDropPendingReviewHint by remember { mutableStateOf<Int?>(null) }
     var showCollectedDrops by remember { mutableStateOf(false) }
     var showManageGroups by remember { mutableStateOf(false) }
     var showDropComposer by remember { mutableStateOf(false) }
@@ -1704,6 +1708,7 @@ fun DropHereScreen(
                         id in collectedDropIds || id in ignoredDropIds
                     }
                     otherDrops = filteredDrops
+                    nearbyDropCountHint = filteredDrops.size
                     otherDropsCurrentLocation = getLatestLocation()?.let { (lat, lng) -> LatLng(lat, lng) }
                     otherDropsSelectedId = otherDropsSelectedId?.takeIf { id -> filteredDrops.any { it.id == id } }
                         ?: filteredDrops.firstOrNull()?.id
@@ -1742,6 +1747,8 @@ fun DropHereScreen(
                     val drops = repo.getDropsForUser(uid)
                         .sortedByDescending { it.createdAt }
                     myDrops = drops
+                    myDropCountHint = drops.size
+                    myDropPendingReviewHint = drops.count { it.reportCount > 0 }
                     myDropsCurrentLocation = getLatestLocation()?.let { (lat, lng) -> LatLng(lat, lng) }
                     myDropsSelectedId = myDropsSelectedId?.takeIf { id -> drops.any { it.id == id } }
                         ?: drops.firstOrNull()?.id
@@ -2009,6 +2016,8 @@ fun DropHereScreen(
                 businessName = userProfile?.businessName,
                 businessCategories = userProfile?.businessCategories.orEmpty(),
                 joinedGroups = joinedGroups,
+                myDropCountHint = myDropCountHint,
+                pendingReviewCountHint = myDropPendingReviewHint,
                 statusMessage = status,
                 onCreateDrop = {
                     if (!isSubmitting) {
@@ -2056,11 +2065,23 @@ fun DropHereScreen(
 
                 item {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        val availableNearbyDrops = nearbyDropCountHint ?: otherDrops.size
+                        val totalMyDrops = myDropCountHint ?: myDrops.size
+                        val pendingMyDropReviews = myDropPendingReviewHint ?: myDrops.count { it.reportCount > 0 }
+
                         ActionCard(
                             icon = Icons.Rounded.Map,
                             title = stringResource(R.string.action_browse_map_title),
                             description = stringResource(R.string.action_browse_map_description),
-                            onClick = { showOtherDropsMap = true }
+                            onClick = { showOtherDropsMap = true },
+                            trailingContent = {
+                                if (availableNearbyDrops > 0) {
+                                    MetricPill(
+                                        label = stringResource(R.string.metric_available),
+                                        value = availableNearbyDrops
+                                    )
+                                }
+                            }
                         )
 
                         ActionCard(
@@ -2072,6 +2093,24 @@ fun DropHereScreen(
                                     snackbar.showMessage(scope, participationRestriction("view and manage your drops"))
                                 } else {
                                     showMyDrops = true
+                                }
+                            },
+                            trailingContent = {
+                                if (totalMyDrops > 0 || pendingMyDropReviews > 0) {
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        if (totalMyDrops > 0) {
+                                            CountBadge(count = totalMyDrops)
+                                        }
+                                        if (pendingMyDropReviews > 0) {
+                                            MetricPill(
+                                                label = stringResource(R.string.metric_pending_reviews),
+                                                value = pendingMyDropReviews
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         )
@@ -2113,8 +2152,21 @@ fun DropHereScreen(
                                 showCollectedDrops = true
                             },
                             trailingContent = {
-                                if (collectedCount > 0) {
-                                    CountBadge(count = collectedCount)
+                                if (collectedCount > 0 || hiddenNsfwCollectedCount > 0) {
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        if (collectedCount > 0) {
+                                            CountBadge(count = collectedCount)
+                                        }
+                                        if (hiddenNsfwCollectedCount > 0) {
+                                            MetricPill(
+                                                label = stringResource(R.string.metric_hidden),
+                                                value = hiddenNsfwCollectedCount
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         )
@@ -2275,6 +2327,8 @@ fun DropHereScreen(
                         repo.deleteDrop(drop.id)
                         val updated = myDrops.filterNot { it.id == drop.id }
                         myDrops = updated
+                        myDropCountHint = updated.size
+                        myDropPendingReviewHint = updated.count { it.reportCount > 0 }
                         if (myDropsSelectedId == drop.id) {
                             myDropsSelectedId = updated.firstOrNull()?.id
                         }
@@ -3084,6 +3138,8 @@ private fun BusinessHomeScreen(
     businessName: String?,
     businessCategories: List<BusinessCategory>,
     joinedGroups: List<String>,
+    myDropCountHint: Int?,
+    pendingReviewCountHint: Int?,
     statusMessage: String?,
     onCreateDrop: () -> Unit,
     onViewDashboard: () -> Unit,
@@ -3092,6 +3148,11 @@ private fun BusinessHomeScreen(
     onManageGroups: () -> Unit,
     onSignOut: () -> Unit,
 ) {
+    val templateCount = remember(businessCategories) { dropTemplatesFor(businessCategories).size }
+    val activeDropCount = myDropCountHint ?: 0
+    val pendingReviewCount = pendingReviewCountHint ?: 0
+    val groupCount = joinedGroups.size
+
     LazyColumn(
         modifier = modifier,
         contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 24.dp, bottom = 128.dp),
@@ -3115,21 +3176,55 @@ private fun BusinessHomeScreen(
                     icon = Icons.Rounded.Place,
                     title = "Create a drop",
                     description = "Publish a new coupon, tour stop, or update for nearby explorers.",
-                    onClick = onCreateDrop
+                    onClick = onCreateDrop,
+                    trailingContent = {
+                        if (templateCount > 0) {
+                            MetricPill(
+                                label = stringResource(R.string.metric_templates),
+                                value = templateCount
+                            )
+                        }
+                    }
                 )
 
                 ActionCard(
                     icon = Icons.Rounded.Inbox,
                     title = "Manage existing drops",
                     description = "Review performance and make changes to the drops you've shared.",
-                    onClick = onViewMyDrops
+                    onClick = onViewMyDrops,
+                    trailingContent = {
+                        if (activeDropCount > 0 || pendingReviewCount > 0) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                if (activeDropCount > 0) {
+                                    CountBadge(count = activeDropCount)
+                                }
+                                if (pendingReviewCount > 0) {
+                                    MetricPill(
+                                        label = stringResource(R.string.metric_pending_reviews),
+                                        value = pendingReviewCount
+                                    )
+                                }
+                            }
+                        }
+                    }
                 )
 
                 ActionCard(
                     icon = Icons.Rounded.Groups,
                     title = "Manage group codes",
                     description = "Control who can access private campaigns or team-only drops.",
-                    onClick = onManageGroups
+                    onClick = onManageGroups,
+                    trailingContent = {
+                        if (groupCount > 0) {
+                            MetricPill(
+                                label = stringResource(R.string.metric_groups),
+                                value = groupCount
+                            )
+                        }
+                    }
                 )
             }
         }
@@ -3142,7 +3237,25 @@ private fun BusinessHomeScreen(
                     icon = Icons.Rounded.Storefront,
                     title = "Business dashboard",
                     description = "Track discoveries, redemptions, and engagement in one place.",
-                    onClick = onViewDashboard
+                    onClick = onViewDashboard,
+                    trailingContent = {
+                        if (activeDropCount > 0 || pendingReviewCount > 0) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                if (activeDropCount > 0) {
+                                    CountBadge(count = activeDropCount)
+                                }
+                                if (pendingReviewCount > 0) {
+                                    MetricPill(
+                                        label = stringResource(R.string.metric_pending_reviews),
+                                        value = pendingReviewCount
+                                    )
+                                }
+                            }
+                        }
+                    }
                 )
 
                 ActionCard(
@@ -3442,7 +3555,8 @@ private fun ActionCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(20.dp),
+                .padding(20.dp)
+                .animateContentSize(),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
@@ -3481,7 +3595,9 @@ private fun ActionCard(
 
             trailingContent?.let {
                 Spacer(Modifier.width(16.dp))
-                it()
+                Box(modifier = Modifier.wrapContentSize()) {
+                    it()
+                }
             }
         }
     }
@@ -3500,6 +3616,38 @@ private fun CountBadge(count: Int) {
             color = MaterialTheme.colorScheme.primary,
             fontWeight = FontWeight.SemiBold
         )
+    }
+}
+
+@Composable
+private fun MetricPill(
+    label: String,
+    value: Int,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(50),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = value.toString(),
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }
 

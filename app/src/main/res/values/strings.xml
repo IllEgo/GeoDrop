@@ -31,6 +31,11 @@
     <string name="action_collected_drops_some_hidden">Open the %1$d %2$s you\'ve saved. (%3$d hidden by NSFW settings.)</string>
     <string name="action_collected_drops_single">Open the drop you\'ve saved.</string>
     <string name="action_collected_drops_multiple">Open the %1$d drops you\'ve saved.</string>
+    <string name="metric_available">Available</string>
+    <string name="metric_pending_reviews">Pending reviews</string>
+    <string name="metric_hidden">Hidden</string>
+    <string name="metric_templates">Templates</string>
+    <string name="metric_groups">Groups</string>
     <string name="drop_detail_already_collected">You\'ve already picked up this drop.</string>
     <string name="drop_detail_already_ignored">You\'ve already ignored this drop.</string>
     <string name="drop_detail_title">Drop details</string>
