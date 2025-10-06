@@ -1947,18 +1947,6 @@ fun DropHereScreen(
                                                     showExplorerProfile = true
                                                 }
                                             )
-                                            DropdownMenuItem(
-                                                text = { Text(stringResource(R.string.menu_sign_in_business_account)) },
-                                                leadingIcon = { Icon(Icons.Rounded.Storefront, contentDescription = null) },
-                                                onClick = {
-                                                    showAccountMenu = false
-                                                    openAccountAuthDialog(
-                                                        initialType = AccountType.BUSINESS,
-                                                        initialMode = AccountAuthMode.SIGN_IN,
-                                                        lockAccountType = true
-                                                    )
-                                                }
-                                            )
                                         }
                                     }
                                 }
