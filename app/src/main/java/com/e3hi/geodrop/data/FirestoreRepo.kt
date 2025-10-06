@@ -924,9 +924,10 @@ class FirestoreRepo(
 
     private fun Drop.prepareForSave(): Map<String, Any?> {
         val withTimestamp = if (createdAt > 0L) this else copy(createdAt = System.currentTimeMillis())
+        val sanitizedDescription = withTimestamp.description?.trim()?.takeIf { it.isNotEmpty() }
         val sanitized = withTimestamp.copy(
             text = withTimestamp.text.trim(),
-            description = withTimestamp.description.trim(),
+            description = sanitizedDescription,
             mediaUrl = withTimestamp.mediaUrl?.trim()?.takeIf { it.isNotEmpty() },
             mediaMimeType = withTimestamp.mediaMimeType?.trim()?.takeIf { it.isNotEmpty() },
             mediaData = withTimestamp.mediaData?.trim()?.takeIf { it.isNotEmpty() },
@@ -944,7 +945,7 @@ class FirestoreRepo(
 
         return hashMapOf(
             "text" to sanitized.text,
-            "description" to sanitized.description.takeIf { it.isNotEmpty() },
+            "description" to sanitized.description?.takeIf { it.isNotEmpty() },
             "lat" to sanitized.lat,
             "lng" to sanitized.lng,
             "createdBy" to sanitized.createdBy,

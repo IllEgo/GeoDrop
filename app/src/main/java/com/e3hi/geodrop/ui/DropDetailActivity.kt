@@ -1600,7 +1600,7 @@ private fun DropDetailUiState.Loaded.applyUserVoteLocal(
 private fun DropDetailUiState.Loaded.toDropForVoting(): Drop {
     return Drop(
         text = text.orEmpty(),
-        description = description.orEmpty(),
+        description = description?.trim()?.takeIf { it.isNotEmpty() },
         lat = lat ?: 0.0,
         lng = lng ?: 0.0,
         createdAt = createdAt ?: 0L,

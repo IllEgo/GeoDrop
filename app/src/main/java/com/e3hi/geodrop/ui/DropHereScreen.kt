@@ -1001,8 +1001,8 @@ fun DropHereScreen(
             if (drop.text.isNotBlank()) {
                 putExtra(DropDecisionReceiver.EXTRA_DROP_TEXT, drop.text)
             }
-            if (drop.description.isNotBlank()) {
-                putExtra(DropDecisionReceiver.EXTRA_DROP_DESCRIPTION, drop.description)
+            drop.description?.takeIf { it.isNotBlank() }?.let { description ->
+                putExtra(DropDecisionReceiver.EXTRA_DROP_DESCRIPTION, description)
             }
             putExtra(DropDecisionReceiver.EXTRA_DROP_CONTENT_TYPE, drop.contentType.name)
             drop.mediaUrl?.takeIf { it.isNotBlank() }?.let {
@@ -1371,7 +1371,7 @@ fun DropHereScreen(
         contentType: DropContentType,
         dropType: DropType,
         noteText: String,
-        descriptionText: String,
+        descriptionText: String?,
         mediaInput: String?,
         mediaMimeType: String?,
         mediaData: String?,
@@ -1391,7 +1391,7 @@ fun DropHereScreen(
         val sanitizedSafetyData = mediaDataForSafety?.takeIf { it.isNotBlank() }
         val sanitizedDecayDays = decayDays?.takeIf { it > 0 }
         val sanitizedText = noteText.trim()
-        val sanitizedDescription = descriptionText.trim()
+        val sanitizedDescription = descriptionText?.trim()?.takeIf { it.isNotEmpty() }
         val d = Drop(
             text = sanitizedText,
             description = sanitizedDescription,
@@ -1413,11 +1413,13 @@ fun DropHereScreen(
             decayDays = sanitizedDecayDays
         )
 
-        val safetyText = listOf(sanitizedText, sanitizedDescription)
-            .map { it.trim() }
-            .filter { it.isNotEmpty() }
-            .joinToString(separator = "\n")
-            .takeIf { it.isNotBlank() }
+        val safetyPieces = mutableListOf<String>()
+        if (sanitizedText.isNotBlank()) {
+            safetyPieces += sanitizedText
+        }
+        sanitizedDescription?.let { safetyPieces += it }
+        val safetyText = safetyPieces.takeIf { it.isNotEmpty() }
+            ?.joinToString(separator = "\n")
         val safety = dropSafetyEvaluator.assess(
             text = safetyText,
             contentType = contentType,
@@ -1656,7 +1658,7 @@ fun DropHereScreen(
                     return@launch
                 }
 
-                val dropDescription = dropDescriptionText.trim()
+                val dropDescription = dropDescriptionText.trim().takeIf { it.isNotEmpty() }
                 val safety = addDropAt(
                     lat = lat,
                     lng = lng,
@@ -2445,7 +2447,7 @@ fun DropHereScreen(
                 val intent = Intent(ctx, DropDetailActivity::class.java).apply {
                     putExtra("dropId", drop.id)
                     if (drop.text.isNotBlank()) putExtra("dropText", drop.text)
-                    if (drop.description.isNotBlank()) putExtra("dropDescription", drop.description)
+                    drop.description?.takeIf { it.isNotBlank() }?.let { putExtra("dropDescription", it) }
                     putExtra("dropContentType", drop.contentType.name)
                     putExtra("dropLat", drop.lat)
                     putExtra("dropLng", drop.lng)
@@ -6909,16 +6911,14 @@ private fun OtherDropRow(
             null
         }
     }
-    val previewText = when {
-        drop.description.isNotBlank() -> drop.description
-        drop.text.isNotBlank() -> drop.text
-        else -> when (drop.contentType) {
+    val previewText = drop.description?.takeIf { it.isNotBlank() }
+        ?: drop.text.takeIf { it.isNotBlank() }
+        ?: when (drop.contentType) {
             DropContentType.PHOTO -> "Preview the photo below."
             DropContentType.AUDIO -> "Use the player below to listen to this drop."
             DropContentType.VIDEO -> "Use the player below to watch this drop."
             DropContentType.TEXT -> null
         }
-    }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -7366,11 +7366,8 @@ private fun OtherDropsMap(
         drops.forEach { drop ->
             val position = LatLng(drop.lat, drop.lng)
             val snippetParts = mutableListOf<String>()
-            val snippetDescription = when {
-                drop.description.isNotBlank() -> drop.description
-                drop.text.isNotBlank() -> drop.text
-                else -> null
-            }
+            val snippetDescription = drop.description?.takeIf { it.isNotBlank() }
+                ?: drop.text.takeIf { it.isNotBlank() }
                 ?: when (drop.contentType) {
                     DropContentType.PHOTO -> "Preview the photo in the drop list."
                     DropContentType.AUDIO -> "Open the drop list to play this recording."
@@ -7770,25 +7767,25 @@ private fun DropContentTypeSection(
         listOf(
             DropContentTypeOption(
                 type = DropContentType.TEXT,
-                title = "Text note",
+                title = "Text",
                 description = "Share a written message for people nearby.",
                 icon = Icons.Rounded.Edit
             ),
             DropContentTypeOption(
                 type = DropContentType.PHOTO,
-                title = "Photo drop",
+                title = "Photo",
                 description = "Capture a photo with your camera that others can open.",
                 icon = Icons.Rounded.PhotoCamera
             ),
             DropContentTypeOption(
                 type = DropContentType.VIDEO,
-                title = "Video drop",
+                title = "Video",
                 description = "Record a short clip for nearby explorers to watch.",
                 icon = Icons.Rounded.Videocam
             ),
             DropContentTypeOption(
                 type = DropContentType.AUDIO,
-                title = "Audio drop",
+                title = "Audio",
                 description = "Record a quick voice message for nearby explorers.",
                 icon = Icons.Rounded.Mic
             )

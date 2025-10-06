@@ -3,7 +3,7 @@ package com.e3hi.geodrop.data
 data class Drop(
     val id: String = "",
     val text: String = "",
-    val description: String = "",
+    val description: String? = null,
     val lat: Double = 0.0,
     val lng: Double = 0.0,
     val createdBy: String = "",
@@ -110,14 +110,17 @@ enum class DropContentType {
     }
 }
 
-fun Drop.displayTitle(): String = when (dropType) {
-    DropType.RESTAURANT_COUPON -> text.ifBlank { description.ifBlank { "Special offer" } }
-    DropType.TOUR_STOP -> text.ifBlank { description.ifBlank { "Tour stop" } }
-    DropType.COMMUNITY -> when (contentType) {
-        DropContentType.TEXT -> text.ifBlank { description.ifBlank { "(No message)" } }
-        DropContentType.PHOTO -> description.ifBlank { text }.ifBlank { "Photo drop" }
-        DropContentType.AUDIO -> description.ifBlank { text }.ifBlank { "Audio drop" }
-        DropContentType.VIDEO -> description.ifBlank { text }.ifBlank { "Video drop" }
+fun Drop.displayTitle(): String {
+    val descriptionText = description.orEmpty()
+    return when (dropType) {
+        DropType.RESTAURANT_COUPON -> text.ifBlank { descriptionText.ifBlank { "Special offer" } }
+        DropType.TOUR_STOP -> text.ifBlank { descriptionText.ifBlank { "Tour stop" } }
+        DropType.COMMUNITY -> when (contentType) {
+            DropContentType.TEXT -> text.ifBlank { descriptionText.ifBlank { "(No message)" } }
+            DropContentType.PHOTO -> descriptionText.ifBlank { text }.ifBlank { "Photo drop" }
+            DropContentType.AUDIO -> descriptionText.ifBlank { text }.ifBlank { "Audio drop" }
+            DropContentType.VIDEO -> descriptionText.ifBlank { text }.ifBlank { "Video drop" }
+        }
     }
 }
 
@@ -134,18 +137,21 @@ fun Drop.discoveryTitle(): String = when (dropType) {
     }
 }
 
-fun Drop.discoveryDescription(): String = when (dropType) {
-    DropType.RESTAURANT_COUPON -> description.ifBlank {
-        "Unlock the details to redeem this business offer nearby."
-    }
-    DropType.TOUR_STOP -> description.ifBlank {
-        "Pick up this stop to access the guided story or directions."
-    }
-    DropType.COMMUNITY -> when (contentType) {
-        DropContentType.TEXT -> description.ifBlank { "Collect this drop to read the message inside." }
-        DropContentType.PHOTO -> description.ifBlank { "Pick up this drop to reveal the photo." }
-        DropContentType.AUDIO -> description.ifBlank { "Collect this drop to listen to the recording." }
-        DropContentType.VIDEO -> description.ifBlank { "Collect this drop to watch the clip." }
+fun Drop.discoveryDescription(): String {
+    val descriptionText = description.orEmpty()
+    return when (dropType) {
+        DropType.RESTAURANT_COUPON -> descriptionText.ifBlank {
+            "Unlock the details to redeem this business offer nearby."
+        }
+        DropType.TOUR_STOP -> descriptionText.ifBlank {
+            "Pick up this stop to access the guided story or directions."
+        }
+        DropType.COMMUNITY -> when (contentType) {
+            DropContentType.TEXT -> descriptionText.ifBlank { "Collect this drop to read the message inside." }
+            DropContentType.PHOTO -> descriptionText.ifBlank { "Pick up this drop to reveal the photo." }
+            DropContentType.AUDIO -> descriptionText.ifBlank { "Collect this drop to listen to the recording." }
+            DropContentType.VIDEO -> descriptionText.ifBlank { "Collect this drop to watch the clip." }
+        }
     }
 }
 

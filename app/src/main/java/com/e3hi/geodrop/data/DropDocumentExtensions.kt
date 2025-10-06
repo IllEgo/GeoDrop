@@ -5,6 +5,8 @@ import com.google.firebase.firestore.DocumentSnapshot
 internal fun DocumentSnapshot.toDrop(): Drop {
     val base = toObject(Drop::class.java)?.copy(id = id) ?: Drop(id = id)
 
+    val description = base.description?.trim()?.takeIf { it.isNotEmpty() }
+
     val nsfwFlag = when {
         contains("isNsfw") -> getBoolean("isNsfw") == true
         contains("nsfw") -> getBoolean("nsfw") == true
@@ -37,6 +39,7 @@ internal fun DocumentSnapshot.toDrop(): Drop {
     } ?: base.decayDays
 
     return base.copy(
+        description = description,
         isNsfw = nsfwFlag,
         nsfwLabels = nsfwLabels,
         decayDays = decayDays
