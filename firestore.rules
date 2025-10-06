@@ -77,6 +77,7 @@ service cloud.firestore {
       function hasOnlyAllowedDropFields() {
         return request.resource.data.keys().hasOnly([
           'text',
+          'description',
           'lat',
           'lng',
           'createdBy',
