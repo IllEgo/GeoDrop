@@ -742,16 +742,7 @@ fun DropHereScreen(
     var businessDashboardRefreshToken by remember { mutableStateOf(0) }
     var selectedHomeDestination by rememberSaveable { mutableStateOf(HomeDestination.Explorer.name) }
     var notificationRadius by remember { mutableStateOf(notificationPrefs.getNotificationRadiusMeters()) }
-    var showNotificationRadiusDialog by remember { mutableStateOf(false) }
-
-    val businessCategories = userProfile?.businessCategories.orEmpty()
-
-    LaunchedEffect(businessCategories, dropType) {
-        val permittedTypes = businessDropTypeOptionsFor(businessCategories).map { it.type }
-        if (permittedTypes.isNotEmpty() && dropType !in permittedTypes) {
-            dropType = permittedTypes.first()
-        }
-    }
+    var showNotificationRadiusDialog by remember { mutableStateOf(false) }\
 
     DisposableEffect(groupPrefs) {
         val listener = GroupPreferences.ChangeListener { groups, _ ->
@@ -845,6 +836,15 @@ fun DropHereScreen(
     var userProfile by remember { mutableStateOf<UserProfile?>(null) }
     var userProfileLoading by remember { mutableStateOf(false) }
     var userProfileError by remember { mutableStateOf<String?>(null) }
+
+    val businessCategories = userProfile?.businessCategories.orEmpty()
+
+    LaunchedEffect(businessCategories, dropType) {
+        val permittedTypes = businessDropTypeOptionsFor(businessCategories).map { it.type }
+        if (permittedTypes.isNotEmpty() && dropType !in permittedTypes) {
+            dropType = permittedTypes.first()
+        }
+    }
 
     val currentUserId = currentUser?.uid
 
