@@ -5056,19 +5056,57 @@ private fun AccountSignInDialog(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
-                SingleChoiceSegmentedButtonRow {
-                    AccountAuthMode.entries.forEachIndexed { index, option ->
-                        SegmentedButton(
-                            shape = SegmentedButtonDefaults.itemShape(index, AccountAuthMode.entries.size),
-                            selected = mode == option,
-                            onClick = { onModeChange(option) }
+                BoxWithConstraints {
+                    val shouldStackVertically = maxWidth < 360.dp
+
+                    if (shouldStackVertically) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Text(
-                                text = when (option) {
-                                    AccountAuthMode.SIGN_IN -> "Sign in"
-                                    AccountAuthMode.REGISTER -> "Create account"
+                            AccountAuthMode.entries.forEach { option ->
+                                val selected = mode == option
+                                val buttonColors = if (selected) {
+                                    ButtonDefaults.filledTonalButtonColors()
+                                } else {
+                                    ButtonDefaults.filledTonalButtonColors(
+                                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                        contentColor = MaterialTheme.colorScheme.onSurface
+                                    )
                                 }
-                            )
+
+                                FilledTonalButton(
+                                    onClick = { onModeChange(option) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    enabled = !isBusy,
+                                    colors = buttonColors,
+                                    shape = MaterialTheme.shapes.large
+                                ) {
+                                    Text(
+                                        text = when (option) {
+                                            AccountAuthMode.SIGN_IN -> "Sign in"
+                                            AccountAuthMode.REGISTER -> "Create account"
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        SingleChoiceSegmentedButtonRow {
+                            AccountAuthMode.entries.forEachIndexed { index, option ->
+                                SegmentedButton(
+                                    shape = SegmentedButtonDefaults.itemShape(index, AccountAuthMode.entries.size),
+                                    selected = mode == option,
+                                    onClick = { onModeChange(option) }
+                                ) {
+                                    Text(
+                                        text = when (option) {
+                                            AccountAuthMode.SIGN_IN -> "Sign in"
+                                            AccountAuthMode.REGISTER -> "Create account"
+                                        }
+                                    )
+                                }
+                            }
                         }
                     }
                 }

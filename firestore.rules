@@ -116,9 +116,24 @@ service cloud.firestore {
           && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'EXPLORER';
       }
 
-      allow create: if isExplorer()
+      function isBusiness() {
+        return isSignedIn()
+          && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+          && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'BUSINESS';
+      }
+
+      function isBusinessDrop(data) {
+        return data.dropType is string && data.dropType != 'COMMUNITY';
+      }
+
+      allow create: if hasOnlyAllowedDropFields()
         && request.resource.data.createdBy == request.auth.uid
-        && hasOnlyAllowedDropFields();
+        && (
+          (isExplorer() && !isBusinessDrop(request.resource.data))
+          || (isBusiness()
+            && isBusinessDrop(request.resource.data)
+            && request.resource.data.businessId == request.auth.uid)
+        );
       allow update: if isSignedIn()
         && request.writeFields.hasOnly([
           'voteMap.' + request.auth.uid,
