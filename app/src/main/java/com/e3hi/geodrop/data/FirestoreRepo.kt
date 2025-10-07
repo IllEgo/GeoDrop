@@ -364,6 +364,9 @@ class FirestoreRepo(
         val sanitized = ExplorerUsername.sanitize(desiredUsername)
         val claimed = claimExplorerUsernameRemote(userId, sanitized)
 
+        val updates = hashMapOf<String, Any?>("username" to claimed)
+        users.document(userId).set(updates, SetOptions.merge()).await()
+
         return profile.copy(username = claimed)
     }
 
