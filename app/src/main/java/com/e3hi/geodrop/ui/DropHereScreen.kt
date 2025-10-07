@@ -7849,19 +7849,19 @@ private fun BusinessDropTypeSection(
         listOf(
             BusinessDropTypeOption(
                 type = DropType.COMMUNITY,
-                title = "Community drop",
+                title = "Community",
                 description = "Share something fun or helpful for anyone nearby.",
                 icon = Icons.Rounded.Public
             ),
             BusinessDropTypeOption(
                 type = DropType.RESTAURANT_COUPON,
-                title = "Business offer",
+                title = "Business",
                 description = "Reward visitors with a code they must show to redeem.",
                 icon = Icons.Rounded.Storefront
             ),
             BusinessDropTypeOption(
                 type = DropType.TOUR_STOP,
-                title = "Tour stop",
+                title = "Tour",
                 description = "Create guided stops that highlight key locations.",
                 icon = Icons.Rounded.Flag
             )
