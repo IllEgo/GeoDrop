@@ -14,6 +14,12 @@ data class BusinessDropTemplate(
     val callToAction: String? = null
 )
 
+data class BusinessDropTypeOptionCopy(
+    val type: DropType,
+    val title: String,
+    val description: String
+)
+
 private val GENERAL_BUSINESS_TEMPLATES = listOf(
     BusinessDropTemplate(
         id = "general_welcome_note",
@@ -504,4 +510,186 @@ fun dropTemplatesFor(categories: Collection<BusinessCategory>): List<BusinessDro
     }
 
     return ordered.values.toList()
+}
+
+private data class DropTypeCopy(
+    val title: String,
+    val description: String
+)
+
+private val DEFAULT_DROP_TYPE_COPIES: Map<DropType, DropTypeCopy> = mapOf(
+    DropType.COMMUNITY to DropTypeCopy(
+        title = "Community",
+        description = "Share timely stories, tips, or updates for explorers nearby."
+    ),
+    DropType.RESTAURANT_COUPON to DropTypeCopy(
+        title = "Offer",
+        description = "Provide a code or perk that visitors can redeem in person."
+    ),
+    DropType.TOUR_STOP to DropTypeCopy(
+        title = "Tour stop",
+        description = "Guide explorers with narrative cues, directions, or media prompts."
+    )
+)
+
+private val DROP_TYPE_COPY_OVERRIDES: Map<BusinessCategoryGroup, Map<DropType, DropTypeCopy>> = mapOf(
+    BusinessCategoryGroup.FOOD_AND_BEVERAGE to mapOf(
+        DropType.RESTAURANT_COUPON to DropTypeCopy(
+            title = "Offer or BOGO",
+            description = "Delight guests with coupons, loyalty rewards, or BOGO bites they can redeem on the spot."
+        ),
+        DropType.COMMUNITY to DropTypeCopy(
+            title = "Menu moment",
+            description = "Share chef notes, daily specials, or behind-the-counter stories to keep foodies in the know."
+        )
+    ),
+    BusinessCategoryGroup.RETAIL_AND_SHOPPING to mapOf(
+        DropType.RESTAURANT_COUPON to DropTypeCopy(
+            title = "In-store perk",
+            description = "Drop promo codes, bundle deals, or limited gifts that motivate shoppers to check out now."
+        ),
+        DropType.COMMUNITY to DropTypeCopy(
+            title = "Product spotlight",
+            description = "Highlight new arrivals, maker stories, or market-day news right where customers browse."
+        ),
+        DropType.TOUR_STOP to DropTypeCopy(
+            title = "Shopping trail stop",
+            description = "Guide explorers between booths or boutiques with scavenger-hunt style instructions."
+        )
+    ),
+    BusinessCategoryGroup.HOSPITALITY_AND_TOURISM to mapOf(
+        DropType.TOUR_STOP to DropTypeCopy(
+            title = "Guided stop",
+            description = "Lead guests through each waypoint with audio, video, or step-by-step storytelling."
+        ),
+        DropType.COMMUNITY to DropTypeCopy(
+            title = "Guest welcome",
+            description = "Deliver concierge-style notes, reminders, or surprise perks during their stay."
+        ),
+        DropType.RESTAURANT_COUPON to DropTypeCopy(
+            title = "On-site perk",
+            description = "Unlock stay enhancements or limited-time offers reserved for guests in range."
+        )
+    ),
+    BusinessCategoryGroup.EVENTS_AND_ENTERTAINMENT to mapOf(
+        DropType.COMMUNITY to DropTypeCopy(
+            title = "Event hype",
+            description = "Share setlist teasers, trivia, or live updates that energize the crowd."
+        ),
+        DropType.RESTAURANT_COUPON to DropTypeCopy(
+            title = "Merch or concession perk",
+            description = "Reward attendees with discounts or upgrades they can redeem between acts."
+        ),
+        DropType.TOUR_STOP to DropTypeCopy(
+            title = "Venue trail stop",
+            description = "Direct guests around the venue with guided checkpoints or scavenger clues."
+        )
+    ),
+    BusinessCategoryGroup.COMMUNITY_AND_EDUCATION to mapOf(
+        DropType.COMMUNITY to DropTypeCopy(
+            title = "Community update",
+            description = "Promote resources, reminders, or program highlights for neighbors and students."
+        ),
+        DropType.TOUR_STOP to DropTypeCopy(
+            title = "Self-guided tour",
+            description = "Lead visitors across campus or exhibits with prompts and reflection questions."
+        )
+    ),
+    BusinessCategoryGroup.REAL_ESTATE_AND_LOCAL_SERVICES to mapOf(
+        DropType.TOUR_STOP to DropTypeCopy(
+            title = "Self-guided showing",
+            description = "Walk prospects through key locations with staged talking points and media."
+        ),
+        DropType.COMMUNITY to DropTypeCopy(
+            title = "Expert tip",
+            description = "Share advice, maintenance reminders, or service spotlights to build trust."
+        ),
+        DropType.RESTAURANT_COUPON to DropTypeCopy(
+            title = "Intro offer",
+            description = "Drop first-visit incentives or referral rewards to convert curious passersby."
+        )
+    ),
+    BusinessCategoryGroup.TRAVEL_AND_TRANSPORTATION to mapOf(
+        DropType.COMMUNITY to DropTypeCopy(
+            title = "Travel update",
+            description = "Broadcast gate changes, timing alerts, or journey tips exactly where travelers need them."
+        ),
+        DropType.RESTAURANT_COUPON to DropTypeCopy(
+            title = "Lounge perk",
+            description = "Share lounge invites, upgrades, or amenity codes for folks already on-site."
+        ),
+        DropType.TOUR_STOP to DropTypeCopy(
+            title = "Wayfinding stop",
+            description = "Guide riders through pickup points or next steps with clear navigation prompts."
+        )
+    ),
+    BusinessCategoryGroup.MARKETING_AND_CAMPAIGNS to mapOf(
+        DropType.COMMUNITY to DropTypeCopy(
+            title = "Campaign clue",
+            description = "Reveal storytelling beats, puzzles, or mission updates to keep fans engaged."
+        ),
+        DropType.RESTAURANT_COUPON to DropTypeCopy(
+            title = "Unlockable reward",
+            description = "Hide promo codes or swag unlocks that superfans can redeem in person."
+        ),
+        DropType.TOUR_STOP to DropTypeCopy(
+            title = "City trail stop",
+            description = "Plot location-based missions with media prompts that drive explorers to the next reveal."
+        )
+    )
+)
+
+private val DROP_TYPE_ORDER = listOf(
+    DropType.COMMUNITY,
+    DropType.RESTAURANT_COUPON,
+    DropType.TOUR_STOP
+)
+
+private fun resolveDropTypeCopy(
+    groups: Set<BusinessCategoryGroup>,
+    type: DropType
+): DropTypeCopy {
+    BusinessCategoryGroup.entries
+        .filter { groups.contains(it) }
+        .forEach { group ->
+            val override = DROP_TYPE_COPY_OVERRIDES[group]?.get(type)
+            if (override != null) {
+                return override
+            }
+        }
+    return DEFAULT_DROP_TYPE_COPIES.getValue(type)
+}
+
+fun businessDropTypeOptionsFor(
+    categories: Collection<BusinessCategory>
+): List<BusinessDropTypeOptionCopy> {
+    val uniqueCategories = categories.toSet()
+    val groups = uniqueCategories.map { it.group }.toSet()
+    val recommendedTypes = if (uniqueCategories.isEmpty()) {
+        DropType.entries.toSet()
+    } else {
+        uniqueCategories
+            .flatMap { category ->
+                BUSINESS_DROP_TEMPLATES[category].orEmpty().map { it.dropType }
+            }
+            .toSet()
+    }
+
+    val dropTypes = if (recommendedTypes.isEmpty()) {
+        DropType.entries.toSet()
+    } else {
+        recommendedTypes
+    }
+
+    val orderedTypes = DROP_TYPE_ORDER.filter { dropTypes.contains(it) }
+        .ifEmpty { listOf(DropType.COMMUNITY) }
+
+    return orderedTypes.map { type ->
+        val copy = resolveDropTypeCopy(groups, type)
+        BusinessDropTypeOptionCopy(
+            type = type,
+            title = copy.title,
+            description = copy.description
+        )
+    }
 }

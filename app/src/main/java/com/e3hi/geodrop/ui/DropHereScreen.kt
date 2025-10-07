@@ -143,6 +143,7 @@ import com.e3hi.geodrop.data.UserProfile
 import com.e3hi.geodrop.data.ExplorerUsername
 import com.e3hi.geodrop.data.UserMode
 import com.e3hi.geodrop.data.dropTemplatesFor
+import com.e3hi.geodrop.data.businessDropTypeOptionsFor
 import com.e3hi.geodrop.data.UserRole
 import com.e3hi.geodrop.data.canViewNsfw
 import com.e3hi.geodrop.data.RedemptionResult
@@ -743,6 +744,15 @@ fun DropHereScreen(
     var notificationRadius by remember { mutableStateOf(notificationPrefs.getNotificationRadiusMeters()) }
     var showNotificationRadiusDialog by remember { mutableStateOf(false) }
 
+    val businessCategories = userProfile?.businessCategories.orEmpty()
+
+    LaunchedEffect(businessCategories, dropType) {
+        val permittedTypes = businessDropTypeOptionsFor(businessCategories).map { it.type }
+        if (permittedTypes.isNotEmpty() && dropType !in permittedTypes) {
+            dropType = permittedTypes.first()
+        }
+    }
+
     DisposableEffect(groupPrefs) {
         val listener = GroupPreferences.ChangeListener { groups, _ ->
             joinedGroups = groups
@@ -1335,7 +1345,10 @@ fun DropHereScreen(
         }
         decayDaysInput = TextFieldValue("")
         val baseStatus = "Dropped at (%.5f, %.5f)".format(lat, lng)
-        val typeSummary = when (dropType) {
+        val dropTypeCopy = businessDropTypeOptionsFor(businessCategories)
+            .firstOrNull { it.type == dropType }
+        val dropTypeTitle = dropTypeCopy?.title
+        val defaultTypeSummary = when (dropType) {
             DropType.RESTAURANT_COUPON -> "business offer"
             DropType.TOUR_STOP -> "tour stop"
             DropType.COMMUNITY -> when (contentType) {
@@ -1345,6 +1358,9 @@ fun DropHereScreen(
                 DropContentType.VIDEO -> "video drop"
             }
         }
+        val typeSummary = dropTypeTitle?.takeIf { it.isNotBlank() }
+            ?.replaceFirstChar { if (it.isLowerCase()) it else it.lowercaseChar() }
+            ?: defaultTypeSummary
         status = if (groupCode != null) {
             "$baseStatus for group $groupCode ($typeSummary)"
         } else {
@@ -1352,6 +1368,7 @@ fun DropHereScreen(
         }
         val snackbarMessage = when {
             groupCode != null -> "Group drop saved!"
+            !dropTypeTitle.isNullOrBlank() -> "${dropTypeTitle} drop saved!"
             dropType == DropType.RESTAURANT_COUPON -> "Offer published!"
             dropType == DropType.TOUR_STOP -> "Tour stop saved!"
             else -> when (contentType) {
@@ -2042,7 +2059,7 @@ fun DropHereScreen(
                     .fillMaxSize()
                     .padding(innerPadding),
                 businessName = userProfile?.businessName,
-                businessCategories = userProfile?.businessCategories.orEmpty(),
+                businessCategories = businessCategories,
                 joinedGroups = joinedGroups,
                 statusMessage = status,
                 metrics = businessHomeMetrics,
@@ -2216,7 +2233,7 @@ fun DropHereScreen(
             isSubmitting = isSubmitting,
             isBusinessUser = userProfile?.isBusiness() == true,
             businessName = userProfile?.businessName,
-            businessCategories = userProfile?.businessCategories.orEmpty(),
+            businessCategories = businessCategories,
             userProfileLoading = userProfileLoading,
             userProfileError = userProfileError,
             dropType = dropType,
@@ -4073,13 +4090,14 @@ private fun DropComposerDialog(
                 if (isBusinessUser) {
                     DropComposerSection(
                         title = "Business goal",
-                        description = "Choose the purpose for this drop before you add details.",
+                        description = "Choose the purpose for this drop. Options are tailored to your business categories.",
                         leadingIcon = Icons.Rounded.Storefront
                     ) {
                         BusinessDropTypeSection(
                             dropType = dropType,
                             onDropTypeChange = onDropTypeChange,
                             businessName = businessName,
+                            businessCategories = businessCategories,
                             showHeader = false
                         )
                     }
@@ -7843,29 +7861,22 @@ private fun BusinessDropTypeSection(
     dropType: DropType,
     onDropTypeChange: (DropType) -> Unit,
     businessName: String?,
+    businessCategories: List<BusinessCategory>,
     showHeader: Boolean = true
 ) {
-    val options = remember {
-        listOf(
+    val options = remember(businessCategories) {
+        businessDropTypeOptionsFor(businessCategories).map { optionCopy ->
             BusinessDropTypeOption(
-                type = DropType.COMMUNITY,
-                title = "Community",
-                description = "Share something fun or helpful for anyone nearby.",
-                icon = Icons.Rounded.Public
-            ),
-            BusinessDropTypeOption(
-                type = DropType.RESTAURANT_COUPON,
-                title = "Business",
-                description = "Reward visitors with a code they must show to redeem.",
-                icon = Icons.Rounded.Storefront
-            ),
-            BusinessDropTypeOption(
-                type = DropType.TOUR_STOP,
-                title = "Tour",
-                description = "Create guided stops that highlight key locations.",
-                icon = Icons.Rounded.Flag
+                type = optionCopy.type,
+                title = optionCopy.title,
+                description = optionCopy.description,
+                icon = when (optionCopy.type) {
+                    DropType.RESTAURANT_COUPON -> Icons.Rounded.Storefront
+                    DropType.TOUR_STOP -> Icons.Rounded.Flag
+                    DropType.COMMUNITY -> Icons.Rounded.Public
+                }
             )
-        )
+        }
     }
 
     Column(
@@ -7878,23 +7889,50 @@ private fun BusinessDropTypeSection(
             Text(header, style = MaterialTheme.typography.titleSmall)
         }
 
-        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-            options.forEachIndexed { index, option ->
-                SegmentedButton(
-                    shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
-                    onClick = { onDropTypeChange(option.type) },
-                    selected = option.type == dropType,
-                    modifier = Modifier.weight(1f),
-                    label = { Text(option.title) },
-                    icon = { Icon(option.icon, contentDescription = null) }
+        val selectedOption = options.firstOrNull { it.type == dropType } ?: options.firstOrNull()
+
+        if (options.size > 1) {
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                options.forEachIndexed { index, option ->
+                    SegmentedButton(
+                        shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
+                        onClick = { onDropTypeChange(option.type) },
+                        selected = option.type == dropType,
+                        modifier = Modifier.weight(1f),
+                        label = { Text(option.title) },
+                        icon = { Icon(option.icon, contentDescription = null) }
+                    )
+                }
+            }
+
+            Crossfade(targetState = selectedOption, label = "businessDropTypeDescription") { option ->
+                val message = option?.description.orEmpty()
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-        }
+        } else if (selectedOption != null) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = selectedOption.icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = "Based on your categories, we'll publish this as ${selectedOption.title}.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
 
-        Crossfade(targetState = dropType, label = "businessDropTypeDescription") { current ->
-            val message = options.firstOrNull { it.type == current }?.description ?: ""
             Text(
-                text = message,
+                text = selectedOption.description,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
