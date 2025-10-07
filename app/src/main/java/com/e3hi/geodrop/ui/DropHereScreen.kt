@@ -742,7 +742,7 @@ fun DropHereScreen(
     var businessDashboardRefreshToken by remember { mutableStateOf(0) }
     var selectedHomeDestination by rememberSaveable { mutableStateOf(HomeDestination.Explorer.name) }
     var notificationRadius by remember { mutableStateOf(notificationPrefs.getNotificationRadiusMeters()) }
-    var showNotificationRadiusDialog by remember { mutableStateOf(false) }\
+    var showNotificationRadiusDialog by remember { mutableStateOf(false) }
 
     DisposableEffect(groupPrefs) {
         val listener = GroupPreferences.ChangeListener { groups, _ ->
