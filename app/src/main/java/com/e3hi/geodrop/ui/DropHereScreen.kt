@@ -2058,8 +2058,7 @@ fun DropHereScreen(
                 },
                 onUpdateBusinessProfile = { showBusinessOnboarding = true },
                 onViewMyDrops = { showMyDrops = true },
-                onManageGroups = { showManageGroups = true },
-                onSignOut = { handleSignOut() }
+                onManageGroups = { showManageGroups = true }
             )
         } else {
             LazyColumn(
@@ -3280,9 +3279,7 @@ private fun BusinessHomeScreen(
     onUpdateBusinessProfile: () -> Unit,
     onViewMyDrops: () -> Unit,
     onManageGroups: () -> Unit,
-    onSignOut: () -> Unit,
 ) {
-    val templateCount = remember(businessCategories) { dropTemplatesFor(businessCategories).size }
     val activeDropCount = metrics.liveDropCount
     val pendingReviewCount = metrics.pendingReviewCount
     val unresolvedRedemptionCount = metrics.unresolvedRedemptionCount
@@ -3308,21 +3305,6 @@ private fun BusinessHomeScreen(
 
         item {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                ActionCard(
-                    icon = Icons.Rounded.Place,
-                    title = "Create a drop",
-                    description = "Publish a new coupon, tour stop, or update for nearby explorers.",
-                    onClick = onCreateDrop,
-                    trailingContent = {
-                        if (templateCount > 0) {
-                            MetricPill(
-                                label = stringResource(R.string.metric_templates),
-                                value = templateCount
-                            )
-                        }
-                    }
-                )
-
                 ActionCard(
                     icon = Icons.Rounded.Inbox,
                     title = "Manage existing drops",
@@ -3381,17 +3363,6 @@ private fun BusinessHomeScreen(
                     onClick = onUpdateBusinessProfile
                 )
             }
-        }
-
-        item { SectionHeader(text = "Account") }
-
-        item {
-            ActionCard(
-                icon = Icons.Rounded.Logout,
-                title = "Sign out",
-                description = "Return to the explorer experience on this device.",
-                onClick = onSignOut
-            )
         }
 
         statusMessage?.let { message ->
