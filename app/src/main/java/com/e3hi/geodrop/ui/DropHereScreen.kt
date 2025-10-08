@@ -5222,38 +5222,75 @@ private fun AccountSignInDialog(
                     }
                 }
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedButton(
-                        onClick = dismissWithKeyboardDismiss,
-                        enabled = !isBusy,
-                        modifier = Modifier.weight(1f)
+                if (isRegister) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        Text("Cancel")
-                    }
+                        Button(
+                            onClick = submitWithKeyboardDismiss,
+                            enabled = !isBusy,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            if (isSubmitting) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text("Working…")
+                            } else {
+                                Text(
+                                    text = when (mode) {
+                                        AccountAuthMode.SIGN_IN -> "Sign in"
+                                        AccountAuthMode.REGISTER -> "Create account"
+                                    }
+                                )
+                            }
+                        }
 
-                    Button(
-                        onClick = submitWithKeyboardDismiss,
-                        enabled = !isBusy,
-                        modifier = Modifier.weight(1f)
+                        OutlinedButton(
+                            onClick = dismissWithKeyboardDismiss,
+                            enabled = !isBusy,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Cancel")
+                        }
+                    }
+                } else {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        if (isSubmitting) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(18.dp),
-                                strokeWidth = 2.dp
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text("Working…")
-                        } else {
-                            Text(
-                                text = when (mode) {
-                                    AccountAuthMode.SIGN_IN -> "Sign in"
-                                    AccountAuthMode.REGISTER -> "Create account"
-                                }
-                            )
+                        OutlinedButton(
+                            onClick = dismissWithKeyboardDismiss,
+                            enabled = !isBusy,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Cancel")
+                        }
+
+                        Button(
+                            onClick = submitWithKeyboardDismiss,
+                            enabled = !isBusy,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            if (isSubmitting) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text("Working…")
+                            } else {
+                                Text(
+                                    text = when (mode) {
+                                        AccountAuthMode.SIGN_IN -> "Sign in"
+                                        AccountAuthMode.REGISTER -> "Create account"
+                                    }
+                                )
+                            }
                         }
                     }
                 }
