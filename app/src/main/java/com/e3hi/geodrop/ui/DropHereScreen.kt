@@ -2094,6 +2094,7 @@ fun DropHereScreen(
 
                 item {
                     HeroCard(
+                        username = userProfile?.username,
                         joinedGroups = joinedGroups,
                         showGroups = userMode != UserMode.GUEST,
                         onManageGroups = {
@@ -3604,6 +3605,7 @@ private fun BusinessHeroCard(
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun HeroCard(
+    username: String?,
     joinedGroups: List<String>,
     showGroups: Boolean,
     onManageGroups: () -> Unit,
@@ -3645,8 +3647,13 @@ private fun HeroCard(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 val contentColor = MaterialTheme.colorScheme.onPrimary
+                val displayName = username?.takeIf { it.isNotBlank() }
                 val (heroTitle, heroDescription) = if (showGroups) {
-                    "Drop something at your spot" to "Leave voice notes, photos, or text that unlock when explorers arrive nearby."
+                    if (displayName != null) {
+                        "Welcome $displayName" to "Leave voice notes, photos, or text that unlock when explorers arrive nearby."
+                    } else {
+                        "Drop something at your spot" to "Leave voice notes, photos, or text that unlock when explorers arrive nearby."
+                    }
                 } else {
                     "Preview GeoDrop experiences" to "Browse the map to explore nearby explorer adventures and business drops before you sign up."
                 }
