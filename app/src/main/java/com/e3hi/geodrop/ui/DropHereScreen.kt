@@ -6326,6 +6326,14 @@ private fun CollectedNoteCard(
                         )
                     }
 
+                    note.dropperUsername?.takeIf { it.isNotBlank() }?.let { username ->
+                        Text(
+                            text = "Dropped by @${username}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = supportingColor
+                        )
+                    }
+
                     note.groupCode?.let { group ->
                         Text(
                             text = "Group: $group",

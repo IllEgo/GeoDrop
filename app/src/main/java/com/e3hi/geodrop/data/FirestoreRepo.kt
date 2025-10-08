@@ -685,6 +685,34 @@ class FirestoreRepo(
         }
     }
 
+    suspend fun fetchDropperUsername(dropId: String): String? {
+        if (dropId.isBlank()) return null
+
+        return try {
+            val dropSnapshot = drops.document(dropId).get().await()
+            if (!dropSnapshot.exists()) return null
+
+            val creatorId = dropSnapshot.getString("createdBy")?.takeIf { it.isNotBlank() }
+            val storedUsername = when {
+                dropSnapshot.contains("dropperUsername") ->
+                    dropSnapshot.getString("dropperUsername")
+                dropSnapshot.contains("createdByUsername") ->
+                    dropSnapshot.getString("createdByUsername")
+                else -> null
+            }?.trim()?.takeIf { it.isNotEmpty() }
+
+            if (!storedUsername.isNullOrEmpty()) {
+                return storedUsername
+            }
+
+            val creator = creatorId?.let { users.document(it).get().await() }
+            creator?.getString("username")?.trim()?.takeIf { it.isNotEmpty() }
+        } catch (error: Exception) {
+            Log.w("GeoDrop", "Failed to resolve dropper username for $dropId", error)
+            null
+        }
+    }
+
     suspend fun redeemDrop(
         dropId: String,
         userId: String,
@@ -999,6 +1027,11 @@ class FirestoreRepo(
             lng = getDouble("lng"),
             groupCode = GroupPreferences.normalizeGroupCode(getString("groupCode")),
             dropCreatedAt = getLong("dropCreatedAt"),
+            dropperUsername = when {
+                contains("dropperUsername") -> getString("dropperUsername")
+                contains("createdByUsername") -> getString("createdByUsername")
+                else -> null
+            }?.trim()?.takeIf { it.isNotEmpty() },
             decayDays = when (val raw = get("decayDays")) {
                 is Number -> raw.toInt().takeIf { it > 0 }
                 is String -> raw.toIntOrNull()?.takeIf { it > 0 }
@@ -1038,6 +1071,7 @@ class FirestoreRepo(
             "isNsfw" to isNsfw,
             "nsfwLabels" to nsfwLabels
         )
+        dropperUsername?.takeIf { it.isNotBlank() }?.let { data["dropperUsername"] = it }
         mediaUrl?.takeIf { it.isNotBlank() }?.let { data["mediaUrl"] = it }
         mediaMimeType?.takeIf { it.isNotBlank() }?.let { data["mediaMimeType"] = it }
         mediaData?.takeIf { it.isNotBlank() }?.let { data["mediaData"] = it }

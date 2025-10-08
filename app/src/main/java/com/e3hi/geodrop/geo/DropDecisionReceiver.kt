@@ -93,6 +93,7 @@ class DropDecisionReceiver : BroadcastReceiver() {
             return
         }
 
+        val dropperUsername = runCatching { repo.fetchDropperUsername(dropId) }.getOrNull()
         val inventory = NoteInventory(context)
         val note = CollectedNote(
             id = dropId,
@@ -106,6 +107,7 @@ class DropDecisionReceiver : BroadcastReceiver() {
             lng = lng,
             groupCode = groupCode,
             dropCreatedAt = createdAt,
+            dropperUsername = dropperUsername,
             dropType = dropType,
             businessId = businessId,
             businessName = businessName,

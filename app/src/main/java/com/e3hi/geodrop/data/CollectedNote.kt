@@ -18,6 +18,7 @@ data class CollectedNote(
     val lng: Double?,
     val groupCode: String?,
     val dropCreatedAt: Long?,
+    val dropperUsername: String? = null,
     val decayDays: Int? = null,
     val dropType: DropType = DropType.COMMUNITY,
     val businessId: String? = null,
@@ -43,6 +44,7 @@ data class CollectedNote(
             putOpt(KEY_LNG, lng)
             putOpt(KEY_GROUP_CODE, groupCode)
             putOpt(KEY_DROP_CREATED_AT, dropCreatedAt)
+            putOpt(KEY_DROPPER_USERNAME, dropperUsername)
             putOpt(KEY_DECAY_DAYS, decayDays)
             put(KEY_DROP_TYPE, dropType.name)
             putOpt(KEY_BUSINESS_ID, businessId)
@@ -69,6 +71,7 @@ data class CollectedNote(
         private const val KEY_LNG = "lng"
         private const val KEY_GROUP_CODE = "groupCode"
         private const val KEY_DROP_CREATED_AT = "dropCreatedAt"
+        private const val KEY_DROPPER_USERNAME = "dropperUsername"
         private const val KEY_DECAY_DAYS = "decayDays"
         private const val KEY_DROP_TYPE = "dropType"
         private const val KEY_BUSINESS_ID = "businessId"
@@ -93,6 +96,7 @@ data class CollectedNote(
             val lng = json.optDouble(KEY_LNG).takeIf { json.has(KEY_LNG) }
             val groupCode = json.optString(KEY_GROUP_CODE).takeIf { it.isNotBlank() }
             val dropCreatedAt = json.optLong(KEY_DROP_CREATED_AT).takeIf { json.has(KEY_DROP_CREATED_AT) }
+            val dropperUsername = json.optString(KEY_DROPPER_USERNAME).takeIf { it.isNotBlank() }
             val decayDays = json.optInt(KEY_DECAY_DAYS).takeIf { json.has(KEY_DECAY_DAYS) && it > 0 }
             val dropType = DropType.fromRaw(json.optString(KEY_DROP_TYPE))
             val businessId = json.optString(KEY_BUSINESS_ID).takeIf { it.isNotBlank() }
@@ -126,6 +130,7 @@ data class CollectedNote(
                 lng = lng,
                 groupCode = groupCode,
                 dropCreatedAt = dropCreatedAt,
+                dropperUsername = dropperUsername,
                 decayDays = decayDays,
                 dropType = dropType,
                 businessId = businessId,
