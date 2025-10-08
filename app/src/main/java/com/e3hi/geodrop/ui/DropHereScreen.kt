@@ -694,6 +694,7 @@ fun DropHereScreen(
 
     var joinedGroups by remember { mutableStateOf(groupPrefs.getJoinedGroups()) }
     var dropVisibility by remember { mutableStateOf(DropVisibility.Public) }
+    var dropAnonymously by remember { mutableStateOf(false) }
     var dropContentType by remember { mutableStateOf(DropContentType.TEXT) }
     var dropType by remember { mutableStateOf(DropType.COMMUNITY) }
     var note by remember { mutableStateOf(TextFieldValue("")) }
@@ -1186,6 +1187,12 @@ fun DropHereScreen(
         }
     }
 
+    LaunchedEffect(userProfile?.isBusiness()) {
+        if (userProfile?.isBusiness() == true) {
+            dropAnonymously = false
+        }
+    }
+
     LaunchedEffect(dropContentType) {
         when (dropContentType) {
             DropContentType.TEXT -> {
@@ -1340,6 +1347,7 @@ fun DropHereScreen(
         clearAudio()
         clearVideo()
         showDropComposer = false
+        dropAnonymously = false
         if (dropType == DropType.RESTAURANT_COUPON) {
             redemptionCodeInput = TextFieldValue("")
             redemptionLimitInput = TextFieldValue("")
@@ -1398,6 +1406,7 @@ fun DropHereScreen(
         redemptionCode: String?,
         redemptionLimit: Int?,
         decayDays: Int?,
+        dropAnonymously: Boolean,
         nsfwAllowed: Boolean
     ): DropSafetyAssessment {
         val uid = FirebaseAuth.getInstance().currentUser?.uid ?: "anon"
@@ -1417,6 +1426,7 @@ fun DropHereScreen(
             lng = lng,
             createdBy = uid,
             createdAt = System.currentTimeMillis(),
+            isAnonymous = dropAnonymously,
             groupCode = groupCode,
             dropType = dropType,
             businessId = if (dropType != DropType.COMMUNITY) uid else null,
@@ -1677,6 +1687,7 @@ fun DropHereScreen(
                 }
 
                 val dropDescription = dropDescriptionText.trim().takeIf { it.isNotEmpty() }
+                val anonymizeDrop = dropAnonymously && userProfile?.isBusiness() != true
                 val safety = addDropAt(
                     lat = lat,
                     lng = lng,
@@ -1693,6 +1704,7 @@ fun DropHereScreen(
                     redemptionCode = redemptionCodeResult,
                     redemptionLimit = redemptionLimitResult,
                     decayDays = decayDaysResult,
+                    dropAnonymously = anonymizeDrop,
                     nsfwAllowed = userProfile?.canViewNsfw() == true
                 )
                 val baseStatusMessage = status
@@ -2257,6 +2269,8 @@ fun DropHereScreen(
             onClearVideo = { clearVideo() },
             dropVisibility = dropVisibility,
             onDropVisibilityChange = { dropVisibility = it },
+            dropAnonymously = dropAnonymously,
+            onDropAnonymouslyChange = { dropAnonymously = it },
             groupCodeInput = groupCodeInput,
             onGroupCodeInputChange = { groupCodeInput = it },
             joinedGroups = joinedGroups,
@@ -4016,6 +4030,8 @@ private fun DropComposerDialog(
     onClearVideo: () -> Unit,
     dropVisibility: DropVisibility,
     onDropVisibilityChange: (DropVisibility) -> Unit,
+    dropAnonymously: Boolean,
+    onDropAnonymouslyChange: (Boolean) -> Unit,
     groupCodeInput: TextFieldValue,
     onGroupCodeInputChange: (TextFieldValue) -> Unit,
     joinedGroups: List<String>,
@@ -4420,6 +4436,37 @@ private fun DropComposerDialog(
                     }
 
                     DropContentType.TEXT -> Unit
+                }
+
+                if (!isBusinessUser) {
+                    DropComposerSection(
+                        title = "Identity",
+                        description = "Choose whether your username appears to people who collect this drop.",
+                        leadingIcon = Icons.Rounded.AccountCircle
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Drop anonymously",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    text = "Hides your username from the drop while keeping ownership in your account.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Switch(
+                                checked = dropAnonymously,
+                                onCheckedChange = onDropAnonymouslyChange,
+                                enabled = !isSubmitting
+                            )
+                        }
+                    }
                 }
 
                 DropComposerSection(

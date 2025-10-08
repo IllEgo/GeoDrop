@@ -8,6 +8,7 @@ data class Drop(
     val lng: Double = 0.0,
     val createdBy: String = "",
     val createdAt: Long = 0L,
+    val isAnonymous: Boolean = false,
     val isDeleted: Boolean = false,
     val deletedAt: Long? = null,
     val decayDays: Int? = null,

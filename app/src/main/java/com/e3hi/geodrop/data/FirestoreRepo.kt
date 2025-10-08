@@ -692,6 +692,9 @@ class FirestoreRepo(
             val dropSnapshot = drops.document(dropId).get().await()
             if (!dropSnapshot.exists()) return null
 
+            val isAnonymous = dropSnapshot.getBoolean("isAnonymous") == true
+            if (isAnonymous) return null
+
             val creatorId = dropSnapshot.getString("createdBy")?.takeIf { it.isNotBlank() }
             val storedUsername = when {
                 dropSnapshot.contains("dropperUsername") ->
@@ -981,6 +984,7 @@ class FirestoreRepo(
             "lng" to sanitized.lng,
             "createdBy" to sanitized.createdBy,
             "createdAt" to sanitized.createdAt,
+            "isAnonymous" to sanitized.isAnonymous,
             "isDeleted" to false,
             "deletedAt" to null,
             "groupCode" to sanitized.groupCode?.takeIf { it.isNotBlank() },
@@ -1096,6 +1100,7 @@ class FirestoreRepo(
         data["contentType"] = contentType.name
         data["createdAt"] = createdAt
         if (createdBy.isNotBlank()) data["createdBy"] = createdBy
+        data["isAnonymous"] = isAnonymous
         lat.takeIf { it != 0.0 }?.let { data["lat"] = it }
         lng.takeIf { it != 0.0 }?.let { data["lng"] = it }
         groupCode?.takeIf { it.isNotBlank() }?.let { data["groupCode"] = it }
