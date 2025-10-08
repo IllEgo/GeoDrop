@@ -125,6 +125,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.e3hi.geodrop.BuildConfig
 import com.e3hi.geodrop.R
 import com.e3hi.geodrop.data.BusinessCategory
 import com.e3hi.geodrop.data.CollectedNote
@@ -249,7 +250,7 @@ fun DropHereScreen(
     var showNsfwDialog by remember { mutableStateOf(false) }
     var nsfwUpdating by remember { mutableStateOf(false) }
     var nsfwUpdateError by remember { mutableStateOf<String?>(null) }
-    val defaultWebClientId = stringResource(R.string.default_web_client_id)
+    val defaultWebClientId = remember { BuildConfig.GOOGLE_WEB_CLIENT_ID }
     val googleSignInClient = remember(defaultWebClientId, ctx) {
         GoogleSignIn.getClient(
             ctx,
@@ -477,7 +478,7 @@ fun DropHereScreen(
     fun startAccountGoogleSignIn() {
         if (accountAuthSubmitting || accountGoogleSigningIn) return
         if (defaultWebClientId.isBlank()) {
-            accountAuthError = "Google sign-in isn't configured. Add your default_web_client_id in strings.xml."
+            accountAuthError = "Google sign-in isn't configured. Set GOOGLE_WEB_CLIENT_ID in your Gradle properties or environment."
             return
         }
 

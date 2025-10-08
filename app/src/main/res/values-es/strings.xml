@@ -3,7 +3,6 @@
     <string name="notif_channel_name">GeoDrop Cercanos</string>
     <string name="notif_channel_desc">Alertas cuando entras en un área de drops</string>
     <string name="google_maps_key">AIzaSyDD9c_0xHim_ITvXZlHY67b_m_SR-9DUJs</string>
-    <string name="default_web_client_id"></string>
     <string name="drag_to_resize">Arrastra para redimensionar</string>
     <string name="content_description_account_options">Opciones de cuenta</string>
     <string name="menu_sign_in_full_participation">Inicia sesión para participar por completo</string>

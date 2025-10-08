@@ -32,6 +32,17 @@ android {
                 'FIREBASE_FUNCTIONS_REGION',
                 '"' + escapedFunctionsRegion + '"'
         )
+
+        def googleWebClientId = (
+                project.findProperty('GOOGLE_WEB_CLIENT_ID')
+                        ?: System.getenv('GOOGLE_WEB_CLIENT_ID')
+        ) ?: ""
+        def escapedGoogleWebClientId = googleWebClientId.toString().replace('"', '\\"')
+        buildConfigField(
+                'String',
+                'GOOGLE_WEB_CLIENT_ID',
+                '"' + escapedGoogleWebClientId + '"'
+        )
     }
 
     compileOptions {

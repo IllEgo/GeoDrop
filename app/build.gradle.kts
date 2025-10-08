@@ -30,6 +30,16 @@ android {
             "FIREBASE_FUNCTIONS_REGION",
             "\"$escapedFunctionsRegion\""
         )
+
+        val googleWebClientId = (project.findProperty("GOOGLE_WEB_CLIENT_ID") as String?)
+            ?: System.getenv("GOOGLE_WEB_CLIENT_ID")
+            ?: ""
+        val escapedGoogleWebClientId = googleWebClientId.replace("\"", "\\\"")
+        buildConfigField(
+            "String",
+            "GOOGLE_WEB_CLIENT_ID",
+            "\"$escapedGoogleWebClientId\""
+        )
     }
 
     compileOptions {
