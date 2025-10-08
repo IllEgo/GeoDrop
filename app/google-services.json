@@ -12,7 +12,12 @@
           "package_name": "com.e3hi.geodrop"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "1017151605782-7is7mob6prbujsepnuo83r4klk8h994q.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyDD9c_0xHim_ITvXZlHY67b_m_SR-9DUJs"
@@ -20,7 +25,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1017151605782-7is7mob6prbujsepnuo83r4klk8h994q.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }
