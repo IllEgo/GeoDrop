@@ -4973,6 +4973,8 @@ private fun AccountSignInDialog(
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
 
+    val scrollState = rememberScrollState()
+
     val hideKeyboardAndClearFocus = {
         keyboardController?.hide()
         focusManager.clearFocus(force = true)
@@ -5013,7 +5015,9 @@ private fun AccountSignInDialog(
                 .padding(16.dp)
         ) {
             Column(
-                modifier = Modifier.padding(24.dp),
+                modifier = Modifier
+                    .padding(24.dp)
+                    .verticalScroll(scrollState),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Text(
