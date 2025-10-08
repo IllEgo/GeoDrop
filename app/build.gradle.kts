@@ -48,6 +48,22 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
 
+    buildTypes {
+        getByName("release") {
+            buildConfigField("boolean", "USE_PLAY_INTEGRITY_APPCHECK", "true")
+        }
+
+        create("internal") {
+            initWith(getByName("release"))
+            matchingFallbacks += listOf("release")
+            buildConfigField("boolean", "USE_PLAY_INTEGRITY_APPCHECK", "false")
+        }
+
+        getByName("debug") {
+            buildConfigField("boolean", "USE_PLAY_INTEGRITY_APPCHECK", "false")
+        }
+    }
+
     buildFeatures { compose = true }
     composeOptions { kotlinCompilerExtensionVersion = "1.5.14" }
 }
@@ -68,6 +84,7 @@ dependencies {
     implementation("com.google.firebase:firebase-functions-ktx")
     implementation("com.google.firebase:firebase-appcheck-playintegrity")
     debugImplementation("com.google.firebase:firebase-appcheck-debug")
+    add("internalImplementation", "com.google.firebase:firebase-appcheck-debug")
 
     // Play Services Location (for geofencing / fused location)
     implementation("com.google.android.gms:play-services-location:21.3.0")
