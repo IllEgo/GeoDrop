@@ -12,18 +12,31 @@ class GeoDropApplication : Application() {
         super.onCreate()
         FirebaseApp.initializeApp(this)
         val appCheck = FirebaseAppCheck.getInstance()
-        val shouldUseDebugProvider = BuildConfig.DEBUG || !BuildConfig.USE_PLAY_INTEGRITY_APPCHECK
+        val usePlayIntegrityAppCheck = resolvePlayIntegrityFlag()
+        val shouldUseDebugProvider = BuildConfig.DEBUG || !usePlayIntegrityAppCheck
         val debugProviderInstalled = if (shouldUseDebugProvider) {
             tryInstallDebugProvider(appCheck)
         } else {
             false
         }
 
-        if (!debugProviderInstalled && BuildConfig.USE_PLAY_INTEGRITY_APPCHECK) {
+        if (!debugProviderInstalled && usePlayIntegrityAppCheck) {
             appCheck.installAppCheckProviderFactory(
                 PlayIntegrityAppCheckProviderFactory.getInstance()
             )
         }
+    }
+
+    private fun resolvePlayIntegrityFlag(): Boolean {
+        return runCatching {
+            BuildConfig::class.java.getField("USE_PLAY_INTEGRITY_APPCHECK").getBoolean(null)
+        }.onFailure { error ->
+            Log.w(
+                TAG,
+                "USE_PLAY_INTEGRITY_APPCHECK not present in BuildConfig; defaulting to false",
+                error
+            )
+        }.getOrDefault(false)
     }
 
     private fun tryInstallDebugProvider(appCheck: FirebaseAppCheck): Boolean {
