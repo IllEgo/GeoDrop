@@ -8225,22 +8225,21 @@ private fun BusinessDropTemplatesDialog(
                         )
                     }
 
-                    Row(
+                    Column(
                         modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Text(
                             text = "Idea ${currentTemplateIndex + 1} of ${filteredTemplates.size}",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.weight(1f)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        FilledTonalButton(
+                        Button(
                             onClick = {
                                 currentTemplateIndex = (currentTemplateIndex + 1) % filteredTemplates.size
                             },
-                            enabled = filteredTemplates.size > 1
+                            enabled = filteredTemplates.size > 1,
+                            modifier = Modifier.fillMaxWidth()
                         ) {
                             Text("Next idea")
                         }
@@ -8413,9 +8412,13 @@ private fun BusinessDropTemplateCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f)
                 )
-                FilledTonalButton(onClick = { onApply(template) }) {
-                    Text("Use this idea")
-                }
+            }
+
+            FilledTonalButton(
+                onClick = { onApply(template) },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Use this idea")
             }
         }
     }
