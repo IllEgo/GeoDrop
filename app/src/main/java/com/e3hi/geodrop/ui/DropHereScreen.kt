@@ -8205,19 +8205,57 @@ private fun BusinessDropTemplatesDialog(
                     templates.filter { selectedCategory == null || it.category == selectedCategory }
                 }
 
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 420.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    items(filteredTemplates, key = { it.id }) { template ->
+                var currentTemplateIndex by remember(filteredTemplates) { mutableStateOf(0) }
+                LaunchedEffect(filteredTemplates) {
+                    currentTemplateIndex = 0
+                }
+                val activeTemplate = filteredTemplates.getOrNull(currentTemplateIndex)
+
+                if (activeTemplate != null) {
+                    Crossfade(
+                        targetState = activeTemplate,
+                        label = "activeBusinessTemplate"
+                    ) { template ->
                         BusinessDropTemplateCard(
                             template = template,
                             onApply = { chosenTemplate ->
                                 onApply(chosenTemplate)
                                 onDismiss()
                             }
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(
+                            text = "Idea ${currentTemplateIndex + 1} of ${filteredTemplates.size}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.weight(1f)
+                        )
+                        FilledTonalButton(
+                            onClick = {
+                                currentTemplateIndex = (currentTemplateIndex + 1) % filteredTemplates.size
+                            },
+                            enabled = filteredTemplates.size > 1
+                        ) {
+                            Text("Next idea")
+                        }
+                    }
+                } else {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = MaterialTheme.shapes.medium,
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                    ) {
+                        Text(
+                            text = "No ideas available for the selected categories yet.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(16.dp)
                         )
                     }
                 }
