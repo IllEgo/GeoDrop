@@ -76,6 +76,8 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.ThumbDown
 import androidx.compose.material.icons.rounded.ThumbUp
+import androidx.compose.material.icons.rounded.Lightbulb
+import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material3.*
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
@@ -8074,9 +8076,34 @@ private fun BusinessDropTemplatesSection(
 
         OutlinedButton(
             onClick = { showSuggestions = true },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(vertical = 16.dp, horizontal = 20.dp)
         ) {
-            Text("Browse suggestions")
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Lightbulb,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    Text(
+                        text = "Explore personalized ideas",
+                        style = MaterialTheme.typography.titleSmall
+                    )
+                    Text(
+                        text = "Preview templates curated for your business categories.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
         }
     }
 
@@ -8089,6 +8116,7 @@ private fun BusinessDropTemplatesSection(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun BusinessDropTemplatesDialog(
     templates: List<BusinessDropTemplate>,
@@ -8104,18 +8132,30 @@ private fun BusinessDropTemplatesDialog(
                 .padding(16.dp)
         ) {
             Column(
-                modifier = Modifier.padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.Top
                 ) {
-                    Text(
-                        text = "Drop ideas for your categories",
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.weight(1f)
-                    )
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = "Personalized drop ideas",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = "Select a template to instantly apply the best-fit drop type and message.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                     IconButton(onClick = onDismiss) {
                         Icon(
                             imageVector = Icons.Rounded.Close,
@@ -8124,48 +8164,76 @@ private fun BusinessDropTemplatesDialog(
                     }
                 }
 
-                Text(
-                    text = "Use a template to pre-fill your drop with a ready-made idea.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                val categories = remember(templates) { templates.map { it.category }.distinct() }
+                var selectedCategory by remember(templates) { mutableStateOf<BusinessCategory?>(null) }
+                if (categories.size > 1) {
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        val selectedIcon: @Composable (() -> Unit) = {
+                            Icon(
+                                imageVector = Icons.Rounded.CheckCircle,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
 
-                var currentIndex by remember(templates) { mutableStateOf(0) }
-                val templateCount = templates.size
-                val currentTemplate = templates.getOrNull(currentIndex) ?: templates.first()
+                        FilterChip(
+                            selected = selectedCategory == null,
+                            onClick = { selectedCategory = null },
+                            label = { Text("All ideas") },
+                            leadingIcon = if (selectedCategory == null) selectedIcon else null
+                        )
 
-                BusinessDropTemplateCard(
-                    template = currentTemplate,
-                    onApply = { template ->
-                        onApply(template)
-                        onDismiss()
-                    }
-                )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Idea ${currentIndex + 1} of $templateCount",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    if (templateCount > 1) {
-                        OutlinedButton(
-                            onClick = { currentIndex = (currentIndex + 1) % templateCount }
-                        ) {
-                            Text("Next idea")
+                        categories.forEach { category ->
+                            val isSelected = selectedCategory == category
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = {
+                                    selectedCategory = if (isSelected) null else category
+                                },
+                                label = { Text(category.displayName) },
+                                leadingIcon = if (isSelected) selectedIcon else null
+                            )
                         }
                     }
+                }
+
+                val filteredTemplates = remember(templates, selectedCategory) {
+                    templates.filter { selectedCategory == null || it.category == selectedCategory }
+                }
+
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 420.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    items(filteredTemplates, key = { it.id }) { template ->
+                        BusinessDropTemplateCard(
+                            template = template,
+                            onApply = { chosenTemplate ->
+                                onApply(chosenTemplate)
+                                onDismiss()
+                            }
+                        )
+                    }
+                }
+
+                TextButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.align(Alignment.End)
+                ) {
+                    Text("Done")
                 }
             }
         }
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun BusinessDropTemplateCard(
     template: BusinessDropTemplate,
@@ -8175,13 +8243,15 @@ private fun BusinessDropTemplateCard(
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
                     text = template.title,
-                    style = MaterialTheme.typography.titleSmall,
+                    style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
@@ -8214,47 +8284,100 @@ private fun BusinessDropTemplateCard(
                 DropContentType.VIDEO -> "Video"
             }
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                TemplateTag(text = dropTypeLabel, icon = dropTypeIcon)
-                TemplateTag(text = "$contentTypeLabel content", icon = contentTypeIcon)
+                TemplateTag(
+                    text = dropTypeLabel,
+                    icon = dropTypeIcon,
+                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f),
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+                TemplateTag(
+                    text = "$contentTypeLabel content",
+                    icon = contentTypeIcon,
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.45f),
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                )
             }
 
             Text(
                 text = template.description,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface
             )
 
             template.callToAction?.let { message ->
-                Text(
-                    text = message,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary
-                )
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Star,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        Text(
+                            text = message,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                }
             }
 
             Surface(
                 shape = RoundedCornerShape(12.dp),
                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
             ) {
-                Text(
-                    text = template.note,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(12.dp),
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis
-                )
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = "Suggested message",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = template.note,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 4,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
 
-            Button(
-                onClick = { onApply(template) },
-                modifier = Modifier.align(Alignment.End)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text("Use this idea")
+                Icon(
+                    imageVector = Icons.Rounded.CheckCircle,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = "Applies the drop type, format, and copy automatically.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f)
+                )
+                FilledTonalButton(onClick = { onApply(template) }) {
+                    Text("Use this idea")
+                }
             }
         }
     }
@@ -8263,11 +8386,14 @@ private fun BusinessDropTemplateCard(
 @Composable
 private fun TemplateTag(
     text: String,
-    icon: ImageVector? = null
+    icon: ImageVector? = null,
+    containerColor: Color = MaterialTheme.colorScheme.surfaceVariant,
+    contentColor: Color = MaterialTheme.colorScheme.onSurfaceVariant
 ) {
     Surface(
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant
+        shape = RoundedCornerShape(18.dp),
+        color = containerColor,
+        tonalElevation = 1.dp
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
@@ -8278,13 +8404,14 @@ private fun TemplateTag(
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    tint = contentColor,
+                    modifier = Modifier.size(18.dp)
                 )
             }
             Text(
                 text = text,
                 style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = contentColor
             )
         }
     }
