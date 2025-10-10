@@ -4180,8 +4180,8 @@ private fun DropComposerDialog(
                                 onApply = { template ->
                                     onDropTypeChange(template.dropType)
                                     onDropContentTypeChange(template.contentType)
-                                    onNoteChange(TextFieldValue(template.note))
-                                    onDescriptionChange(TextFieldValue(template.title))
+                                    onNoteChange(TextFieldValue(""))
+                                    onDescriptionChange(TextFieldValue(template.note))
                                 },
                                 showHeader = false
                             )
