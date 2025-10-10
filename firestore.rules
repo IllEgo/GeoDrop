@@ -85,11 +85,11 @@ service cloud.firestore {
         ]);
       }
 
-      function isValidReportReasonCodes() {
-        return request.resource.data.reasonCodes is list
-          && request.resource.data.reasonCodes.size() > 0
-          && request.resource.data.reasonCodes.all(code => code is string && code.size() > 0);
-      }
+        function isValidReportReasonCodes() {
+          return request.resource.data.reasonCodes is list
+            && request.resource.data.reasonCodes.size() > 0
+            && request.resource.data.reasonCodes.all(code, code is string && code.size() > 0);
+        }
 
       allow create: if isSignedIn()
         && hasOnlyAllowedReportFields()
