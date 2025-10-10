@@ -118,9 +118,9 @@ fun Drop.displayTitle(): String {
         DropType.TOUR_STOP -> text.ifBlank { descriptionText.ifBlank { "Tour stop" } }
         DropType.COMMUNITY -> when (contentType) {
             DropContentType.TEXT -> text.ifBlank { descriptionText.ifBlank { "(No message)" } }
-            DropContentType.PHOTO -> descriptionText.ifBlank { text }.ifBlank { "Photo drop" }
-            DropContentType.AUDIO -> descriptionText.ifBlank { text }.ifBlank { "Audio drop" }
-            DropContentType.VIDEO -> descriptionText.ifBlank { text }.ifBlank { "Video drop" }
+            DropContentType.PHOTO -> text.ifBlank { descriptionText }.ifBlank { "Photo drop" }
+            DropContentType.AUDIO -> text.ifBlank { descriptionText }.ifBlank { "Audio drop" }
+            DropContentType.VIDEO -> text.ifBlank { descriptionText }.ifBlank { "Video drop" }
         }
     }
 }
