@@ -135,14 +135,37 @@ service cloud.firestore {
             && isBusinessDrop(request.resource.data)
             && request.resource.data.businessId == request.auth.uid)
         );
+      function isValidReportTransition(before, after, userId) {
+        let beforeReportedBy = (before.reportedBy is map) ? before.reportedBy : {};
+        let afterReportedBy = (after.reportedBy is map) ? after.reportedBy : {};
+        let beforeKeys = beforeReportedBy.keys();
+        let afterKeys = afterReportedBy.keys();
+        let hadReport = beforeKeys.hasAny([userId]);
+        let hasReport = afterKeys.hasAny([userId]);
+        let beforeCount = (before.reportCount is int) ? before.reportCount : 0;
+        let afterCount = (after.reportCount is int) ? after.reportCount : 0;
+
+        return beforeKeys.hasOnly(afterKeys)
+          && afterKeys.hasOnly(beforeKeys.concat([userId]))
+          && beforeKeys.all(key => key == userId || afterReportedBy[key] == beforeReportedBy[key])
+          && (
+            (!hadReport && !hasReport && afterCount == beforeCount)
+            || (hadReport && hasReport && afterCount == beforeCount)
+            || (!hadReport && hasReport && afterCount == beforeCount + 1)
+          );
+      }
+
       allow update: if isSignedIn()
         && request.writeFields.hasOnly([
           'voteMap.' + request.auth.uid,
           'upvoteCount',
           'downvoteCount',
-          'collectedBy.' + request.auth.uid
+          'collectedBy.' + request.auth.uid,
+          'reportedBy.' + request.auth.uid,
+          'reportCount'
         ])
-        && isValidVoteTransition(resource.data, request.resource.data, request.auth.uid);
+        && isValidVoteTransition(resource.data, request.resource.data, request.auth.uid)
+        && isValidReportTransition(resource.data, request.resource.data, request.auth.uid);
     }
   }
 }
