@@ -7781,15 +7781,6 @@ private fun ManageDropRow(
                         color = supportingColor
                     )
 
-                    val caption = drop.text.takeIf { it.isNotBlank() }
-                    caption?.let {
-                        Text(
-                            text = it,
-                            style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-
                     val descriptionText = drop.description?.takeIf { it.isNotBlank() }
                     descriptionText?.let {
                         Text(
