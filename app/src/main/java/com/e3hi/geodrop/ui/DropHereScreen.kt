@@ -2002,25 +2002,27 @@ fun DropHereScreen(
                                             showNotificationRadiusDialog = true
                                         }
                                     )
-                                    DropdownMenuItem(
-                                        text = {
-                                            Text(
-                                                stringResource(
-                                                    if (nsfwEnabled) {
-                                                        R.string.menu_disable_nsfw_drops
-                                                    } else {
-                                                        R.string.menu_enable_nsfw_drops
-                                                    }
+                                    if (!isBusinessUser) {
+                                        DropdownMenuItem(
+                                            text = {
+                                                Text(
+                                                    stringResource(
+                                                        if (nsfwEnabled) {
+                                                            R.string.menu_disable_nsfw_drops
+                                                        } else {
+                                                            R.string.menu_enable_nsfw_drops
+                                                        }
+                                                    )
                                                 )
-                                            )
-                                        },
-                                        leadingIcon = { Icon(Icons.Rounded.Flag, contentDescription = null) },
-                                        onClick = {
-                                            showAccountMenu = false
-                                            nsfwUpdateError = null
-                                            showNsfwDialog = true
-                                        }
-                                    )
+                                            },
+                                            leadingIcon = { Icon(Icons.Rounded.Flag, contentDescription = null) },
+                                            onClick = {
+                                                showAccountMenu = false
+                                                nsfwUpdateError = null
+                                                showNsfwDialog = true
+                                            }
+                                        )
+                                    }
                                     DropdownMenuItem(
                                         text = {
                                             Text(
