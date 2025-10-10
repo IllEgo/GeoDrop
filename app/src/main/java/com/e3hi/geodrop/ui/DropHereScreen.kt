@@ -15,6 +15,8 @@ import android.util.Patterns
 import android.provider.MediaStore
 import android.webkit.MimeTypeMap
 import android.widget.Toast
+import android.view.ViewGroup
+import android.widget.FrameLayout
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
@@ -113,6 +115,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -185,6 +188,9 @@ import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.maps.model.LatLng
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
+import androidx.media3.common.MediaItem
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.PlayerControlView
 import com.google.maps.android.compose.Circle
 import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.MapUiSettings
@@ -7745,122 +7751,240 @@ private fun ManageDropRow(
                 )
             }
 
-        AnimatedVisibility(visible = isSelected) {
-            Column {
-                Spacer(Modifier.height(4.dp))
-
-                val typeLabel = when (drop.contentType) {
-                    DropContentType.TEXT -> "Text note"
-                    DropContentType.PHOTO -> "Photo drop"
-                    DropContentType.AUDIO -> "Audio drop"
-                    DropContentType.VIDEO -> "Video drop"
+            AnimatedVisibility(visible = isSelected) {
+                val context = LocalContext.current
+                val mediaAttachment = remember(
+                    drop.id,
+                    drop.mediaUrl,
+                    drop.mediaData,
+                    drop.mediaMimeType
+                ) {
+                    resolveDropMediaAttachment(context, drop)
                 }
-                Text(
-                    text = "Type: $typeLabel",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = supportingColor
-                )
 
-                val mediaUrl = drop.mediaLabel()
-                if (drop.contentType == DropContentType.PHOTO && mediaUrl != null) {
-                    Spacer(Modifier.height(12.dp))
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Spacer(Modifier.height(4.dp))
 
-                    val context = LocalContext.current
-                    val imageRequest = remember(mediaUrl) {
-                        ImageRequest.Builder(context)
-                            .data(mediaUrl)
-                            .crossfade(true)
-                            .build()
+                    val typeLabel = when (drop.contentType) {
+                        DropContentType.TEXT -> "Text note"
+                        DropContentType.PHOTO -> "Photo drop"
+                        DropContentType.AUDIO -> "Audio drop"
+                        DropContentType.VIDEO -> "Video drop"
                     }
-
-                    AsyncImage(
-                        model = imageRequest,
-                        contentDescription = drop.displayTitle(),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 160.dp, max = 280.dp)
-                            .clip(RoundedCornerShape(12.dp)),
-                        contentScale = ContentScale.Crop
-                    )
-                    Spacer(Modifier.height(12.dp))
-                    }
-
-                Spacer(Modifier.height(4.dp))
-
-                formatTimestamp(drop.createdAt)?.let {
                     Text(
-                        text = it,
-                        style = MaterialTheme.typography.bodyMedium,
+                        text = "Type: $typeLabel",
+                        style = MaterialTheme.typography.bodySmall,
                         color = supportingColor
                     )
-                }
 
-                Spacer(Modifier.height(4.dp))
-
-                val visibilityLabel = drop.groupCode
-                    ?.takeIf { it.isNotBlank() }
-                    ?.let { "Group-only · $it" }
-                    ?: "Public drop"
-
-                Text(
-                    text = visibilityLabel,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = supportingColor
-                )
-
-                Spacer(Modifier.height(4.dp))
-
-                Text(
-                    text = "Lat: %.5f, Lng: %.5f".format(drop.lat, drop.lng),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = supportingColor
-                )
-
-                Spacer(Modifier.height(4.dp))
-
-                Text(
-                    text = "Score: ${formatVoteScore(drop.voteScore())} (↑${drop.upvoteCount} / ↓${drop.downvoteCount})",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = supportingColor
-                )
-
-                Spacer(Modifier.height(12.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                    ) {
-                    TextButton(
-                        onClick = onView,
-                        enabled = !isDeleting
-                    ) {
-                        Text("View details")
+                    val caption = drop.text.takeIf { it.isNotBlank() }
+                    caption?.let {
+                        Text(
+                            text = it,
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.SemiBold
+                        )
                     }
 
-                    TextButton(
-                        onClick = onDelete,
-                        enabled = !isDeleting
-                    ) {
-                        if (isDeleting) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(18.dp),
-                                strokeWidth = 2.dp
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text("Deleting…")
-                        } else {
-                            Icon(
-                                imageVector = Icons.Filled.Delete,
-                                contentDescription = "Delete drop"
-                            )
-                            Spacer(Modifier.width(4.dp))
-                            Text("Delete")
+                    val descriptionText = drop.description?.takeIf { it.isNotBlank() }
+                    descriptionText?.let {
+                        Text(
+                            text = it,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = supportingColor
+                        )
+                    }
+
+                    when (drop.contentType) {
+                        DropContentType.PHOTO -> {
+                            val imageData = when (mediaAttachment) {
+                                is DropMediaAttachment.Link -> mediaAttachment.url
+                                is DropMediaAttachment.Local -> mediaAttachment.uri
+                                else -> drop.mediaLabel()
+                            }
+                            if (imageData != null) {
+                                val imageRequest = remember(imageData) {
+                                    ImageRequest.Builder(context)
+                                        .data(imageData)
+                                        .crossfade(true)
+                                        .build()
+                                }
+
+                                AsyncImage(
+                                    model = imageRequest,
+                                    contentDescription = drop.displayTitle(),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .heightIn(min = 160.dp, max = 280.dp)
+                                        .clip(RoundedCornerShape(12.dp)),
+                                    contentScale = ContentScale.Crop
+                                )
+                            }
                         }
+
+                        DropContentType.VIDEO -> {
+                            val videoUri = mediaAttachment?.asUriOrNull()
+                                ?: drop.mediaLabel()?.let { Uri.parse(it) }
+                            if (videoUri != null) {
+                                DropVideoPlayer(
+                                    videoUri = videoUri,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                        }
+
+                        DropContentType.AUDIO -> {
+                            val audioUri = mediaAttachment?.asUriOrNull()
+                                ?: drop.mediaLabel()?.let { Uri.parse(it) }
+                            if (audioUri != null) {
+                                DropAudioPlayer(
+                                    audioUri = audioUri,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                        }
+
+                        DropContentType.TEXT -> Unit
+                    }
+
+                    formatTimestamp(drop.createdAt)?.let {
+                        Text(
+                            text = it,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = supportingColor
+                        )
+                    }
+
+                    val visibilityLabel = drop.groupCode
+                        ?.takeIf { it.isNotBlank() }
+                        ?.let { "Group-only · $it" }
+                        ?: "Public drop"
+
+                    Text(
+                        text = visibilityLabel,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = supportingColor
+                    )
+
+                    Text(
+                        text = "Lat: %.5f, Lng: %.5f".format(drop.lat, drop.lng),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = supportingColor
+                    )
+
+                    Text(
+                        text = "Score: ${formatVoteScore(drop.voteScore())} (↑${drop.upvoteCount} / ↓${drop.downvoteCount})",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = supportingColor
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextButton(
+                            onClick = onView,
+                            enabled = !isDeleting
+                        ) {
+                            Text("View details")
+                        }
+
+                        TextButton(
+                            onClick = onDelete,
+                            enabled = !isDeleting
+                        ) {
+                            if (isDeleting) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text("Deleting…")
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Filled.Delete,
+                                    contentDescription = "Delete drop"
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                Text("Delete")
+                            }
                         }
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun DropAudioPlayer(
+    audioUri: Uri,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val mediaItem = remember(audioUri) { MediaItem.fromUri(audioUri) }
+    val exoPlayer = remember(mediaItem) {
+        ExoPlayer.Builder(context).build().apply {
+            setMediaItem(mediaItem)
+            playWhenReady = false
+            repeatMode = Player.REPEAT_MODE_OFF
+            prepare()
+        }
+    }
+
+    DisposableEffect(exoPlayer) {
+        onDispose { exoPlayer.release() }
+    }
+
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.GraphicEq,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = "Audio clip",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+
+            AndroidView(
+                modifier = Modifier.fillMaxWidth(),
+                factory = { ctx ->
+                    PlayerControlView(ctx).apply {
+                        layoutParams = FrameLayout.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.WRAP_CONTENT
+                        )
+                        player = exoPlayer
+                        setShowTimeoutMs(0)
+                    }
+                },
+                update = { controlView ->
+                    if (controlView.player !== exoPlayer) {
+                        controlView.player = exoPlayer
+                    }
+                }
+            )
         }
     }
 }
