@@ -8183,13 +8183,6 @@ private fun BusinessDropTemplatesDialog(
                         )
                     }
                 }
-
-                TextButton(
-                    onClick = onDismiss,
-                    modifier = Modifier.align(Alignment.End)
-                ) {
-                    Text("Done")
-                }
             }
         }
     }
