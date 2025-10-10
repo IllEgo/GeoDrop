@@ -5636,6 +5636,7 @@ private fun BusinessCategoryOptionRow(
 }
 
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 private fun BusinessDashboardDialog(
     drops: List<Drop>,
     loading: Boolean,
@@ -5724,9 +5725,11 @@ private fun BusinessDashboardDialog(
                         val uniqueRedeemers = sorted.flatMap { it.redeemedBy.keys }.toSet().size
                         val activeOffers = sorted.count { it.dropType == DropType.RESTAURANT_COUPON }
 
-                        Row(
+                        FlowRow(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                            maxItemsInEachRow = 2
                         ) {
                             DashboardMetricCard(
                                 value = sorted.size.toString(),
