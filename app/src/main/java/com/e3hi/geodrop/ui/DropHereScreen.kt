@@ -8131,9 +8131,11 @@ private fun BusinessDropTemplatesDialog(
                 .fillMaxWidth()
                 .padding(16.dp)
         ) {
+            val scrollState = rememberScrollState()
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .verticalScroll(scrollState)
                     .padding(24.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
