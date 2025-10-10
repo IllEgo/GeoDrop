@@ -7100,11 +7100,6 @@ private fun OtherDropRow(
                         DropContentType.AUDIO -> "Audio drop"
                         DropContentType.VIDEO -> "Video drop"
                     }
-                    Text(
-                        text = "Type: $typeLabel",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = supportingColor
-                    )
 
                     formatTimestamp(drop.createdAt)?.let {
                         Spacer(Modifier.height(4.dp))
@@ -7156,11 +7151,6 @@ private fun OtherDropRow(
                     }
 
                     Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = "Lat: ${formatCoordinate(drop.lat)}, Lng: ${formatCoordinate(drop.lng)}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = supportingColor
-                    )
 
                     distanceMeters?.let { distance ->
                         Spacer(Modifier.height(4.dp))
