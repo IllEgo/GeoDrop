@@ -4180,7 +4180,7 @@ private fun DropComposerDialog(
                                 onApply = { template ->
                                     onDropTypeChange(template.dropType)
                                     onDropContentTypeChange(template.contentType)
-                                    onNoteChange(TextFieldValue(""))
+                                    onNoteChange(TextFieldValue(template.caption.ifBlank { "" }))
                                     onDescriptionChange(TextFieldValue(template.note))
                                 },
                                 showHeader = false
@@ -8327,6 +8327,33 @@ private fun BusinessDropTemplateCard(
                             text = message,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                }
+            }
+
+            if (template.caption.isNotBlank()) {
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = "Suggested caption",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                        Text(
+                            text = template.caption,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            maxLines = 3,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
