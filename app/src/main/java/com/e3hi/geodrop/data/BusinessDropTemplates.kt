@@ -545,18 +545,12 @@ private val BUSINESS_DROP_TEMPLATES: Map<BusinessCategory, List<BusinessDropTemp
 
 fun dropTemplatesFor(categories: Collection<BusinessCategory>): List<BusinessDropTemplate> {
     if (categories.isEmpty()) {
-        return GENERAL_BUSINESS_TEMPLATES
+        return emptyList()
     }
 
     val ordered = LinkedHashMap<String, BusinessDropTemplate>()
     categories.forEach { category ->
         BUSINESS_DROP_TEMPLATES[category].orEmpty().forEach { template ->
-            ordered.putIfAbsent(template.id, template)
-        }
-    }
-
-    if (ordered.size < GENERAL_BUSINESS_TEMPLATES.size) {
-        GENERAL_BUSINESS_TEMPLATES.forEach { template ->
             ordered.putIfAbsent(template.id, template)
         }
     }
