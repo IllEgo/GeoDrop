@@ -8166,52 +8166,11 @@ private fun BusinessDropTemplatesDialog(
                     }
                 }
 
-                val categories = remember(templates) { templates.map { it.category }.distinct() }
-                var selectedCategory by remember(templates) { mutableStateOf<BusinessCategory?>(null) }
-                if (categories.size > 1) {
-                    FlowRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        val selectedIcon: @Composable (() -> Unit) = {
-                            Icon(
-                                imageVector = Icons.Rounded.CheckCircle,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
-
-                        FilterChip(
-                            selected = selectedCategory == null,
-                            onClick = { selectedCategory = null },
-                            label = { Text("All ideas") },
-                            leadingIcon = if (selectedCategory == null) selectedIcon else null
-                        )
-
-                        categories.forEach { category ->
-                            val isSelected = selectedCategory == category
-                            FilterChip(
-                                selected = isSelected,
-                                onClick = {
-                                    selectedCategory = if (isSelected) null else category
-                                },
-                                label = { Text(category.displayName) },
-                                leadingIcon = if (isSelected) selectedIcon else null
-                            )
-                        }
-                    }
-                }
-
-                val filteredTemplates = remember(templates, selectedCategory) {
-                    templates.filter { selectedCategory == null || it.category == selectedCategory }
-                }
-
-                var currentTemplateIndex by remember(filteredTemplates) { mutableStateOf(0) }
-                LaunchedEffect(filteredTemplates) {
+                var currentTemplateIndex by remember(templates) { mutableStateOf(0) }
+                LaunchedEffect(templates) {
                     currentTemplateIndex = 0
                 }
-                val activeTemplate = filteredTemplates.getOrNull(currentTemplateIndex)
+                val activeTemplate = templates.getOrNull(currentTemplateIndex)
 
                 if (activeTemplate != null) {
                     Crossfade(
@@ -8232,15 +8191,15 @@ private fun BusinessDropTemplatesDialog(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Text(
-                            text = "Idea ${currentTemplateIndex + 1} of ${filteredTemplates.size}",
+                            text = "Idea ${currentTemplateIndex + 1} of ${templates.size}",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Button(
                             onClick = {
-                                currentTemplateIndex = (currentTemplateIndex + 1) % filteredTemplates.size
+                                currentTemplateIndex = (currentTemplateIndex + 1) % templates.size
                             },
-                            enabled = filteredTemplates.size > 1,
+                            enabled = templates.size > 1,
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text("Next idea")
@@ -8253,7 +8212,7 @@ private fun BusinessDropTemplatesDialog(
                         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
                     ) {
                         Text(
-                            text = "No ideas available for the selected categories yet.",
+                            text = "No ideas available yet.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(16.dp)
