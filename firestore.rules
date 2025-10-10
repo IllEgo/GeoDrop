@@ -144,10 +144,9 @@ service cloud.firestore {
         let hasReport = afterKeys.hasAny([userId]);
         let beforeCount = (before.reportCount is int) ? before.reportCount : 0;
         let afterCount = (after.reportCount is int) ? after.reportCount : 0;
+        let diff = beforeReportedBy.diff(afterReportedBy);
 
-        return beforeKeys.hasOnly(afterKeys)
-          && afterKeys.hasOnly(beforeKeys.concat([userId]))
-          && beforeKeys.all(key => key == userId || afterReportedBy[key] == beforeReportedBy[key])
+        return diff.affectedKeys().hasOnly([userId])
           && (
             (!hadReport && !hasReport && afterCount == beforeCount)
             || (hadReport && hasReport && afterCount == beforeCount)
