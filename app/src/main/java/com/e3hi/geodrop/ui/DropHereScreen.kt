@@ -3347,21 +3347,6 @@ private fun BusinessHomeScreen(
                         )
                     }
                 )
-
-                ActionCard(
-                    icon = Icons.Rounded.Groups,
-                    title = "Manage group codes",
-                    description = "Control who can access private campaigns or team-only drops.",
-                    onClick = onManageGroups,
-                    trailingContent = {
-                        if (groupCount > 0) {
-                            MetricPill(
-                                label = stringResource(R.string.metric_groups),
-                                value = groupCount
-                            )
-                        }
-                    }
-                )
             }
         }
 
