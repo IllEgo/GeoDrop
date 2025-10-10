@@ -2078,11 +2078,6 @@ fun DropHereScreen(
                 joinedGroups = joinedGroups,
                 statusMessage = status,
                 metrics = businessHomeMetrics,
-                onCreateDrop = {
-                    if (!isSubmitting) {
-                        showDropComposer = true
-                    }
-                },
                 onViewDashboard = {
                     if (!userProfileLoading) {
                         showBusinessDashboard = true
@@ -3309,7 +3304,6 @@ private fun BusinessHomeScreen(
     joinedGroups: List<String>,
     statusMessage: String?,
     metrics: BusinessHomeMetrics,
-    onCreateDrop: () -> Unit,
     onViewDashboard: () -> Unit,
     onUpdateBusinessProfile: () -> Unit,
     onViewMyDrops: () -> Unit,
@@ -3331,7 +3325,6 @@ private fun BusinessHomeScreen(
                 businessName = businessName,
                 businessCategories = businessCategories,
                 joinedGroups = joinedGroups,
-                onCreateDrop = onCreateDrop,
                 onManageGroups = onManageGroups
             )
         }
@@ -3413,7 +3406,6 @@ private fun BusinessHeroCard(
     businessCategories: List<BusinessCategory>,
     joinedGroups: List<String>,
     brandImageUrl: String? = null,
-    onCreateDrop: () -> Unit,
     onManageGroups: () -> Unit,
 ) {
     val title = businessName?.takeIf { it.isNotBlank() }?.let { "$it on GeoDrop" }
@@ -3588,19 +3580,6 @@ private fun BusinessHeroCard(
                         }
                     }
                 }
-            }
-
-            Button(
-                onClick = onCreateDrop,
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                    contentColor = MaterialTheme.colorScheme.primaryContainer
-                )
-            ) {
-                Icon(Icons.Rounded.Place, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text("Create a new drop")
             }
 
             TextButton(
