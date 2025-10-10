@@ -8121,11 +8121,6 @@ private fun BusinessDropTemplatesDialog(
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold
                         )
-                        Text(
-                            text = "Select a template to instantly apply the best-fit drop type and message.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
                     }
                     IconButton(onClick = onDismiss) {
                         Icon(
