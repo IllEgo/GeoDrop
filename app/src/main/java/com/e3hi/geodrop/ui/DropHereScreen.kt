@@ -7775,11 +7775,6 @@ private fun ManageDropRow(
                         DropContentType.AUDIO -> "Audio drop"
                         DropContentType.VIDEO -> "Video drop"
                     }
-                    Text(
-                        text = "Type: $typeLabel",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = supportingColor
-                    )
 
                     val descriptionText = drop.description?.takeIf { it.isNotBlank() }
                     descriptionText?.let {
@@ -7849,23 +7844,6 @@ private fun ManageDropRow(
                             color = supportingColor
                         )
                     }
-
-                    val visibilityLabel = drop.groupCode
-                        ?.takeIf { it.isNotBlank() }
-                        ?.let { "Group-only · $it" }
-                        ?: "Public drop"
-
-                    Text(
-                        text = visibilityLabel,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = supportingColor
-                    )
-
-                    Text(
-                        text = "Lat: %.5f, Lng: %.5f".format(drop.lat, drop.lng),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = supportingColor
-                    )
 
                     Text(
                         text = "Score: ${formatVoteScore(drop.voteScore())} (↑${drop.upvoteCount} / ↓${drop.downvoteCount})",
