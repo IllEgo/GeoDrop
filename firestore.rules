@@ -195,6 +195,13 @@ service cloud.firestore {
         ])
         && isValidVoteTransition(resource.data, request.resource.data, request.auth.uid)
         && isValidReportTransition(resource.data, request.resource.data, request.auth.uid);
+
+      allow delete: if isSignedIn()
+        && resource.data.createdBy == request.auth.uid;
+    }
+
+    match /users/{userId}/inventory/{dropId} {
+      allow delete: if isCurrentUser(userId);
     }
   }
 }
