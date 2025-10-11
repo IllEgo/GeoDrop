@@ -34,6 +34,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
@@ -101,6 +102,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -715,7 +717,6 @@ fun DropHereScreen(
     var redemptionCodeInput by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
     var redemptionLimitInput by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
     var decayDaysInput by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
-    var isSubmitting by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
     var showOtherDropsMap by remember { mutableStateOf(false) }
     var otherDrops by remember { mutableStateOf<List<Drop>>(emptyList()) }
@@ -724,7 +725,10 @@ fun DropHereScreen(
     var otherDropsCurrentLocation by remember { mutableStateOf<LatLng?>(null) }
     var otherDropsSelectedId by remember { mutableStateOf<String?>(null) }
     var otherDropsRefreshToken by remember { mutableStateOf(0) }
-    var nearbyDropCountHint by remember { mutableStateOf<Int?>(null) }
+    var otherDropsMapWeight by rememberSaveable {
+        mutableStateOf(DEFAULT_MAP_WEIGHT.coerceIn(MAP_LIST_MIN_WEIGHT, MAP_LIST_MAX_WEIGHT))
+    }
+    val otherDropsListState = rememberLazyListState()
     var votingDropIds by remember { mutableStateOf(setOf<String>()) }
     val dropReportReasons = remember { DefaultReportReasons }
     var browseReportDialogOpen by remember { mutableStateOf(false) }
@@ -807,7 +811,6 @@ fun DropHereScreen(
         showBusinessOnboarding = false
         showDropComposer = false
         showMyDrops = false
-        showOtherDropsMap = false
         showCollectedDrops = false
         showManageGroups = false
         showAccountSignIn = false
@@ -1753,14 +1756,24 @@ fun DropHereScreen(
     }
 
 
+    val isBusinessUser = userProfile?.isBusiness() == true
+    val currentHomeDestination = if (isBusinessUser) {
+        runCatching { HomeDestination.valueOf(selectedHomeDestination) }
+            .getOrDefault(HomeDestination.Business)
+    } else {
+        runCatching { HomeDestination.valueOf(selectedHomeDestination) }
+            .getOrDefault(HomeDestination.Explorer)
+    }
+    val explorerHomeVisible = !isBusinessUser || currentHomeDestination == HomeDestination.Explorer
+
     LaunchedEffect(
-        showOtherDropsMap,
+        explorerHomeVisible,
         joinedGroups,
         otherDropsRefreshToken,
         collectedDropIds,
         ignoredDropIds
     ) {
-        if (showOtherDropsMap) {
+        if (explorerHomeVisible) {
             otherDropsLoading = true
             otherDropsError = null
             otherDropsCurrentLocation = null
@@ -1786,7 +1799,6 @@ fun DropHereScreen(
                         id in collectedDropIds || id in ignoredDropIds
                     }
                     otherDrops = filteredDrops
-                    nearbyDropCountHint = filteredDrops.size
                     otherDropsCurrentLocation = getLatestLocation()?.let { (lat, lng) -> LatLng(lat, lng) }
                     otherDropsSelectedId = otherDropsSelectedId?.takeIf { id -> filteredDrops.any { it.id == id } }
                         ?: filteredDrops.firstOrNull()?.id
@@ -1803,6 +1815,13 @@ fun DropHereScreen(
             otherDropsLoading = false
             otherDropsCurrentLocation = null
             otherDropsSelectedId = null
+            if (!browseReportProcessing) {
+                browseReportDialogOpen = false
+                browseReportTarget = null
+                browseReportSelectedReasons = emptySet()
+                browseReportError = null
+                browseReportingDropId = null
+            }
         }
     }
 
@@ -1862,13 +1881,6 @@ fun DropHereScreen(
     }
     val hiddenNsfwCollectedCount = collectedNotes.size - visibleCollectedNotes.size
     val collectedCount = visibleCollectedNotes.size
-    val isBusinessUser = userProfile?.isBusiness() == true
-    val currentHomeDestination = if (isBusinessUser) {
-        HomeDestination.Business
-    } else {
-        runCatching { HomeDestination.valueOf(selectedHomeDestination) }
-            .getOrDefault(HomeDestination.Explorer)
-    }
 
     LaunchedEffect(
         isBusinessUser,
@@ -2125,28 +2137,91 @@ fun DropHereScreen(
                     )
                 }
 
+                item {
+                    OtherDropsExplorerSection(
+                        modifier = Modifier.fillMaxWidth(),
+                        loading = otherDropsLoading,
+                        drops = otherDrops,
+                        currentLocation = otherDropsCurrentLocation,
+                        notificationRadiusMeters = notificationRadius,
+                        error = otherDropsError,
+                        selectedId = otherDropsSelectedId,
+                        onSelect = { drop ->
+                            otherDropsSelectedId = if (otherDropsSelectedId == drop.id) {
+                                null
+                            } else {
+                                drop.id
+                            }
+                        },
+                        onPickUp = { drop -> pickUpDrop(drop) },
+                        currentUserId = currentUserId,
+                        votingDropIds = votingDropIds,
+                        collectedDropIds = collectedDropIds,
+                        canCollectDrops = canParticipate,
+                        collectRestrictionMessage = when (userMode) {
+                            UserMode.GUEST -> "Preview drops nearby, then create an account to pick them up when you're ready."
+                            UserMode.SIGNED_IN -> null
+                        },
+                        canVoteOnDrops = canParticipate,
+                        voteRestrictionMessage = if (canParticipate) null else participationRestriction("vote on drops"),
+                        onVote = { drop, vote -> submitVote(drop, vote) },
+                        onReport = { drop ->
+                            if (browseReportProcessing) return@onReport
+                            val userId = currentUserId
+                            if (userId.isNullOrBlank()) {
+                                Toast.makeText(ctx, "Sign in to report drops.", Toast.LENGTH_SHORT).show()
+                                return@onReport
+                            }
+                            if (drop.createdBy == userId) {
+                                Toast.makeText(ctx, "You can't report your own drop.", Toast.LENGTH_SHORT).show()
+                                return@onReport
+                            }
+                            val hasCollected = collectedDropIds.contains(drop.id)
+                            val withinPickupRange = otherDropsCurrentLocation?.let { location ->
+                                distanceBetweenMeters(
+                                    location.latitude,
+                                    location.longitude,
+                                    drop.lat,
+                                    drop.lng
+                                ) <= DROP_PICKUP_RADIUS_METERS
+                            } ?: false
+                            if (!hasCollected && !withinPickupRange) {
+                                val radiusMeters = DROP_PICKUP_RADIUS_METERS.roundToInt()
+                                Toast.makeText(
+                                    ctx,
+                                    "Move within ${'$'}radiusMeters meters to report this drop, or collect it first.",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                                return@onReport
+                            }
+                            if (drop.reportedBy.containsKey(userId)) {
+                                Toast.makeText(ctx, "You've already reported this drop.", Toast.LENGTH_SHORT).show()
+                                return@onReport
+                            }
+                            browseReportTarget = drop
+                            browseReportSelectedReasons = emptySet()
+                            browseReportError = null
+                            browseReportDialogOpen = true
+                        },
+                        reportingDropId = browseReportingDropId,
+                        onRefresh = { otherDropsRefreshToken += 1 },
+                        listState = otherDropsListState,
+                        mapWeight = otherDropsMapWeight,
+                        onMapWeightChange = { weight ->
+                            val coerced = weight.coerceIn(MAP_LIST_MIN_WEIGHT, MAP_LIST_MAX_WEIGHT)
+                            if (coerced != otherDropsMapWeight) {
+                                otherDropsMapWeight = coerced
+                            }
+                        }
+                    )
+                }
+
                 item { SectionHeader(text = stringResource(R.string.section_quick_actions)) }
 
                 item {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        val availableNearbyDrops = nearbyDropCountHint ?: otherDrops.size
                         val totalMyDrops = myDropCountHint ?: myDrops.size
                         val pendingMyDropReviews = myDropPendingReviewHint ?: myDrops.count { it.reportCount > 0 }
-
-                        ActionCard(
-                            icon = Icons.Rounded.Map,
-                            title = stringResource(R.string.action_browse_map_title),
-                            description = stringResource(R.string.action_browse_map_description),
-                            onClick = { showOtherDropsMap = true },
-                            trailingContent = {
-                                if (availableNearbyDrops > 0) {
-                                    MetricPill(
-                                        label = stringResource(R.string.metric_available),
-                                        value = availableNearbyDrops
-                                    )
-                                }
-                            }
-                        )
 
                         if (hasExplorerAccount) {
                             ActionCard(
@@ -2294,86 +2369,6 @@ fun DropHereScreen(
                     showDropComposer = false
                 }
             }
-        )
-    }
-
-    if (showOtherDropsMap) {
-        OtherDropsMapDialog(
-            loading = otherDropsLoading,
-            drops = otherDrops,
-            currentLocation = otherDropsCurrentLocation,
-            notificationRadiusMeters = notificationRadius,
-            error = otherDropsError,
-            selectedId = otherDropsSelectedId,
-            onSelect = { drop ->
-                otherDropsSelectedId = if (otherDropsSelectedId == drop.id) {
-                    null
-                } else {
-                    drop.id
-                }
-            },
-            onPickUp = { drop -> pickUpDrop(drop) },
-            currentUserId = currentUserId,
-            votingDropIds = votingDropIds,
-            collectedDropIds = collectedDropIds,
-            canCollectDrops = canParticipate,
-            collectRestrictionMessage = when (userMode) {
-                UserMode.GUEST -> "Preview drops nearby, then create an account to pick them up when you're ready."
-                UserMode.SIGNED_IN -> null
-            },
-            canVoteOnDrops = canParticipate,
-            voteRestrictionMessage = if (canParticipate) null else participationRestriction("vote on drops"),
-            onVote = { drop, vote -> submitVote(drop, vote) },
-            onReport = { drop ->
-                if (browseReportProcessing) return@OtherDropsMapDialog
-                val userId = currentUserId
-                if (userId.isNullOrBlank()) {
-                    Toast.makeText(ctx, "Sign in to report drops.", Toast.LENGTH_SHORT).show()
-                    return@OtherDropsMapDialog
-                }
-                if (drop.createdBy == userId) {
-                    Toast.makeText(ctx, "You can't report your own drop.", Toast.LENGTH_SHORT).show()
-                    return@OtherDropsMapDialog
-                }
-                val hasCollected = collectedDropIds.contains(drop.id)
-                val withinPickupRange = otherDropsCurrentLocation?.let { location ->
-                    distanceBetweenMeters(
-                        location.latitude,
-                        location.longitude,
-                        drop.lat,
-                        drop.lng
-                    ) <= DROP_PICKUP_RADIUS_METERS
-                } ?: false
-                if (!hasCollected && !withinPickupRange) {
-                    val radiusMeters = DROP_PICKUP_RADIUS_METERS.roundToInt()
-                    Toast.makeText(
-                        ctx,
-                        "Move within ${'$'}radiusMeters meters to report this drop, or collect it first.",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                    return@OtherDropsMapDialog
-                }
-                if (drop.reportedBy.containsKey(userId)) {
-                    Toast.makeText(ctx, "You've already reported this drop.", Toast.LENGTH_SHORT).show()
-                    return@OtherDropsMapDialog
-                }
-                browseReportTarget = drop
-                browseReportSelectedReasons = emptySet()
-                browseReportError = null
-                browseReportDialogOpen = true
-            },
-            reportingDropId = browseReportingDropId,
-            onDismiss = {
-                showOtherDropsMap = false
-                if (!browseReportProcessing) {
-                    browseReportDialogOpen = false
-                    browseReportTarget = null
-                    browseReportSelectedReasons = emptySet()
-                    browseReportError = null
-                    browseReportingDropId = null
-                }
-            },
-            onRetry = { otherDropsRefreshToken += 1 }
         )
     }
 
@@ -5889,7 +5884,8 @@ private fun BusinessDropAnalyticsCard(drop: Drop) {
 }
 
 @Composable
-private fun OtherDropsMapDialog(
+private fun OtherDropsExplorerSection(
+    modifier: Modifier = Modifier,
     loading: Boolean,
     drops: List<Drop>,
     currentLocation: LatLng?,
@@ -5908,229 +5904,277 @@ private fun OtherDropsMapDialog(
     onVote: (Drop, DropVoteType) -> Unit,
     onReport: (Drop) -> Unit,
     reportingDropId: String?,
-    onDismiss: () -> Unit,
-    onRetry: () -> Unit
+    onRefresh: () -> Unit,
+    listState: LazyListState,
+    mapWeight: Float,
+    onMapWeightChange: (Float) -> Unit
 ) {
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+    val configuration = LocalConfiguration.current
+    val screenHeight = configuration.screenHeightDp.dp
+    val defaultSectionHeight = remember(screenHeight) {
+        (screenHeight * 0.55f).coerceIn(360.dp, 640.dp)
+    }
+    val headerTitle = stringResource(R.string.action_browse_map_title)
+    val headerDescription = stringResource(R.string.action_browse_map_description)
+
+    val clampedMapWeight = mapWeight.coerceIn(MAP_LIST_MIN_WEIGHT, MAP_LIST_MAX_WEIGHT)
+    var internalWeight by remember { mutableStateOf(clampedMapWeight) }
+    internalWeight = clampedMapWeight
+    val listWeight = 1f - internalWeight
+    var containerHeight by remember { mutableStateOf(0) }
+    val dividerInteraction = remember { MutableInteractionSource() }
+    val dividerDragState = rememberDraggableState { delta ->
+        val height = containerHeight.takeIf { it > 0 }?.toFloat() ?: return@rememberDraggableState
+        val deltaWeight = delta / height
+        val updated = (internalWeight + deltaWeight).coerceIn(MAP_LIST_MIN_WEIGHT, MAP_LIST_MAX_WEIGHT)
+        if (updated != internalWeight) {
+            internalWeight = updated
+            onMapWeightChange(updated)
+        }
+    }
+    val dividerModifier = Modifier
+        .fillMaxWidth()
+        .height(DIVIDER_DRAG_HANDLE_HEIGHT)
+        .draggable(
+            state = dividerDragState,
+            orientation = Orientation.Vertical,
+            interactionSource = dividerInteraction
+        )
+        .semantics(mergeDescendants = true) {
+            progressBarRangeInfo = ProgressBarRangeInfo(
+                current = internalWeight,
+                range = MAP_LIST_MIN_WEIGHT..MAP_LIST_MAX_WEIGHT
+            )
+            stateDescription =
+                "Map occupies ${'$'}{(internalWeight * 100).roundToInt()} percent of the available height"
+            setProgress { target ->
+                val coerced = target.coerceIn(MAP_LIST_MIN_WEIGHT, MAP_LIST_MAX_WEIGHT)
+                if (coerced != internalWeight) {
+                    internalWeight = coerced
+                    onMapWeightChange(coerced)
+                    true
+                } else {
+                    false
+                }
+            }
+        }
+
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(28.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurface
+        )
     ) {
-        Surface(
-            modifier = Modifier.fillMaxSize(),
-            color = MaterialTheme.colorScheme.background
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            @OptIn(ExperimentalMaterial3Api::class)
-            Scaffold(
-                topBar = {
-                    TopAppBar(
-                        title = { Text("Nearby drops") },
-                        navigationIcon = {
-                            IconButton(onClick = onDismiss) {
-                                Icon(
-                                    Icons.Filled.ArrowBack,
-                                    contentDescription = "Back to main page"
-                                )
-                            }
-                        }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = headerTitle,
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.weight(1f)
+                )
+
+                IconButton(onClick = onRefresh, enabled = !loading) {
+                    Icon(
+                        imageVector = Icons.Rounded.Refresh,
+                        contentDescription = stringResource(R.string.content_description_refresh_drops)
                     )
                 }
-            ) { padding ->
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding)
-                ) {
-                    when {
-                        loading -> {
-                            CircularProgressIndicator(Modifier.align(Alignment.Center))
+            }
+
+            Text(
+                text = headerDescription,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            when {
+                loading -> {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 200.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator()
+                    }
+                }
+
+                error != null -> {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(
+                            text = error,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                        OutlinedButton(onClick = onRefresh) {
+                            Icon(Icons.Rounded.Refresh, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text(stringResource(R.string.action_retry_generic))
                         }
+                    }
+                }
 
-                        error != null -> {
-                            DialogMessageContent(
-                                message = error,
-                                primaryLabel = "Retry",
-                                onPrimary = onRetry,
-                                onDismiss = onDismiss
-                            )
+                drops.isEmpty() -> {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(
+                            text = "No drops from other users are available right now.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        OutlinedButton(onClick = onRefresh) {
+                            Icon(Icons.Rounded.Refresh, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text(stringResource(R.string.action_retry_generic))
                         }
+                    }
+                }
 
-                        drops.isEmpty() -> {
-                            DialogMessageContent(
-                                message = "No drops from other users are available right now.",
-                                primaryLabel = null,
-                                onPrimary = null,
-                                onDismiss = onDismiss
-                            )
+                else -> {
+                    LaunchedEffect(selectedId, drops) {
+                        val targetId = selectedId ?: return@LaunchedEffect
+                        val index = drops.indexOfFirst { it.id == targetId }
+                        if (index >= 0) {
+                            listState.animateScrollToItem(index)
                         }
+                    }
 
-                        else -> {
-                            val listState = rememberLazyListState()
-
-
-                            LaunchedEffect(selectedId, drops) {
-                                val targetId = selectedId ?: return@LaunchedEffect
-                                val index = drops.indexOfFirst { it.id == targetId }
-                                if (index >= 0) {
-                                    listState.animateScrollToItem(index)
-                                }
-                            }
-                            val minMapWeight = MAP_LIST_MIN_WEIGHT
-                            val maxMapWeight = MAP_LIST_MAX_WEIGHT
-                            var containerHeight by remember { mutableStateOf(0) }
-                            var mapWeight by rememberSaveable {
-                                mutableStateOf(DEFAULT_MAP_WEIGHT.coerceIn(minMapWeight, maxMapWeight))
-                            }
-
-                            val listWeight = 1f - mapWeight
-                            val dividerDragState = rememberDraggableState { delta ->
-                                val height = containerHeight.takeIf { it > 0 }?.toFloat()
-                                    ?: return@rememberDraggableState
-                                val deltaWeight = delta / height
-                                val updated = (mapWeight + deltaWeight).coerceIn(minMapWeight, maxMapWeight)
-                                if (updated != mapWeight) {
-                                    mapWeight = updated
-                                }
-                            }
-                            val dividerInteraction = remember { MutableInteractionSource() }
-                            val dividerModifier = Modifier
-                                .fillMaxWidth()
-                                .height(DIVIDER_DRAG_HANDLE_HEIGHT)
-                                .draggable(
-                                    state = dividerDragState,
-                                    orientation = Orientation.Vertical,
-                                    interactionSource = dividerInteraction
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(defaultSectionHeight),
+                        shape = RoundedCornerShape(24.dp),
+                        tonalElevation = 2.dp,
+                        shadowElevation = 1.dp
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .onSizeChanged { containerHeight = it.height }
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .weight(internalWeight)
+                            ) {
+                                OtherDropsMap(
+                                    drops = drops,
+                                    selectedDropId = selectedId,
+                                    currentLocation = currentLocation,
+                                    notificationRadiusMeters = notificationRadiusMeters
                                 )
-                                .semantics(mergeDescendants = true) {
-                                    progressBarRangeInfo = ProgressBarRangeInfo(
-                                        current = mapWeight,
-                                        range = minMapWeight..maxMapWeight
-                                    )
-                                    stateDescription =
-                                        "Map occupies ${'$'}{(mapWeight * 100).roundToInt()} percent of the available height"
-                                    setProgress { target ->
-                                        val coerced = target.coerceIn(minMapWeight, maxMapWeight)
-                                        if (coerced != mapWeight) {
-                                            mapWeight = coerced
-                                        }
-                                        true
-                                    }
-                                }
+                            }
+
+                            Box(modifier = dividerModifier) {
+                                Divider(modifier = Modifier.align(Alignment.Center))
+                                DividerDragHandleHint(
+                                    modifier = Modifier.align(Alignment.Center),
+                                    text = stringResource(R.string.drag_to_resize)
+                                )
+                            }
 
                             Column(
                                 modifier = Modifier
-                                    .fillMaxSize()
-                                    .onSizeChanged { containerHeight = it.height }
+                                    .fillMaxWidth()
+                                    .weight(listWeight)
                             ) {
-                                Text(
-                                    text = "Preview what's inside each drop and pick it up when you're close enough.",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 16.dp, vertical = 12.dp)
-                                )
-
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .weight(mapWeight)
-                                ) {
-                                    OtherDropsMap(
-                                        drops = drops,
-                                        selectedDropId = selectedId,
-                                        currentLocation = currentLocation,
-                                        notificationRadiusMeters = notificationRadiusMeters
-                                    )
+                                val isSignedIn = !currentUserId.isNullOrBlank()
+                                val browseMessage = if (canCollectDrops) {
+                                    "Select a drop to focus on the map. If you're close enough, pick it up here."
+                                } else {
+                                    "Select a drop to focus on the map and preview what's nearby. Create an account to collect drops when you're ready."
                                 }
-
-                                Box(modifier = dividerModifier) {
-                                    Divider(modifier = Modifier.align(Alignment.Center))
-                                    DividerDragHandleHint(
-                                        modifier = Modifier.align(Alignment.Center),
-                                        text = stringResource(R.string.drag_to_resize)
-                                    )
-                                }
-
-                                Column(
+                                Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .weight(listWeight)
+                                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    val isSignedIn = !currentUserId.isNullOrBlank()
-                                    val browseMessage = if (canCollectDrops) {
-                                        "Select a drop to focus on the map. If you're close enough, pick it up here."
-                                    } else {
-                                        "Select a drop to focus on the map and preview what's nearby. Create an account to collect drops when you're ready."
-                                    }
                                     Text(
                                         text = browseMessage,
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 16.dp, vertical = 12.dp)
+                                        modifier = Modifier.weight(1f)
                                     )
 
-                                    LazyColumn(
-                                        state = listState,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .weight(1f),
-                                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                                    ) {
-                                        items(drops, key = { it.id }) { drop ->
-                                            val hasCollected = collectedDropIds.contains(drop.id)
-                                            val canVote = canVoteOnDrops && isSignedIn && hasCollected
-                                            val withinPickupRange = currentLocation?.let { location ->
-                                                distanceBetweenMeters(
-                                                    location.latitude,
-                                                    location.longitude,
-                                                    drop.lat,
-                                                    drop.lng
-                                                ) <= DROP_PICKUP_RADIUS_METERS
-                                            } ?: false
-                                            val voteMessage = when {
-                                                !canVoteOnDrops -> voteRestrictionMessage
-                                                !isSignedIn -> "Sign in to vote on drops."
-                                                !hasCollected -> "Collect this drop to vote on it."
-                                                else -> null
-                                            }
-                                            val isOwnDrop = currentUserId != null && drop.createdBy == currentUserId
-                                            val alreadyReported = currentUserId?.let { drop.reportedBy.containsKey(it) } == true
-                                            val canReport =
-                                                isSignedIn && !isOwnDrop && (hasCollected || withinPickupRange)
-                                            val reportMessage = when {
-                                                isOwnDrop -> "You created this drop."
-                                                !isSignedIn -> "Sign in to report drops."
-                                                alreadyReported -> "Thanks for your report. We'll review it soon."
-                                                !hasCollected && !withinPickupRange ->
-                                                    "Move within ${DROP_PICKUP_RADIUS_METERS.roundToInt()} meters to report this drop, or collect it first."
-                                                else -> null
-                                            }
-                                            val showReportButton = !isOwnDrop
-                                            val isReporting = reportingDropId == drop.id
-                                            OtherDropRow(
-                                                drop = drop,
-                                                isSelected = drop.id == selectedId,
-                                                currentLocation = currentLocation,
-                                                userVote = drop.userVote(currentUserId),
-                                                canVote = canVote,
-                                                voteRestrictionMessage = voteMessage,
-                                                canPickUp = canCollectDrops,
-                                                pickupRestrictionMessage = collectRestrictionMessage,
-                                                isVoting = votingDropIds.contains(drop.id),
-                                                showReport = showReportButton,
-                                                canReport = canReport,
-                                                alreadyReported = alreadyReported,
-                                                reportRestrictionMessage = reportMessage,
-                                                isReporting = isReporting,
-                                                onSelect = { onSelect(drop) },
-                                                onVote = { vote -> onVote(drop, vote) },
-                                                onPickUp = { onPickUp(drop) },
-                                                onReport = { onReport(drop) }
-                                            )
+                                    if (drops.isNotEmpty()) {
+                                        CountBadge(count = drops.size)
+                                    }
+                                }
+
+                                LazyColumn(
+                                    state = listState,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .weight(1f),
+                                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    items(drops, key = { it.id }) { drop ->
+                                        val hasCollected = collectedDropIds.contains(drop.id)
+                                        val canVote = canVoteOnDrops && isSignedIn && hasCollected
+                                        val withinPickupRange = currentLocation?.let { location ->
+                                            distanceBetweenMeters(
+                                                location.latitude,
+                                                location.longitude,
+                                                drop.lat,
+                                                drop.lng
+                                            ) <= DROP_PICKUP_RADIUS_METERS
+                                        } ?: false
+                                        val voteMessage = when {
+                                            !canVoteOnDrops -> voteRestrictionMessage
+                                            !isSignedIn -> "Sign in to vote on drops."
+                                            !hasCollected -> "Collect this drop to vote on it."
+                                            else -> null
                                         }
+                                        val isOwnDrop = currentUserId != null && drop.createdBy == currentUserId
+                                        val alreadyReported = currentUserId?.let { drop.reportedBy.containsKey(it) } == true
+                                        val canReport = isSignedIn && !isOwnDrop && (hasCollected || withinPickupRange)
+                                        val reportMessage = when {
+                                            isOwnDrop -> "You created this drop."
+                                            !isSignedIn -> "Sign in to report drops."
+                                            alreadyReported -> "Thanks for your report. We'll review it soon."
+                                            !hasCollected && !withinPickupRange ->
+                                                "Move within ${DROP_PICKUP_RADIUS_METERS.roundToInt()} meters to report this drop, or collect it first."
+                                            else -> null
+                                        }
+                                        val showReportButton = !isOwnDrop
+                                        val isReporting = reportingDropId == drop.id
+                                        OtherDropRow(
+                                            drop = drop,
+                                            isSelected = drop.id == selectedId,
+                                            currentLocation = currentLocation,
+                                            userVote = drop.userVote(currentUserId),
+                                            canVote = canVote,
+                                            voteRestrictionMessage = voteMessage,
+                                            canPickUp = canCollectDrops,
+                                            pickupRestrictionMessage = collectRestrictionMessage,
+                                            isVoting = votingDropIds.contains(drop.id),
+                                            showReport = showReportButton,
+                                            canReport = canReport,
+                                            alreadyReported = alreadyReported,
+                                            reportRestrictionMessage = reportMessage,
+                                            isReporting = isReporting,
+                                            onSelect = { onSelect(drop) },
+                                            onVote = { vote -> onVote(drop, vote) },
+                                            onPickUp = { onPickUp(drop) },
+                                            onReport = { onReport(drop) }
+                                        )
                                     }
                                 }
                             }
@@ -6141,7 +6185,6 @@ private fun OtherDropsMapDialog(
         }
     }
 }
-
 @Composable
 private fun CollectedDropsMap(
     notes: List<CollectedNote>,

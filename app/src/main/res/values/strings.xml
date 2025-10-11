@@ -19,6 +19,8 @@
     <string name="section_quick_actions">Quick actions</string>
     <string name="action_browse_map_title">Browse map</string>
     <string name="action_browse_map_description">See every drop you can currently unlock.</string>
+    <string name="action_retry_generic">Try again</string>
+    <string name="content_description_refresh_drops">Refresh nearby drops</string>
     <string name="action_my_drops_title">My drops</string>
     <string name="action_my_drops_description">Review, open, and manage the drops you\'ve shared.</string>
     <string name="action_collected_drops_title">Collected drops</string>
