@@ -45,7 +45,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RectangleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -5812,7 +5811,7 @@ private fun OtherDropsExplorerSection(
         modifier = modifier
             .fillMaxWidth()
             .heightIn(min = 360.dp),
-        shape = RectangleShape,
+        shape = RoundedCornerShape(0.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface,
             contentColor = MaterialTheme.colorScheme.onSurface
@@ -5920,7 +5919,7 @@ private fun OtherDropsExplorerSection(
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f),
-                        shape = RectangleShape,
+                        shape = RoundedCornerShape(0.dp),
                         tonalElevation = 2.dp,
                         shadowElevation = 1.dp
                     ) {
