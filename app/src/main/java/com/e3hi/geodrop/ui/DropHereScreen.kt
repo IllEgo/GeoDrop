@@ -2144,7 +2144,7 @@ fun DropHereScreen(
                     .fillMaxSize()
                     .padding(innerPadding)
             ) {
-                if (currentHomeDestination == HomeDestination.Explorer) {
+                if (currentHomeDestination == HomeDestination.Explorer && userMode != UserMode.GUEST) {
                     ExplorerDestinationTabs(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -2196,6 +2196,7 @@ fun DropHereScreen(
                                             UserMode.GUEST -> "Preview drops nearby, then create an account to pick them up when you're ready."
                                             UserMode.SIGNED_IN -> null
                                         },
+                                        showHeaderDescription = userMode != UserMode.GUEST,
                                         canVoteOnDrops = canParticipate,
                                         voteRestrictionMessage = if (canParticipate) null else participationRestriction("vote on drops"),
                                         onVote = { drop, vote -> submitVote(drop, vote) },
@@ -5748,6 +5749,7 @@ private fun OtherDropsExplorerSection(
     collectedDropIds: Set<String>,
     canCollectDrops: Boolean,
     collectRestrictionMessage: String?,
+    showHeaderDescription: Boolean,
     canVoteOnDrops: Boolean,
     voteRestrictionMessage: String?,
     onVote: (Drop, DropVoteType) -> Unit,
@@ -5758,7 +5760,11 @@ private fun OtherDropsExplorerSection(
     mapWeight: Float,
     onMapWeightChange: (Float) -> Unit
 ) {
-    val headerDescription = stringResource(R.string.action_browse_map_description)
+    val headerDescription = if (showHeaderDescription) {
+        stringResource(R.string.action_browse_map_description)
+    } else {
+        null
+    }
 
     val clampedMapWeight = mapWeight.coerceIn(MAP_LIST_MIN_WEIGHT, MAP_LIST_MAX_WEIGHT)
     var internalWeight by remember { mutableStateOf(clampedMapWeight) }
@@ -5808,14 +5814,16 @@ private fun OtherDropsExplorerSection(
             .padding(vertical = 20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Text(
-            text = headerDescription,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp)
-        )
+        headerDescription?.let { description ->
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+            )
+        }
 
         when {
                 loading -> {
