@@ -2166,16 +2166,16 @@ fun DropHereScreen(
                         canVoteOnDrops = canParticipate,
                         voteRestrictionMessage = if (canParticipate) null else participationRestriction("vote on drops"),
                         onVote = { drop, vote -> submitVote(drop, vote) },
-                        onReport = { drop ->
-                            if (browseReportProcessing) return@onReport
+                        onReport = report@{ drop ->
+                            if (browseReportProcessing) return@report
                             val userId = currentUserId
                             if (userId.isNullOrBlank()) {
                                 Toast.makeText(ctx, "Sign in to report drops.", Toast.LENGTH_SHORT).show()
-                                return@onReport
+                                return@report
                             }
                             if (drop.createdBy == userId) {
                                 Toast.makeText(ctx, "You can't report your own drop.", Toast.LENGTH_SHORT).show()
-                                return@onReport
+                                return@report
                             }
                             val hasCollected = collectedDropIds.contains(drop.id)
                             val withinPickupRange = otherDropsCurrentLocation?.let { location ->
@@ -2193,11 +2193,11 @@ fun DropHereScreen(
                                     "Move within ${'$'}radiusMeters meters to report this drop, or collect it first.",
                                     Toast.LENGTH_SHORT
                                 ).show()
-                                return@onReport
+                                return@report
                             }
                             if (drop.reportedBy.containsKey(userId)) {
                                 Toast.makeText(ctx, "You've already reported this drop.", Toast.LENGTH_SHORT).show()
-                                return@onReport
+                                return@report
                             }
                             browseReportTarget = drop
                             browseReportSelectedReasons = emptySet()
