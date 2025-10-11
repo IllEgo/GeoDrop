@@ -2159,10 +2159,6 @@ fun DropHereScreen(
                         Box(modifier = Modifier.weight(1f)) {
                             LazyColumn(
                                 modifier = Modifier.fillMaxSize(),
-                                contentPadding = PaddingValues(
-                                    top = 24.dp,
-                                    bottom = 128.dp
-                                ),
                                 verticalArrangement = Arrangement.spacedBy(20.dp)
                             ) {
                                 if (readOnlyParticipationMessage != null) {
