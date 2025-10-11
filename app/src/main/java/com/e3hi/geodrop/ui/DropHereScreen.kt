@@ -713,6 +713,7 @@ fun DropHereScreen(
     var capturedPhotoPath by rememberSaveable { mutableStateOf<String?>(null) }
     var capturedAudioUri by rememberSaveable { mutableStateOf<String?>(null) }
     var capturedVideoUri by rememberSaveable { mutableStateOf<String?>(null) }
+    var isSubmitting by remember { mutableStateOf(false) }
     var groupCodeInput by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
     var redemptionCodeInput by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
     var redemptionLimitInput by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
