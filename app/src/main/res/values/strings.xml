@@ -16,6 +16,7 @@
     <string name="home_destination_business">Business</string>
     <string name="status_dropping">Dropping…</string>
     <string name="action_drop_something">Drop something</string>
+    <string name="section_quick_actions">Quick actions</string>
     <string name="action_browse_map_title">Browse map</string>
     <string name="action_browse_map_description">See every drop you can currently unlock.</string>
     <string name="action_retry_generic">Try again</string>
