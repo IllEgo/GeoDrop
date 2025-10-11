@@ -185,22 +185,90 @@ service cloud.firestore {
       }
 
       allow update: if isSignedIn()
-        && request.writeFields.hasOnly([
-          'voteMap.' + request.auth.uid,
-          'upvoteCount',
-          'downvoteCount',
-          'collectedBy.' + request.auth.uid,
-          'reportedBy.' + request.auth.uid,
-          'reportCount'
-        ])
-        && isValidVoteTransition(resource.data, request.resource.data, request.auth.uid)
-        && isValidReportTransition(resource.data, request.resource.data, request.auth.uid);
+        && (
+          (
+            request.writeFields.hasOnly([
+              'voteMap.' + request.auth.uid,
+              'upvoteCount',
+              'downvoteCount',
+              'collectedBy.' + request.auth.uid,
+              'reportedBy.' + request.auth.uid,
+              'reportCount'
+            ])
+            && isValidVoteTransition(resource.data, request.resource.data, request.auth.uid)
+            && isValidReportTransition(resource.data, request.resource.data, request.auth.uid)
+          )
+          || (
+            resource.data.createdBy == request.auth.uid
+            && request.writeFields.hasOnly(['isDeleted', 'deletedAt'])
+            && request.resource.data.isDeleted == true
+            && request.resource.data.deletedAt is int
+          )
+        );
 
       allow delete: if isSignedIn()
         && resource.data.createdBy == request.auth.uid;
     }
 
     match /users/{userId}/inventory/{dropId} {
+      function hasOnlyAllowedInventoryFields() {
+        return request.resource.data.keys().hasOnly([
+          'id',
+          'text',
+          'description',
+          'contentType',
+          'collectedAt',
+          'dropType',
+          'redemptionCount',
+          'isRedeemed',
+          'redeemedAt',
+          'state',
+          'updatedAt',
+          'mediaUrl',
+          'mediaMimeType',
+          'mediaData',
+          'lat',
+          'lng',
+          'groupCode',
+          'dropCreatedAt',
+          'dropperUsername',
+          'createdByUsername',
+          'decayDays',
+          'businessId',
+          'businessName',
+          'redemptionLimit',
+          'isNsfw',
+          'nsfwLabels'
+        ]);
+      }
+
+      function isValidInventoryState() {
+        return !request.resource.data.keys().hasAny(['state'])
+          || request.resource.data.state in ['COLLECTED', 'IGNORED'];
+      }
+
+      function isValidInventoryTypes() {
+        return (!request.resource.data.keys().hasAny(['collectedAt'])
+            || request.resource.data.collectedAt is int)
+          && (!request.resource.data.keys().hasAny(['redeemedAt'])
+            || request.resource.data.redeemedAt is int)
+          && (!request.resource.data.keys().hasAny(['updatedAt'])
+            || request.resource.data.updatedAt is int)
+          && (!request.resource.data.keys().hasAny(['lat'])
+            || request.resource.data.lat is number)
+          && (!request.resource.data.keys().hasAny(['lng'])
+            || request.resource.data.lng is number)
+          && (!request.resource.data.keys().hasAny(['nsfwLabels'])
+            || request.resource.data.nsfwLabels is list);
+      }
+
+      allow read: if isCurrentUser(userId);
+
+      allow create, update: if isCurrentUser(userId)
+        && hasOnlyAllowedInventoryFields()
+        && isValidInventoryState()
+        && isValidInventoryTypes();
+
       allow delete: if isCurrentUser(userId);
     }
   }
