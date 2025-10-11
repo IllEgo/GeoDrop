@@ -6026,7 +6026,7 @@ private fun OtherDropsExplorerSection(
         }
     }
 }
-}
+
 @Composable
 private fun CollectedDropsMap(
     notes: List<CollectedNote>,
