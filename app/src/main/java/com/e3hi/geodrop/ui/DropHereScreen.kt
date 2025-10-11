@@ -738,7 +738,6 @@ fun DropHereScreen(
     var browseReportProcessing by remember { mutableStateOf(false) }
     var browseReportTarget by remember { mutableStateOf<Drop?>(null) }
     var browseReportingDropId by remember { mutableStateOf<String?>(null) }
-    var showMyDrops by remember { mutableStateOf(false) }
     var myDrops by remember { mutableStateOf<List<Drop>>(emptyList()) }
     var myDropsLoading by remember { mutableStateOf(false) }
     var myDropsError by remember { mutableStateOf<String?>(null) }
@@ -748,7 +747,6 @@ fun DropHereScreen(
     var myDropsSelectedId by remember { mutableStateOf<String?>(null) }
     var myDropCountHint by remember { mutableStateOf<Int?>(null) }
     var myDropPendingReviewHint by remember { mutableStateOf<Int?>(null) }
-    var showCollectedDrops by remember { mutableStateOf(false) }
     var showManageGroups by remember { mutableStateOf(false) }
     var showDropComposer by remember { mutableStateOf(false) }
     var showBusinessDashboard by remember { mutableStateOf(false) }
@@ -757,6 +755,7 @@ fun DropHereScreen(
     var businessDashboardError by remember { mutableStateOf<String?>(null) }
     var businessDashboardRefreshToken by remember { mutableStateOf(0) }
     var selectedHomeDestination by rememberSaveable { mutableStateOf(HomeDestination.Explorer.name) }
+    var explorerDestination by rememberSaveable { mutableStateOf(ExplorerDestination.Discover.name) }
     var notificationRadius by remember { mutableStateOf(notificationPrefs.getNotificationRadiusMeters()) }
     var showNotificationRadiusDialog by remember { mutableStateOf(false) }
 
@@ -811,8 +810,6 @@ fun DropHereScreen(
         showBusinessDashboard = false
         showBusinessOnboarding = false
         showDropComposer = false
-        showMyDrops = false
-        showCollectedDrops = false
         showManageGroups = false
         showAccountSignIn = false
         showNsfwDialog = false
@@ -833,6 +830,7 @@ fun DropHereScreen(
 
             if (result.isSuccess) {
                 selectedHomeDestination = HomeDestination.Explorer.name
+                explorerDestination = ExplorerDestination.Discover.name
                 guestModeEnabled = switchToGuest
                 val message = if (switchToGuest) {
                     "Browsing as a guest."
@@ -1826,8 +1824,15 @@ fun DropHereScreen(
         }
     }
 
-    LaunchedEffect(showMyDrops, myDropsRefreshToken) {
-        if (showMyDrops) {
+    val currentExplorerDestination = remember(explorerDestination) {
+        runCatching { ExplorerDestination.valueOf(explorerDestination) }
+            .getOrDefault(ExplorerDestination.Discover)
+    }
+
+    LaunchedEffect(currentHomeDestination, currentExplorerDestination, myDropsRefreshToken) {
+        val shouldLoad = currentHomeDestination == HomeDestination.Explorer &&
+                currentExplorerDestination == ExplorerDestination.MyDrops
+        if (shouldLoad) {
             myDropsLoading = true
             myDropsError = null
             myDropsDeletingId = null
@@ -1870,6 +1875,32 @@ fun DropHereScreen(
         if (showDropComposer && !canParticipate) {
             showDropComposer = false
             snackbar.showMessage(scope, participationRestriction("share drops"))
+        }
+    }
+
+    fun openExplorerDestination(destination: ExplorerDestination) {
+        selectedHomeDestination = HomeDestination.Explorer.name
+        when (destination) {
+            ExplorerDestination.Discover -> {
+                explorerDestination = destination.name
+            }
+
+            ExplorerDestination.MyDrops -> {
+                if (!hasExplorerAccount) {
+                    snackbar.showMessage(scope, participationRestriction("view and manage your drops"))
+                    return
+                }
+                explorerDestination = destination.name
+            }
+
+            ExplorerDestination.Collected -> {
+                if (!canParticipate) {
+                    snackbar.showMessage(scope, participationRestriction("view collected drops"))
+                    return
+                }
+                collectedNotes = noteInventory.getCollectedNotes()
+                explorerDestination = destination.name
+            }
         }
     }
 
@@ -2106,219 +2137,368 @@ fun DropHereScreen(
                     }
                 },
                 onUpdateBusinessProfile = { showBusinessOnboarding = true },
-                onViewMyDrops = { showMyDrops = true },
+                onViewMyDrops = { openExplorerDestination(ExplorerDestination.MyDrops) },
                 onManageGroups = { showManageGroups = true }
             )
         } else {
-            LazyColumn(
+            Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(innerPadding),
-                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 24.dp, bottom = 128.dp),
-                verticalArrangement = Arrangement.spacedBy(20.dp)
+                    .padding(innerPadding)
             ) {
-                if (readOnlyParticipationMessage != null) {
-                    item {
-                        ReadOnlyModeCard(message = readOnlyParticipationMessage)
+                if (currentHomeDestination == HomeDestination.Explorer) {
+                    ExplorerDestinationTabs(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 16.dp),
+                        current = currentExplorerDestination,
+                        onSelect = { destination -> openExplorerDestination(destination) }
+                    )
+                }
+
+                when (currentExplorerDestination) {
+                    ExplorerDestination.Discover -> {
+                        Box(modifier = Modifier.weight(1f)) {
+                            LazyColumn(
+                                modifier = Modifier.fillMaxSize(),
+                                contentPadding = PaddingValues(
+                                    start = 20.dp,
+                                    end = 20.dp,
+                                    top = 24.dp,
+                                    bottom = 128.dp
+                                ),
+                                verticalArrangement = Arrangement.spacedBy(20.dp)
+                            ) {
+                                if (readOnlyParticipationMessage != null) {
+                                    item {
+                                        ReadOnlyModeCard(message = readOnlyParticipationMessage)
+                                    }
+                                }
+
+                                item {
+                                    HeroCard(
+                                        username = userProfile?.username,
+                                        joinedGroups = joinedGroups,
+                                        showGroups = userMode != UserMode.GUEST,
+                                        onManageGroups = {
+                                            if (!canParticipate) {
+                                                snackbar.showMessage(scope, participationRestriction("manage group codes"))
+                                            } else {
+                                                showManageGroups = true
+                                            }
+                                        }
+                                    )
+                                }
+
+                                item {
+                                    OtherDropsExplorerSection(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        loading = otherDropsLoading,
+                                        drops = otherDrops,
+                                        currentLocation = otherDropsCurrentLocation,
+                                        notificationRadiusMeters = notificationRadius,
+                                        error = otherDropsError,
+                                        selectedId = otherDropsSelectedId,
+                                        onSelect = { drop ->
+                                            otherDropsSelectedId = if (otherDropsSelectedId == drop.id) {
+                                                null
+                                            } else {
+                                                drop.id
+                                            }
+                                        },
+                                        onPickUp = { drop -> pickUpDrop(drop) },
+                                        currentUserId = currentUserId,
+                                        votingDropIds = votingDropIds,
+                                        collectedDropIds = collectedDropIds,
+                                        canCollectDrops = canParticipate,
+                                        collectRestrictionMessage = when (userMode) {
+                                            UserMode.GUEST -> "Preview drops nearby, then create an account to pick them up when you're ready."
+                                            UserMode.SIGNED_IN -> null
+                                        },
+                                        canVoteOnDrops = canParticipate,
+                                        voteRestrictionMessage = if (canParticipate) null else participationRestriction("vote on drops"),
+                                        onVote = { drop, vote -> submitVote(drop, vote) },
+                                        onReport = report@{ drop ->
+                                            if (browseReportProcessing) return@report
+                                            val userId = currentUserId
+                                            if (userId.isNullOrBlank()) {
+                                                Toast.makeText(ctx, "Sign in to report drops.", Toast.LENGTH_SHORT).show()
+                                                return@report
+                                            }
+                                            if (drop.createdBy == userId) {
+                                                Toast.makeText(ctx, "You can't report your own drop.", Toast.LENGTH_SHORT).show()
+                                                return@report
+                                            }
+                                            val hasCollected = collectedDropIds.contains(drop.id)
+                                            val withinPickupRange = otherDropsCurrentLocation?.let { location ->
+                                                distanceBetweenMeters(
+                                                    location.latitude,
+                                                    location.longitude,
+                                                    drop.lat,
+                                                    drop.lng
+                                                ) <= DROP_PICKUP_RADIUS_METERS
+                                            } ?: false
+                                            if (!hasCollected && !withinPickupRange) {
+                                                val radiusMeters = DROP_PICKUP_RADIUS_METERS.roundToInt()
+                                                Toast.makeText(
+                                                    ctx,
+                                                    "Move within ${'$'}radiusMeters meters to report this drop, or collect it first.",
+                                                    Toast.LENGTH_SHORT
+                                                ).show()
+                                                return@report
+                                            }
+                                            if (drop.reportedBy.containsKey(userId)) {
+                                                Toast.makeText(ctx, "You've already reported this drop.", Toast.LENGTH_SHORT).show()
+                                                return@report
+                                            }
+                                            browseReportTarget = drop
+                                            browseReportSelectedReasons = emptySet()
+                                            browseReportError = null
+                                            browseReportDialogOpen = true
+                                        },
+                                        reportingDropId = browseReportingDropId,
+                                        onRefresh = { otherDropsRefreshToken += 1 },
+                                        listState = otherDropsListState,
+                                        mapWeight = otherDropsMapWeight,
+                                        onMapWeightChange = { weight ->
+                                            val coerced = weight.coerceIn(MAP_LIST_MIN_WEIGHT, MAP_LIST_MAX_WEIGHT)
+                                            if (coerced != otherDropsMapWeight) {
+                                                otherDropsMapWeight = coerced
+                                            }
+                                        }
+                                    )
+                                }
+
+                                item { SectionHeader(text = stringResource(R.string.section_quick_actions)) }
+
+                                item {
+                                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                        val totalMyDrops = myDropCountHint ?: myDrops.size
+                                        val pendingMyDropReviews = myDropPendingReviewHint ?: myDrops.count { it.reportCount > 0 }
+
+                                        if (hasExplorerAccount) {
+                                            ActionCard(
+                                                icon = Icons.Rounded.Inbox,
+                                                title = stringResource(R.string.action_my_drops_title),
+                                                description = stringResource(R.string.action_my_drops_description),
+                                                onClick = { openExplorerDestination(ExplorerDestination.MyDrops) },
+                                                trailingContent = {
+                                                    if (totalMyDrops > 0 || pendingMyDropReviews > 0) {
+                                                        Row(
+                                                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                                            verticalAlignment = Alignment.CenterVertically
+                                                        ) {
+                                                            if (totalMyDrops > 0) {
+                                                                CountBadge(count = totalMyDrops)
+                                                            }
+                                                            if (pendingMyDropReviews > 0) {
+                                                                MetricPill(
+                                                                    label = stringResource(R.string.metric_pending_reviews),
+                                                                    value = pendingMyDropReviews
+                                                                )
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            )
+                                        }
+
+                                        if (canParticipate) {
+                                            ActionCard(
+                                                icon = Icons.Rounded.Bookmark,
+                                                title = stringResource(R.string.action_collected_drops_title),
+                                                description = when {
+                                                    collectedCount == 0 && hiddenNsfwCollectedCount > 0 -> {
+                                                        val plural = if (hiddenNsfwCollectedCount == 1) "drop" else "drops"
+                                                        stringResource(
+                                                            R.string.action_collected_drops_hidden_nsfw,
+                                                            hiddenNsfwCollectedCount,
+                                                            plural
+                                                        )
+                                                    }
+
+                                                    collectedCount == 0 -> {
+                                                        stringResource(R.string.action_collected_drops_empty)
+                                                    }
+
+                                                    hiddenNsfwCollectedCount > 0 -> {
+                                                        val plural = if (collectedCount == 1) "drop" else "drops"
+                                                        stringResource(
+                                                            R.string.action_collected_drops_some_hidden,
+                                                            collectedCount,
+                                                            plural,
+                                                            hiddenNsfwCollectedCount
+                                                        )
+                                                    }
+
+                                                    else -> {
+                                                        if (collectedCount == 1) {
+                                                            stringResource(R.string.action_collected_drops_single)
+                                                        } else {
+                                                            stringResource(R.string.action_collected_drops_multiple, collectedCount)
+                                                        }
+                                                    }
+                                                },
+                                                onClick = { openExplorerDestination(ExplorerDestination.Collected) },
+                                                trailingContent = {
+                                                    if (collectedCount > 0 || hiddenNsfwCollectedCount > 0) {
+                                                        Row(
+                                                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                                            verticalAlignment = Alignment.CenterVertically
+                                                        ) {
+                                                            if (collectedCount > 0) {
+                                                                CountBadge(count = collectedCount)
+                                                            }
+                                                            if (hiddenNsfwCollectedCount > 0) {
+                                                                MetricPill(
+                                                                    label = stringResource(R.string.metric_hidden),
+                                                                    value = hiddenNsfwCollectedCount
+                                                                )
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+
+                                status?.let { message ->
+                                    item { StatusCard(message = message) }
+                                }
+                            }
+                        }
                     }
-                }
 
-                item {
-                    HeroCard(
-                        username = userProfile?.username,
-                        joinedGroups = joinedGroups,
-                        showGroups = userMode != UserMode.GUEST,
-                        onManageGroups = {
-                            if (!canParticipate) {
-                                snackbar.showMessage(scope, participationRestriction("manage group codes"))
-                            } else {
-                                showManageGroups = true
-                            }
-                        }
-                    )
-                }
-
-                item {
-                    OtherDropsExplorerSection(
-                        modifier = Modifier.fillMaxWidth(),
-                        loading = otherDropsLoading,
-                        drops = otherDrops,
-                        currentLocation = otherDropsCurrentLocation,
-                        notificationRadiusMeters = notificationRadius,
-                        error = otherDropsError,
-                        selectedId = otherDropsSelectedId,
-                        onSelect = { drop ->
-                            otherDropsSelectedId = if (otherDropsSelectedId == drop.id) {
-                                null
-                            } else {
-                                drop.id
-                            }
-                        },
-                        onPickUp = { drop -> pickUpDrop(drop) },
-                        currentUserId = currentUserId,
-                        votingDropIds = votingDropIds,
-                        collectedDropIds = collectedDropIds,
-                        canCollectDrops = canParticipate,
-                        collectRestrictionMessage = when (userMode) {
-                            UserMode.GUEST -> "Preview drops nearby, then create an account to pick them up when you're ready."
-                            UserMode.SIGNED_IN -> null
-                        },
-                        canVoteOnDrops = canParticipate,
-                        voteRestrictionMessage = if (canParticipate) null else participationRestriction("vote on drops"),
-                        onVote = { drop, vote -> submitVote(drop, vote) },
-                        onReport = report@{ drop ->
-                            if (browseReportProcessing) return@report
-                            val userId = currentUserId
-                            if (userId.isNullOrBlank()) {
-                                Toast.makeText(ctx, "Sign in to report drops.", Toast.LENGTH_SHORT).show()
-                                return@report
-                            }
-                            if (drop.createdBy == userId) {
-                                Toast.makeText(ctx, "You can't report your own drop.", Toast.LENGTH_SHORT).show()
-                                return@report
-                            }
-                            val hasCollected = collectedDropIds.contains(drop.id)
-                            val withinPickupRange = otherDropsCurrentLocation?.let { location ->
-                                distanceBetweenMeters(
-                                    location.latitude,
-                                    location.longitude,
-                                    drop.lat,
-                                    drop.lng
-                                ) <= DROP_PICKUP_RADIUS_METERS
-                            } ?: false
-                            if (!hasCollected && !withinPickupRange) {
-                                val radiusMeters = DROP_PICKUP_RADIUS_METERS.roundToInt()
-                                Toast.makeText(
-                                    ctx,
-                                    "Move within ${'$'}radiusMeters meters to report this drop, or collect it first.",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                                return@report
-                            }
-                            if (drop.reportedBy.containsKey(userId)) {
-                                Toast.makeText(ctx, "You've already reported this drop.", Toast.LENGTH_SHORT).show()
-                                return@report
-                            }
-                            browseReportTarget = drop
-                            browseReportSelectedReasons = emptySet()
-                            browseReportError = null
-                            browseReportDialogOpen = true
-                        },
-                        reportingDropId = browseReportingDropId,
-                        onRefresh = { otherDropsRefreshToken += 1 },
-                        listState = otherDropsListState,
-                        mapWeight = otherDropsMapWeight,
-                        onMapWeightChange = { weight ->
-                            val coerced = weight.coerceIn(MAP_LIST_MIN_WEIGHT, MAP_LIST_MAX_WEIGHT)
-                            if (coerced != otherDropsMapWeight) {
-                                otherDropsMapWeight = coerced
-                            }
-                        }
-                    )
-                }
-
-                item { SectionHeader(text = stringResource(R.string.section_quick_actions)) }
-
-                item {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        val totalMyDrops = myDropCountHint ?: myDrops.size
-                        val pendingMyDropReviews = myDropPendingReviewHint ?: myDrops.count { it.reportCount > 0 }
-
-                        if (hasExplorerAccount) {
-                            ActionCard(
-                                icon = Icons.Rounded.Inbox,
-                                title = stringResource(R.string.action_my_drops_title),
-                                description = stringResource(R.string.action_my_drops_description),
-                                onClick = {
-                                    if (!hasExplorerAccount) {
-                                        snackbar.showMessage(scope, participationRestriction("view and manage your drops"))
+                    ExplorerDestination.MyDrops -> {
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth()
+                        ) {
+                            MyDropsContent(
+                                modifier = Modifier.fillMaxSize(),
+                                loading = myDropsLoading,
+                                drops = myDrops,
+                                currentLocation = myDropsCurrentLocation,
+                                deletingId = myDropsDeletingId,
+                                error = myDropsError,
+                                selectedId = myDropsSelectedId,
+                                onSelect = { drop ->
+                                    myDropsSelectedId = if (myDropsSelectedId == drop.id) {
+                                        null
                                     } else {
-                                        showMyDrops = true
+                                        drop.id
                                     }
                                 },
-                                trailingContent = {
-                                    if (totalMyDrops > 0 || pendingMyDropReviews > 0) {
-                                        Row(
-                                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            if (totalMyDrops > 0) {
-                                                CountBadge(count = totalMyDrops)
-                                            }
-                                            if (pendingMyDropReviews > 0) {
-                                                MetricPill(
-                                                    label = stringResource(R.string.metric_pending_reviews),
-                                                    value = pendingMyDropReviews
-                                                )
-                                            }
+                                onRetry = { myDropsRefreshToken += 1 },
+                                onView = { drop ->
+                                    val intent = Intent(ctx, DropDetailActivity::class.java).apply {
+                                        putExtra("dropId", drop.id)
+                                        if (drop.text.isNotBlank()) putExtra("dropText", drop.text)
+                                        drop.description?.takeIf { it.isNotBlank() }?.let { putExtra("dropDescription", it) }
+                                        putExtra("dropContentType", drop.contentType.name)
+                                        putExtra("dropLat", drop.lat)
+                                        putExtra("dropLng", drop.lng)
+                                        putExtra("dropCreatedAt", drop.createdAt)
+                                        drop.groupCode?.let { putExtra("dropGroupCode", it) }
+                                        drop.mediaUrl?.let { putExtra("dropMediaUrl", it) }
+                                        drop.mediaMimeType?.let { putExtra("dropMediaMimeType", it) }
+                                        drop.mediaData?.let { putExtra("dropMediaData", it) }
+                                        putExtra("dropType", drop.dropType.name)
+                                        drop.businessName?.let { putExtra("dropBusinessName", it) }
+                                        drop.businessId?.let { putExtra("dropBusinessId", it) }
+                                        drop.redemptionLimit?.let { putExtra("dropRedemptionLimit", it) }
+                                        putExtra("dropRedemptionCount", drop.redemptionCount)
+                                        putExtra("dropIsNsfw", drop.isNsfw)
+                                        if (drop.nsfwLabels.isNotEmpty()) {
+                                            putStringArrayListExtra("dropNsfwLabels", ArrayList(drop.nsfwLabels))
                                         }
+                                        drop.decayDays?.let { putExtra("dropDecayDays", it) }
                                     }
-                                }
-                            )
-                        }
+                                    ctx.startActivity(intent)
+                                },
+                                onDelete = { drop ->
+                                    if (drop.id.isBlank()) {
+                                        snackbar.showMessage(scope, "Unable to delete this drop.")
+                                        return@MyDropsContent
+                                    }
 
-                        if (canParticipate) {
-                            ActionCard(
-                                icon = Icons.Rounded.Bookmark,
-                                title = stringResource(R.string.action_collected_drops_title),
-                                description = when {
-                                    collectedCount == 0 && hiddenNsfwCollectedCount > 0 -> {
-                                        val plural = if (hiddenNsfwCollectedCount == 1) "drop" else "drops"
-                                        stringResource(
-                                            R.string.action_collected_drops_hidden_nsfw,
-                                            hiddenNsfwCollectedCount,
-                                            plural
-                                        )
-                                    }
-                                    collectedCount == 0 -> {
-                                        stringResource(R.string.action_collected_drops_empty)
-                                    }
-                                    hiddenNsfwCollectedCount > 0 -> {
-                                        val plural = if (collectedCount == 1) "drop" else "drops"
-                                        stringResource(
-                                            R.string.action_collected_drops_some_hidden,
-                                            collectedCount,
-                                            plural,
-                                            hiddenNsfwCollectedCount
-                                        )
-                                    }
-                                    else -> {
-                                        if (collectedCount == 1) {
-                                            stringResource(R.string.action_collected_drops_single)
-                                        } else {
-                                            stringResource(R.string.action_collected_drops_multiple, collectedCount)
-                                        }
-                                    }
-                                },
-                                onClick = {
-                                    collectedNotes = noteInventory.getCollectedNotes()
-                                    showCollectedDrops = true
-                                },
-                                trailingContent = {
-                                    if (collectedCount > 0 || hiddenNsfwCollectedCount > 0) {
-                                        Row(
-                                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            if (collectedCount > 0) {
-                                                CountBadge(count = collectedCount)
+                                    myDropsDeletingId = drop.id
+                                    scope.launch {
+                                        try {
+                                            repo.deleteDrop(drop.id)
+                                            val updated = myDrops.filterNot { it.id == drop.id }
+                                            myDrops = updated
+                                            myDropCountHint = updated.size
+                                            myDropPendingReviewHint = updated.count { it.reportCount > 0 }
+                                            if (myDropsSelectedId == drop.id) {
+                                                myDropsSelectedId = updated.firstOrNull()?.id
                                             }
-                                            if (hiddenNsfwCollectedCount > 0) {
-                                                MetricPill(
-                                                    label = stringResource(R.string.metric_hidden),
-                                                    value = hiddenNsfwCollectedCount
-                                                )
-                                            }
+                                            snackbar.showMessage(scope, "Drop deleted.")
+                                        } catch (e: Exception) {
+                                            snackbar.showMessage(scope, "Error: ${'$'}{e.message}")
+                                        } finally {
+                                            myDropsDeletingId = null
                                         }
                                     }
                                 }
                             )
                         }
                     }
+
+                    ExplorerDestination.Collected -> {
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth()
+                        ) {
+                            CollectedDropsContent(
+                                modifier = Modifier.fillMaxSize(),
+                                notes = visibleCollectedNotes,
+                                hiddenNsfwCount = hiddenNsfwCollectedCount,
+                                onView = { note ->
+                                    val intent = Intent(ctx, DropDetailActivity::class.java).apply {
+                                        putExtra("dropId", note.id)
+                                        if (note.text.isNotBlank()) putExtra("dropText", note.text)
+                                        note.description?.takeIf { it.isNotBlank() }?.let {
+                                            putExtra("dropDescription", it)
+                                        }
+                                        note.lat?.let { putExtra("dropLat", it) }
+                                        note.lng?.let { putExtra("dropLng", it) }
+                                        note.dropCreatedAt?.let { putExtra("dropCreatedAt", it) }
+                                        note.groupCode?.let { putExtra("dropGroupCode", it) }
+                                        putExtra("dropContentType", note.contentType.name)
+                                        note.mediaUrl?.let { putExtra("dropMediaUrl", it) }
+                                        note.mediaMimeType?.let { putExtra("dropMediaMimeType", it) }
+                                        note.mediaData?.let { putExtra("dropMediaData", it) }
+                                        putExtra("dropType", note.dropType.name)
+                                        note.businessName?.let { putExtra("dropBusinessName", it) }
+                                        note.businessId?.let { putExtra("dropBusinessId", it) }
+                                        note.redemptionLimit?.let { putExtra("dropRedemptionLimit", it) }
+                                        putExtra("dropRedemptionCount", note.redemptionCount)
+                                        putExtra("dropCollectedAt", note.collectedAt)
+                                        putExtra("dropIsRedeemed", note.isRedeemed)
+                                        note.redeemedAt?.let { putExtra("dropRedeemedAt", it) }
+                                        putExtra("dropIsNsfw", note.isNsfw)
+                                        if (note.nsfwLabels.isNotEmpty()) {
+                                            putStringArrayListExtra("dropNsfwLabels", ArrayList(note.nsfwLabels))
+                                        }
+                                        note.decayDays?.let { putExtra("dropDecayDays", it) }
+                                    }
+                                    ctx.startActivity(intent)
+                                },
+                                onRemove = { note ->
+                                    noteInventory.removeCollected(note.id)
+                                    collectedNotes = noteInventory.getCollectedNotes()
+                                }
+                            )
+                        }
+                    }
                 }
 
-                status?.let { message ->
-                    item { StatusCard(message = message) }
+                if (currentExplorerDestination != ExplorerDestination.Discover) {
+                    Spacer(Modifier.height(24.dp))
                 }
             }
         }
@@ -2457,120 +2637,6 @@ fun DropHereScreen(
             },
             isSubmitting = browseReportProcessing,
             errorMessage = browseReportError
-        )
-    }
-
-    if (showMyDrops) {
-        MyDropsDialog(
-            loading = myDropsLoading,
-            drops = myDrops,
-            currentLocation = myDropsCurrentLocation,
-            deletingId = myDropsDeletingId,
-            error = myDropsError,
-            selectedId = myDropsSelectedId,
-            onSelect = { drop ->
-                myDropsSelectedId = if (myDropsSelectedId == drop.id) {
-                    null
-                } else {
-                    drop.id
-                }
-            },
-            onDismiss = { showMyDrops = false },
-            onRetry = { myDropsRefreshToken += 1 },
-            onView = { drop ->
-                val intent = Intent(ctx, DropDetailActivity::class.java).apply {
-                    putExtra("dropId", drop.id)
-                    if (drop.text.isNotBlank()) putExtra("dropText", drop.text)
-                    drop.description?.takeIf { it.isNotBlank() }?.let { putExtra("dropDescription", it) }
-                    putExtra("dropContentType", drop.contentType.name)
-                    putExtra("dropLat", drop.lat)
-                    putExtra("dropLng", drop.lng)
-                    putExtra("dropCreatedAt", drop.createdAt)
-                    drop.groupCode?.let { putExtra("dropGroupCode", it) }
-                    drop.mediaUrl?.let { putExtra("dropMediaUrl", it) }
-                    drop.mediaMimeType?.let { putExtra("dropMediaMimeType", it) }
-                    drop.mediaData?.let { putExtra("dropMediaData", it) }
-                    putExtra("dropType", drop.dropType.name)
-                    drop.businessName?.let { putExtra("dropBusinessName", it) }
-                    drop.businessId?.let { putExtra("dropBusinessId", it) }
-                    drop.redemptionLimit?.let { putExtra("dropRedemptionLimit", it) }
-                    putExtra("dropRedemptionCount", drop.redemptionCount)
-                    putExtra("dropIsNsfw", drop.isNsfw)
-                    if (drop.nsfwLabels.isNotEmpty()) {
-                        putStringArrayListExtra("dropNsfwLabels", ArrayList(drop.nsfwLabels))
-                    }
-                    drop.decayDays?.let { putExtra("dropDecayDays", it) }
-                }
-                ctx.startActivity(intent)
-            },
-            onDelete = { drop ->
-                if (drop.id.isBlank()) {
-                    snackbar.showMessage(scope, "Unable to delete this drop.")
-                    return@MyDropsDialog
-                }
-
-                myDropsDeletingId = drop.id
-                scope.launch {
-                    try {
-                        repo.deleteDrop(drop.id)
-                        val updated = myDrops.filterNot { it.id == drop.id }
-                        myDrops = updated
-                        myDropCountHint = updated.size
-                        myDropPendingReviewHint = updated.count { it.reportCount > 0 }
-                        if (myDropsSelectedId == drop.id) {
-                            myDropsSelectedId = updated.firstOrNull()?.id
-                        }
-                        snackbar.showMessage(scope, "Drop deleted.")
-                    } catch (e: Exception) {
-                        snackbar.showMessage(scope, "Error: ${e.message}")
-                    } finally {
-                        myDropsDeletingId = null
-                    }
-                }
-            }
-        )
-    }
-
-    if (showCollectedDrops) {
-        CollectedDropsDialog(
-            notes = visibleCollectedNotes,
-            hiddenNsfwCount = hiddenNsfwCollectedCount,
-            onDismiss = { showCollectedDrops = false },
-            onView = { note ->
-                val intent = Intent(ctx, DropDetailActivity::class.java).apply {
-                    putExtra("dropId", note.id)
-                    if (note.text.isNotBlank()) putExtra("dropText", note.text)
-                    note.description?.takeIf { it.isNotBlank() }?.let {
-                        putExtra("dropDescription", it)
-                    }
-                    note.lat?.let { putExtra("dropLat", it) }
-                    note.lng?.let { putExtra("dropLng", it) }
-                    note.dropCreatedAt?.let { putExtra("dropCreatedAt", it) }
-                    note.groupCode?.let { putExtra("dropGroupCode", it) }
-                    putExtra("dropContentType", note.contentType.name)
-                    note.mediaUrl?.let { putExtra("dropMediaUrl", it) }
-                    note.mediaMimeType?.let { putExtra("dropMediaMimeType", it) }
-                    note.mediaData?.let { putExtra("dropMediaData", it) }
-                    putExtra("dropType", note.dropType.name)
-                    note.businessName?.let { putExtra("dropBusinessName", it) }
-                    note.businessId?.let { putExtra("dropBusinessId", it) }
-                    note.redemptionLimit?.let { putExtra("dropRedemptionLimit", it) }
-                    putExtra("dropRedemptionCount", note.redemptionCount)
-                    putExtra("dropCollectedAt", note.collectedAt)
-                    putExtra("dropIsRedeemed", note.isRedeemed)
-                    note.redeemedAt?.let { putExtra("dropRedeemedAt", it) }
-                    putExtra("dropIsNsfw", note.isNsfw)
-                    if (note.nsfwLabels.isNotEmpty()) {
-                        putStringArrayListExtra("dropNsfwLabels", ArrayList(note.nsfwLabels))
-                    }
-                    note.decayDays?.let { putExtra("dropDecayDays", it) }
-                }
-                ctx.startActivity(intent)
-            },
-            onRemove = { note ->
-                noteInventory.removeCollected(note.id)
-                collectedNotes = noteInventory.getCollectedNotes()
-            }
         )
     }
 
@@ -4558,7 +4624,7 @@ private fun DialogMessageContent(
     message: String,
     primaryLabel: String?,
     onPrimary: (() -> Unit)?,
-    onDismiss: () -> Unit
+    onDismiss: (() -> Unit)? = null
 ) {
     Column(
         modifier = Modifier
@@ -4582,8 +4648,10 @@ private fun DialogMessageContent(
             Spacer(Modifier.height(8.dp))
         }
 
-        TextButton(onClick = onDismiss) {
-            Text("Back to main page")
+        onDismiss?.let {
+            TextButton(onClick = it) {
+                Text("Back to main page")
+            }
         }
     }
 }
@@ -4753,222 +4821,241 @@ private fun formatCoordinate(value: Double): String {
 
 
 @Composable
-private fun CollectedDropsDialog(
+private fun CollectedDropsContent(
+    modifier: Modifier = Modifier,
     notes: List<CollectedNote>,
     hiddenNsfwCount: Int,
-    onDismiss: () -> Unit,
     onView: (CollectedNote) -> Unit,
-    onRemove: (CollectedNote) -> Unit
+    onRemove: (CollectedNote) -> Unit,
+    contentPadding: PaddingValues = PaddingValues(horizontal = 20.dp, vertical = 16.dp)
 ) {
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        Surface(
-            modifier = Modifier.fillMaxSize(),
-            color = MaterialTheme.colorScheme.background
+    if (notes.isEmpty()) {
+        val message = if (hiddenNsfwCount > 0) {
+            val plural = if (hiddenNsfwCount == 1) "drop" else "drops"
+            "Your NSFW settings are hiding $hiddenNsfwCount collected $plural."
+        } else {
+            "You haven't collected any drops yet."
+        }
+        Box(
+            modifier = modifier
+                .fillMaxSize()
+                .padding(contentPadding)
         ) {
-            @OptIn(ExperimentalMaterial3Api::class)
-            Scaffold(
-                topBar = {
-                    TopAppBar(
-                        title = { Text("Collected drops") },
-                        navigationIcon = {
-                            IconButton(onClick = onDismiss) {
-                                Icon(
-                                    Icons.Filled.ArrowBack,
-                                    contentDescription = "Back to main page",
-                                )
-                            }
+            DialogMessageContent(
+                message = message,
+                primaryLabel = null,
+                onPrimary = null,
+                onDismiss = null
+            )
+        }
+        return
+    }
+
+    var highlightedId by rememberSaveable { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(notes) {
+        highlightedId = highlightedId?.takeIf { id -> notes.any { it.id == id } }
+    }
+
+    val highlightedNote = notes.firstOrNull { it.id == highlightedId }
+
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(highlightedId, notes) {
+        val targetId = highlightedId ?: return@LaunchedEffect
+        val index = notes.indexOfFirst { it.id == targetId }
+        if (index >= 0) {
+            listState.animateScrollToItem(index)
+        }
+    }
+    val minMapWeight = MAP_LIST_MIN_WEIGHT
+    val maxMapWeight = MAP_LIST_MAX_WEIGHT
+    var containerHeight by remember { mutableStateOf(0) }
+    var mapWeight by rememberSaveable {
+        mutableStateOf(DEFAULT_MAP_WEIGHT.coerceIn(minMapWeight, maxMapWeight))
+    }
+
+    val listWeight = 1f - mapWeight
+    val dividerDragState = rememberDraggableState { delta ->
+        val height = containerHeight.takeIf { it > 0 }?.toFloat()
+            ?: return@rememberDraggableState
+        val deltaWeight = delta / height
+        val updated = (mapWeight + deltaWeight).coerceIn(minMapWeight, maxMapWeight)
+        if (updated != mapWeight) {
+            mapWeight = updated
+        }
+    }
+    val dividerInteraction = remember { MutableInteractionSource() }
+    val dividerModifier = Modifier
+        .fillMaxWidth()
+        .height(DIVIDER_DRAG_HANDLE_HEIGHT)
+        .draggable(
+            state = dividerDragState,
+            orientation = Orientation.Vertical,
+            interactionSource = dividerInteraction
+        )
+        .semantics(mergeDescendants = true) {
+            progressBarRangeInfo = ProgressBarRangeInfo(
+                current = mapWeight,
+                range = minMapWeight..maxMapWeight
+            )
+            stateDescription =
+                "Map occupies ${(mapWeight * 100).roundToInt()} percent of the available height"
+            setProgress { target ->
+                val coerced = target.coerceIn(minMapWeight, maxMapWeight)
+                if (coerced != mapWeight) {
+                    mapWeight = coerced
+                }
+                true
+            }
+        }
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(contentPadding)
+            .onSizeChanged { containerHeight = it.height }
+    ) {
+        if (hiddenNsfwCount > 0) {
+            val plural = if (hiddenNsfwCount == 1) "drop" else "drops"
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                tonalElevation = 2.dp,
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                Text(
+                    text = "Your NSFW settings are hiding $hiddenNsfwCount collected $plural.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                )
+            }
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(mapWeight)
+        ) {
+            CollectedDropsMap(
+                notes = notes,
+                highlightedId = highlightedId
+            )
+
+            if (highlightedNote != null && (highlightedNote.lat == null || highlightedNote.lng == null)) {
+                Text(
+                    text = "Location unavailable for the selected drop.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(16.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.9f))
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+            }
+        }
+
+        Box(modifier = dividerModifier) {
+            Divider(modifier = Modifier.align(Alignment.Center))
+            DividerDragHandleHint(
+                modifier = Modifier.align(Alignment.Center),
+                text = stringResource(R.string.drag_to_resize)
+            )
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(listWeight)
+        ) {
+            Text(
+                text = "Select a drop to focus on the map.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
+            )
+
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(notes, key = { it.id }) { note ->
+                    val isHighlighted = note.id == highlightedId
+                    CollectedNoteCard(
+                        note = note,
+                        selected = isHighlighted,
+                        expanded = isHighlighted,
+                        onSelect = {
+                            highlightedId = if (isHighlighted) null else note.id
+                        },
+                        onView = {
+                            highlightedId = note.id
+                            onView(note)
+                        },
+                        onRemove = {
+                            highlightedId = null
+                            onRemove(note)
                         }
                     )
-                }
-            ) { padding ->
-                if (notes.isEmpty()) {
-                    val message = if (hiddenNsfwCount > 0) {
-                        val plural = if (hiddenNsfwCount == 1) "drop" else "drops"
-                        "Your NSFW settings are hiding $hiddenNsfwCount collected $plural."
-                    } else {
-                        "You haven't collected any drops yet."
-                    }
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(padding)
-                    ) {
-                        DialogMessageContent(
-                            message = message,
-                            primaryLabel = null,
-                            onPrimary = null,
-                            onDismiss = onDismiss
-                        )
-                    }
-                } else {
-                    var highlightedId by rememberSaveable { mutableStateOf<String?>(null) }
-
-                    LaunchedEffect(notes) {
-                        highlightedId = highlightedId?.takeIf { id -> notes.any { it.id == id } }
-                    }
-
-                    val highlightedNote = notes.firstOrNull { it.id == highlightedId }
-
-                    val listState = rememberLazyListState()
-
-                    LaunchedEffect(highlightedId, notes) {
-                        val targetId = highlightedId ?: return@LaunchedEffect
-                        val index = notes.indexOfFirst { it.id == targetId }
-                        if (index >= 0) {
-                            listState.animateScrollToItem(index)
-                        }
-                    }
-                    val minMapWeight = MAP_LIST_MIN_WEIGHT
-                    val maxMapWeight = MAP_LIST_MAX_WEIGHT
-                    var containerHeight by remember { mutableStateOf(0) }
-                    var mapWeight by rememberSaveable {
-                        mutableStateOf(DEFAULT_MAP_WEIGHT.coerceIn(minMapWeight, maxMapWeight))
-                    }
-
-                    val listWeight = 1f - mapWeight
-                    val dividerDragState = rememberDraggableState { delta ->
-                        val height = containerHeight.takeIf { it > 0 }?.toFloat()
-                            ?: return@rememberDraggableState
-                        val deltaWeight = delta / height
-                        val updated = (mapWeight + deltaWeight).coerceIn(minMapWeight, maxMapWeight)
-                        if (updated != mapWeight) {
-                            mapWeight = updated
-                        }
-                    }
-                    val dividerInteraction = remember { MutableInteractionSource() }
-                    val dividerModifier = Modifier
-                        .fillMaxWidth()
-                        .height(DIVIDER_DRAG_HANDLE_HEIGHT)
-                        .draggable(
-                            state = dividerDragState,
-                            orientation = Orientation.Vertical,
-                            interactionSource = dividerInteraction
-                        )
-                        .semantics(mergeDescendants = true) {
-                            progressBarRangeInfo = ProgressBarRangeInfo(
-                                current = mapWeight,
-                                range = minMapWeight..maxMapWeight
-                            )
-                            stateDescription =
-                                "Map occupies ${'$'}{(mapWeight * 100).roundToInt()} percent of the available height"
-                            setProgress { target ->
-                                val coerced = target.coerceIn(minMapWeight, maxMapWeight)
-                                if (coerced != mapWeight) {
-                                    mapWeight = coerced
-                                }
-                                true
-                            }
-                        }
-
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(padding)
-                            .onSizeChanged { containerHeight = it.height }
-                    ) {
-                        if (hiddenNsfwCount > 0) {
-                            val plural = if (hiddenNsfwCount == 1) "drop" else "drops"
-                            Surface(
-                                color = MaterialTheme.colorScheme.surfaceVariant,
-                                tonalElevation = 2.dp,
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 8.dp)
-                            ) {
-                                Text(
-                                    text = "Your NSFW settings are hiding $hiddenNsfwCount collected $plural.",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
-                                )
-                            }
-                        }
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .weight(mapWeight)
-                        ) {
-                            CollectedDropsMap(
-                                notes = notes,
-                                highlightedId = highlightedId
-                            )
-
-                            if (highlightedNote != null && (highlightedNote.lat == null || highlightedNote.lng == null)) {
-                                Text(
-                                    text = "Location unavailable for the selected drop.",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier
-                                        .align(Alignment.TopCenter)
-                                        .padding(16.dp)
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.9f))
-                                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                                )
-                            }
-                        }
-
-                        Box(modifier = dividerModifier) {
-                            Divider(modifier = Modifier.align(Alignment.Center))
-                            DividerDragHandleHint(
-                                modifier = Modifier.align(Alignment.Center),
-                                text = stringResource(R.string.drag_to_resize)
-                            )
-                        }
-
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .weight(listWeight)
-                        ) {
-                            Text(
-                                text = "Select a drop to focus on the map.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 12.dp)
-                            )
-
-                            LazyColumn(
-                                state = listState,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .weight(1f),
-                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                                verticalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                items(notes, key = { it.id }) { note ->
-                                    val isHighlighted = note.id == highlightedId
-                                    CollectedNoteCard(
-                                        note = note,
-                                        selected = isHighlighted,
-                                        expanded = isHighlighted,
-                                        onSelect = {
-                                            highlightedId = if (isHighlighted) null else note.id
-                                        },
-                                        onView = {
-                                            highlightedId = note.id
-                                            onView(note)
-                                        },
-                                        onRemove = {
-                                            highlightedId = null
-                                            onRemove(note)
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                    }
                 }
             }
         }
     }
 }
+
+@Composable
+private fun ExplorerDestinationTabs(
+    modifier: Modifier = Modifier,
+    current: ExplorerDestination,
+    onSelect: (ExplorerDestination) -> Unit
+) {
+    val destinations = remember { ExplorerDestination.values() }
+    SingleChoiceSegmentedButtonRow(modifier = modifier) {
+        destinations.forEachIndexed { index, destination ->
+            val selected = destination == current
+            val shape = SegmentedButtonDefaults.itemShape(index, destinations.size)
+            val (label, icon) = when (destination) {
+                ExplorerDestination.Discover -> Pair(
+                    stringResource(R.string.action_browse_map_title),
+                    Icons.Rounded.Map
+                )
+
+                ExplorerDestination.MyDrops -> Pair(
+                    stringResource(R.string.action_my_drops_title),
+                    Icons.Rounded.Inbox
+                )
+
+                ExplorerDestination.Collected -> Pair(
+                    stringResource(R.string.action_collected_drops_title),
+                    Icons.Rounded.Bookmark
+                )
+            }
+            SegmentedButton(
+                selected = selected,
+                onClick = { onSelect(destination) },
+                shape = shape,
+                icon = {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null
+                    )
+                },
+                label = { Text(label) }
+            )
+        }
+    }
+}
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -6553,7 +6640,8 @@ private fun ManageGroupsDialog(
 }
 
 @Composable
-private fun MyDropsDialog(
+private fun MyDropsContent(
+    modifier: Modifier = Modifier,
     loading: Boolean,
     drops: List<Drop>,
     currentLocation: LatLng?,
@@ -6561,174 +6649,147 @@ private fun MyDropsDialog(
     error: String?,
     selectedId: String?,
     onSelect: (Drop) -> Unit,
-    onDismiss: () -> Unit,
     onRetry: () -> Unit,
     onView: (Drop) -> Unit,
-    onDelete: (Drop) -> Unit
+    onDelete: (Drop) -> Unit,
+    contentPadding: PaddingValues = PaddingValues(horizontal = 20.dp, vertical = 16.dp)
 ) {
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(contentPadding)
     ) {
-        Surface(
-            modifier = Modifier.fillMaxSize(),
-            color = MaterialTheme.colorScheme.background
-        ) {
-            @OptIn(ExperimentalMaterial3Api::class)
-            Scaffold(
-                topBar = {
-                    TopAppBar(
-                        title = { Text("My drops") },
-                        navigationIcon = {
-                            IconButton(onClick = onDismiss) {
-                                Icon(
-                                    Icons.Filled.ArrowBack,
-                                    contentDescription = "Back to main page"
-                                )
-                            }
-                        }
-                    )
+        when {
+            loading -> {
+                CircularProgressIndicator(Modifier.align(Alignment.Center))
+            }
+
+            error != null -> {
+                DialogMessageContent(
+                    message = error,
+                    primaryLabel = "Retry",
+                    onPrimary = onRetry,
+                    onDismiss = null
+                )
+            }
+
+            drops.isEmpty() -> {
+                DialogMessageContent(
+                    message = "You haven't dropped any notes yet.",
+                    primaryLabel = null,
+                    onPrimary = null,
+                    onDismiss = null
+                )
+            }
+
+            else -> {
+                val listState = rememberLazyListState()
+
+                LaunchedEffect(selectedId, drops) {
+                    val targetId = selectedId ?: return@LaunchedEffect
+                    val index = drops.indexOfFirst { it.id == targetId }
+                    if (index >= 0) {
+                        listState.animateScrollToItem(index)
+                    }
                 }
-            ) { padding ->
-                Box(
+                val minMapWeight = MAP_LIST_MIN_WEIGHT
+                val maxMapWeight = MAP_LIST_MAX_WEIGHT
+                var containerHeight by remember { mutableStateOf(0) }
+                var mapWeight by rememberSaveable {
+                    mutableStateOf(DEFAULT_MAP_WEIGHT.coerceIn(minMapWeight, maxMapWeight))
+                }
+
+                val listWeight = 1f - mapWeight
+                val dividerDragState = rememberDraggableState { delta ->
+                    val height = containerHeight.takeIf { it > 0 }?.toFloat()
+                        ?: return@rememberDraggableState
+                    val deltaWeight = delta / height
+                    val updated = (mapWeight + deltaWeight).coerceIn(minMapWeight, maxMapWeight)
+                    if (updated != mapWeight) {
+                        mapWeight = updated
+                    }
+                }
+                val dividerInteraction = remember { MutableInteractionSource() }
+                val dividerModifier = Modifier
+                    .fillMaxWidth()
+                    .height(DIVIDER_DRAG_HANDLE_HEIGHT)
+                    .draggable(
+                        state = dividerDragState,
+                        orientation = Orientation.Vertical,
+                        interactionSource = dividerInteraction
+                    )
+                    .semantics(mergeDescendants = true) {
+                        progressBarRangeInfo = ProgressBarRangeInfo(
+                            current = mapWeight,
+                            range = minMapWeight..maxMapWeight
+                        )
+                        stateDescription =
+                            "Map occupies ${(mapWeight * 100).roundToInt()} percent of the available height"
+                        setProgress { target ->
+                            val coerced = target.coerceIn(minMapWeight, maxMapWeight)
+                            if (coerced != mapWeight) {
+                                mapWeight = coerced
+                            }
+                            true
+                        }
+                    }
+
+                Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(padding)
+                        .onSizeChanged { containerHeight = it.height }
                 ) {
-                    when {
-                        loading -> {
-                            CircularProgressIndicator(Modifier.align(Alignment.Center))
-                        }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(mapWeight)
+                    ) {
+                        MyDropsMap(
+                            drops = drops,
+                            selectedDropId = selectedId,
+                            currentLocation = currentLocation
+                        )
+                    }
 
-                        error != null -> {
-                            DialogMessageContent(
-                                message = error,
-                                primaryLabel = "Retry",
-                                onPrimary = onRetry,
-                                onDismiss = onDismiss
-                            )
-                        }
+                    Box(modifier = dividerModifier) {
+                        Divider(modifier = Modifier.align(Alignment.Center))
+                        DividerDragHandleHint(
+                            modifier = Modifier.align(Alignment.Center),
+                            text = stringResource(R.string.drag_to_resize)
+                        )
+                    }
 
-                        drops.isEmpty() -> {
-                            DialogMessageContent(
-                                message = "You haven't dropped any notes yet.",
-                                primaryLabel = null,
-                                onPrimary = null,
-                                onDismiss = onDismiss
-                            )
-                        }
-
-                        else -> {
-                            val listState = rememberLazyListState()
-
-                            LaunchedEffect(selectedId, drops) {
-                                val targetId = selectedId ?: return@LaunchedEffect
-                                val index = drops.indexOfFirst { it.id == targetId }
-                                if (index >= 0) {
-                                    listState.animateScrollToItem(index)
-                                }
-                            }
-                            val minMapWeight = MAP_LIST_MIN_WEIGHT
-                            val maxMapWeight = MAP_LIST_MAX_WEIGHT
-                            var containerHeight by remember { mutableStateOf(0) }
-                            var mapWeight by rememberSaveable {
-                                mutableStateOf(DEFAULT_MAP_WEIGHT.coerceIn(minMapWeight, maxMapWeight))
-                            }
-
-                            val listWeight = 1f - mapWeight
-                            val dividerDragState = rememberDraggableState { delta ->
-                                val height = containerHeight.takeIf { it > 0 }?.toFloat()
-                                    ?: return@rememberDraggableState
-                                val deltaWeight = delta / height
-                                val updated = (mapWeight + deltaWeight).coerceIn(minMapWeight, maxMapWeight)
-                                if (updated != mapWeight) {
-                                    mapWeight = updated
-                                }
-                            }
-                            val dividerInteraction = remember { MutableInteractionSource() }
-                            val dividerModifier = Modifier
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(listWeight)
+                    ) {
+                        Text(
+                            text = "Select a drop to focus on the map.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier
                                 .fillMaxWidth()
-                                .height(DIVIDER_DRAG_HANDLE_HEIGHT)
-                                .draggable(
-                                    state = dividerDragState,
-                                    orientation = Orientation.Vertical,
-                                    interactionSource = dividerInteraction
+                                .padding(horizontal = 16.dp, vertical = 12.dp)
+                        )
+
+                        LazyColumn(
+                            state = listState,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            items(drops, key = { it.id }) { drop ->
+                                ManageDropRow(
+                                    drop = drop,
+                                    isDeleting = deletingId == drop.id,
+                                    isSelected = drop.id == selectedId,
+                                    onSelect = { onSelect(drop) },
+                                    onView = { onView(drop) },
+                                    onDelete = { onDelete(drop) }
                                 )
-                                .semantics(mergeDescendants = true) {
-                                    progressBarRangeInfo = ProgressBarRangeInfo(
-                                        current = mapWeight,
-                                        range = minMapWeight..maxMapWeight
-                                    )
-                                    stateDescription =
-                                        "Map occupies ${'$'}{(mapWeight * 100).roundToInt()} percent of the available height"
-                                    setProgress { target ->
-                                        val coerced = target.coerceIn(minMapWeight, maxMapWeight)
-                                        if (coerced != mapWeight) {
-                                            mapWeight = coerced
-                                        }
-                                        true
-                                    }
-                                }
-
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .onSizeChanged { containerHeight = it.height }
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .weight(mapWeight)
-                                ) {
-                                    MyDropsMap(
-                                        drops = drops,
-                                        selectedDropId = selectedId,
-                                        currentLocation = currentLocation
-                                    )
-                                }
-
-                                Box(modifier = dividerModifier) {
-                                    Divider(modifier = Modifier.align(Alignment.Center))
-                                    DividerDragHandleHint(
-                                        modifier = Modifier.align(Alignment.Center),
-                                        text = stringResource(R.string.drag_to_resize)
-                                    )
-                                }
-
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .weight(listWeight)
-                                ) {
-                                    Text(
-                                        text = "Select a drop to focus on the map.",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 16.dp, vertical = 12.dp)
-                                    )
-
-                                    LazyColumn(
-                                        state = listState,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .weight(1f),
-                                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                                    ) {
-                                        items(drops, key = { it.id }) { drop ->
-                                            ManageDropRow(
-                                                drop = drop,
-                                                isDeleting = deletingId == drop.id,
-                                                isSelected = drop.id == selectedId,
-                                                onSelect = { onSelect(drop) },
-                                                onView = { onView(drop) },
-                                                onDelete = { onDelete(drop) }
-                                            )
-                                        }
-                                    }
-                                }
                             }
                         }
                     }
@@ -6737,6 +6798,7 @@ private fun MyDropsDialog(
         }
     }
 }
+
 
 @Composable
 private fun DividerDragHandleHint(
@@ -8777,6 +8839,8 @@ private data class BusinessDropTypeOption(
 )
 
 private enum class HomeDestination { Explorer, Business }
+
+private enum class ExplorerDestination { Discover, MyDrops, Collected }
 
 private enum class AccountAuthMode {
     SIGN_IN,
