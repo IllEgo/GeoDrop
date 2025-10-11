@@ -45,6 +45,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RectangleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -98,7 +99,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.ContentScale
@@ -2175,26 +2175,6 @@ fun DropHereScreen(
                                 }
 
                                 item {
-                                    Box(Modifier.padding(horizontal = 20.dp)) {
-                                        HeroCard(
-                                            username = userProfile?.username,
-                                            joinedGroups = joinedGroups,
-                                            showGroups = userMode != UserMode.GUEST,
-                                            onManageGroups = {
-                                                if (!canParticipate) {
-                                                    snackbar.showMessage(
-                                                        scope,
-                                                        participationRestriction("manage group codes")
-                                                    )
-                                                } else {
-                                                    showManageGroups = true
-                                                }
-                                            }
-                                        )
-                                    }
-                                }
-
-                                item {
                                     OtherDropsExplorerSection(
                                         modifier = Modifier
                                             .fillMaxWidth()
@@ -3564,137 +3544,6 @@ private fun BusinessHeroCard(
                 Icon(Icons.Rounded.Groups, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
                 Text("Manage group codes")
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun HeroCard(
-    username: String?,
-    joinedGroups: List<String>,
-    showGroups: Boolean,
-    onManageGroups: () -> Unit,
-) {
-    ElevatedCard(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(28.dp),
-        colors = CardDefaults.elevatedCardColors(
-            containerColor = Color.Transparent
-        )
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(28.dp))
-        ) {
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .background(
-                        Brush.linearGradient(
-                            colors = listOf(
-                                MaterialTheme.colorScheme.primary,
-                                MaterialTheme.colorScheme.tertiary
-                            )
-                        )
-                    )
-            )
-
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .background(Color.Black.copy(alpha = 0.35f))
-            )
-
-            Column(
-                modifier = Modifier
-                    .padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                val contentColor = MaterialTheme.colorScheme.onPrimary
-                val displayName = username?.takeIf { it.isNotBlank() }
-                val (heroTitle, heroDescription) = if (showGroups) {
-                    if (displayName != null) {
-                        "Welcome $displayName" to "Leave voice notes, photos, or text that unlock when explorers arrive nearby."
-                    } else {
-                        "Drop something at your spot" to "Leave voice notes, photos, or text that unlock when explorers arrive nearby."
-                    }
-                } else {
-                    "Preview GeoDrop experiences" to "Browse the map to explore nearby explorer adventures and business drops before you sign up."
-                }
-
-                Text(
-                    text = heroTitle,
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = contentColor
-                )
-
-                Text(
-                    text = heroDescription,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = contentColor.copy(alpha = 0.9f)
-                )
-
-                if (showGroups) {
-                    if (joinedGroups.isNotEmpty()) {
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text(
-                                text = "You're connected with",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = contentColor.copy(alpha = 0.95f),
-                                fontWeight = FontWeight.Medium
-                            )
-
-                            FlowRow(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                joinedGroups.forEach { group ->
-                                    AssistChip(
-                                        onClick = onManageGroups,
-                                        label = {
-                                            Text(
-                                                text = group,
-                                                color = contentColor
-                                            )
-                                        },
-                                        colors = AssistChipDefaults.assistChipColors(
-                                            containerColor = Color.White.copy(alpha = 0.2f),
-                                            labelColor = contentColor
-                                        ),
-                                        border = BorderStroke(
-                                            width = 1.dp,
-                                            color = Color.White.copy(alpha = 0.4f)
-                                        )
-                                    )
-                                }
-                            }
-                        }
-                    } else {
-                        Text(
-                            text = "Join or create groups to collaborate on drops.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = contentColor.copy(alpha = 0.8f)
-                        )
-                    }
-
-                    TextButton(onClick = onManageGroups) {
-                        Text(
-                            text = "Manage group codes",
-                            color = contentColor,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                } else {
-                    Text(
-                        text = "Create an account to join groups, add your own drops, and collaborate with friends.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = contentColor.copy(alpha = 0.85f)
-                    )
-                }
             }
         }
     }
@@ -5963,7 +5812,7 @@ private fun OtherDropsExplorerSection(
         modifier = modifier
             .fillMaxWidth()
             .heightIn(min = 360.dp),
-        shape = RoundedCornerShape(28.dp),
+        shape = RectangleShape,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface,
             contentColor = MaterialTheme.colorScheme.onSurface
@@ -6071,7 +5920,7 @@ private fun OtherDropsExplorerSection(
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f),
-                        shape = RoundedCornerShape(24.dp),
+                        shape = RectangleShape,
                         tonalElevation = 2.dp,
                         shadowElevation = 1.dp
                     ) {
