@@ -6747,7 +6747,8 @@ private fun MyDropsMap(
             ?: currentLocation
             ?: drops.firstOrNull()?.let { LatLng(it.lat, it.lng) }
         if (target != null) {
-            val update = CameraUpdateFactory.newLatLngZoom(target, 15f)
+            val zoomLevel = if (targetDrop != null) 18f else 15f
+            val update = CameraUpdateFactory.newLatLngZoom(target, zoomLevel)
             cameraPositionState.animate(update)
         }
     }
@@ -6785,10 +6786,10 @@ private fun MyDropsMap(
             }
 
             val isSelected = drop.id == selectedDropId
-            val markerIcon = if (drop.isNsfw) {
-                BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_MAGENTA)
-            } else {
-                BitmapDescriptorFactory.defaultMarker(voteHueFor(drop.upvoteCount))
+            val markerIcon = when {
+                isSelected -> BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE)
+                drop.isNsfw -> BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_MAGENTA)
+                else -> BitmapDescriptorFactory.defaultMarker(voteHueFor(drop.upvoteCount))
             }
 
             Marker(
@@ -7290,7 +7291,8 @@ private fun OtherDropsMap(
             ?: currentLocation
             ?: drops.firstOrNull()?.let { LatLng(it.lat, it.lng) }
         if (target != null) {
-            val update = CameraUpdateFactory.newLatLngZoom(target, 15f)
+            val zoomLevel = if (targetDrop != null) 18f else 15f
+            val update = CameraUpdateFactory.newLatLngZoom(target, zoomLevel)
             cameraPositionState.animate(update)
         }
     }
@@ -7357,10 +7359,10 @@ private fun OtherDropsMap(
 
             val isSelected = drop.id == selectedDropId
 
-            val markerIcon = if (drop.isNsfw) {
-                BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_MAGENTA)
-            } else {
-                BitmapDescriptorFactory.defaultMarker(voteHueFor(drop.upvoteCount))
+            val markerIcon = when {
+                isSelected -> BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE)
+                drop.isNsfw -> BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_MAGENTA)
+                else -> BitmapDescriptorFactory.defaultMarker(voteHueFor(drop.upvoteCount))
             }
 
             Marker(
