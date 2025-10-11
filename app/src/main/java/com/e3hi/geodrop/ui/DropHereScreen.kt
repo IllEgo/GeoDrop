@@ -102,7 +102,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -2192,7 +2191,9 @@ fun DropHereScreen(
 
                                 item {
                                     OtherDropsExplorerSection(
-                                        modifier = Modifier.fillMaxWidth(),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .fillParentMaxHeight(),
                                         loading = otherDropsLoading,
                                         drops = otherDrops,
                                         currentLocation = otherDropsCurrentLocation,
@@ -2267,100 +2268,6 @@ fun DropHereScreen(
                                             }
                                         }
                                     )
-                                }
-
-                                item { SectionHeader(text = stringResource(R.string.section_quick_actions)) }
-
-                                item {
-                                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                        val totalMyDrops = myDropCountHint ?: myDrops.size
-                                        val pendingMyDropReviews = myDropPendingReviewHint ?: myDrops.count { it.reportCount > 0 }
-
-                                        if (hasExplorerAccount) {
-                                            ActionCard(
-                                                icon = Icons.Rounded.Inbox,
-                                                title = stringResource(R.string.action_my_drops_title),
-                                                description = stringResource(R.string.action_my_drops_description),
-                                                onClick = { openExplorerDestination(ExplorerDestination.MyDrops) },
-                                                trailingContent = {
-                                                    if (totalMyDrops > 0 || pendingMyDropReviews > 0) {
-                                                        Row(
-                                                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                                            verticalAlignment = Alignment.CenterVertically
-                                                        ) {
-                                                            if (totalMyDrops > 0) {
-                                                                CountBadge(count = totalMyDrops)
-                                                            }
-                                                            if (pendingMyDropReviews > 0) {
-                                                                MetricPill(
-                                                                    label = stringResource(R.string.metric_pending_reviews),
-                                                                    value = pendingMyDropReviews
-                                                                )
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            )
-                                        }
-
-                                        if (canParticipate) {
-                                            ActionCard(
-                                                icon = Icons.Rounded.Bookmark,
-                                                title = stringResource(R.string.action_collected_drops_title),
-                                                description = when {
-                                                    collectedCount == 0 && hiddenNsfwCollectedCount > 0 -> {
-                                                        val plural = if (hiddenNsfwCollectedCount == 1) "drop" else "drops"
-                                                        stringResource(
-                                                            R.string.action_collected_drops_hidden_nsfw,
-                                                            hiddenNsfwCollectedCount,
-                                                            plural
-                                                        )
-                                                    }
-
-                                                    collectedCount == 0 -> {
-                                                        stringResource(R.string.action_collected_drops_empty)
-                                                    }
-
-                                                    hiddenNsfwCollectedCount > 0 -> {
-                                                        val plural = if (collectedCount == 1) "drop" else "drops"
-                                                        stringResource(
-                                                            R.string.action_collected_drops_some_hidden,
-                                                            collectedCount,
-                                                            plural,
-                                                            hiddenNsfwCollectedCount
-                                                        )
-                                                    }
-
-                                                    else -> {
-                                                        if (collectedCount == 1) {
-                                                            stringResource(R.string.action_collected_drops_single)
-                                                        } else {
-                                                            stringResource(R.string.action_collected_drops_multiple, collectedCount)
-                                                        }
-                                                    }
-                                                },
-                                                onClick = { openExplorerDestination(ExplorerDestination.Collected) },
-                                                trailingContent = {
-                                                    if (collectedCount > 0 || hiddenNsfwCollectedCount > 0) {
-                                                        Row(
-                                                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                                            verticalAlignment = Alignment.CenterVertically
-                                                        ) {
-                                                            if (collectedCount > 0) {
-                                                                CountBadge(count = collectedCount)
-                                                            }
-                                                            if (hiddenNsfwCollectedCount > 0) {
-                                                                MetricPill(
-                                                                    label = stringResource(R.string.metric_hidden),
-                                                                    value = hiddenNsfwCollectedCount
-                                                                )
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            )
-                                        }
-                                    }
                                 }
 
                                 status?.let { message ->
@@ -5998,11 +5905,6 @@ private fun OtherDropsExplorerSection(
     mapWeight: Float,
     onMapWeightChange: (Float) -> Unit
 ) {
-    val configuration = LocalConfiguration.current
-    val screenHeight = configuration.screenHeightDp.dp
-    val defaultSectionHeight = remember(screenHeight) {
-        (screenHeight * 0.55f).coerceIn(360.dp, 640.dp)
-    }
     val headerTitle = stringResource(R.string.action_browse_map_title)
     val headerDescription = stringResource(R.string.action_browse_map_description)
 
@@ -6049,7 +5951,9 @@ private fun OtherDropsExplorerSection(
         }
 
     Card(
-        modifier = modifier,
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(min = 360.dp),
         shape = RoundedCornerShape(28.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface,
@@ -6058,7 +5962,7 @@ private fun OtherDropsExplorerSection(
     ) {
         Column(
             modifier = Modifier
-                .fillMaxWidth()
+                .fillMaxSize()
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
@@ -6091,7 +5995,7 @@ private fun OtherDropsExplorerSection(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(min = 200.dp),
+                            .weight(1f),
                         contentAlignment = Alignment.Center
                     ) {
                         CircularProgressIndicator()
@@ -6100,7 +6004,9 @@ private fun OtherDropsExplorerSection(
 
                 error != null -> {
                     Column(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Text(
@@ -6118,7 +6024,9 @@ private fun OtherDropsExplorerSection(
 
                 drops.isEmpty() -> {
                     Column(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Text(
@@ -6146,7 +6054,7 @@ private fun OtherDropsExplorerSection(
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(defaultSectionHeight),
+                            .weight(1f),
                         shape = RoundedCornerShape(24.dp),
                         tonalElevation = 2.dp,
                         shadowElevation = 1.dp
