@@ -4587,7 +4587,7 @@ private fun CollectedDropsContent(
     hiddenNsfwCount: Int,
     onView: (CollectedNote) -> Unit,
     onRemove: (CollectedNote) -> Unit,
-    contentPadding: PaddingValues = PaddingValues(horizontal = 20.dp, vertical = 16.dp)
+    contentPadding: PaddingValues = PaddingValues(vertical = 16.dp)
 ) {
     if (notes.isEmpty()) {
         val message = if (hiddenNsfwCount > 0) {
@@ -6402,7 +6402,7 @@ private fun MyDropsContent(
     onRetry: () -> Unit,
     onView: (Drop) -> Unit,
     onDelete: (Drop) -> Unit,
-    contentPadding: PaddingValues = PaddingValues(horizontal = 20.dp, vertical = 16.dp)
+    contentPadding: PaddingValues = PaddingValues(vertical = 16.dp)
 ) {
     Box(
         modifier = modifier
