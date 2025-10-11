@@ -2161,8 +2161,6 @@ fun DropHereScreen(
                             LazyColumn(
                                 modifier = Modifier.fillMaxSize(),
                                 contentPadding = PaddingValues(
-                                    start = 20.dp,
-                                    end = 20.dp,
                                     top = 24.dp,
                                     bottom = 128.dp
                                 ),
@@ -2170,23 +2168,30 @@ fun DropHereScreen(
                             ) {
                                 if (readOnlyParticipationMessage != null) {
                                     item {
-                                        ReadOnlyModeCard(message = readOnlyParticipationMessage)
+                                        Box(Modifier.padding(horizontal = 20.dp)) {
+                                            ReadOnlyModeCard(message = readOnlyParticipationMessage)
+                                        }
                                     }
                                 }
 
                                 item {
-                                    HeroCard(
-                                        username = userProfile?.username,
-                                        joinedGroups = joinedGroups,
-                                        showGroups = userMode != UserMode.GUEST,
-                                        onManageGroups = {
-                                            if (!canParticipate) {
-                                                snackbar.showMessage(scope, participationRestriction("manage group codes"))
-                                            } else {
-                                                showManageGroups = true
+                                    Box(Modifier.padding(horizontal = 20.dp)) {
+                                        HeroCard(
+                                            username = userProfile?.username,
+                                            joinedGroups = joinedGroups,
+                                            showGroups = userMode != UserMode.GUEST,
+                                            onManageGroups = {
+                                                if (!canParticipate) {
+                                                    snackbar.showMessage(
+                                                        scope,
+                                                        participationRestriction("manage group codes")
+                                                    )
+                                                } else {
+                                                    showManageGroups = true
+                                                }
                                             }
-                                        }
-                                    )
+                                        )
+                                    }
                                 }
 
                                 item {
@@ -2271,7 +2276,11 @@ fun DropHereScreen(
                                 }
 
                                 status?.let { message ->
-                                    item { StatusCard(message = message) }
+                                    item {
+                                        Box(Modifier.padding(horizontal = 20.dp)) {
+                                            StatusCard(message = message)
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -5963,11 +5972,13 @@ private fun OtherDropsExplorerSection(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(20.dp),
+                .padding(vertical = 20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
@@ -5987,7 +5998,10 @@ private fun OtherDropsExplorerSection(
             Text(
                 text = headerDescription,
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
             )
 
             when {
@@ -6006,6 +6020,7 @@ private fun OtherDropsExplorerSection(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .padding(horizontal = 20.dp)
                             .weight(1f),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
@@ -6026,6 +6041,7 @@ private fun OtherDropsExplorerSection(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .padding(horizontal = 20.dp)
                             .weight(1f),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
@@ -6099,7 +6115,7 @@ private fun OtherDropsExplorerSection(
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                                        .padding(horizontal = 20.dp, vertical = 12.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
@@ -6119,7 +6135,7 @@ private fun OtherDropsExplorerSection(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .weight(1f),
-                                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
                                     verticalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
                                     items(drops, key = { it.id }) { drop ->
