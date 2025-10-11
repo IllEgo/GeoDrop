@@ -5013,6 +5013,7 @@ private fun CollectedDropsContent(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ExplorerDestinationTabs(
     modifier: Modifier = Modifier,
