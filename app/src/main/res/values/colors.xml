@@ -1,10 +1,36 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="purple_200">#FFBB86FC</color>
-    <color name="purple_500">#FF6200EE</color>
-    <color name="purple_700">#FF3700B3</color>
-    <color name="teal_200">#FF03DAC5</color>
-    <color name="teal_700">#FF018786</color>
-    <color name="black">#FF000000</color>
-    <color name="white">#FFFFFFFF</color>
+    <color name="ocean_blue_40">#2563EB</color>
+    <color name="ocean_blue_80">#A8C0FF</color>
+    <color name="ocean_blue_container_light">#DCE7FF</color>
+    <color name="ocean_blue_container_dark">#1E3A8A</color>
+
+    <color name="amber_40">#FF9F1C</color>
+    <color name="amber_80">#FFC573</color>
+    <color name="amber_container_light">#FFE2B8</color>
+    <color name="amber_container_dark">#5A3100</color>
+
+    <color name="emerald_40">#10B981</color>
+    <color name="emerald_80">#5EE7B1</color>
+    <color name="emerald_container_light">#C4F8E7</color>
+    <color name="emerald_container_dark">#005C3A</color>
+
+    <color name="midnight_40">#8A9AD8</color>
+    <color name="midnight_80">#5D6B9E</color>
+    <color name="surface_light">#FFFFFF</color>
+    <color name="surface_dark">#111C3B</color>
+    <color name="background_light">#F4F6FB</color>
+    <color name="background_dark">#0B1220</color>
+
+    <color name="surface_variant_light">#E0E7FF</color>
+    <color name="surface_variant_dark">#2D3A60</color>
+    <color name="on_surface_variant_light">#303D66</color>
+    <color name="on_surface_variant_dark">#C5CEFF</color>
+
+    <color name="outline_light">#8A9AD8</color>
+    <color name="outline_dark">#5D6B9E</color>
+    <color name="inverse_surface_light">#2A3658</color>
+    <color name="inverse_surface_dark">#E6ECFF</color>
+    <color name="inverse_on_surface_light">#F4F6FB</color>
+    <color name="inverse_on_surface_dark">#111C3B</color>
 </resources>
