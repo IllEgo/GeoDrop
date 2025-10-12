@@ -18,19 +18,22 @@
     <color name="midnight_40">#8A9AD8</color>
     <color name="midnight_80">#5D6B9E</color>
     <color name="surface_light">#FFFFFF</color>
-    <color name="surface_dark">#111C3B</color>
-    <color name="background_light">#F4F6FB</color>
-    <color name="background_dark">#0B1220</color>
+    <color name="surface_dark">#141935</color>
+    <color name="background_light">#F5F6FF</color>
+    <color name="background_dark">#0C1024</color>
 
-    <color name="surface_variant_light">#E0E7FF</color>
-    <color name="surface_variant_dark">#2D3A60</color>
-    <color name="on_surface_variant_light">#303D66</color>
-    <color name="on_surface_variant_dark">#C5CEFF</color>
+    <color name="surface_variant_light">#E1E6FF</color>
+    <color name="surface_variant_dark">#343B5F</color>
+    <color name="on_surface_variant_light">#30365C</color>
+    <color name="on_surface_variant_dark">#C7CCF1</color>
 
-    <color name="outline_light">#8A9AD8</color>
-    <color name="outline_dark">#5D6B9E</color>
-    <color name="inverse_surface_light">#2A3658</color>
-    <color name="inverse_surface_dark">#E6ECFF</color>
-    <color name="inverse_on_surface_light">#F4F6FB</color>
-    <color name="inverse_on_surface_dark">#111C3B</color>
+    <color name="outline_light">#737AA3</color>
+    <color name="outline_dark">#848BB5</color>
+    <color name="inverse_surface_light">#2A2F54</color>
+    <color name="inverse_surface_dark">#E6EAFF</color>
+    <color name="inverse_on_surface_light">#F5F6FF</color>
+    <color name="inverse_on_surface_dark">#141935</color>
+
+    <color name="midnight_container_light">#E6EAFF</color>
+    <color name="midnight_container_dark">#2C355C</color>
 </resources>
