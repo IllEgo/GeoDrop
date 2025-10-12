@@ -12,6 +12,7 @@ import androidx.core.content.PermissionChecker
 import android.util.Log
 import com.e3hi.geodrop.BuildConfig
 import com.e3hi.geodrop.ui.DropHereScreen
+import com.e3hi.geodrop.ui.theme.GeoDropTheme
 import com.e3hi.geodrop.util.GoogleVisionSafeSearchEvaluator
 import com.e3hi.geodrop.util.GroupPreferences
 import com.e3hi.geodrop.util.NotificationPreferences
@@ -78,7 +79,9 @@ class MainActivity : ComponentActivity() {
                     safeSearchCallable = safeSearchCallable
                 )
             }
-            DropHereScreen(dropSafetyEvaluator = dropSafetyEvaluator)
+            GeoDropTheme {
+                DropHereScreen(dropSafetyEvaluator = dropSafetyEvaluator)
+            }
         }
 
         // 🔎 Debug log to confirm Firebase is connected
