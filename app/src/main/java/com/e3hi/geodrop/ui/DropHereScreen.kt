@@ -4781,7 +4781,10 @@ private fun CollectedDropsContent(
         ) {
             CollectedDropsMap(
                 notes = notes,
-                highlightedId = highlightedId
+                highlightedId = highlightedId,
+                onNoteClick = { note ->
+                    highlightedId = if (highlightedId == note.id) null else note.id
+                }
             )
 
             if (highlightedNote != null && (highlightedNote.lat == null || highlightedNote.lng == null)) {
@@ -5981,7 +5984,8 @@ private fun OtherDropsExplorerSection(
                                 drops = drops,
                                 selectedDropId = selectedId,
                                 currentLocation = currentLocation,
-                                notificationRadiusMeters = notificationRadiusMeters
+                                notificationRadiusMeters = notificationRadiusMeters,
+                                onDropClick = onSelect
                             )
 
                             Surface(
@@ -6124,7 +6128,8 @@ private fun OtherDropsExplorerSection(
 private fun CollectedDropsMap(
     notes: List<CollectedNote>,
     highlightedId: String?,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onNoteClick: (CollectedNote) -> Unit
 ) {
     val notesWithLocation = remember(notes) { notes.filter { it.lat != null && it.lng != null } }
     val cameraPositionState = rememberCameraPositionState()
@@ -6200,7 +6205,11 @@ private fun CollectedDropsMap(
                     title = title,
                     snippet = snippetParts.joinToString("\n"),
                     icon = markerIcon,
-                    zIndex = if (note.id == highlightedId) 1f else 0f
+                    zIndex = if (note.id == highlightedId) 1f else 0f,
+                    onClick = {
+                        onNoteClick(note)
+                        false
+                    }
                 )
             }
         }
@@ -6609,7 +6618,8 @@ private fun MyDropsContent(
                         MyDropsMap(
                             drops = drops,
                             selectedDropId = selectedId,
-                            currentLocation = currentLocation
+                            currentLocation = currentLocation,
+                            onDropClick = onSelect
                         )
                     }
 
@@ -6848,7 +6858,8 @@ private fun MediaCaptureCard(
 private fun MyDropsMap(
     drops: List<Drop>,
     selectedDropId: String?,
-    currentLocation: LatLng?
+    currentLocation: LatLng?,
+    onDropClick: (Drop) -> Unit
 ) {
     val cameraPositionState = rememberCameraPositionState()
     val uiSettings = remember { MapUiSettings(zoomControlsEnabled = true) }
@@ -6910,7 +6921,11 @@ private fun MyDropsMap(
                 snippet = snippetParts.joinToString("\n"),
                 icon = markerIcon,
                 alpha = if (isSelected) 1f else 0.9f,
-                zIndex = if (isSelected) 2f else 0f
+                zIndex = if (isSelected) 2f else 0f,
+                onClick = {
+                    onDropClick(drop)
+                    false
+                }
             )
         }
     }
@@ -7411,7 +7426,8 @@ private fun OtherDropsMap(
     drops: List<Drop>,
     selectedDropId: String?,
     currentLocation: LatLng?,
-    notificationRadiusMeters: Double
+    notificationRadiusMeters: Double,
+    onDropClick: (Drop) -> Unit
 ) {
     val cameraPositionState = rememberCameraPositionState()
     val uiSettings = remember { MapUiSettings(zoomControlsEnabled = true) }
@@ -7502,7 +7518,11 @@ private fun OtherDropsMap(
                 snippet = snippetParts.joinToString("\n"),
                 icon = markerIcon,
                 alpha = if (isSelected) 1f else 0.9f,
-                zIndex = if (isSelected) 2f else 0f
+                zIndex = if (isSelected) 2f else 0f,
+                onClick = {
+                    onDropClick(drop)
+                    false
+                }
             )
         }
     }
