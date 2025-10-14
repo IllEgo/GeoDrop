@@ -92,6 +92,7 @@ import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Slider
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -1977,6 +1978,12 @@ fun DropHereScreen(
             Column {
                 TopAppBar(
                     title = { Text(stringResource(R.string.app_name)) },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.background,
+                        scrolledContainerColor = MaterialTheme.colorScheme.background,
+                        titleContentColor = MaterialTheme.colorScheme.onBackground,
+                        actionIconContentColor = MaterialTheme.colorScheme.onBackground
+                    ),
                     actions = {
                         Box {
                             IconButton(onClick = { showAccountMenu = !showAccountMenu }) {
@@ -6361,6 +6368,13 @@ private fun ManageGroupsDialog(
                 topBar = {
                     TopAppBar(
                         title = { Text("Manage group codes") },
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = MaterialTheme.colorScheme.background,
+                            scrolledContainerColor = MaterialTheme.colorScheme.background,
+                            navigationIconContentColor = MaterialTheme.colorScheme.onBackground,
+                            titleContentColor = MaterialTheme.colorScheme.onBackground,
+                            actionIconContentColor = MaterialTheme.colorScheme.onBackground
+                        ),
                         navigationIcon = {
                             IconButton(onClick = onDismiss) {
                                 Icon(
