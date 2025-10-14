@@ -25,8 +25,16 @@ service cloud.firestore {
   function isValidVoteTransition(before, after, userId) {
     let previousVote = voteValue(before, userId);
     let newVote = voteValue(after, userId);
-    let deltaUpvotes = voteCount(after, 'upvoteCount') - voteCount(before, 'upvoteCount');
-    let deltaDownvotes = voteCount(after, 'downvoteCount') - voteCount(before, 'downvoteCount');
+    let beforeUpvotes = voteCount(before, 'upvoteCount');
+    let beforeDownvotes = voteCount(before, 'downvoteCount');
+    let afterUpvotes = voteCount(after, 'upvoteCount');
+    let afterDownvotes = voteCount(after, 'downvoteCount');
+    let removedUpvote = previousVote == 1 ? 1 : 0;
+    let removedDownvote = previousVote == -1 ? 1 : 0;
+    let addedUpvote = newVote == 1 ? 1 : 0;
+    let addedDownvote = newVote == -1 ? 1 : 0;
+    let expectedUpvotes = max(beforeUpvotes - removedUpvote, 0) + addedUpvote;
+    let expectedDownvotes = max(beforeDownvotes - removedDownvote, 0) + addedDownvote;
     let beforeVoteMap = (before.voteMap is map) ? before.voteMap : {};
     let afterVoteMap = (after.voteMap is map) ? after.voteMap : {};
     let voteDiff = beforeVoteMap.diff(afterVoteMap);
@@ -34,13 +42,8 @@ service cloud.firestore {
     return (previousVote in [-1, 0, 1])
       && (newVote in [-1, 0, 1])
       && voteDiff.affectedKeys().hasOnly([userId])
-      && ((previousVote == newVote && deltaUpvotes == 0 && deltaDownvotes == 0)
-        || (previousVote == 0 && newVote == 1 && deltaUpvotes == 1 && deltaDownvotes == 0)
-        || (previousVote == 0 && newVote == -1 && deltaUpvotes == 0 && deltaDownvotes == 1)
-        || (previousVote == 1 && newVote == 0 && deltaUpvotes == -1 && deltaDownvotes == 0)
-        || (previousVote == -1 && newVote == 0 && deltaUpvotes == 0 && deltaDownvotes == -1)
-        || (previousVote == -1 && newVote == 1 && deltaUpvotes == 1 && deltaDownvotes == -1)
-        || (previousVote == 1 && newVote == -1 && deltaUpvotes == -1 && deltaDownvotes == 1));
+      && afterUpvotes == expectedUpvotes
+      && afterDownvotes == expectedDownvotes;
   }
 
   match /databases/{database}/documents {
