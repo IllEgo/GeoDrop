@@ -7267,7 +7267,7 @@ private fun OtherDropRow(
                             )
                         }
                     }
-                    if (canIgnoreForNow) {
+                    if (withinPickupRange && canIgnoreForNow) {
                         Spacer(Modifier.height(12.dp))
                         OutlinedButton(
                             onClick = onIgnoreForNow,
