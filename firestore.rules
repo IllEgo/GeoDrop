@@ -27,9 +27,13 @@ service cloud.firestore {
     let newVote = voteValue(after, userId);
     let deltaUpvotes = voteCount(after, 'upvoteCount') - voteCount(before, 'upvoteCount');
     let deltaDownvotes = voteCount(after, 'downvoteCount') - voteCount(before, 'downvoteCount');
+    let beforeVoteMap = (before.voteMap is map) ? before.voteMap : {};
+    let afterVoteMap = (after.voteMap is map) ? after.voteMap : {};
+    let voteDiff = beforeVoteMap.diff(afterVoteMap);
 
     return (previousVote in [-1, 0, 1])
       && (newVote in [-1, 0, 1])
+      && voteDiff.affectedKeys().hasOnly([userId])
       && ((previousVote == newVote && deltaUpvotes == 0 && deltaDownvotes == 0)
         || (previousVote == 0 && newVote == 1 && deltaUpvotes == 1 && deltaDownvotes == 0)
         || (previousVote == 0 && newVote == -1 && deltaUpvotes == 0 && deltaDownvotes == 1)
@@ -216,6 +220,7 @@ service cloud.firestore {
         && (
           (
             request.writeFields.hasOnly([
+              'voteMap',
               'voteMap.' + request.auth.uid,
               'upvoteCount',
               'downvoteCount',
