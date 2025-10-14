@@ -18,6 +18,9 @@
     <string name="action_drop_something">Compartir algo</string>
     <string name="section_quick_actions">Acciones rápidas</string>
     <string name="action_browse_map_title">Explorar mapa</string>
+    <string name="action_ignore_drop_for_now">Ignorar por ahora</string>
+    <string name="browse_ignore_drop_explainer">Ocultaremos este drop de la lista de exploración hasta que vuelvas a estar cerca.</string>
+    <string name="browse_ignore_drop_snackbar">Drop oculto por ahora. Volverá a mostrarse cuando estés cerca.</string>
     <string name="action_my_drops_title">Mis drops</string>
     <string name="action_my_drops_description">Revisa, abre y gestiona los drops que has compartido.</string>
     <string name="action_collected_drops_title">Drops recopilados</string>

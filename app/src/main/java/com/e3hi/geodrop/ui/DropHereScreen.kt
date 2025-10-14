@@ -94,6 +94,8 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Slider
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.*
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -724,6 +726,16 @@ fun DropHereScreen(
     var otherDropsError by remember { mutableStateOf<String?>(null) }
     var otherDropsCurrentLocation by remember { mutableStateOf<LatLng?>(null) }
     var otherDropsSelectedId by remember { mutableStateOf<String?>(null) }
+    val dismissedBrowseDropIds = rememberSaveable(
+        saver = listSaver(
+            save = { stateList -> stateList.toList() },
+            restore = { restored ->
+                mutableStateListOf<String>().apply { addAll(restored) }
+            }
+        )
+    ) {
+        mutableStateListOf<String>()
+    }
     var otherDropsRefreshToken by remember { mutableStateOf(0) }
     var otherDropsMapWeight by rememberSaveable {
         mutableStateOf(DEFAULT_MAP_WEIGHT.coerceIn(MAP_LIST_MIN_WEIGHT, MAP_LIST_MAX_WEIGHT))
@@ -1775,7 +1787,8 @@ fun DropHereScreen(
         joinedGroups,
         otherDropsRefreshToken,
         collectedDropIds,
-        ignoredDropIds
+        ignoredDropIds,
+        dismissedBrowseDropIds.toList()
     ) {
         if (explorerHomeVisible) {
             otherDropsLoading = true
@@ -1798,12 +1811,28 @@ fun DropHereScreen(
                         allowNsfw = userProfile?.canViewNsfw() == true && canParticipate
                     )
                         .sortedByDescending { it.createdAt }
+                    val latestLocation = getLatestLocation()?.let { (lat, lng) -> LatLng(lat, lng) }
+                    dismissedBrowseDropIds.removeAll { id -> drops.none { it.id == id } }
                     val filteredDrops = drops.filterNot { drop ->
                         val id = drop.id
-                        id in collectedDropIds || id in ignoredDropIds
+                        when {
+                            id in collectedDropIds || id in ignoredDropIds -> true
+                            dismissedBrowseDropIds.contains(id) -> {
+                                val withinPickupRange = latestLocation?.let { location ->
+                                    distanceBetweenMeters(
+                                        location.latitude,
+                                        location.longitude,
+                                        drop.lat,
+                                        drop.lng
+                                    ) <= DROP_PICKUP_RADIUS_METERS
+                                } ?: false
+                                !withinPickupRange
+                            }
+                            else -> false
+                        }
                     }
                     otherDrops = filteredDrops
-                    otherDropsCurrentLocation = getLatestLocation()?.let { (lat, lng) -> LatLng(lat, lng) }
+                    otherDropsCurrentLocation = latestLocation
                     otherDropsSelectedId = otherDropsSelectedId?.takeIf { id -> filteredDrops.any { it.id == id } }
                         ?: filteredDrops.firstOrNull()?.id
                 } catch (e: Exception) {
@@ -6042,6 +6071,7 @@ private fun OtherDropsExplorerSection(
                                     }
                                     val showReportButton = !isOwnDrop
                                     val isReporting = reportingDropId == drop.id
+                                    val canIgnoreForNow = !withinPickupRange
                                     OtherDropRow(
                                         drop = drop,
                                         isSelected = drop.id == selectedId,
@@ -6057,6 +6087,16 @@ private fun OtherDropsExplorerSection(
                                         alreadyReported = alreadyReported,
                                         reportRestrictionMessage = reportMessage,
                                         isReporting = isReporting,
+                                        canIgnoreForNow = canIgnoreForNow,
+                                        onIgnoreForNow = {
+                                            if (!dismissedBrowseDropIds.contains(drop.id)) {
+                                                dismissedBrowseDropIds.add(drop.id)
+                                                snackbar.showMessage(
+                                                    scope,
+                                                    ctx.getString(R.string.browse_ignore_drop_snackbar)
+                                                )
+                                            }
+                                        },
                                         onSelect = { onSelect(drop) },
                                         onVote = { vote -> onVote(drop, vote) },
                                         onPickUp = { onPickUp(drop) },
@@ -6914,6 +6954,8 @@ private fun OtherDropRow(
     alreadyReported: Boolean,
     reportRestrictionMessage: String?,
     isReporting: Boolean,
+    canIgnoreForNow: Boolean,
+    onIgnoreForNow: () -> Unit,
     onSelect: () -> Unit,
     onVote: (DropVoteType) -> Unit,
     onPickUp: () -> Unit,
@@ -7200,6 +7242,23 @@ private fun OtherDropRow(
                                 color = supportingColor
                             )
                         }
+                    }
+                    if (canIgnoreForNow) {
+                        Spacer(Modifier.height(12.dp))
+                        OutlinedButton(
+                            onClick = onIgnoreForNow,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Rounded.Close, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text(stringResource(R.string.action_ignore_drop_for_now))
+                        }
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = stringResource(R.string.browse_ignore_drop_explainer),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = supportingColor
+                        )
                     }
                 }
             }
