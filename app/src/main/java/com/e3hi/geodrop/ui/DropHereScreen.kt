@@ -8583,13 +8583,13 @@ private fun DropVisibilityOptionCard(
     ElevatedCard(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(role = Role.RadioButton, onClick = onClick),
+            .clickable(role = Role.RadioButton, onClick = onClick)
+            .border(BorderStroke(borderWidth, borderColor), cardShape),
         colors = CardDefaults.elevatedCardColors(
             containerColor = containerColor,
             contentColor = contentColor
         ),
-        shape = cardShape,
-        border = BorderStroke(borderWidth, borderColor)
+        shape = cardShape
     ) {
         Row(
             modifier = Modifier
