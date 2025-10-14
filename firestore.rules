@@ -189,6 +189,31 @@ service cloud.firestore {
           );
       }
 
+      function hasOnlyUserCollectedChange(before, after, userId) {
+        let beforeCollectedBy = (before.collectedBy is map) ? before.collectedBy : {};
+        let afterCollectedBy = (after.collectedBy is map) ? after.collectedBy : {};
+
+        return beforeCollectedBy.diff(afterCollectedBy).affectedKeys().hasOnly([userId]);
+      }
+
+      function isValidVoteReportCollectUpdate(before, after, userId) {
+        let diff = before.diff(after);
+        let changedKeys = diff.changedKeys();
+
+        return changedKeys.hasOnly([
+            'voteMap',
+            'upvoteCount',
+            'downvoteCount',
+            'collectedBy',
+            'reportedBy',
+            'reportCount'
+          ])
+          && isValidVoteTransition(before, after, userId)
+          && isValidReportTransition(before, after, userId)
+          && (!changedKeys.hasAny(['collectedBy'])
+            || hasOnlyUserCollectedChange(before, after, userId));
+      }
+
       function isRedeemableDrop(data) {
         return data.dropType is string && data.dropType == 'RESTAURANT_COUPON';
       }
@@ -219,17 +244,7 @@ service cloud.firestore {
       allow update: if isSignedIn()
         && (
           (
-            request.writeFields.hasOnly([
-              'voteMap',
-              'voteMap.' + request.auth.uid,
-              'upvoteCount',
-              'downvoteCount',
-              'collectedBy.' + request.auth.uid,
-              'reportedBy.' + request.auth.uid,
-              'reportCount'
-            ])
-            && isValidVoteTransition(resource.data, request.resource.data, request.auth.uid)
-            && isValidReportTransition(resource.data, request.resource.data, request.auth.uid)
+            isValidVoteReportCollectUpdate(resource.data, request.resource.data, request.auth.uid)
           )
           || (
             resource.data.createdBy == request.auth.uid
