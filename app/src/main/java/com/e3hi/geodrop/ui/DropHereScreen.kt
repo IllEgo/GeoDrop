@@ -5811,12 +5811,6 @@ private fun OtherDropsExplorerSection(
     mapWeight: Float,
     onMapWeightChange: (Float) -> Unit
 ) {
-    val headerDescription = if (showHeaderDescription) {
-        stringResource(R.string.action_browse_map_description)
-    } else {
-        null
-    }
-
     val clampedMapWeight = mapWeight.coerceIn(MAP_LIST_MIN_WEIGHT, MAP_LIST_MAX_WEIGHT)
     var internalWeight by remember { mutableStateOf(clampedMapWeight) }
     internalWeight = clampedMapWeight
@@ -5865,17 +5859,6 @@ private fun OtherDropsExplorerSection(
             .padding(vertical = 20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        headerDescription?.let { description ->
-            Text(
-                text = description,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp)
-            )
-        }
-
         when {
                 loading -> {
                     Box(

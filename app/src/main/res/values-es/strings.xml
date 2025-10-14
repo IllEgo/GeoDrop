@@ -18,7 +18,6 @@
     <string name="action_drop_something">Compartir algo</string>
     <string name="section_quick_actions">Acciones rápidas</string>
     <string name="action_browse_map_title">Explorar mapa</string>
-    <string name="action_browse_map_description">Ve todos los drops que puedes desbloquear ahora.</string>
     <string name="action_my_drops_title">Mis drops</string>
     <string name="action_my_drops_description">Revisa, abre y gestiona los drops que has compartido.</string>
     <string name="action_collected_drops_title">Drops recopilados</string>
