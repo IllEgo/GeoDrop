@@ -8581,8 +8581,9 @@ private fun DropVisibilityOptionCard(
     val borderWidth = if (selected) 2.dp else 1.dp
 
     ElevatedCard(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(role = Role.RadioButton, onClick = onClick),
         colors = CardDefaults.elevatedCardColors(
             containerColor = containerColor,
             contentColor = contentColor
