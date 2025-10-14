@@ -199,7 +199,7 @@ service cloud.firestore {
         let diff = beforeRedeemedBy.diff(afterRedeemedBy);
         let alreadyRedeemed = beforeRedeemedBy.keys().hasAny([userId]);
         let nowRedeemed = afterRedeemedBy.keys().hasAny([userId]);
-        let timestamp = afterRedeemedBy[userId];
+        let redeemTimestamp = afterRedeemedBy[userId];
         let limit = (before.redemptionLimit is int) ? before.redemptionLimit : null;
 
         return beforeCountValid
@@ -207,7 +207,7 @@ service cloud.firestore {
           && !alreadyRedeemed
           && nowRedeemed
           && diff.affectedKeys().hasOnly([userId])
-          && timestamp is int
+          && redeemTimestamp is int
           && afterCount == beforeCount + 1
           && (limit == null || afterCount <= limit);
       }
