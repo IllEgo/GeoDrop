@@ -207,6 +207,7 @@ import androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED
 import androidx.core.content.FileProvider
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -2285,6 +2286,8 @@ fun DropHereScreen(
                                         },
                                         reportingDropId = browseReportingDropId,
                                         dismissedBrowseDropIds = dismissedBrowseDropIds,
+                                        snackbar = snackbar,
+                                        scope = scope,
                                         onRefresh = { otherDropsRefreshToken += 1 },
                                         listState = otherDropsListState,
                                         mapWeight = otherDropsMapWeight,
@@ -5844,11 +5847,14 @@ private fun OtherDropsExplorerSection(
     onReport: (Drop) -> Unit,
     reportingDropId: String?,
     dismissedBrowseDropIds: SnapshotStateList<String>,
+    snackbar: SnackbarHostState,
+    scope: CoroutineScope,
     onRefresh: () -> Unit,
     listState: LazyListState,
     mapWeight: Float,
     onMapWeightChange: (Float) -> Unit
 ) {
+    val context = LocalContext.current
     val clampedMapWeight = mapWeight.coerceIn(MAP_LIST_MIN_WEIGHT, MAP_LIST_MAX_WEIGHT)
     var internalWeight by remember { mutableStateOf(clampedMapWeight) }
     internalWeight = clampedMapWeight
@@ -6096,7 +6102,7 @@ private fun OtherDropsExplorerSection(
                                                 dismissedBrowseDropIds.add(drop.id)
                                                 snackbar.showMessage(
                                                     scope,
-                                                    ctx.getString(R.string.browse_ignore_drop_snackbar)
+                                                    context.getString(R.string.browse_ignore_drop_snackbar)
                                                 )
                                             }
                                         },
