@@ -2101,6 +2101,8 @@ fun DropHereScreen(
                         if (isSubmitting) return@ExtendedFloatingActionButton
                         showDropComposer = true
                     },
+                    containerColor = MaterialTheme.colorScheme.secondary,
+                    contentColor = MaterialTheme.colorScheme.onSecondary,
                     icon = { Icon(Icons.Rounded.Place, contentDescription = null) },
                     text = {
                         Text(
