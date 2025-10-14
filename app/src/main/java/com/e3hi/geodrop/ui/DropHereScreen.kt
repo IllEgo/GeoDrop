@@ -3377,6 +3377,10 @@ private fun BusinessHeroCard(
         shape = RoundedCornerShape(28.dp),
         colors = CardDefaults.elevatedCardColors(
             containerColor = MaterialTheme.colorScheme.primaryContainer
+        ),
+        border = BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
         )
     ) {
         Column(
@@ -3552,6 +3556,10 @@ private fun ReadOnlyModeCard(message: String) {
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.elevatedCardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant
+        ),
+        border = BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
         )
     ) {
         Row(
@@ -3596,7 +3604,11 @@ private fun ActionCard(
     ElevatedCard(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp)
+        shape = RoundedCornerShape(20.dp),
+        border = BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+        )
     ) {
         Column(
             modifier = Modifier
@@ -3781,6 +3793,10 @@ private fun StatusCard(message: String) {
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.elevatedCardColors(
             containerColor = MaterialTheme.colorScheme.secondaryContainer
+        ),
+        border = BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
         )
     ) {
         Column(
@@ -5627,7 +5643,11 @@ private fun DashboardMetricCard(value: String, label: String, modifier: Modifier
     Surface(
         modifier = modifier,
         tonalElevation = 3.dp,
-        shape = RoundedCornerShape(16.dp)
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+        )
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -5651,7 +5671,11 @@ private fun DashboardMetricCard(value: String, label: String, modifier: Modifier
 private fun BusinessDropAnalyticsCard(drop: Drop) {
     ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp)
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+        )
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -6148,6 +6172,14 @@ private fun CollectedNoteCard(
         colors = CardDefaults.cardColors(
             containerColor = containerColor,
             contentColor = contentColor
+        ),
+        border = BorderStroke(
+            width = 1.dp,
+            color = if (selected) {
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+            } else {
+                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+            }
         )
     ) {
         Column(
@@ -6668,6 +6700,14 @@ private fun MediaCaptureCard(
         colors = CardDefaults.cardColors(
             containerColor = containerColor,
             contentColor = contentColor
+        ),
+        border = BorderStroke(
+            width = 1.dp,
+            color = if (isReady) {
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)
+            } else {
+                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+            }
         )
     ) {
         Column(
@@ -8145,7 +8185,11 @@ private fun BusinessDropTemplateCard(
     onApply: (BusinessDropTemplate) -> Unit
 ) {
     ElevatedCard(
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier.fillMaxWidth(),
+        border = BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
+        )
     ) {
         Column(
             modifier = Modifier
@@ -8506,28 +8550,22 @@ private fun DropVisibilityOptionCard(
         MaterialTheme.colorScheme.onSurfaceVariant
     }
     val cardShape = CardDefaults.elevatedShape
-    val cardModifier = Modifier
-        .fillMaxWidth()
-        .then(
-            if (selected) {
-                Modifier
-            } else {
-                Modifier.border(
-                    width = 1.dp,
-                    color = MaterialTheme.colorScheme.outlineVariant,
-                    shape = cardShape
-                )
-            }
-        )
-        .clickable(onClick = onClick)
+    val borderColor = if (selected) {
+        MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+    } else {
+        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+    }
+    val borderWidth = if (selected) 2.dp else 1.dp
 
     ElevatedCard(
-        modifier = cardModifier,
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.elevatedCardColors(
             containerColor = containerColor,
             contentColor = contentColor
         ),
-        shape = cardShape
+        shape = cardShape,
+        border = BorderStroke(borderWidth, borderColor)
     ) {
         Row(
             modifier = Modifier

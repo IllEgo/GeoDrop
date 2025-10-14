@@ -2,39 +2,45 @@ package com.e3hi.geodrop.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-val OceanBlue80 = Color(0xFFA8C0FF)
-val OceanBlue40 = Color(0xFF2563EB)
 
-val Amber80 = Color(0xFFFFC573)
-val Amber40 = Color(0xFFFF9F1C)
+val CanopyGreen80 = Color(0xFF56D39A)
+val CanopyGreen40 = Color(0xFF0F7C4D)
 
-val Emerald80 = Color(0xFF5EE7B1)
-val Emerald40 = Color(0xFF10B981)
+val FernGreen80 = Color(0xFF66DDBA)
+val FernGreen40 = Color(0xFF147D64)
 
-val Midnight80 = Color(0xFF5D6B9E)
-val Midnight40 = Color(0xFF8A9AD8)
+val GoldenLime80 = Color(0xFFE9CD72)
+val GoldenLime40 = Color(0xFF72590A)
 
-val MidnightContainerLight = Color(0xFFE6EAFF)
-val MidnightContainerDark = Color(0xFF2C355C)
+val CanopyContainerLight = Color(0xFFCFF5E3)
+val CanopyContainerDark = Color(0xFF104E32)
 
-val BackgroundLight = Color(0xFFF5F6FF)
-val BackgroundDark = Color(0xFF0C1024)
+val FernContainerLight = Color(0xFFBDEFE4)
+val FernContainerDark = Color(0xFF0F4F3F)
 
-val SurfaceDark = Color(0xFF141935)
-val SurfaceVariantLight = Color(0xFFE1E6FF)
-val SurfaceVariantDark = Color(0xFF343B5F)
-val OnSurfaceVariantLight = Color(0xFF30365C)
-val OnSurfaceVariantDark = Color(0xFFC7CCF1)
+val GoldenContainerLight = Color(0xFFFFF1C9)
+val GoldenContainerDark = Color(0xFF3A2E00)
 
-val OutlineLight = Color(0xFF737AA3)
-val OutlineDark = Color(0xFF848BB5)
-val OutlineVariantLight = Color(0xFFC7CCF1)
-val OutlineVariantDark = Color(0xFF43496E)
-val InverseSurfaceLight = Color(0xFF2A2F54)
-val InverseSurfaceDark = Color(0xFFE6EAFF)
-val InverseOnSurfaceLight = Color(0xFFF5F6FF)
-val InverseOnSurfaceDark = Color(0xFF141935)
+val BackgroundLight = Color(0xFFF4FBF7)
+val BackgroundDark = Color(0xFF081C11)
 
-val OnBackgroundLight = Color(0xFF11153B)
-val OnBackgroundDark = Color(0xFFE6EAFF)
-val OnPrimaryContainerLight = Color(0xFF101A3A)
+val SurfaceDark = Color(0xFF0E2A1B)
+val SurfaceVariantLight = Color(0xFFDBEAE1)
+val SurfaceVariantDark = Color(0xFF1D3A2C)
+val OnSurfaceVariantLight = Color(0xFF2F4B3A)
+val OnSurfaceVariantDark = Color(0xFFC4DCCD)
+
+val OutlineLight = Color(0xFF6F8E7C)
+val OutlineDark = Color(0xFF81A891)
+val OutlineVariantLight = Color(0xFFC4DCCD)
+val OutlineVariantDark = Color(0xFF294435)
+val InverseSurfaceLight = Color(0xFF1D3526)
+val InverseSurfaceDark = Color(0xFFDCEFE3)
+val InverseOnSurfaceLight = Color(0xFFF4FBF7)
+val InverseOnSurfaceDark = Color(0xFF0E2A1B)
+
+val OnBackgroundLight = Color(0xFF10291A)
+val OnBackgroundDark = Color(0xFFDCEFE3)
+val OnPrimaryContainerLight = Color(0xFF00391F)
+val OnSecondaryContainerLight = Color(0xFF04362A)
+val OnTertiaryContainerLight = Color(0xFF2D2300)
