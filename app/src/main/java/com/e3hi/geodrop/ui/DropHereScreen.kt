@@ -8203,11 +8203,16 @@ private fun BusinessDropTemplateCard(
     onApply: (BusinessDropTemplate) -> Unit
 ) {
     ElevatedCard(
-        modifier = Modifier.fillMaxWidth(),
-        border = BorderStroke(
-            width = 1.dp,
-            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
-        )
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(
+                BorderStroke(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
+                ),
+                shape = RoundedCornerShape(16.dp)
+            ),
+        shape = RoundedCornerShape(16.dp)
     ) {
         Column(
             modifier = Modifier
