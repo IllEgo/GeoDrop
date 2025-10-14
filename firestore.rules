@@ -199,6 +199,8 @@ service cloud.firestore {
       function isValidVoteReportCollectUpdate(before, after, userId) {
         let diff = before.diff(after);
         let changedKeys = diff.changedKeys();
+        let voteKeys = ['voteMap', 'upvoteCount', 'downvoteCount'];
+        let voteChanged = changedKeys.hasAny(voteKeys);
 
         return changedKeys.hasOnly([
             'voteMap',
@@ -208,7 +210,7 @@ service cloud.firestore {
             'reportedBy',
             'reportCount'
           ])
-          && isValidVoteTransition(before, after, userId)
+          && (!voteChanged || isValidVoteTransition(before, after, userId))
           && isValidReportTransition(before, after, userId)
           && (!changedKeys.hasAny(['collectedBy'])
             || hasOnlyUserCollectedChange(before, after, userId));
