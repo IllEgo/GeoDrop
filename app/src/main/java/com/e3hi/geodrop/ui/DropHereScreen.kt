@@ -3610,8 +3610,9 @@ private fun ActionCard(
     trailingContent: (@Composable () -> Unit)? = null,
 ) {
     ElevatedCard(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick, role = Role.Button),
         shape = RoundedCornerShape(20.dp),
         border = BorderStroke(
             width = 1.dp,
