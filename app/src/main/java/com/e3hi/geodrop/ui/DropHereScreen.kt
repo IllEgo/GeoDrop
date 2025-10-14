@@ -1940,11 +1940,12 @@ fun DropHereScreen(
             }
 
             ExplorerDestination.Collected -> {
-                if (!canParticipate) {
+                val storedNotes = noteInventory.getCollectedNotes()
+                if (!canParticipate && storedNotes.isEmpty()) {
                     snackbar.showMessage(scope, participationRestriction("view collected drops"))
                     return
                 }
-                collectedNotes = noteInventory.getCollectedNotes()
+                collectedNotes = storedNotes
                 explorerDestination = destination.name
             }
         }
@@ -2200,7 +2201,7 @@ fun DropHereScreen(
                     .fillMaxSize()
                     .padding(innerPadding)
             ) {
-                if (currentHomeDestination == HomeDestination.Explorer && userMode != UserMode.GUEST) {
+                if (currentHomeDestination == HomeDestination.Explorer && userMode != null) {
                     ExplorerDestinationTabs(
                         modifier = Modifier
                             .fillMaxWidth()
