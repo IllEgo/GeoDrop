@@ -29,21 +29,17 @@ service cloud.firestore {
     let beforeDownvotes = voteCount(before, 'downvoteCount');
     let afterUpvotes = voteCount(after, 'upvoteCount');
     let afterDownvotes = voteCount(after, 'downvoteCount');
-    let removedUpvote = previousVote == 1 ? 1 : 0;
-    let removedDownvote = previousVote == -1 ? 1 : 0;
-    let addedUpvote = newVote == 1 ? 1 : 0;
-    let addedDownvote = newVote == -1 ? 1 : 0;
-    let expectedUpvotes = max(beforeUpvotes - removedUpvote, 0) + addedUpvote;
-    let expectedDownvotes = max(beforeDownvotes - removedDownvote, 0) + addedDownvote;
-    let beforeVoteMap = (before.voteMap is map) ? before.voteMap : {};
-    let afterVoteMap = (after.voteMap is map) ? after.voteMap : {};
-    let voteDiff = beforeVoteMap.diff(afterVoteMap);
+    let voteDiff = ((before.voteMap is map) ? before.voteMap : {}).diff(
+      (after.voteMap is map) ? after.voteMap : {}
+    );
+    let normalizedUpvotes = (beforeUpvotes - (previousVote == 1 ? 1 : 0));
+    let normalizedDownvotes = (beforeDownvotes - (previousVote == -1 ? 1 : 0));
 
     return (previousVote in [-1, 0, 1])
       && (newVote in [-1, 0, 1])
       && voteDiff.affectedKeys().hasOnly([userId])
-      && afterUpvotes == expectedUpvotes
-      && afterDownvotes == expectedDownvotes;
+      && afterUpvotes == ((normalizedUpvotes > 0 ? normalizedUpvotes : 0) + (newVote == 1 ? 1 : 0))
+      && afterDownvotes == ((normalizedDownvotes > 0 ? normalizedDownvotes : 0) + (newVote == -1 ? 1 : 0));
   }
 
   match /databases/{database}/documents {
@@ -93,9 +89,14 @@ service cloud.firestore {
       }
 
         function isValidReportReasonCodes() {
-          return request.resource.data.reasonCodes is list
-            && request.resource.data.reasonCodes.size() > 0
-            && request.resource.data.reasonCodes.all(code, code is string && code.size() > 0);
+          let reasonCodes = request.resource.data.reasonCodes;
+          let validCodes = (reasonCodes is list)
+            ? reasonCodes.where(reasonCode, reasonCode is string && reasonCode.size() > 0)
+            : [];
+
+          return reasonCodes is list
+            && reasonCodes.size() > 0
+            && validCodes.size() == reasonCodes.size();
         }
 
       allow create: if isSignedIn()
