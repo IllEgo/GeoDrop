@@ -25,7 +25,7 @@
     <string name="content_description_refresh_drops">Refresh nearby drops</string>
     <string name="action_my_drops_title">My drops</string>
     <string name="action_my_drops_description">Review, open, and manage the drops you\'ve shared.</string>
-    <string name="action_collected_drops_title">Collected drops</string>
+    <string name="action_collected_drops_title">Saved drops</string>
     <string name="action_collected_drops_hidden_nsfw">Your NSFW settings are hiding %1$d collected %2$s.</string>
     <string name="action_collected_drops_empty">Open the drops you\'ve saved for later.</string>
     <string name="action_collected_drops_some_hidden">Open the %1$d %2$s you\'ve saved. (%3$d hidden by NSFW settings.)</string>
