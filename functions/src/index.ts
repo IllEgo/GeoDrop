@@ -18,6 +18,15 @@ const moderationQueueRef = (path: string) =>
     .collection(MODERATION_QUEUE_COLLECTION)
     .doc(encodeStoragePath(path));
 
+const chunkArray = <T>(items: T[], chunkSize: number): T[][] => {
+  if (chunkSize <= 0) return [items];
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += chunkSize) {
+    chunks.push(items.slice(i, i + chunkSize));
+  }
+  return chunks;
+};
+
 const USERNAME_MIN_LENGTH = 3;
 const USERNAME_MAX_LENGTH = 20;
 const USERNAME_PATTERN = /^[a-z0-9._]+$/;
@@ -220,4 +229,53 @@ export const applyPendingModeration = functions
 
     await change.after.ref.set({moderation}, {merge: true});
     await queueRef.delete();
+  });
+
+export const cleanupCollectedNotesOnDropDelete = functions
+  .region("us-central1")
+  .firestore.document("drops/{dropId}")
+  .onUpdate(async (change, context) => {
+    const beforeDeleted = change.before.get("isDeleted") === true;
+    const afterDeleted = change.after.get("isDeleted") === true;
+
+    if (!afterDeleted || beforeDeleted) return;
+
+    const dropData = change.after.data();
+    if (!dropData) return;
+
+    const rawCollectedBy = dropData.collectedBy;
+    if (!rawCollectedBy || typeof rawCollectedBy !== "object") return;
+
+    const createdBy = typeof dropData.createdBy === "string" ? dropData.createdBy : undefined;
+    const dropId = context.params.dropId as string;
+
+    const collectorIds = Array.from(
+      new Set(
+        Object.entries(rawCollectedBy)
+          .filter(([uid, value]) => typeof uid === "string" && uid.trim().length > 0 && Boolean(value))
+          .map(([uid]) => uid.trim())
+          .filter((uid) => uid.length > 0 && uid !== createdBy)
+      )
+    );
+
+    if (collectorIds.length === 0) return;
+
+    const firestore = admin.firestore();
+
+    for (const batchCollectors of chunkArray(collectorIds, 500)) {
+      const batch = firestore.batch();
+      batchCollectors.forEach((uid) => {
+        const inventoryRef = firestore
+          .collection("users")
+          .doc(uid)
+          .collection("inventory")
+          .doc(dropId);
+        batch.delete(inventoryRef);
+      });
+      await batch.commit();
+    }
+
+    console.log(
+      `Removed drop ${dropId} from ${collectorIds.length} collected inventories after deletion.`
+    );
   });
