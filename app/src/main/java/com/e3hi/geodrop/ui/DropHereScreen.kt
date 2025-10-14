@@ -5684,12 +5684,16 @@ private fun DashboardMetricCard(value: String, label: String, modifier: Modifier
 @Composable
 private fun BusinessDropAnalyticsCard(drop: Drop) {
     ElevatedCard(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(
-            width = 1.dp,
-            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-        )
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(
+                BorderStroke(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                ),
+                shape = RoundedCornerShape(16.dp)
+            ),
+        shape = RoundedCornerShape(16.dp)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
