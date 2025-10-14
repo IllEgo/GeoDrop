@@ -38,10 +38,17 @@ internal fun DocumentSnapshot.toDrop(): Drop {
         else -> null
     } ?: base.decayDays
 
+    val dropperUsername = when {
+        contains("dropperUsername") -> getString("dropperUsername")
+        contains("createdByUsername") -> getString("createdByUsername")
+        else -> base.dropperUsername
+    }?.trim()?.takeIf { it.isNotEmpty() }
+
     return base.copy(
         description = description,
         isNsfw = nsfwFlag,
         nsfwLabels = nsfwLabels,
-        decayDays = decayDays
+        decayDays = decayDays,
+        dropperUsername = dropperUsername
     )
 }

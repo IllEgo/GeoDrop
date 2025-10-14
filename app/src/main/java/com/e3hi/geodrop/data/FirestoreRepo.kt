@@ -974,10 +974,11 @@ class FirestoreRepo(
             redemptionCount = withTimestamp.redemptionCount.coerceAtLeast(0),
             redeemedBy = withTimestamp.redeemedBy.filterKeys { it.isNotBlank() },
             reportedBy = withTimestamp.reportedBy.filterKeys { it.isNotBlank() },
-            decayDays = withTimestamp.decayDays?.takeIf { it > 0 }
+            decayDays = withTimestamp.decayDays?.takeIf { it > 0 },
+            dropperUsername = withTimestamp.dropperUsername?.trim()?.takeIf { it.isNotEmpty() }
         )
 
-        return hashMapOf(
+        return hashMapOf<String, Any?>(
             "text" to sanitized.text,
             "description" to sanitized.description?.takeIf { it.isNotEmpty() },
             "lat" to sanitized.lat,
@@ -1009,7 +1010,13 @@ class FirestoreRepo(
             "redemptionCount" to sanitized.redemptionCount,
             "redeemedBy" to sanitized.redeemedBy,
             "decayDays" to sanitized.decayDays
-        )
+        ).apply {
+            if (!sanitized.isAnonymous) {
+                sanitized.dropperUsername?.takeIf { it.isNotBlank() }?.let { username ->
+                    this["dropperUsername"] = username
+                }
+            }
+        }
     }
 
     private fun DocumentSnapshot.toCollectedNoteOrNull(): CollectedNote? {
@@ -1100,6 +1107,9 @@ class FirestoreRepo(
         data["contentType"] = contentType.name
         data["createdAt"] = createdAt
         if (createdBy.isNotBlank()) data["createdBy"] = createdBy
+        if (!dropperUsername.isNullOrBlank() && !isAnonymous) {
+            data["dropperUsername"] = dropperUsername
+        }
         data["isAnonymous"] = isAnonymous
         lat.takeIf { it != 0.0 }?.let { data["lat"] = it }
         lng.takeIf { it != 0.0 }?.let { data["lng"] = it }

@@ -8,6 +8,7 @@ data class Drop(
     val lng: Double = 0.0,
     val createdBy: String = "",
     val createdAt: Long = 0L,
+    val dropperUsername: String? = null,
     val isAnonymous: Boolean = false,
     val isDeleted: Boolean = false,
     val deletedAt: Long? = null,
@@ -113,7 +114,7 @@ enum class DropContentType {
 
 fun Drop.displayTitle(): String {
     val descriptionText = description.orEmpty()
-    return when (dropType) {
+    val baseTitle = when (dropType) {
         DropType.RESTAURANT_COUPON -> text.ifBlank { descriptionText.ifBlank { "Special offer" } }
         DropType.TOUR_STOP -> text.ifBlank { descriptionText.ifBlank { "Tour stop" } }
         DropType.COMMUNITY -> when (contentType) {
@@ -122,6 +123,14 @@ fun Drop.displayTitle(): String {
             DropContentType.AUDIO -> text.ifBlank { descriptionText }.ifBlank { "Audio drop" }
             DropContentType.VIDEO -> text.ifBlank { descriptionText }.ifBlank { "Video drop" }
         }
+    }
+
+    val username = dropperUsername?.trim()?.takeIf { it.isNotEmpty() }
+    return if (!isAnonymous && !username.isNullOrEmpty()) {
+        val handle = if (username.startsWith("@")) username else "@$username"
+        "$handle dropped $baseTitle"
+    } else {
+        baseTitle
     }
 }
 

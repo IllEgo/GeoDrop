@@ -1429,6 +1429,11 @@ fun DropHereScreen(
         val sanitizedDecayDays = decayDays?.takeIf { it > 0 }
         val sanitizedText = noteText.trim()
         val sanitizedDescription = descriptionText?.trim()?.takeIf { it.isNotEmpty() }
+        val dropperUsername = if (dropAnonymously) {
+            null
+        } else {
+            userProfile?.username?.trim()?.takeIf { it.isNotEmpty() }
+        }
         val d = Drop(
             text = sanitizedText,
             description = sanitizedDescription,
@@ -1436,6 +1441,7 @@ fun DropHereScreen(
             lng = lng,
             createdBy = uid,
             createdAt = System.currentTimeMillis(),
+            dropperUsername = dropperUsername,
             isAnonymous = dropAnonymously,
             groupCode = groupCode,
             dropType = dropType,
