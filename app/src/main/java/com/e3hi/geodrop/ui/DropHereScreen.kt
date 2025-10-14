@@ -97,6 +97,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -2283,6 +2284,7 @@ fun DropHereScreen(
                                             browseReportDialogOpen = true
                                         },
                                         reportingDropId = browseReportingDropId,
+                                        dismissedBrowseDropIds = dismissedBrowseDropIds,
                                         onRefresh = { otherDropsRefreshToken += 1 },
                                         listState = otherDropsListState,
                                         mapWeight = otherDropsMapWeight,
@@ -5841,6 +5843,7 @@ private fun OtherDropsExplorerSection(
     onVote: (Drop, DropVoteType) -> Unit,
     onReport: (Drop) -> Unit,
     reportingDropId: String?,
+    dismissedBrowseDropIds: SnapshotStateList<String>,
     onRefresh: () -> Unit,
     listState: LazyListState,
     mapWeight: Float,

@@ -19,8 +19,8 @@
     <string name="section_quick_actions">Quick actions</string>
     <string name="action_browse_map_title">Browse map</string>
     <string name="action_ignore_drop_for_now">Ignore for now</string>
-    <string name="browse_ignore_drop_explainer">We\'ll hide this drop from the browse list until you\'re nearby again.</string>
-    <string name="browse_ignore_drop_snackbar">Drop hidden for now. It\'ll show up again when you're nearby.</string>
+    <string name="browse_ignore_drop_explainer">Well hide this drop from the browse list until youre nearby again.</string>
+    <string name="browse_ignore_drop_snackbar">Drop hidden for now. Itll show up again when youre nearby.</string>
     <string name="action_retry_generic">Try again</string>
     <string name="content_description_refresh_drops">Refresh nearby drops</string>
     <string name="action_my_drops_title">My drops</string>
