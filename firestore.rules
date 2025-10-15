@@ -24,85 +24,45 @@ service cloud.firestore {
   }
 
   function resolveVoteValue(raw) {
-    if (raw is number) {
-      return raw;
-    }
+    return raw is number
+      ? raw
+      : raw is bool
+      ? (raw ? 1 : 0)
+      : raw is string
+      ? resolveVoteValueFromString(raw)
+      : raw is map
+      ? resolveVoteValueFromMap(raw)
+      : null;
+  }
 
-    if (raw is bool) {
-      return raw ? 1 : 0;
-    }
+  function resolveVoteValueFromString(raw) {
+    let normalized = raw.lower();
 
-    if (raw is string) {
-      let normalized = raw.lower();
+    return normalized in ['1', '+1', 'up', 'upvote', 'upvoted', 'positive', 'thumbs_up', 'thumbsup', 'like', 'liked', 'true']
+      ? 1
+      : normalized in ['-1', 'down', 'downvote', 'downvoted', 'negative', 'thumbs_down', 'thumbsdown', 'dislike', 'disliked']
+      ? -1
+      : normalized in ['0', 'none', 'neutral', 'false', 'clear', 'remove', 'unvote', 'unvoted', 'unset']
+      ? 0
+      : null;
+  }
 
-      if (normalized in ['1', '+1', 'up', 'upvote', 'upvoted', 'positive', 'thumbs_up', 'thumbsup', 'like', 'liked', 'true']) {
-        return 1;
-      }
+  function resolveVoteValueFromMap(raw) {
+    let candidateValues = [
+      raw.value,
+      raw.vote,
+      raw.direction,
+      raw.state,
+      raw.status,
+      raw.choice
+    ];
 
-      if (normalized in ['-1', 'down', 'downvote', 'downvoted', 'negative', 'thumbs_down', 'thumbsdown', 'dislike', 'disliked']) {
-        return -1;
-      }
+    let resolvedCandidates = candidateValues
+      .where(candidate, !(candidate == null))
+      .map(candidate, resolveVoteValue(candidate))
+      .where(candidate, !(candidate == null));
 
-      if (normalized in ['0', 'none', 'neutral', 'false', 'clear', 'remove', 'unvote', 'unvoted', 'unset']) {
-        return 0;
-      }
-
-      return null;
-    }
-
-    if (raw is map) {
-      let candidate = raw.value;
-      if (!(candidate == null)) {
-        let resolvedValue = resolveVoteValue(candidate);
-        if (!(resolvedValue == null)) {
-          return resolvedValue;
-        }
-      }
-
-      candidate = raw.vote;
-      if (!(candidate == null)) {
-        let resolvedValue = resolveVoteValue(candidate);
-        if (!(resolvedValue == null)) {
-          return resolvedValue;
-        }
-      }
-
-      candidate = raw.direction;
-      if (!(candidate == null)) {
-        let resolvedValue = resolveVoteValue(candidate);
-        if (!(resolvedValue == null)) {
-          return resolvedValue;
-        }
-      }
-
-      candidate = raw.state;
-      if (!(candidate == null)) {
-        let resolvedValue = resolveVoteValue(candidate);
-        if (!(resolvedValue == null)) {
-          return resolvedValue;
-        }
-      }
-
-      candidate = raw.status;
-      if (!(candidate == null)) {
-        let resolvedValue = resolveVoteValue(candidate);
-        if (!(resolvedValue == null)) {
-          return resolvedValue;
-        }
-      }
-
-      candidate = raw.choice;
-      if (!(candidate == null)) {
-        let resolvedValue = resolveVoteValue(candidate);
-        if (!(resolvedValue == null)) {
-          return resolvedValue;
-        }
-      }
-
-      return null;
-    }
-
-    return null;
+    return resolvedCandidates.size() > 0 ? resolvedCandidates[0] : null;
   }
 
   function voteCount(data, field) {
