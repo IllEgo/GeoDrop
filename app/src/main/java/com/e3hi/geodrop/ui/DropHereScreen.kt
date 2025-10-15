@@ -192,6 +192,7 @@ import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.maps.model.LatLng
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
+import com.google.firebase.firestore.FirebaseFirestoreException
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
@@ -1154,6 +1155,21 @@ fun DropHereScreen(
             } catch (e: Exception) {
                 otherDrops = previousOtherDrops
                 myDrops = previousMyDrops
+                if (e is FirebaseFirestoreException &&
+                    e.code == FirebaseFirestoreException.Code.PERMISSION_DENIED
+                ) {
+                    Log.w(
+                        "DropHere",
+                        "Permission denied while voting on drop $dropId for $userId",
+                        e
+                    )
+                } else {
+                    Log.e(
+                        "DropHere",
+                        "Failed to vote on drop $dropId for $userId",
+                        e
+                    )
+                }
                 val message = e.message?.takeIf { it.isNotBlank() }
                     ?: "Couldn't update your vote. Try again."
                 snackbar.showMessage(scope, message)

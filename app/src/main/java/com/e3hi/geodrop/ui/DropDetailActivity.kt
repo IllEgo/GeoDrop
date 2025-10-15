@@ -109,6 +109,7 @@ import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.launch
 import kotlin.math.ceil
 import com.e3hi.geodrop.R
+import com.google.firebase.firestore.FirebaseFirestoreException
 
 
 class DropDetailActivity : ComponentActivity() {
@@ -925,6 +926,21 @@ class DropDetailActivity : ComponentActivity() {
                                                         repo.voteOnDrop(dropId, userId, desiredVote)
                                                     } catch (e: Exception) {
                                                         state = previous
+                                                        if (e is FirebaseFirestoreException &&
+                                                            e.code == FirebaseFirestoreException.Code.PERMISSION_DENIED
+                                                        ) {
+                                                            Log.w(
+                                                                "DropDetail",
+                                                                "Permission denied while voting on drop $dropId for $userId",
+                                                                e
+                                                            )
+                                                        } else {
+                                                            Log.e(
+                                                                "DropDetail",
+                                                                "Failed to vote on drop $dropId for $userId",
+                                                                e
+                                                            )
+                                                        }
                                                         val message = e.localizedMessage?.takeIf { it.isNotBlank() }
                                                             ?: "Couldn't update your vote. Try again."
                                                         Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
