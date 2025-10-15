@@ -23,13 +23,21 @@ service cloud.firestore {
       : 0;
   }
 
-  function resolveVoteValue(raw) {
+  function resolveVotePrimitive(raw) {
     return raw is number
       ? raw
       : raw is bool
       ? (raw ? 1 : 0)
       : raw is string
       ? resolveVoteValueFromString(raw)
+      : null;
+  }
+
+  function resolveVoteValue(raw) {
+    let primitive = resolveVotePrimitive(raw);
+
+    return primitive != null
+      ? primitive
       : raw is map
       ? resolveVoteValueFromMap(raw)
       : null;
@@ -48,21 +56,14 @@ service cloud.firestore {
   }
 
   function resolveVoteValueFromMap(raw) {
-    let candidateValues = [
-      raw.value,
-      raw.vote,
-      raw.direction,
-      raw.state,
-      raw.status,
-      raw.choice
-    ];
+    let candidateValue = resolveVotePrimitive(raw.value);
+    let candidateVote = candidateValue != null ? candidateValue : resolveVotePrimitive(raw.vote);
+    let candidateDirection = candidateVote != null ? candidateVote : resolveVotePrimitive(raw.direction);
+    let candidateState = candidateDirection != null ? candidateDirection : resolveVotePrimitive(raw.state);
+    let candidateStatus = candidateState != null ? candidateState : resolveVotePrimitive(raw.status);
+    let candidateChoice = candidateStatus != null ? candidateStatus : resolveVotePrimitive(raw.choice);
 
-    let resolvedCandidates = candidateValues
-      .where(candidate, !(candidate == null))
-      .map(candidate, resolveVoteValue(candidate))
-      .where(candidate, !(candidate == null));
-
-    return resolvedCandidates.size() > 0 ? resolvedCandidates[0] : null;
+    return candidateChoice;
   }
 
   function voteCount(data, field) {
@@ -77,16 +78,19 @@ service cloud.firestore {
     let beforeDownvotes = voteCount(before, 'downvoteCount');
     let afterUpvotes = voteCount(after, 'upvoteCount');
     let afterDownvotes = voteCount(after, 'downvoteCount');
-    let beforeVotes = (before.voteMap is map) ? before.voteMap : {};
-    let afterVotes = (after.voteMap is map) ? after.voteMap : {};
-    let voteDiff = beforeVotes.diff(afterVotes);
-    let affectedVoteKeys = voteDiff.affectedKeys();
-    let userPrefix = userId + '.';
-    let userPrefixLength = userPrefix.size();
-    let onlyUserVoteChanged = affectedVoteKeys.all(key,
-      key == userId
-        || (key.size() >= userPrefixLength && key.slice(0, userPrefixLength) == userPrefix)
-    );
+    let allowedVoteKeys = [
+      userId,
+      userId + '.value',
+      userId + '.vote',
+      userId + '.direction',
+      userId + '.state',
+      userId + '.status',
+      userId + '.choice'
+    ];
+    let onlyUserVoteChanged = ((before.voteMap is map) ? before.voteMap : {})
+      .diff((after.voteMap is map) ? after.voteMap : {})
+      .affectedKeys()
+      .hasOnly(allowedVoteKeys);
     let normalizedUpvotes = (beforeUpvotes - (previousVote == 1 ? 1 : 0));
     let normalizedDownvotes = (beforeDownvotes - (previousVote == -1 ? 1 : 0));
 
@@ -145,13 +149,11 @@ service cloud.firestore {
 
         function isValidReportReasonCodes() {
           let reasonCodes = request.resource.data.reasonCodes;
-          let validCodes = (reasonCodes is list)
-            ? reasonCodes.where(reasonCode, reasonCode is string && reasonCode.size() > 0)
-            : [];
 
           return reasonCodes is list
             && reasonCodes.size() > 0
-            && validCodes.size() == reasonCodes.size();
+            && !reasonCodes.hasAny([null])
+            && !reasonCodes.hasAny(['']);
         }
 
       allow create: if isSignedIn()
@@ -256,42 +258,32 @@ service cloud.firestore {
       }
 
       function isValidVoteReportCollectUpdate(before, after, userId) {
-        let diff = before.diff(after);
-        let changedKeys = diff.changedKeys();
+        let allowedFields = [
+          'voteMap',
+          'voteMap.' + userId,
+          'voteMap.' + userId + '.value',
+          'voteMap.' + userId + '.vote',
+          'voteMap.' + userId + '.direction',
+          'voteMap.' + userId + '.state',
+          'voteMap.' + userId + '.status',
+          'voteMap.' + userId + '.choice',
+          'upvoteCount',
+          'downvoteCount',
+          'collectedBy',
+          'collectedBy.' + userId,
+          'reportedBy',
+          'reportedBy.' + userId,
+          'reportCount'
+        ];
+        let hasOnlyAllowedFields = request.writeFields.hasOnly(allowedFields);
+        let voteChanged = before.voteMap != after.voteMap
+          || before.upvoteCount != after.upvoteCount
+          || before.downvoteCount != after.downvoteCount;
+        let collectedChanged = before.collectedBy != after.collectedBy;
+        let reportChanged = before.reportedBy != after.reportedBy
+          || before.reportCount != after.reportCount;
 
-        let hasOnlyAllowedKeys = changedKeys.all(key,
-          key in [
-            'voteMap',
-            'upvoteCount',
-            'downvoteCount',
-            'collectedBy',
-            'reportedBy',
-            'reportCount'
-          ]
-            || key.matches('^(voteMap|collectedBy|reportedBy)\\..+$')
-        );
-
-        let voteChanged = changedKeys
-          .where(key,
-            key in ['voteMap', 'upvoteCount', 'downvoteCount']
-              || key.matches('^voteMap\\..+$')
-          )
-          .size() > 0;
-
-        let collectedChanged = changedKeys
-          .where(key,
-            key == 'collectedBy' || key.matches('^collectedBy\\..+$')
-          )
-          .size() > 0;
-
-        let reportChanged = changedKeys
-          .where(key,
-            key in ['reportedBy', 'reportCount']
-              || key.matches('^reportedBy\\..+$')
-          )
-          .size() > 0;
-
-        return hasOnlyAllowedKeys
+        return hasOnlyAllowedFields
           && (!voteChanged || isValidVoteTransition(before, after, userId))
           && (!reportChanged || isValidReportTransition(before, after, userId))
           && (!collectedChanged || hasOnlyUserCollectedChange(before, after, userId));
