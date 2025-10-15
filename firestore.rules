@@ -266,8 +266,24 @@ service cloud.firestore {
           'reportedBy',
           'reportCount'
         ];
+        let userVoteFields = [
+          'voteMap.' + userId,
+          'voteMap.' + userId + '.value',
+          'voteMap.' + userId + '.vote',
+          'voteMap.' + userId + '.direction',
+          'voteMap.' + userId + '.state',
+          'voteMap.' + userId + '.status',
+          'voteMap.' + userId + '.choice'
+        ];
+        let userCollectFields = ['collectedBy.' + userId];
+        let userReportFields = ['reportedBy.' + userId];
+        let allowedWriteFields = allowedFields
+          .concat(userVoteFields)
+          .concat(userCollectFields)
+          .concat(userReportFields);
         let changedFields = before.diff(after).affectedKeys();
         let hasOnlyAllowedFields = changedFields.hasOnly(allowedFields);
+        let hasOnlyAllowedWriteFields = request.writeFields.hasOnly(allowedWriteFields);
         let voteChanged = before.voteMap != after.voteMap
           || before.upvoteCount != after.upvoteCount
           || before.downvoteCount != after.downvoteCount;
@@ -276,6 +292,7 @@ service cloud.firestore {
           || before.reportCount != after.reportCount;
 
         return hasOnlyAllowedFields
+          && hasOnlyAllowedWriteFields
           && (!voteChanged || isValidVoteTransition(before, after, userId))
           && (!reportChanged || isValidReportTransition(before, after, userId))
           && (!collectedChanged || hasOnlyUserCollectedChange(before, after, userId));
