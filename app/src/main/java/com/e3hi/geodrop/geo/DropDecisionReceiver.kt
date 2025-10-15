@@ -4,6 +4,8 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.location.Location
+import android.os.Build
+import android.os.SystemClock
 import android.util.Log
 import androidx.core.app.NotificationManagerCompat
 import com.e3hi.geodrop.data.CollectedNote
@@ -169,9 +171,35 @@ class DropDecisionReceiver : BroadcastReceiver() {
             Log.w(TAG, "Couldn't obtain current location to validate drop proximity; allowing pickup.")
             return true
         }
+
+        if (isLocationStale(location)) {
+            Log.w(TAG, "Location reading for pickup check is stale; allowing pickup.")
+            return true
+        }
+
+        val accuracy = location.accuracy.takeIf { location.hasAccuracy() && it > 0f }
+        if (accuracy == null || accuracy > PICKUP_RADIUS_METERS) {
+            Log.w(TAG, "Location accuracy is insufficient (${accuracy ?: Float.NaN}m); allowing pickup.")
+            return true
+        }
         val results = FloatArray(1)
         Location.distanceBetween(location.latitude, location.longitude, dropLat, dropLng, results)
-        return results[0] <= PICKUP_RADIUS_METERS
+        return results[0] <= PICKUP_RADIUS_METERS + accuracy
+    }
+
+    private fun isLocationStale(location: Location): Boolean {
+        val ageMillis = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
+            val elapsedNanos = location.elapsedRealtimeNanos
+            if (elapsedNanos > 0L) {
+                (SystemClock.elapsedRealtimeNanos() - elapsedNanos) / 1_000_000
+            } else {
+                Long.MAX_VALUE
+            }
+        } else {
+            System.currentTimeMillis() - location.time
+        }
+
+        return ageMillis > LOCATION_STALE_THRESHOLD_MILLIS
     }
 
     companion object {
@@ -199,5 +227,6 @@ class DropDecisionReceiver : BroadcastReceiver() {
         const val EXTRA_DROP_DECAY_DAYS = "extra_drop_decay_days"
         private const val TAG = "DropDecisionReceiver"
         private const val PICKUP_RADIUS_METERS = 30.0f
+        private val LOCATION_STALE_THRESHOLD_MILLIS = TimeUnit.MINUTES.toMillis(2)
     }
 }
