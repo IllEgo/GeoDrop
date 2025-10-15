@@ -16,7 +16,14 @@ class NoteInventory(context: Context) {
     private val prefs: SharedPreferences =
         context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     private val appContext = context.applicationContext
-    private val listeners = CopyOnWriteArraySet<ChangeListener>()
+
+    /**
+     * All [NoteInventory] instances read and write to the same SharedPreferences file, so changes
+     * performed in one instance (for example from a broadcast receiver) should notify listeners
+     * that were registered on another instance. Keep the listener registry in the companion object
+     * so every instance shares the same callbacks.
+     */
+    private val listeners get() = sharedListeners
 
     fun getCollectedNotes(): List<CollectedNote> {
         val raw = prefs.getString(KEY_COLLECTED, null) ?: return emptyList()
@@ -180,6 +187,8 @@ class NoteInventory(context: Context) {
         private const val KEY_COLLECTED = "collected_notes"
         private const val KEY_COLLECTED_IDS = "collected_note_ids"
         private const val KEY_IGNORED = "ignored_drop_ids"
+
+        private val sharedListeners = CopyOnWriteArraySet<ChangeListener>()
     }
 
     data class Snapshot(
