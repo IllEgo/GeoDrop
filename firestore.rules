@@ -233,9 +233,16 @@ service cloud.firestore {
           )
           .size() > 0;
 
+        let reportChanged = changedKeys
+          .where(key,
+            key in ['reportedBy', 'reportCount']
+              || key.matches('^reportedBy\\..+$')
+          )
+          .size() > 0;
+
         return hasOnlyAllowedKeys
           && (!voteChanged || isValidVoteTransition(before, after, userId))
-          && isValidReportTransition(before, after, userId)
+          && (!reportChanged || isValidReportTransition(before, after, userId))
           && (!collectedChanged || hasOnlyUserCollectedChange(before, after, userId));
       }
 
