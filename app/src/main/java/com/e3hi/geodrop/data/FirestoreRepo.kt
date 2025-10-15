@@ -5,6 +5,7 @@ import com.e3hi.geodrop.BuildConfig
 import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldPath
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.ListenerRegistration
@@ -616,34 +617,38 @@ class FirestoreRepo(
 
             var updatedUpvotes = currentUpvotes
             var updatedDownvotes = currentDownvotes
-            val updatedMap = currentMap.toMutableMap()
 
             when (previousVote) {
                 1 -> updatedUpvotes = (updatedUpvotes - 1).coerceAtLeast(0)
                 -1 -> updatedDownvotes = (updatedDownvotes - 1).coerceAtLeast(0)
             }
 
-            if (previousVote != 0) {
-                updatedMap.remove(userId)
-            }
-
             when (vote) {
                 DropVoteType.UPVOTE -> {
                     updatedUpvotes += 1
-                    updatedMap[userId] = 1L
                 }
                 DropVoteType.DOWNVOTE -> {
                     updatedDownvotes += 1
-                    updatedMap[userId] = -1L
                 }
                 DropVoteType.NONE -> Unit
             }
 
-            val updates = mapOf(
+            // Use granular nested updates so Firestore security rules that restrict voteMap
+            // mutations to the acting user accept the write. Writing the entire map in one go
+            // causes PERMISSION_DENIED failures for non-owners.
+            val updates = mutableMapOf<String, Any>(
                 "upvoteCount" to updatedUpvotes,
                 "downvoteCount" to updatedDownvotes,
-                "voteMap" to updatedMap.toMap()
             )
+
+            val voteFieldPath = "voteMap.$userId"
+            when (vote) {
+                DropVoteType.UPVOTE -> updates[voteFieldPath] = 1L
+                DropVoteType.DOWNVOTE -> updates[voteFieldPath] = -1L
+                DropVoteType.NONE -> if (previousVote != 0) {
+                    updates[voteFieldPath] = FieldValue.delete()
+                }
+            }
 
             transaction.update(docRef, updates)
         }.await()
