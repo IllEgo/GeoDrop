@@ -623,29 +623,24 @@ class FirestoreRepo(
                 -1 -> updatedDownvotes = (updatedDownvotes - 1).coerceAtLeast(0)
             }
 
-            val voteFieldPath = "voteMap.$userId"
-            val updateData = hashMapOf<String, Any?>(
+            when (vote) {
+                DropVoteType.UPVOTE -> updatedUpvotes += 1
+                DropVoteType.DOWNVOTE -> updatedDownvotes += 1
+                DropVoteType.NONE -> Unit
+            }
+
+            val countUpdates = mapOf(
                 "upvoteCount" to updatedUpvotes,
                 "downvoteCount" to updatedDownvotes
             )
+            val voteFieldPath = FieldPath.of("voteMap", userId)
 
+            transaction.update(docRef, countUpdates)
             when (vote) {
-                DropVoteType.UPVOTE -> {
-                    updatedUpvotes += 1
-                    updateData["upvoteCount"] = updatedUpvotes
-                    updateData[voteFieldPath] = 1L
-                }
-                DropVoteType.DOWNVOTE -> {
-                    updatedDownvotes += 1
-                    updateData["downvoteCount"] = updatedDownvotes
-                    updateData[voteFieldPath] = -1L
-                }
-                DropVoteType.NONE -> {
-                    updateData[voteFieldPath] = FieldValue.delete()
-                }
+                DropVoteType.UPVOTE -> transaction.update(docRef, voteFieldPath, 1L)
+                DropVoteType.DOWNVOTE -> transaction.update(docRef, voteFieldPath, -1L)
+                DropVoteType.NONE -> transaction.update(docRef, voteFieldPath, FieldValue.delete())
             }
-
-            transaction.update(docRef, updateData)
         }.await()
 
         Log.d("GeoDrop", "Recorded ${vote.name.lowercase()} for drop $dropId by $userId")
