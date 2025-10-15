@@ -44,6 +44,32 @@ async function seedDrop(env, data) {
     const authed = env.authenticatedContext('voter');
     const dropRef = authed.firestore().doc(DROP_PATH);
 
+    // Nested field updates that mimic the client transaction should succeed.
+    await env.clearFirestore();
+    await seedDrop(env, baseDropData());
+    await assertSucceeds(
+      dropRef.update({
+        upvoteCount: 1,
+        downvoteCount: 0,
+        ['voteMap.voter']: 1,
+      })
+    );
+
+    // Flipping a vote via nested update paths should also succeed.
+    await env.clearFirestore();
+    await seedDrop(env, baseDropData({
+      voteMap: { voter: 1 },
+      upvoteCount: 1,
+      downvoteCount: 0,
+    }));
+    await assertSucceeds(
+      dropRef.update({
+        upvoteCount: 0,
+        downvoteCount: 1,
+        ['voteMap.voter']: -1,
+      })
+    );
+
     // Removing a vote when the aggregate count is already 0 should clamp and succeed.
     await env.clearFirestore();
     await seedDrop(env, baseDropData({

@@ -203,21 +203,36 @@ service cloud.firestore {
       function isValidVoteReportCollectUpdate(before, after, userId) {
         let diff = before.diff(after);
         let changedKeys = diff.changedKeys();
-        let voteKeys = ['voteMap', 'upvoteCount', 'downvoteCount'];
-        let voteChanged = changedKeys.hasAny(voteKeys);
 
-        return changedKeys.hasOnly([
+        let hasOnlyAllowedKeys = changedKeys.all(key,
+          key in [
             'voteMap',
             'upvoteCount',
             'downvoteCount',
             'collectedBy',
             'reportedBy',
             'reportCount'
-          ])
+          ]
+            || key.matches('^(voteMap|collectedBy|reportedBy)\\..+$')
+        );
+
+        let voteChanged = changedKeys
+          .where(key,
+            key in ['voteMap', 'upvoteCount', 'downvoteCount']
+              || key.matches('^voteMap\\..+$')
+          )
+          .size() > 0;
+
+        let collectedChanged = changedKeys
+          .where(key,
+            key == 'collectedBy' || key.matches('^collectedBy\\..+$')
+          )
+          .size() > 0;
+
+        return hasOnlyAllowedKeys
           && (!voteChanged || isValidVoteTransition(before, after, userId))
           && isValidReportTransition(before, after, userId)
-          && (!changedKeys.hasAny(['collectedBy'])
-            || hasOnlyUserCollectedChange(before, after, userId));
+          && (!collectedChanged || hasOnlyUserCollectedChange(before, after, userId));
       }
 
       function isRedeemableDrop(data) {
