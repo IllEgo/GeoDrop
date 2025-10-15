@@ -146,7 +146,7 @@ class FirestoreRepo(
         val ignored = mutableSetOf<String>()
 
         snapshot.documents.forEach { doc ->
-            when (doc.getString("state")?.lowercase(Locale.US) ?: STATE_COLLECTED) {
+            when (doc.getString("state")?.uppercase(Locale.US) ?: STATE_COLLECTED) {
                 STATE_IGNORED -> {
                     val id = doc.id.takeIf { it.isNotBlank() }
                         ?: doc.getString("id")
@@ -215,7 +215,7 @@ class FirestoreRepo(
             val ignored = mutableSetOf<String>()
 
             snapshot.documents.forEach { doc ->
-                when (doc.getString("state")?.lowercase(Locale.US) ?: STATE_COLLECTED) {
+                when (doc.getString("state")?.uppercase(Locale.US) ?: STATE_COLLECTED) {
                     STATE_IGNORED -> {
                         val id = doc.id.takeIf { it.isNotBlank() }
                             ?: doc.getString("id")
@@ -1134,8 +1134,8 @@ class FirestoreRepo(
     }
 
     private companion object {
-        private const val STATE_COLLECTED = "collected"
-        private const val STATE_IGNORED = "ignored"
+        private const val STATE_COLLECTED = "COLLECTED"
+        private const val STATE_IGNORED = "IGNORED"
     }
 }
 
