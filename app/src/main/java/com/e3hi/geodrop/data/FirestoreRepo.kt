@@ -7,7 +7,6 @@ import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldPath
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
-import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.SetOptions
 import com.google.firebase.firestore.ktx.firestore
@@ -617,30 +616,36 @@ class FirestoreRepo(
 
             var updatedUpvotes = currentUpvotes
             var updatedDownvotes = currentDownvotes
+            val updatedMap = currentMap.toMutableMap()
 
             when (previousVote) {
                 1 -> updatedUpvotes = (updatedUpvotes - 1).coerceAtLeast(0)
                 -1 -> updatedDownvotes = (updatedDownvotes - 1).coerceAtLeast(0)
             }
 
+            if (previousVote != 0) {
+                updatedMap.remove(userId)
+            }
+
             when (vote) {
-                DropVoteType.UPVOTE -> updatedUpvotes += 1
-                DropVoteType.DOWNVOTE -> updatedDownvotes += 1
+                DropVoteType.UPVOTE -> {
+                    updatedUpvotes += 1
+                    updatedMap[userId] = 1L
+                }
+                DropVoteType.DOWNVOTE -> {
+                    updatedDownvotes += 1
+                    updatedMap[userId] = -1L
+                }
                 DropVoteType.NONE -> Unit
             }
 
-            val countUpdates = mapOf(
+            val updates = mapOf(
                 "upvoteCount" to updatedUpvotes,
-                "downvoteCount" to updatedDownvotes
+                "downvoteCount" to updatedDownvotes,
+                "voteMap" to updatedMap.toMap()
             )
-            val voteFieldPath = FieldPath.of("voteMap", userId)
 
-            transaction.update(docRef, countUpdates)
-            when (vote) {
-                DropVoteType.UPVOTE -> transaction.update(docRef, voteFieldPath, 1L)
-                DropVoteType.DOWNVOTE -> transaction.update(docRef, voteFieldPath, -1L)
-                DropVoteType.NONE -> transaction.update(docRef, voteFieldPath, FieldValue.delete())
-            }
+            transaction.update(docRef, updates)
         }.await()
 
         Log.d("GeoDrop", "Recorded ${vote.name.lowercase()} for drop $dropId by $userId")
