@@ -16,9 +16,93 @@ service cloud.firestore {
     let map = (data.voteMap is map) ? data.voteMap : {};
     let rawValue = map[userId];
 
-    return (rawValue is number && rawValue in [-1, 0, 1])
-      ? rawValue
+    let resolved = resolveVoteValue(rawValue);
+
+    return (resolved is number && resolved in [-1, 0, 1])
+      ? resolved
       : 0;
+  }
+
+  function resolveVoteValue(raw) {
+    if (raw is number) {
+      return raw;
+    }
+
+    if (raw is bool) {
+      return raw ? 1 : 0;
+    }
+
+    if (raw is string) {
+      let normalized = raw.lower();
+
+      if (normalized in ['1', '+1', 'up', 'upvote', 'upvoted', 'positive', 'thumbs_up', 'thumbsup', 'like', 'liked', 'true']) {
+        return 1;
+      }
+
+      if (normalized in ['-1', 'down', 'downvote', 'downvoted', 'negative', 'thumbs_down', 'thumbsdown', 'dislike', 'disliked']) {
+        return -1;
+      }
+
+      if (normalized in ['0', 'none', 'neutral', 'false', 'clear', 'remove', 'unvote', 'unvoted', 'unset']) {
+        return 0;
+      }
+
+      return null;
+    }
+
+    if (raw is map) {
+      let candidate = raw.value;
+      if (!(candidate == null)) {
+        let resolvedValue = resolveVoteValue(candidate);
+        if (!(resolvedValue == null)) {
+          return resolvedValue;
+        }
+      }
+
+      candidate = raw.vote;
+      if (!(candidate == null)) {
+        let resolvedValue = resolveVoteValue(candidate);
+        if (!(resolvedValue == null)) {
+          return resolvedValue;
+        }
+      }
+
+      candidate = raw.direction;
+      if (!(candidate == null)) {
+        let resolvedValue = resolveVoteValue(candidate);
+        if (!(resolvedValue == null)) {
+          return resolvedValue;
+        }
+      }
+
+      candidate = raw.state;
+      if (!(candidate == null)) {
+        let resolvedValue = resolveVoteValue(candidate);
+        if (!(resolvedValue == null)) {
+          return resolvedValue;
+        }
+      }
+
+      candidate = raw.status;
+      if (!(candidate == null)) {
+        let resolvedValue = resolveVoteValue(candidate);
+        if (!(resolvedValue == null)) {
+          return resolvedValue;
+        }
+      }
+
+      candidate = raw.choice;
+      if (!(candidate == null)) {
+        let resolvedValue = resolveVoteValue(candidate);
+        if (!(resolvedValue == null)) {
+          return resolvedValue;
+        }
+      }
+
+      return null;
+    }
+
+    return null;
   }
 
   function voteCount(data, field) {
@@ -33,15 +117,22 @@ service cloud.firestore {
     let beforeDownvotes = voteCount(before, 'downvoteCount');
     let afterUpvotes = voteCount(after, 'upvoteCount');
     let afterDownvotes = voteCount(after, 'downvoteCount');
-    let voteDiff = ((before.voteMap is map) ? before.voteMap : {}).diff(
-      (after.voteMap is map) ? after.voteMap : {}
+    let beforeVotes = (before.voteMap is map) ? before.voteMap : {};
+    let afterVotes = (after.voteMap is map) ? after.voteMap : {};
+    let voteDiff = beforeVotes.diff(afterVotes);
+    let affectedVoteKeys = voteDiff.affectedKeys();
+    let userPrefix = userId + '.';
+    let userPrefixLength = userPrefix.size();
+    let onlyUserVoteChanged = affectedVoteKeys.all(key,
+      key == userId
+        || (key.size() >= userPrefixLength && key.slice(0, userPrefixLength) == userPrefix)
     );
     let normalizedUpvotes = (beforeUpvotes - (previousVote == 1 ? 1 : 0));
     let normalizedDownvotes = (beforeDownvotes - (previousVote == -1 ? 1 : 0));
 
     return (previousVote in [-1, 0, 1])
       && (newVote in [-1, 0, 1])
-      && voteDiff.affectedKeys().hasOnly([userId])
+      && onlyUserVoteChanged
       && afterUpvotes == ((normalizedUpvotes > 0 ? normalizedUpvotes : 0) + (newVote == 1 ? 1 : 0))
       && afterDownvotes == ((normalizedDownvotes > 0 ? normalizedDownvotes : 0) + (newVote == -1 ? 1 : 0));
   }
