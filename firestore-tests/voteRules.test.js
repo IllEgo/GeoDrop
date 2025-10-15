@@ -70,6 +70,21 @@ async function seedDrop(env, data) {
       })
     );
 
+    // Votes stored as floating point numbers should still allow transitions.
+    await env.clearFirestore();
+    await seedDrop(env, baseDropData({
+      voteMap: { voter: 1.0 },
+      upvoteCount: 1.0,
+      downvoteCount: 0.0,
+    }));
+    await assertSucceeds(
+      dropRef.update({
+        upvoteCount: 0,
+        downvoteCount: 1,
+        ['voteMap.voter']: -1,
+      })
+    );
+
     // Removing a vote when the aggregate count is already 0 should clamp and succeed.
     await env.clearFirestore();
     await seedDrop(env, baseDropData({

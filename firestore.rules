@@ -13,13 +13,17 @@ service cloud.firestore {
   }
 
   function voteValue(data, userId) {
-    return (data.voteMap is map && data.voteMap[userId] is int)
-      ? data.voteMap[userId]
+    let map = (data.voteMap is map) ? data.voteMap : {};
+    let rawValue = map[userId];
+
+    return (rawValue is number && rawValue in [-1, 0, 1])
+      ? rawValue
       : 0;
   }
 
   function voteCount(data, field) {
-    return (data[field] is int) ? data[field] : 0;
+    let value = data[field];
+    return (value is number) ? value : 0;
   }
 
   function isValidVoteTransition(before, after, userId) {
