@@ -260,22 +260,14 @@ service cloud.firestore {
       function isValidVoteReportCollectUpdate(before, after, userId) {
         let allowedFields = [
           'voteMap',
-          'voteMap.' + userId,
-          'voteMap.' + userId + '.value',
-          'voteMap.' + userId + '.vote',
-          'voteMap.' + userId + '.direction',
-          'voteMap.' + userId + '.state',
-          'voteMap.' + userId + '.status',
-          'voteMap.' + userId + '.choice',
           'upvoteCount',
           'downvoteCount',
           'collectedBy',
-          'collectedBy.' + userId,
           'reportedBy',
-          'reportedBy.' + userId,
           'reportCount'
         ];
-        let hasOnlyAllowedFields = request.writeFields.hasOnly(allowedFields);
+        let changedFields = before.diff(after).affectedKeys();
+        let hasOnlyAllowedFields = changedFields.hasOnly(allowedFields);
         let voteChanged = before.voteMap != after.voteMap
           || before.upvoteCount != after.upvoteCount
           || before.downvoteCount != after.downvoteCount;
