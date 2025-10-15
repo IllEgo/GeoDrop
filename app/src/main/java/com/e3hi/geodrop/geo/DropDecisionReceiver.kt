@@ -165,7 +165,10 @@ class DropDecisionReceiver : BroadcastReceiver() {
             fused.lastLocation.await()
         }.getOrNull()
 
-        val location = currentLocation ?: return false
+        val location = currentLocation ?: run {
+            Log.w(TAG, "Couldn't obtain current location to validate drop proximity; allowing pickup.")
+            return true
+        }
         val results = FloatArray(1)
         Location.distanceBetween(location.latitude, location.longitude, dropLat, dropLng, results)
         return results[0] <= PICKUP_RADIUS_METERS
