@@ -84,6 +84,7 @@ import com.e3hi.geodrop.data.DropContentType
 import com.e3hi.geodrop.data.Drop
 import com.e3hi.geodrop.data.DropType
 import com.e3hi.geodrop.data.DropLikeStatus
+import com.e3hi.geodrop.data.applyUserLike
 import com.e3hi.geodrop.data.FirestoreRepo
 import com.e3hi.geodrop.data.NoteInventory
 import com.e3hi.geodrop.data.RedemptionResult
