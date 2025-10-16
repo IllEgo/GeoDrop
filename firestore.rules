@@ -24,33 +24,21 @@ service cloud.firestore {
   }
 
   function resolveVotePrimitive(raw) {
-    if (raw is number) {
-      return raw;
-    }
-
-    if (raw is bool) {
-      return raw == true ? 1 : 0;
-    }
-
-    if (raw is string) {
-      return resolveVoteValueFromString(raw);
-    }
-
-    return null;
+    return raw is number
+      ? raw
+      : raw is bool
+        ? (raw == true ? 1 : 0)
+        : raw is string
+          ? resolveVoteValueFromString(raw)
+          : null;
   }
 
   function resolveVoteValue(raw) {
-    let primitive = resolveVotePrimitive(raw);
-
-    if (primitive != null) {
-      return primitive;
-    }
-
-    if (raw is map) {
-      return resolveVoteValueFromMap(raw);
-    }
-
-    return null;
+    return primitive != null
+      ? primitive
+      : raw is map
+        ? resolveVoteValueFromMap(raw)
+        : null;
   }
 
   function resolveVoteValueFromString(raw) {
