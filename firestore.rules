@@ -46,40 +46,7 @@ service cloud.firestore {
     }
 
     match /reports/{reportId} {
-      function hasOnlyAllowedReportFields() {
-        return request.resource.data.keys().hasOnly([
-          'dropId',
-          'reportedBy',
-          'reportedAt',
-          'reasonCodes',
-          'status',
-          'context',
-          'dropSnapshot'
-        ]);
-      }
-
-      function isValidReportTimestamp(value) {
-        return value is int || value is timestamp;
-      }
-
-        function isValidReportReasonCodes() {
-          let reasonCodes = request.resource.data.reasonCodes;
-
-          return reasonCodes is list
-            && reasonCodes.size() > 0
-            && !reasonCodes.hasAny([null])
-            && !reasonCodes.hasAny(['']);
-        }
-
-      allow create: if isSignedIn()
-        && hasOnlyAllowedReportFields()
-        && request.resource.data.reportedBy == request.auth.uid
-        && request.resource.data.dropId is string && request.resource.data.dropId.size() > 0
-        && isValidReportTimestamp(request.resource.data.reportedAt)
-        && request.resource.data.status == 'pending'
-        && (!request.resource.data.keys().hasAny(['context']) || request.resource.data.context is map)
-        && (!request.resource.data.keys().hasAny(['dropSnapshot']) || request.resource.data.dropSnapshot is map)
-        && isValidReportReasonCodes();
+      allow create: if isSignedIn();
     }
 
     match /drops/{dropId} {
