@@ -216,15 +216,7 @@ service cloud.firestore {
       }
 
       function canUserLikeOnDrop(before, after, userId) {
-        let createdBefore = before.createdBy;
-        let createdAfter = after.createdBy;
-        let isOwner = (createdBefore is string && createdBefore == userId)
-          || (createdAfter is string && createdAfter == userId);
-
-        return userId != null
-          && (isOwner
-            || hasCollectedDrop(before, userId)
-            || hasCollectedDrop(after, userId));
+        return userId != null;
       }
 
       function isValidLikeReportCollectUpdate(before, after, userId) {
