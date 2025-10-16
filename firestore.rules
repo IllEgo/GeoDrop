@@ -120,9 +120,9 @@ service cloud.firestore {
         let beforeCount = (before.reportCount is int) ? before.reportCount : 0;
         let afterCount = (after.reportCount is int) ? after.reportCount : 0;
         let diff = beforeReportedBy.diff(afterReportedBy);
-        let timestamp = hasReport ? afterReportedBy[userId] : null;
-        let validTimestamp = timestamp != null
-          && ((timestamp is int) || (timestamp is timestamp));
+        let reportTimestamp = hasReport ? afterReportedBy[userId] : null;
+        let validTimestamp = reportTimestamp != null
+          && ((reportTimestamp is int) || (reportTimestamp is timestamp));
 
         let onlyReporterChanged = diff.removedKeys().size() == 0
           && diff.addedKeys().hasOnly([userId])
