@@ -31,16 +31,12 @@ service cloud.firestore {
     let beforeCount = likeCount(before);
     let afterCount = likeCount(after);
     let decrementedCount = beforeCount - 1;
-
-    if (!diffKeys.hasOnly([userId])) {
-      return false;
-    }
-
-    return (
-      (beforeLiked == afterLiked && afterCount == beforeCount)
-      || (!beforeLiked && afterLiked && afterCount == beforeCount + 1)
-      || (beforeLiked && !afterLiked && afterCount == (decrementedCount >= 0 ? decrementedCount : 0))
-    );
+    return diffKeys.hasOnly([userId])
+      && (
+        (beforeLiked == afterLiked && afterCount == beforeCount)
+        || (!beforeLiked && afterLiked && afterCount == beforeCount + 1)
+        || (beforeLiked && !afterLiked && afterCount == (decrementedCount >= 0 ? decrementedCount : 0))
+      );
   }
 
   match /databases/{database}/documents {
@@ -282,13 +278,13 @@ service cloud.firestore {
           )
           || (
             resource.data.createdBy == request.auth.uid
-            && request.writeFields.hasOnly(['isDeleted', 'deletedAt'])
+            && resource.data.diff(request.resource.data).affectedKeys().hasOnly(['isDeleted', 'deletedAt'])
             && request.resource.data.isDeleted == true
             && request.resource.data.deletedAt is int
           )
           || (
             isRedeemableDrop(resource.data)
-            && request.writeFields.hasOnly([
+            && resource.data.diff(request.resource.data).affectedKeys().hasOnly([
               'redeemedBy.' + request.auth.uid,
               'redemptionCount'
             ])
