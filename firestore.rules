@@ -112,30 +112,6 @@ service cloud.firestore {
             && isBusinessDrop(request.resource.data)
             && request.resource.data.businessId == request.auth.uid)
         );
-      function isValidReportTransition(before, after, userId) {
-        let beforeReportedBy = (before.reportedBy is map) ? before.reportedBy : {};
-        let afterReportedBy = (after.reportedBy is map) ? after.reportedBy : {};
-        let hadReport = beforeReportedBy.keys().hasAny([userId]);
-        let hasReport = afterReportedBy.keys().hasAny([userId]);
-        let beforeCount = (before.reportCount is int) ? before.reportCount : 0;
-        let afterCount = (after.reportCount is int) ? after.reportCount : 0;
-        let diff = beforeReportedBy.diff(afterReportedBy);
-        let reportTimestamp = hasReport ? afterReportedBy[userId] : null;
-        let validTimestamp = reportTimestamp != null
-          && ((reportTimestamp is int) || (reportTimestamp is timestamp));
-
-        let onlyReporterChanged = diff.removedKeys().size() == 0
-          && diff.addedKeys().hasOnly([userId])
-          && diff.changedKeys().hasOnly([userId]);
-
-        return hasReport
-          && validTimestamp
-          && onlyReporterChanged
-          && (
-            (hadReport && afterCount == beforeCount)
-            || (!hadReport && afterCount == beforeCount + 1)
-          );
-      }
 
       function hasOnlyUserCollectedChange(before, after, userId) {
         let beforeCollectedBy = (before.collectedBy is map) ? before.collectedBy : {};
@@ -178,11 +154,8 @@ service cloud.firestore {
         .concat(['reportedBy.' + userId]);
         let hasOnlyAllowedFields = before.diff(after).affectedKeys().hasOnly(allowedWriteFields);
         let collectedChanged = before.collectedBy != after.collectedBy;
-        let reportChanged = before.reportedBy != after.reportedBy
-          || before.reportCount != after.reportCount;
 
         return hasOnlyAllowedFields
-          && (!reportChanged || isValidReportTransition(before, after, userId))
           && (!collectedChanged || hasOnlyUserCollectedChange(before, after, userId));
       }
 
