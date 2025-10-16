@@ -272,33 +272,22 @@ service cloud.firestore {
       }
 
       function hasCollectedDrop(data, userId) {
-        if (!(data.collectedBy is map)) {
-          return false;
-        }
-
-        let collected = data.collectedBy;
-        if (!collected.keys().hasAny([userId])) {
-          return false;
-        }
-
-        let value = collected[userId];
-
-        return value != null && hasTruthyValue(value);
+        return (data.collectedBy is map)
+          && data.collectedBy.keys().hasAny([userId])
+          && data.collectedBy[userId] != null
+          && hasTruthyValue(data.collectedBy[userId]);
       }
 
       function canUserVoteOnDrop(before, after, userId) {
-        if (userId == null) {
-          return false;
-        }
-
         let createdBefore = before.createdBy;
         let createdAfter = after.createdBy;
         let isOwner = (createdBefore is string && createdBefore == userId)
           || (createdAfter is string && createdAfter == userId);
 
-        return isOwner
-          || hasCollectedDrop(before, userId)
-          || hasCollectedDrop(after, userId);
+        return userId != null
+          && (isOwner
+            || hasCollectedDrop(before, userId)
+            || hasCollectedDrop(after, userId));
       }
 
       function isValidVoteReportCollectUpdate(before, after, userId) {
