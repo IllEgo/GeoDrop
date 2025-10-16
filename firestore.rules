@@ -262,7 +262,11 @@ service cloud.firestore {
           || (value is int && value != 0)
           || (value is float && value != 0)
           || (value is timestamp)
-          || (value is string && value.size() > 0 && value.lower() !in ['false', '0', 'off', 'no'])
+          || (
+            value is string
+            && value.size() > 0
+            && !(value.lower() in ['false', '0', 'off', 'no'])
+          )
           || (value is map && value.size() > 0)
           || (value is list && value.size() > 0);
       }
