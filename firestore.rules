@@ -24,23 +24,33 @@ service cloud.firestore {
   }
 
   function resolveVotePrimitive(raw) {
-    return raw is number
-      ? raw
-      : raw is bool
-      ? (raw ? 1 : 0)
-      : raw is string
-      ? resolveVoteValueFromString(raw)
-      : null;
+    if (raw is number) {
+      return raw;
+    }
+
+    if (raw is bool) {
+      return raw == true ? 1 : 0;
+    }
+
+    if (raw is string) {
+      return resolveVoteValueFromString(raw);
+    }
+
+    return null;
   }
 
   function resolveVoteValue(raw) {
     let primitive = resolveVotePrimitive(raw);
 
-    return primitive != null
-      ? primitive
-      : raw is map
-      ? resolveVoteValueFromMap(raw)
-      : null;
+    if (primitive != null) {
+      return primitive;
+    }
+
+    if (raw is map) {
+      return resolveVoteValueFromMap(raw);
+    }
+
+    return null;
   }
 
   function resolveVoteValueFromString(raw) {
@@ -291,15 +301,15 @@ service cloud.firestore {
       }
 
       function isValidVoteReportCollectUpdate(before, after, userId) {
-        let allowedFields = [
+        let allowedWriteFields = [
           'voteMap',
           'upvoteCount',
           'downvoteCount',
           'collectedBy',
           'reportedBy',
           'reportCount'
-        ];
-        let userVoteFields = [
+        ]
+        .concat([
           'voteMap.' + userId,
           'voteMap.' + userId + '.value',
           'voteMap.' + userId + '.vote',
@@ -307,15 +317,10 @@ service cloud.firestore {
           'voteMap.' + userId + '.state',
           'voteMap.' + userId + '.status',
           'voteMap.' + userId + '.choice'
-        ];
-        let userCollectFields = ['collectedBy.' + userId];
-        let userReportFields = ['reportedBy.' + userId];
-        let allowedWriteFields = allowedFields
-          .concat(userVoteFields)
-          .concat(userCollectFields)
-          .concat(userReportFields);
-        let changedFields = before.diff(after).affectedKeys();
-        let hasOnlyAllowedFields = changedFields.hasOnly(allowedWriteFields);
+        ])
+        .concat(['collectedBy.' + userId])
+        .concat(['reportedBy.' + userId]);
+        let hasOnlyAllowedFields = before.diff(after).affectedKeys().hasOnly(allowedWriteFields);
         let hasOnlyAllowedWriteFields = request.writeFields.hasOnly(allowedWriteFields);
         let voteChanged = before.voteMap != after.voteMap
           || before.upvoteCount != after.upvoteCount
