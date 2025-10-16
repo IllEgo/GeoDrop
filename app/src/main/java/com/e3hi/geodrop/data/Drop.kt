@@ -24,9 +24,8 @@ data class Drop(
     val mediaStoragePath: String? = null,
     val isNsfw: Boolean = false,
     val nsfwLabels: List<String> = emptyList(),
-    val upvoteCount: Long = 0,
-    val downvoteCount: Long = 0,
-    val voteMap: Map<String, Long> = emptyMap(),
+    val likeCount: Long = 0,
+    val likedBy: Map<String, Boolean> = emptyMap(),
     val reportCount: Long = 0,
     val reportedBy: Map<String, Long> = emptyMap(),
     val redemptionCode: String? = null,
@@ -84,16 +83,27 @@ fun Drop.remainingDecayMillis(nowMillis: Long = System.currentTimeMillis()): Lon
     return if (remaining > 0) remaining else 0L
 }
 
-enum class DropVoteType(val value: Int) {
-    NONE(0),
-    UPVOTE(1),
-    DOWNVOTE(-1);
+enum class DropLikeStatus {
+    NONE,
+    LIKED;
 
     companion object {
-        fun fromRaw(raw: Long?): DropVoteType = when (raw?.toInt()) {
-            1 -> UPVOTE
-            -1 -> DOWNVOTE
-            else -> NONE
+        private val truthyStrings = setOf("liked", "like", "true", "1")
+
+        fun fromRaw(raw: Any?): DropLikeStatus {
+            return when (raw) {
+                is Boolean -> if (raw) LIKED else NONE
+                is Number -> if (raw.toInt() != 0) LIKED else NONE
+                is String -> {
+                    val normalized = raw.trim().lowercase()
+                    if (normalized in truthyStrings) {
+                        LIKED
+                    } else {
+                        NONE
+                    }
+                }
+                else -> NONE
+            }
         }
     }
 }
@@ -165,42 +175,33 @@ fun Drop.discoveryDescription(): String {
     }
 }
 
-fun Drop.voteScore(): Long = upvoteCount - downvoteCount
+fun Drop.likeScore(): Long = likeCount
 
-fun Drop.userVote(userId: String?): DropVoteType {
-    if (userId.isNullOrBlank()) return DropVoteType.NONE
-    return DropVoteType.fromRaw(voteMap[userId])
+fun Drop.userLikeStatus(userId: String?): DropLikeStatus {
+    if (userId.isNullOrBlank()) return DropLikeStatus.NONE
+    return DropLikeStatus.fromRaw(likedBy[userId])
 }
 
-fun Drop.applyUserVote(userId: String, vote: DropVoteType): Drop {
-    val previousVote = voteMap[userId]?.toInt() ?: 0
-    val targetVote = vote.value
-    if (previousVote == targetVote) return this
+fun Drop.applyUserLike(userId: String, status: DropLikeStatus): Drop {
+    val wasLiked = likedBy[userId] == true
+    val shouldLike = status == DropLikeStatus.LIKED
+    if (wasLiked == shouldLike) return this
 
-    var updatedUpvotes = upvoteCount
-    var updatedDownvotes = downvoteCount
-    val updatedMap = voteMap.toMutableMap()
+    val updatedLikes = likedBy.toMutableMap()
+    var updatedCount = likeCount
 
-    when (previousVote) {
-        1 -> updatedUpvotes = (updatedUpvotes - 1).coerceAtLeast(0)
-        -1 -> updatedDownvotes = (updatedDownvotes - 1).coerceAtLeast(0)
+    if (wasLiked) {
+        updatedLikes.remove(userId)
+        updatedCount = (updatedCount - 1).coerceAtLeast(0)
     }
 
-    when (vote) {
-        DropVoteType.UPVOTE -> {
-            updatedUpvotes += 1
-            updatedMap[userId] = 1L
-        }
-        DropVoteType.DOWNVOTE -> {
-            updatedDownvotes += 1
-            updatedMap[userId] = -1L
-        }
-        DropVoteType.NONE -> updatedMap.remove(userId)
+    if (shouldLike) {
+        updatedLikes[userId] = true
+        updatedCount += 1
     }
 
     return copy(
-        upvoteCount = updatedUpvotes,
-        downvoteCount = updatedDownvotes,
-        voteMap = updatedMap
+        likeCount = updatedCount,
+        likedBy = updatedLikes
     )
 }

@@ -15,7 +15,6 @@ import com.google.firebase.functions.FirebaseFunctionsException
 import com.google.firebase.functions.ktx.functions
 import com.google.firebase.ktx.Firebase
 import com.e3hi.geodrop.util.GroupPreferences
-import java.util.Locale
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.tasks.await
 
@@ -594,7 +593,7 @@ class FirestoreRepo(
         Log.d("GeoDrop", "Marked drop $dropId as deleted")
     }
 
-    suspend fun voteOnDrop(dropId: String, userId: String, vote: DropVoteType) {
+    suspend fun setDropLike(dropId: String, userId: String, status: DropLikeStatus) {
         if (dropId.isBlank() || userId.isBlank()) return
 
         db.runTransaction { transaction ->
@@ -604,46 +603,40 @@ class FirestoreRepo(
                 throw IllegalStateException("Drop $dropId does not exist")
             }
 
-            val currentUpvotes = snapshot.getLong("upvoteCount") ?: 0L
-            val currentDownvotes = snapshot.getLong("downvoteCount") ?: 0L
-            val currentMap = snapshot.get("voteMap") as? Map<*, *>
+            val currentCount = snapshot.getLong("likeCount") ?: 0L
+            @Suppress("UNCHECKED_CAST")
+            val likedMap = snapshot.get("likedBy") as? Map<String, Any?> ?: emptyMap()
+            val currentlyLiked = likedMap[userId] == true
+            val shouldLike = status == DropLikeStatus.LIKED
 
-            val computation = computeVoteTransaction(
-                currentUpvotes = currentUpvotes,
-                currentDownvotes = currentDownvotes,
-                currentVoteMap = currentMap,
-                userId = userId,
-                vote = vote
-            )
-
-            val targetVote = vote.value
-            if (computation.previousVote == targetVote) {
+            if (currentlyLiked == shouldLike) {
                 return@runTransaction
             }
 
-            // Use granular nested updates so Firestore security rules that restrict voteMap
-            // mutations to the acting user accept the write. Writing the entire map in one go
-            // causes PERMISSION_DENIED failures for non-owners.
+            var updatedCount = currentCount
+            if (currentlyLiked) {
+                updatedCount = (updatedCount - 1).coerceAtLeast(0)
+            }
+            if (shouldLike) {
+                updatedCount += 1
+            }
+
             val updates = mutableMapOf<String, Any>(
-                "upvoteCount" to computation.updatedUpvotes,
-                "downvoteCount" to computation.updatedDownvotes,
+                "likeCount" to updatedCount
             )
 
-            val voteFieldPath = "voteMap.$userId"
-            when (vote) {
-                DropVoteType.UPVOTE, DropVoteType.DOWNVOTE -> {
-                    val newVoteValue = computation.newVoteValue ?: vote.value.toLong()
-                    updates[voteFieldPath] = newVoteValue
-                }
-                DropVoteType.NONE -> if (computation.previousVote != 0) {
-                    updates[voteFieldPath] = FieldValue.delete()
-                }
+            val likeFieldPath = "likedBy.$userId"
+            if (shouldLike) {
+                updates[likeFieldPath] = true
+            } else {
+                updates[likeFieldPath] = FieldValue.delete()
             }
 
             transaction.update(docRef, updates)
         }.await()
 
-        Log.d("GeoDrop", "Recorded ${vote.name.lowercase()} for drop $dropId by $userId")
+        val action = if (status == DropLikeStatus.LIKED) "liked" else "unliked"
+        Log.d("GeoDrop", "User $userId $action drop $dropId")
     }
 
     suspend fun markDropCollected(dropId: String, userId: String) {
@@ -995,9 +988,8 @@ class FirestoreRepo(
             "isNsfw" to sanitized.isNsfw,
             "nsfw" to sanitized.isNsfw,
             "nsfwLabels" to sanitized.nsfwLabels,
-            "upvoteCount" to sanitized.upvoteCount,
-            "downvoteCount" to sanitized.downvoteCount,
-            "voteMap" to sanitized.voteMap,
+            "likeCount" to sanitized.likeCount,
+            "likedBy" to sanitized.likedBy,
             "reportCount" to sanitized.reportCount,
             "reportedBy" to sanitized.reportedBy,
             "redemptionCode" to sanitized.redemptionCode,
@@ -1117,9 +1109,9 @@ class FirestoreRepo(
         if (!mediaStoragePath.isNullOrBlank()) data["mediaStoragePath"] = mediaStoragePath
         data["isNsfw"] = isNsfw
         if (nsfwLabels.isNotEmpty()) data["nsfwLabels"] = nsfwLabels
-        data["upvoteCount"] = upvoteCount
-        data["downvoteCount"] = downvoteCount
+        data["likeCount"] = likeCount
         if (decayDays != null) data["decayDays"] = decayDays
+        if (likedBy.isNotEmpty()) data["likedBy"] = likedBy
         if (reportCount > 0) data["reportCount"] = reportCount
         if (reportedBy.isNotEmpty()) data["reportedBy"] = reportedBy.keys
         if (redemptionLimit != null) data["redemptionLimit"] = redemptionLimit
@@ -1129,167 +1121,6 @@ class FirestoreRepo(
     }
 
     companion object {
-        internal data class VoteComputationResult(
-            val previousVote: Int,
-            val updatedUpvotes: Long,
-            val updatedDownvotes: Long,
-            val newVoteValue: Long?
-        )
-
-        private val POSITIVE_STRING_VALUES = setOf(
-            "1",
-            "+1",
-            "up",
-            "upvote",
-            "upvoted",
-            "positive",
-            "thumbs_up",
-            "thumbsup",
-            "like",
-            "liked",
-            "true"
-        )
-
-        private val NEGATIVE_STRING_VALUES = setOf(
-            "-1",
-            "down",
-            "downvote",
-            "downvoted",
-            "negative",
-            "thumbs_down",
-            "thumbsdown",
-            "dislike",
-            "disliked"
-        )
-
-        private val NEUTRAL_STRING_VALUES = setOf(
-            "0",
-            "none",
-            "neutral",
-            "false",
-            "clear",
-            "remove",
-            "unvote",
-            "unvoted",
-            "unset"
-        )
-
-        internal fun computeVoteTransaction(
-            currentUpvotes: Long,
-            currentDownvotes: Long,
-            currentVoteMap: Map<*, *>?,
-            userId: String,
-            vote: DropVoteType
-        ): VoteComputationResult {
-            val normalizedMap = normalizeVoteMap(currentVoteMap)
-            val previousVote = normalizedMap[userId] ?: 0
-
-            if (previousVote == vote.value) {
-                return VoteComputationResult(
-                    previousVote = previousVote,
-                    updatedUpvotes = currentUpvotes,
-                    updatedDownvotes = currentDownvotes,
-                    newVoteValue = when (vote) {
-                        DropVoteType.UPVOTE -> 1L
-                        DropVoteType.DOWNVOTE -> -1L
-                        DropVoteType.NONE -> null
-                    }
-                )
-            }
-
-            var updatedUpvotes = currentUpvotes
-            var updatedDownvotes = currentDownvotes
-
-            when (previousVote) {
-                1 -> updatedUpvotes = (updatedUpvotes - 1).coerceAtLeast(0)
-                -1 -> updatedDownvotes = (updatedDownvotes - 1).coerceAtLeast(0)
-            }
-
-            when (vote) {
-                DropVoteType.UPVOTE -> updatedUpvotes += 1
-                DropVoteType.DOWNVOTE -> updatedDownvotes += 1
-                DropVoteType.NONE -> Unit
-            }
-
-            val newVoteValue = when (vote) {
-                DropVoteType.UPVOTE -> 1L
-                DropVoteType.DOWNVOTE -> -1L
-                DropVoteType.NONE -> null
-            }
-
-            return VoteComputationResult(
-                previousVote = previousVote,
-                updatedUpvotes = updatedUpvotes,
-                updatedDownvotes = updatedDownvotes,
-                newVoteValue = newVoteValue
-            )
-        }
-
-        internal fun normalizeVoteMap(rawMap: Map<*, *>?): Map<String, Int> {
-            if (rawMap.isNullOrEmpty()) return emptyMap()
-
-            val normalized = mutableMapOf<String, Int>()
-            for ((key, value) in rawMap) {
-                val userId = key as? String ?: continue
-                val resolved = resolveVoteValue(value) ?: 0
-                normalized[userId] = resolved
-            }
-            return normalized
-        }
-
-        private fun resolveVoteValue(raw: Any?): Int? {
-            val primitive = resolveVotePrimitive(raw)
-            if (primitive != null) {
-                return normalizeVoteInt(primitive)
-            }
-
-            val mapValue = raw as? Map<*, *> ?: return null
-            return resolveVoteValueFromMap(mapValue)
-        }
-
-        private fun resolveVotePrimitive(raw: Any?): Int? = when (raw) {
-            is Number -> raw.toInt()
-            is Boolean -> if (raw) 1 else 0
-            is String -> resolveVoteValueFromString(raw)
-            else -> null
-        }
-
-        private fun resolveVoteValueFromString(raw: String): Int? {
-            val normalized = raw.trim().lowercase(Locale.US)
-            return when {
-                normalized in POSITIVE_STRING_VALUES -> 1
-                normalized in NEGATIVE_STRING_VALUES -> -1
-                normalized in NEUTRAL_STRING_VALUES -> 0
-                else -> null
-            }
-        }
-
-        private fun resolveVoteValueFromMap(raw: Map<*, *>): Int? {
-            val candidateKeys = listOf(
-                "value",
-                "vote",
-                "direction",
-                "state",
-                "status",
-                "choice"
-            )
-
-            for (key in candidateKeys) {
-                val candidate = raw[key] ?: continue
-                val resolved = resolveVoteValue(candidate)
-                if (resolved != null) {
-                    return resolved
-                }
-            }
-
-            return null
-        }
-
-        private fun normalizeVoteInt(value: Int): Int = when {
-            value > 0 -> 1
-            value < 0 -> -1
-            else -> 0
-        }
         private const val STATE_COLLECTED = "COLLECTED"
         private const val STATE_IGNORED = "IGNORED"
     }

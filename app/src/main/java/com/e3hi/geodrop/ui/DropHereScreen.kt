@@ -77,7 +77,6 @@ import androidx.compose.material.icons.rounded.Flag
 import androidx.compose.material.icons.rounded.Report
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Refresh
-import androidx.compose.material.icons.rounded.ThumbDown
 import androidx.compose.material.icons.rounded.ThumbUp
 import androidx.compose.material.icons.rounded.Lightbulb
 import androidx.compose.material.icons.rounded.Star
@@ -144,7 +143,7 @@ import com.e3hi.geodrop.data.DropContentType
 import com.e3hi.geodrop.data.displayTitle
 import com.e3hi.geodrop.data.mediaLabel
 import com.e3hi.geodrop.data.FirestoreRepo
-import com.e3hi.geodrop.data.DropVoteType
+import com.e3hi.geodrop.data.DropLikeStatus
 import com.e3hi.geodrop.data.MediaStorageRepo
 import com.e3hi.geodrop.data.NoteInventory
 import com.e3hi.geodrop.data.UserDataSyncRepository
@@ -157,13 +156,12 @@ import com.e3hi.geodrop.data.businessDropTypeOptionsFor
 import com.e3hi.geodrop.data.UserRole
 import com.e3hi.geodrop.data.canViewNsfw
 import com.e3hi.geodrop.data.RedemptionResult
-import com.e3hi.geodrop.data.applyUserVote
+import com.e3hi.geodrop.data.applyUserLike
 import com.e3hi.geodrop.data.isBusinessDrop
 import com.e3hi.geodrop.data.isRedeemedBy
 import com.e3hi.geodrop.data.remainingRedemptions
 import com.e3hi.geodrop.data.requiresRedemption
-import com.e3hi.geodrop.data.userVote
-import com.e3hi.geodrop.data.voteScore
+import com.e3hi.geodrop.data.userLikeStatus
 import com.e3hi.geodrop.data.isBusiness
 import com.e3hi.geodrop.data.VisionApiStatus
 import com.e3hi.geodrop.data.isExpired
@@ -1121,14 +1119,14 @@ fun DropHereScreen(
         }
     }
 
-    fun submitVote(drop: Drop, desiredVote: DropVoteType) {
+    fun submitLike(drop: Drop, desiredStatus: DropLikeStatus) {
         if (!canParticipate) {
-            snackbar.showMessage(scope, participationRestriction("vote on drops"))
+            snackbar.showMessage(scope, participationRestriction("like drops"))
             return
         }
         val userId = currentUserId
         if (userId.isNullOrBlank()) {
-            snackbar.showMessage(scope, "Sign in to vote on drops.")
+            snackbar.showMessage(scope, "Sign in to like drops.")
             return
         }
 
@@ -1136,22 +1134,22 @@ fun DropHereScreen(
         if (dropId.isBlank()) return
 
         if (!collectedDropIds.contains(dropId)) {
-            snackbar.showMessage(scope, "Collect this drop before voting on it.")
+            snackbar.showMessage(scope, "Collect this drop before liking it.")
             return
         }
 
-        val updatedDrop = drop.applyUserVote(userId, desiredVote)
+        val updatedDrop = drop.applyUserLike(userId, desiredStatus)
         if (updatedDrop == drop) return
 
         val previousOtherDrops = otherDrops
         val previousMyDrops = myDrops
 
         votingDropIds = votingDropIds + dropId
-        updateDropInLists(dropId) { current -> current.applyUserVote(userId, desiredVote) }
+        updateDropInLists(dropId) { current -> current.applyUserLike(userId, desiredStatus) }
 
         scope.launch {
             try {
-                repo.voteOnDrop(dropId, userId, desiredVote)
+                repo.setDropLike(dropId, userId, desiredStatus)
             } catch (e: Exception) {
                 otherDrops = previousOtherDrops
                 myDrops = previousMyDrops
@@ -1160,18 +1158,18 @@ fun DropHereScreen(
                 ) {
                     Log.w(
                         "DropHere",
-                        "Permission denied while voting on drop $dropId for $userId",
+                        "Permission denied while liking drop $dropId for $userId",
                         e
                     )
                 } else {
                     Log.e(
                         "DropHere",
-                        "Failed to vote on drop $dropId for $userId",
+                        "Failed to like drop $dropId for $userId",
                         e
                     )
                 }
                 val message = e.message?.takeIf { it.isNotBlank() }
-                    ?: "Couldn't update your vote. Try again."
+                    ?: "Couldn't update your like. Try again."
                 snackbar.showMessage(scope, message)
             } finally {
                 votingDropIds = votingDropIds - dropId
@@ -2270,9 +2268,9 @@ fun DropHereScreen(
                                             UserMode.SIGNED_IN -> null
                                         },
                                         showHeaderDescription = userMode != UserMode.GUEST,
-                                        canVoteOnDrops = canParticipate,
-                                        voteRestrictionMessage = if (canParticipate) null else participationRestriction("vote on drops"),
-                                        onVote = { drop, vote -> submitVote(drop, vote) },
+                                        canLikeDrops = canParticipate,
+                                        likeRestrictionMessage = if (canParticipate) null else participationRestriction("like drops"),
+                                        onLike = { drop, status -> submitLike(drop, status) },
                                         onReport = report@{ drop ->
                                             if (browseReportProcessing) return@report
                                             val userId = currentUserId
@@ -5086,7 +5084,7 @@ private fun AccountSignInDialog(
 
                 Text(
                     text = when (accountType) {
-                        AccountType.EXPLORER -> "Explorer accounts let you drop, vote, and collect rewards."
+                        AccountType.EXPLORER -> "Explorer accounts let you drop, like, and collect rewards."
                         AccountType.BUSINESS -> "Business accounts can publish offers and require business details."
                     },
                     style = MaterialTheme.typography.bodySmall,
@@ -5897,9 +5895,9 @@ private fun BusinessDropAnalyticsCard(drop: Drop) {
                 )
             }
 
-            val voteSummary = "Votes: ${drop.voteScore()} (↑${drop.upvoteCount} / ↓${drop.downvoteCount})"
+            val likeSummary = "Likes: ${drop.likeCount}"
             Text(
-                text = voteSummary,
+                text = likeSummary,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -5924,9 +5922,9 @@ private fun OtherDropsExplorerSection(
     canCollectDrops: Boolean,
     collectRestrictionMessage: String?,
     showHeaderDescription: Boolean,
-    canVoteOnDrops: Boolean,
-    voteRestrictionMessage: String?,
-    onVote: (Drop, DropVoteType) -> Unit,
+    canLikeDrops: Boolean,
+    likeRestrictionMessage: String?,
+    onLike: (Drop, DropLikeStatus) -> Unit,
     onReport: (Drop) -> Unit,
     reportingDropId: String?,
     dismissedBrowseDropIds: SnapshotStateList<String>,
@@ -6136,7 +6134,7 @@ private fun OtherDropsExplorerSection(
                             ) {
                                 items(drops, key = { it.id }) { drop ->
                                     val hasCollected = collectedDropIds.contains(drop.id)
-                                    val canVote = canVoteOnDrops && isSignedIn && hasCollected
+                                    val canLike = canLikeDrops && isSignedIn && hasCollected
                                     val withinPickupRange = currentLocation?.let { location ->
                                         distanceBetweenMeters(
                                             location.latitude,
@@ -6145,12 +6143,12 @@ private fun OtherDropsExplorerSection(
                                             drop.lng
                                         ) <= DROP_PICKUP_RADIUS_METERS
                                     } ?: false
-                                    val voteMessage = when {
-                                        !canVoteOnDrops -> voteRestrictionMessage
-                                        !isSignedIn -> "Sign in to vote on drops."
-                                        !hasCollected -> "Collect this drop to vote on it."
+                                    val likeMessage = when {
+                                        !canLikeDrops -> likeRestrictionMessage
+                                        !isSignedIn -> "Sign in to like drops."
+                                        !hasCollected -> "Collect this drop to like it."
                                         else -> null
-                                }
+                                    }
                                     val isOwnDrop = currentUserId != null && drop.createdBy == currentUserId
                                     val alreadyReported = currentUserId?.let { drop.reportedBy.containsKey(it) } == true
                                     val canReport = isSignedIn && !isOwnDrop && (hasCollected || withinPickupRange)
@@ -6169,9 +6167,9 @@ private fun OtherDropsExplorerSection(
                                         drop = drop,
                                         isSelected = drop.id == selectedId,
                                         currentLocation = currentLocation,
-                                        userVote = drop.userVote(currentUserId),
-                                        canVote = canVote,
-                                        voteRestrictionMessage = voteMessage,
+                                        userLike = drop.userLikeStatus(currentUserId),
+                                        canLike = canLike,
+                                        likeRestrictionMessage = likeMessage,
                                         canPickUp = canCollectDrops,
                                         pickupRestrictionMessage = collectRestrictionMessage,
                                         isVoting = votingDropIds.contains(drop.id),
@@ -6191,7 +6189,7 @@ private fun OtherDropsExplorerSection(
                                             }
                                         },
                                         onSelect = { onSelect(drop) },
-                                        onVote = { vote -> onVote(drop, vote) },
+                                        onLike = { status -> onLike(drop, status) },
                                         onPickUp = { onPickUp(drop) },
                                         onReport = { onReport(drop) }
                                     )
@@ -7022,7 +7020,7 @@ private fun MyDropsMap(
             formatTimestamp(drop.createdAt)?.let { snippetParts.add("Dropped $it") }
             drop.groupCode?.takeIf { !it.isNullOrBlank() }?.let { snippetParts.add("Group $it") }
             snippetParts.add("Lat: %.5f, Lng: %.5f".format(drop.lat, drop.lng))
-            snippetParts.add("Score: ${formatVoteScore(drop.voteScore())} (↑${drop.upvoteCount} / ↓${drop.downvoteCount})")
+            snippetParts.add("Likes: ${drop.likeCount}")
             if (drop.isNsfw) {
                 snippetParts.add("Marked as adult content")
             }
@@ -7031,7 +7029,7 @@ private fun MyDropsMap(
             val markerIcon = when {
                 isSelected -> BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE)
                 drop.isNsfw -> BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_MAGENTA)
-                else -> BitmapDescriptorFactory.defaultMarker(voteHueFor(drop.upvoteCount))
+                else -> BitmapDescriptorFactory.defaultMarker(likeHueFor(drop.likeCount))
             }
 
             Marker(
@@ -7086,9 +7084,9 @@ private fun OtherDropRow(
     drop: Drop,
     isSelected: Boolean,
     currentLocation: LatLng?,
-    userVote: DropVoteType,
-    canVote: Boolean,
-    voteRestrictionMessage: String?,
+    userLike: DropLikeStatus,
+    canLike: Boolean,
+    likeRestrictionMessage: String?,
     canPickUp: Boolean,
     pickupRestrictionMessage: String?,
     isVoting: Boolean,
@@ -7100,7 +7098,7 @@ private fun OtherDropRow(
     canIgnoreForNow: Boolean,
     onIgnoreForNow: () -> Unit,
     onSelect: () -> Unit,
-    onVote: (DropVoteType) -> Unit,
+    onLike: (DropLikeStatus) -> Unit,
     onPickUp: () -> Unit,
     onReport: () -> Unit
 ) {
@@ -7282,34 +7280,18 @@ private fun OtherDropRow(
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            VoteToggleButton(
+                            LikeToggleButton(
                                 icon = Icons.Rounded.ThumbUp,
-                                label = drop.upvoteCount.toString(),
-                                selected = userVote == DropVoteType.UPVOTE,
-                                enabled = canVote && !isVoting,
+                                label = drop.likeCount.toString(),
+                                selected = userLike == DropLikeStatus.LIKED,
+                                enabled = canLike && !isVoting,
                                 onClick = {
-                                    val nextVote = if (userVote == DropVoteType.UPVOTE) {
-                                        DropVoteType.NONE
+                                    val nextStatus = if (userLike == DropLikeStatus.LIKED) {
+                                        DropLikeStatus.NONE
                                     } else {
-                                        DropVoteType.UPVOTE
+                                        DropLikeStatus.LIKED
                                     }
-                                    onVote(nextVote)
-                                },
-                                modifier = Modifier.weight(1f)
-                            )
-
-                            VoteToggleButton(
-                                icon = Icons.Rounded.ThumbDown,
-                                label = drop.downvoteCount.toString(),
-                                selected = userVote == DropVoteType.DOWNVOTE,
-                                enabled = canVote && !isVoting,
-                                onClick = {
-                                    val nextVote = if (userVote == DropVoteType.DOWNVOTE) {
-                                        DropVoteType.NONE
-                                    } else {
-                                        DropVoteType.DOWNVOTE
-                                    }
-                                    onVote(nextVote)
+                                    onLike(nextStatus)
                                 },
                                 modifier = Modifier.weight(1f)
                             )
@@ -7322,15 +7304,15 @@ private fun OtherDropRow(
                             }
                         }
                         Text(
-                            text = "Score: ${formatVoteScore(drop.voteScore())} (↑${drop.upvoteCount} / ↓${drop.downvoteCount})",
+                            text = formatLikeSummary(drop.likeCount),
                             style = MaterialTheme.typography.bodySmall,
                             color = supportingColor
                         )
                     }
-                    if (!canVote) {
+                    if (!canLike) {
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            text = voteRestrictionMessage ?: "Collect this drop to vote on it.",
+                            text = likeRestrictionMessage ?: "Collect this drop to like it.",
                             style = MaterialTheme.typography.bodySmall,
                             color = supportingColor
                         )
@@ -7649,7 +7631,7 @@ private fun OtherDropsMap(
             formatTimestamp(drop.createdAt)?.let { snippetParts.add("Dropped $it") }
             drop.groupCode?.takeIf { !it.isNullOrBlank() }?.let { snippetParts.add("Group $it") }
             snippetParts.add("Lat: %.5f, Lng: %.5f".format(drop.lat, drop.lng))
-            snippetParts.add("Score: ${formatVoteScore(drop.voteScore())} (↑${drop.upvoteCount} / ↓${drop.downvoteCount})")
+            snippetParts.add("Likes: ${drop.likeCount}")
             if (drop.isNsfw) {
                 snippetParts.add("Marked as adult content")
             }
@@ -7659,7 +7641,7 @@ private fun OtherDropsMap(
             val markerIcon = when {
                 isSelected -> BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE)
                 drop.isNsfw -> BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_MAGENTA)
-                else -> BitmapDescriptorFactory.defaultMarker(voteHueFor(drop.upvoteCount))
+                else -> BitmapDescriptorFactory.defaultMarker(likeHueFor(drop.likeCount))
             }
 
             Marker(
@@ -7703,21 +7685,21 @@ private fun formatDistanceMeters(distance: Double): String {
     }
 }
 
-private fun voteHueFor(upvotes: Long): Float {
+private fun likeHueFor(likes: Long): Float {
     return when {
-        upvotes >= 25 -> BitmapDescriptorFactory.HUE_AZURE
-        upvotes >= 10 -> BitmapDescriptorFactory.HUE_GREEN
-        upvotes >= 5 -> BitmapDescriptorFactory.HUE_YELLOW
-        upvotes >= 1 -> BitmapDescriptorFactory.HUE_ORANGE
+        likes >= 25 -> BitmapDescriptorFactory.HUE_AZURE
+        likes >= 10 -> BitmapDescriptorFactory.HUE_GREEN
+        likes >= 5 -> BitmapDescriptorFactory.HUE_YELLOW
+        likes >= 1 -> BitmapDescriptorFactory.HUE_ORANGE
         else -> BitmapDescriptorFactory.HUE_RED
     }
 }
 
-private fun formatVoteScore(score: Long): String {
-    return when {
-        score > 0 -> "+$score"
-        score < 0 -> score.toString()
-        else -> "0"
+private fun formatLikeSummary(count: Long): String {
+    return if (count == 1L) {
+        "1 like"
+    } else {
+        "$count likes"
     }
 }
 
@@ -7814,7 +7796,7 @@ private fun DropMediaAttachment.asUriOrNull(): Uri? = when (this) {
 }
 
 @Composable
-private fun VoteToggleButton(
+private fun LikeToggleButton(
     icon: ImageVector,
     label: String,
     selected: Boolean,
@@ -8003,7 +7985,7 @@ private fun ManageDropRow(
                     }
 
                     Text(
-                        text = "Score: ${formatVoteScore(drop.voteScore())} (↑${drop.upvoteCount} / ↓${drop.downvoteCount})",
+                        text = formatLikeSummary(drop.likeCount),
                         style = MaterialTheme.typography.bodySmall,
                         color = supportingColor
                     )

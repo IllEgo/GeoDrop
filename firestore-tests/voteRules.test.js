@@ -1,8 +1,10 @@
 const fs = require('fs');
+const path = require('path');
 const {
   initializeTestEnvironment,
   assertFails,
   assertSucceeds,
+  firestore,
 } = require('@firebase/rules-unit-testing');
 
 const PROJECT_ID = 'geodrop-test';
@@ -19,9 +21,8 @@ function baseDropData(overrides = {}) {
     isDeleted: false,
     dropType: 'COMMUNITY',
     reportCount: 0,
-    voteMap: {},
-    upvoteCount: 0,
-    downvoteCount: 0,
+    likedBy: {},
+    likeCount: 0,
     ...overrides,
   };
 }
@@ -36,7 +37,7 @@ async function seedDrop(env, data) {
   const env = await initializeTestEnvironment({
     projectId: PROJECT_ID,
     firestore: {
-      rules: fs.readFileSync(require('path').join(__dirname, '..', 'firestore.rules'), 'utf8'),
+      rules: fs.readFileSync(path.join(__dirname, '..', 'firestore.rules'), 'utf8'),
     },
   });
 
@@ -44,118 +45,85 @@ async function seedDrop(env, data) {
     const authed = env.authenticatedContext('voter');
     const dropRef = authed.firestore().doc(DROP_PATH);
 
-    // Nested field updates that mimic the client transaction should succeed.
+    // Recording a like should succeed when the counter increments.
     await env.clearFirestore();
     await seedDrop(env, baseDropData());
     await assertSucceeds(
       dropRef.update({
-        upvoteCount: 1,
-        downvoteCount: 0,
-        ['voteMap.voter']: 1,
+        likeCount: 1,
+        ['likedBy.voter']: true,
       })
     );
 
-    // Flipping a vote via nested update paths should also succeed.
+    // Removing a like through a nested delete should succeed.
     await env.clearFirestore();
     await seedDrop(env, baseDropData({
-      voteMap: { voter: 1 },
-      upvoteCount: 1,
-      downvoteCount: 0,
+      likedBy: { voter: true },
+      likeCount: 1,
     }));
     await assertSucceeds(
       dropRef.update({
-        upvoteCount: 0,
-        downvoteCount: 1,
-        ['voteMap.voter']: -1,
+        likeCount: 0,
+        ['likedBy.voter']: firestore.FieldValue.delete(),
       })
     );
 
-    // Votes stored as floating point numbers should still allow transitions.
+    // Rewriting the entire document without the like should also succeed.
     await env.clearFirestore();
     await seedDrop(env, baseDropData({
-      voteMap: { voter: 1.0 },
-      upvoteCount: 1.0,
-      downvoteCount: 0.0,
-    }));
-    await assertSucceeds(
-      dropRef.update({
-        upvoteCount: 0,
-        downvoteCount: 1,
-        ['voteMap.voter']: -1,
-      })
-    );
-
-    // Removing a vote when the aggregate count is already 0 should clamp and succeed.
-    await env.clearFirestore();
-    await seedDrop(env, baseDropData({
-      voteMap: { voter: 1 },
-      upvoteCount: 0,
-      downvoteCount: 0,
+      likedBy: { voter: true },
+      likeCount: 1,
     }));
     await assertSucceeds(
       dropRef.set(
         baseDropData({
-          voteMap: {},
-          upvoteCount: 0,
-          downvoteCount: 0,
+          likedBy: {},
+          likeCount: 0,
         })
       )
     );
 
-    // Flipping directly between upvote and downvote requires both counters to update.
+    // Attempting to like without updating the counter must fail.
     await env.clearFirestore();
-    await seedDrop(env, baseDropData({
-      voteMap: { voter: 1 },
-      upvoteCount: 3,
-      downvoteCount: 2,
-    }));
-    await assertSucceeds(
-      dropRef.set(
-        baseDropData({
-          voteMap: { voter: -1 },
-          upvoteCount: 2,
-          downvoteCount: 3,
-        })
-      )
+    await seedDrop(env, baseDropData());
+    await assertFails(
+      dropRef.update({
+        ['likedBy.voter']: true,
+        likeCount: 0,
+      })
     );
 
-    // Attempting to flip without adjusting counters must fail.
+    // Likewise, removing a like without decrementing the counter must fail.
     await env.clearFirestore();
     await seedDrop(env, baseDropData({
-      voteMap: { voter: 1 },
-      upvoteCount: 3,
-      downvoteCount: 2,
+      likedBy: { voter: true },
+      likeCount: 3,
     }));
     await assertFails(
-      dropRef.set(
-        baseDropData({
-          voteMap: { voter: -1 },
-          upvoteCount: 3,
-          downvoteCount: 2,
-        })
-      )
+      dropRef.update({
+        ['likedBy.voter']: firestore.FieldValue.delete(),
+        likeCount: 3,
+      })
     );
 
-    // Leaving the vote unchanged should succeed without touching counters.
+    // Leaving the like unchanged should succeed.
     await env.clearFirestore();
     await seedDrop(env, baseDropData({
-      voteMap: { voter: -1 },
-      upvoteCount: 1,
-      downvoteCount: 4,
+      likedBy: { voter: true },
+      likeCount: 5,
     }));
     await assertSucceeds(
       dropRef.set(
         baseDropData({
-          voteMap: { voter: -1 },
-          upvoteCount: 1,
-          downvoteCount: 4,
+          likedBy: { voter: true },
+          likeCount: 5,
         })
       )
     );
 
-    console.log('All vote rule tests passed.');
+    console.log('All like rule tests passed.');
   } catch (err) {
-    console.error('Vote rule tests failed:', err);
+    console.error('Like rule tests failed:', err);
     process.exitCode = 1;
   } finally {
     await env.cleanup();
