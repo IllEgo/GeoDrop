@@ -606,46 +606,36 @@ class FirestoreRepo(
 
             val currentUpvotes = snapshot.getLong("upvoteCount") ?: 0L
             val currentDownvotes = snapshot.getLong("downvoteCount") ?: 0L
-            @Suppress("UNCHECKED_CAST")
-            val currentMap = snapshot.get("voteMap") as? Map<String, Long> ?: emptyMap()
+            val currentMap = snapshot.get("voteMap") as? Map<*, *>
 
-            val previousVote = currentMap[userId]?.toInt() ?: 0
+            val computation = computeVoteTransaction(
+                currentUpvotes = currentUpvotes,
+                currentDownvotes = currentDownvotes,
+                currentVoteMap = currentMap,
+                userId = userId,
+                vote = vote
+            )
+
             val targetVote = vote.value
-            if (previousVote == targetVote) {
+            if (computation.previousVote == targetVote) {
                 return@runTransaction
-            }
-
-            var updatedUpvotes = currentUpvotes
-            var updatedDownvotes = currentDownvotes
-
-            when (previousVote) {
-                1 -> updatedUpvotes = (updatedUpvotes - 1).coerceAtLeast(0)
-                -1 -> updatedDownvotes = (updatedDownvotes - 1).coerceAtLeast(0)
-            }
-
-            when (vote) {
-                DropVoteType.UPVOTE -> {
-                    updatedUpvotes += 1
-                }
-                DropVoteType.DOWNVOTE -> {
-                    updatedDownvotes += 1
-                }
-                DropVoteType.NONE -> Unit
             }
 
             // Use granular nested updates so Firestore security rules that restrict voteMap
             // mutations to the acting user accept the write. Writing the entire map in one go
             // causes PERMISSION_DENIED failures for non-owners.
             val updates = mutableMapOf<String, Any>(
-                "upvoteCount" to updatedUpvotes,
-                "downvoteCount" to updatedDownvotes,
+                "upvoteCount" to computation.updatedUpvotes,
+                "downvoteCount" to computation.updatedDownvotes,
             )
 
             val voteFieldPath = "voteMap.$userId"
             when (vote) {
-                DropVoteType.UPVOTE -> updates[voteFieldPath] = 1L
-                DropVoteType.DOWNVOTE -> updates[voteFieldPath] = -1L
-                DropVoteType.NONE -> if (previousVote != 0) {
+                DropVoteType.UPVOTE, DropVoteType.DOWNVOTE -> {
+                    val newVoteValue = computation.newVoteValue ?: vote.value.toLong()
+                    updates[voteFieldPath] = newVoteValue
+                }
+                DropVoteType.NONE -> if (computation.previousVote != 0) {
                     updates[voteFieldPath] = FieldValue.delete()
                 }
             }
@@ -1138,7 +1128,168 @@ class FirestoreRepo(
         return data
     }
 
-    private companion object {
+    companion object {
+        internal data class VoteComputationResult(
+            val previousVote: Int,
+            val updatedUpvotes: Long,
+            val updatedDownvotes: Long,
+            val newVoteValue: Long?
+        )
+
+        private val POSITIVE_STRING_VALUES = setOf(
+            "1",
+            "+1",
+            "up",
+            "upvote",
+            "upvoted",
+            "positive",
+            "thumbs_up",
+            "thumbsup",
+            "like",
+            "liked",
+            "true"
+        )
+
+        private val NEGATIVE_STRING_VALUES = setOf(
+            "-1",
+            "down",
+            "downvote",
+            "downvoted",
+            "negative",
+            "thumbs_down",
+            "thumbsdown",
+            "dislike",
+            "disliked"
+        )
+
+        private val NEUTRAL_STRING_VALUES = setOf(
+            "0",
+            "none",
+            "neutral",
+            "false",
+            "clear",
+            "remove",
+            "unvote",
+            "unvoted",
+            "unset"
+        )
+
+        internal fun computeVoteTransaction(
+            currentUpvotes: Long,
+            currentDownvotes: Long,
+            currentVoteMap: Map<*, *>?,
+            userId: String,
+            vote: DropVoteType
+        ): VoteComputationResult {
+            val normalizedMap = normalizeVoteMap(currentVoteMap)
+            val previousVote = normalizedMap[userId] ?: 0
+
+            if (previousVote == vote.value) {
+                return VoteComputationResult(
+                    previousVote = previousVote,
+                    updatedUpvotes = currentUpvotes,
+                    updatedDownvotes = currentDownvotes,
+                    newVoteValue = when (vote) {
+                        DropVoteType.UPVOTE -> 1L
+                        DropVoteType.DOWNVOTE -> -1L
+                        DropVoteType.NONE -> null
+                    }
+                )
+            }
+
+            var updatedUpvotes = currentUpvotes
+            var updatedDownvotes = currentDownvotes
+
+            when (previousVote) {
+                1 -> updatedUpvotes = (updatedUpvotes - 1).coerceAtLeast(0)
+                -1 -> updatedDownvotes = (updatedDownvotes - 1).coerceAtLeast(0)
+            }
+
+            when (vote) {
+                DropVoteType.UPVOTE -> updatedUpvotes += 1
+                DropVoteType.DOWNVOTE -> updatedDownvotes += 1
+                DropVoteType.NONE -> Unit
+            }
+
+            val newVoteValue = when (vote) {
+                DropVoteType.UPVOTE -> 1L
+                DropVoteType.DOWNVOTE -> -1L
+                DropVoteType.NONE -> null
+            }
+
+            return VoteComputationResult(
+                previousVote = previousVote,
+                updatedUpvotes = updatedUpvotes,
+                updatedDownvotes = updatedDownvotes,
+                newVoteValue = newVoteValue
+            )
+        }
+
+        internal fun normalizeVoteMap(rawMap: Map<*, *>?): Map<String, Int> {
+            if (rawMap.isNullOrEmpty()) return emptyMap()
+
+            val normalized = mutableMapOf<String, Int>()
+            for ((key, value) in rawMap) {
+                val userId = key as? String ?: continue
+                val resolved = resolveVoteValue(value) ?: 0
+                normalized[userId] = resolved
+            }
+            return normalized
+        }
+
+        private fun resolveVoteValue(raw: Any?): Int? {
+            val primitive = resolveVotePrimitive(raw)
+            if (primitive != null) {
+                return normalizeVoteInt(primitive)
+            }
+
+            val mapValue = raw as? Map<*, *> ?: return null
+            return resolveVoteValueFromMap(mapValue)
+        }
+
+        private fun resolveVotePrimitive(raw: Any?): Int? = when (raw) {
+            is Number -> raw.toInt()
+            is Boolean -> if (raw) 1 else 0
+            is String -> resolveVoteValueFromString(raw)
+            else -> null
+        }
+
+        private fun resolveVoteValueFromString(raw: String): Int? {
+            val normalized = raw.trim().lowercase(Locale.US)
+            return when {
+                normalized in POSITIVE_STRING_VALUES -> 1
+                normalized in NEGATIVE_STRING_VALUES -> -1
+                normalized in NEUTRAL_STRING_VALUES -> 0
+                else -> null
+            }
+        }
+
+        private fun resolveVoteValueFromMap(raw: Map<*, *>): Int? {
+            val candidateKeys = listOf(
+                "value",
+                "vote",
+                "direction",
+                "state",
+                "status",
+                "choice"
+            )
+
+            for (key in candidateKeys) {
+                val candidate = raw[key] ?: continue
+                val resolved = resolveVoteValue(candidate)
+                if (resolved != null) {
+                    return resolved
+                }
+            }
+
+            return null
+        }
+
+        private fun normalizeVoteInt(value: Int): Int = when {
+            value > 0 -> 1
+            value < 0 -> -1
+            else -> 0
+        }
         private const val STATE_COLLECTED = "COLLECTED"
         private const val STATE_IGNORED = "IGNORED"
     }
