@@ -23,20 +23,24 @@ service cloud.firestore {
   }
 
   function isValidLikeTransition(before, after, userId) {
-    let beforeLiked = hasLiked(before, userId);
-    let afterLiked = hasLiked(after, userId);
-    let beforeCount = likeCount(before);
-    let afterCount = likeCount(after);
     let beforeMap = (before.likedBy is map) ? before.likedBy : {};
     let afterMap = (after.likedBy is map) ? after.likedBy : {};
     let diffKeys = beforeMap.diff(afterMap).affectedKeys();
+    let beforeLiked = beforeMap[userId] == true;
+    let afterLiked = afterMap[userId] == true;
+    let beforeCount = likeCount(before);
+    let afterCount = likeCount(after);
+    let decrementedCount = beforeCount - 1;
 
-    return diffKeys.hasOnly([userId])
-      && (
-        (beforeLiked && afterLiked && afterCount == beforeCount)
-        || (!beforeLiked && afterLiked && afterCount == beforeCount + 1)
-        || (beforeLiked && !afterLiked && afterCount == (beforeCount - 1 >= 0 ? beforeCount - 1 : 0))
-      );
+    if (!diffKeys.hasOnly([userId])) {
+      return false;
+    }
+
+    return (
+      (beforeLiked == afterLiked && afterCount == beforeCount)
+      || (!beforeLiked && afterLiked && afterCount == beforeCount + 1)
+      || (beforeLiked && !afterLiked && afterCount == (decrementedCount >= 0 ? decrementedCount : 0))
+    );
   }
 
   match /databases/{database}/documents {
@@ -231,7 +235,6 @@ service cloud.firestore {
         .concat(['collectedBy.' + userId])
         .concat(['reportedBy.' + userId]);
         let hasOnlyAllowedFields = before.diff(after).affectedKeys().hasOnly(allowedWriteFields);
-        let hasOnlyAllowedWriteFields = request.writeFields.hasOnly(allowedWriteFields);
         let likeChanged = before.likedBy != after.likedBy
           || before.likeCount != after.likeCount;
         let collectedChanged = before.collectedBy != after.collectedBy;
@@ -240,7 +243,6 @@ service cloud.firestore {
         let userEligibleForLike = canUserLikeOnDrop(before, after, userId);
 
         return hasOnlyAllowedFields
-          && hasOnlyAllowedWriteFields
           && (!likeChanged || (userEligibleForLike && isValidLikeTransition(before, after, userId)))
           && (!reportChanged || isValidReportTransition(before, after, userId))
           && (!collectedChanged || hasOnlyUserCollectedChange(before, after, userId));
