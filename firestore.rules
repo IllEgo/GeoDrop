@@ -12,33 +12,6 @@ service cloud.firestore {
     return name is string && name.matches('^[a-z0-9._]{3,20}$');
   }
 
-  function likeCount(data) {
-    let raw = data.likeCount;
-    return (raw is number && raw >= 0) ? raw : 0;
-  }
-
-  function hasLiked(data, userId) {
-    let likedMap = (data.likedBy is map) ? data.likedBy : {};
-    return likedMap[userId] == true;
-  }
-
-  function isValidLikeTransition(before, after, userId) {
-    let beforeMap = (before.likedBy is map) ? before.likedBy : {};
-    let afterMap = (after.likedBy is map) ? after.likedBy : {};
-    let diffKeys = beforeMap.diff(afterMap).affectedKeys();
-    let beforeLiked = beforeMap[userId] == true;
-    let afterLiked = afterMap[userId] == true;
-    let beforeCount = likeCount(before);
-    let afterCount = likeCount(after);
-    let decrementedCount = beforeCount - 1;
-    return diffKeys.hasOnly([userId])
-      && (
-        (beforeLiked == afterLiked && afterCount == beforeCount)
-        || (!beforeLiked && afterLiked && afterCount == beforeCount + 1)
-        || (beforeLiked && !afterLiked && afterCount == (decrementedCount >= 0 ? decrementedCount : 0))
-      );
-  }
-
   match /databases/{database}/documents {
     match /users/{userId} {
       function hasOnlyAllowedUserFields() {
@@ -215,10 +188,6 @@ service cloud.firestore {
           && hasTruthyValue(data.collectedBy[userId]);
       }
 
-      function canUserLikeOnDrop(before, after, userId) {
-        return userId != null;
-      }
-
       function isValidLikeReportCollectUpdate(before, after, userId) {
         let allowedWriteFields = [
           'likedBy',
@@ -231,15 +200,11 @@ service cloud.firestore {
         .concat(['collectedBy.' + userId])
         .concat(['reportedBy.' + userId]);
         let hasOnlyAllowedFields = before.diff(after).affectedKeys().hasOnly(allowedWriteFields);
-        let likeChanged = before.likedBy != after.likedBy
-          || before.likeCount != after.likeCount;
         let collectedChanged = before.collectedBy != after.collectedBy;
         let reportChanged = before.reportedBy != after.reportedBy
           || before.reportCount != after.reportCount;
-        let userEligibleForLike = canUserLikeOnDrop(before, after, userId);
 
         return hasOnlyAllowedFields
-          && (!likeChanged || (userEligibleForLike && isValidLikeTransition(before, after, userId)))
           && (!reportChanged || isValidReportTransition(before, after, userId))
           && (!collectedChanged || hasOnlyUserCollectedChange(before, after, userId));
       }
