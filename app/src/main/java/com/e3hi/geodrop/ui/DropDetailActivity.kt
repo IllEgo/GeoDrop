@@ -1635,7 +1635,7 @@ private fun parseLikedBy(raw: Any?): Map<String, Boolean>? {
     if (raw !is Map<*, *>) return null
     if (raw.isEmpty()) return emptyMap()
 
-    val result = mutableMapOf<String, Long>()
+    val result = mutableMapOf<String, Boolean>()
     raw.forEach { (key, value) ->
         val keyString = key as? String ?: return@forEach
         val isLiked = when (value) {
