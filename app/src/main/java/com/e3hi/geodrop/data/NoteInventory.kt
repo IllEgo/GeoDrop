@@ -92,6 +92,21 @@ class NoteInventory(context: Context) {
         notifyListeners(ChangeOrigin.LOCAL)
     }
 
+    fun updateLikeStatus(id: String, likeCount: Long, isLiked: Boolean) {
+        val current = getCollectedNotes().toMutableList()
+        val idx = current.indexOfFirst { it.id == id }
+        if (idx < 0) return
+
+        val existing = current[idx]
+        val updated = existing.copy(likeCount = likeCount, isLiked = isLiked)
+        if (updated == existing) return
+
+        current[idx] = updated
+        persistCollected(current)
+        broadcastChange(changeType = CHANGE_COLLECTED, dropId = id)
+        notifyListeners(ChangeOrigin.LOCAL)
+    }
+
     fun isCollected(id: String): Boolean {
         val stored = prefs.getStringSet(KEY_COLLECTED_IDS, emptySet()) ?: emptySet()
         return stored.contains(id)

@@ -148,12 +148,40 @@ class DropDetailActivity : ComponentActivity() {
         val initialNsfwLabels = intent.getStringArrayListExtra("dropNsfwLabels")
             ?.filter { it.isNotBlank() }
             ?: emptyList()
+        val initialLikeCountHint = intent.getLongExtra("dropLikeCount", -1L).takeIf { it >= 0L }
+        val initialIsLikedHint = intent.getBooleanExtra("dropIsLiked", false)
         val showDecisionOptions = intent.getBooleanExtra(EXTRA_SHOW_DECISION_OPTIONS, false)
 
         setContent {
             GeoDropTheme {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     val context = LocalContext.current
+                    val appContext = context.applicationContext
+                    val noteInventory = remember(appContext) { NoteInventory(appContext) }
+                    val auth = remember { FirebaseAuth.getInstance() }
+                    var currentUser by remember { mutableStateOf(auth.currentUser) }
+                    DisposableEffect(auth) {
+                        val listener = FirebaseAuth.AuthStateListener { firebaseAuth ->
+                            currentUser = firebaseAuth.currentUser
+                        }
+                        auth.addAuthStateListener(listener)
+                        onDispose { auth.removeAuthStateListener(listener) }
+                    }
+                    val currentUserId = currentUser?.uid
+                    val storedCollectedNote = remember(noteInventory, dropId) {
+                        if (dropId.isBlank()) {
+                            null
+                        } else {
+                            noteInventory.getCollectedNotes().firstOrNull { it.id == dropId }
+                        }
+                    }
+                    val initialLikeCount = storedCollectedNote?.likeCount ?: initialLikeCountHint ?: 0L
+                    val initialIsLiked = storedCollectedNote?.isLiked == true || initialIsLikedHint
+                    val initialLikedBy = if (initialIsLiked && !currentUserId.isNullOrBlank()) {
+                        mapOf(currentUserId to true)
+                    } else {
+                        emptyMap()
+                    }
 
                     val initialState = if (dropId.isBlank()) {
                         if (
@@ -177,8 +205,8 @@ class DropDetailActivity : ComponentActivity() {
                                 mediaMimeType = initialMediaMimeType,
                                 mediaData = initialMediaData,
                                 decayDays = initialDecayDays,
-                                likeCount = 0,
-                                likedBy = emptyMap(),
+                                likeCount = initialLikeCount,
+                                likedBy = initialLikedBy,
                                 reportCount = 0,
                                 reportedBy = emptyMap(),
                                 createdBy = null,
@@ -219,8 +247,8 @@ class DropDetailActivity : ComponentActivity() {
                             mediaMimeType = initialMediaMimeType,
                             mediaData = initialMediaData,
                             decayDays = initialDecayDays,
-                            likeCount = 0,
-                            likedBy = emptyMap(),
+                            likeCount = initialLikeCount,
+                            likedBy = initialLikedBy,
                             reportCount = 0,
                             reportedBy = emptyMap(),
                             createdBy = null,
@@ -241,6 +269,36 @@ class DropDetailActivity : ComponentActivity() {
                     }
 
                     var state by remember { mutableStateOf(initialState) }
+
+                    LaunchedEffect(currentUserId, dropId) {
+                        val userId = currentUserId
+                        if (userId.isNullOrBlank() || dropId.isBlank()) return@LaunchedEffect
+                        if (!noteInventory.isCollected(dropId)) return@LaunchedEffect
+                        val stored = noteInventory.getCollectedNotes().firstOrNull { it.id == dropId }
+                            ?: return@LaunchedEffect
+                        val currentLoaded = state as? DropDetailUiState.Loaded ?: return@LaunchedEffect
+                        val shouldLike = stored.isLiked
+                        val adjustedLikeCount = if (stored.likeCount > currentLoaded.likeCount) {
+                            stored.likeCount
+                        } else {
+                            currentLoaded.likeCount
+                        }
+                        var updatedState = currentLoaded
+                        if (adjustedLikeCount != currentLoaded.likeCount) {
+                            updatedState = updatedState.copy(likeCount = adjustedLikeCount)
+                        }
+                        val hasEntry = currentLoaded.likedBy[userId] == true
+                        updatedState = when {
+                            shouldLike && !hasEntry ->
+                                updatedState.copy(likedBy = updatedState.likedBy + (userId to true))
+                            !shouldLike && hasEntry ->
+                                updatedState.copy(likedBy = updatedState.likedBy - userId)
+                            else -> updatedState
+                        }
+                        if (updatedState != currentLoaded) {
+                            state = updatedState
+                        }
+                    }
 
                     LaunchedEffect(dropId) {
                         if (dropId.isBlank()) return@LaunchedEffect
@@ -274,6 +332,39 @@ class DropDetailActivity : ComponentActivity() {
                         val sanitizedLikedBy = parseLikedBy(doc.get("likedBy"))
                         val sanitizedRedeemedMap = parseRedeemedMap(doc.get("redeemedBy"))
                         val sanitizedReportedBy = parseReportedBy(doc.get("reportedBy"))
+                        val storedNoteLatest = if (dropId.isBlank()) {
+                            null
+                        } else {
+                            noteInventory.getCollectedNotes().firstOrNull { it.id == dropId }
+                        }
+                        val localLikeCount = storedNoteLatest?.likeCount ?: initialLikeCount
+                        val localIsLiked = when {
+                            storedNoteLatest != null -> storedNoteLatest.isLiked
+                            else -> initialIsLiked
+                        }
+                        val baseLikedBy = sanitizedLikedBy
+                            ?: previousLoaded?.likedBy
+                            ?: initialLoaded?.likedBy
+                            ?: initialLikedBy
+                        val resolvedLikedByMap = baseLikedBy.toMutableMap()
+                        val remoteLikeCount = doc.getLong("likeCount")
+                            ?: previousLoaded?.likeCount
+                            ?: initialLoaded?.likeCount
+                            ?: initialLikeCount
+                        val resolvedLikeCount = if (localLikeCount > remoteLikeCount) {
+                            localLikeCount
+                        } else {
+                            remoteLikeCount
+                        }
+                        val resolvedUserId = auth.currentUser?.uid ?: currentUserId
+                        if (!resolvedUserId.isNullOrBlank()) {
+                            if (localIsLiked) {
+                                resolvedLikedByMap[resolvedUserId] = true
+                            } else if (storedNoteLatest != null) {
+                                resolvedLikedByMap.remove(resolvedUserId)
+                            }
+                        }
+                        val resolvedLikedBy = resolvedLikedByMap.toMap()
                         val resolvedNsfwFlag = when {
                             doc.contains("isNsfw") -> doc.getBoolean("isNsfw") == true
                             doc.contains("nsfw") -> doc.getBoolean("nsfw") == true
@@ -329,14 +420,8 @@ class DropDetailActivity : ComponentActivity() {
                                     )
                                 ?: previousLoaded?.mediaData
                                 ?: initialMediaData,
-                            likeCount = doc.getLong("likeCount")
-                                ?: previousLoaded?.likeCount
-                                ?: initialLoaded?.likeCount
-                                ?: 0L,
-                            likedBy = sanitizedLikedBy
-                                ?: previousLoaded?.likedBy
-                                ?: initialLoaded?.likedBy
-                                ?: emptyMap(),
+                            likeCount = resolvedLikeCount,
+                            likedBy = resolvedLikedBy,
                             reportCount = doc.getLong("reportCount")
                                 ?: previousLoaded?.reportCount
                                 ?: initialLoaded?.reportCount
@@ -384,19 +469,12 @@ class DropDetailActivity : ComponentActivity() {
                             isNsfw = resolvedNsfwFlag,
                             nsfwLabels = resolvedNsfwLabels
                         )
-                    }
-                    val appContext = context.applicationContext
-                    val noteInventory = remember(appContext) { NoteInventory(appContext) }
-                    val auth = remember { FirebaseAuth.getInstance() }
-                    var currentUser by remember { mutableStateOf(auth.currentUser) }
-                    DisposableEffect(auth) {
-                        val listener = FirebaseAuth.AuthStateListener { firebaseAuth ->
-                            currentUser = firebaseAuth.currentUser
+
+                        if (!dropId.isBlank() && noteInventory.isCollected(dropId)) {
+                            val resolvedLiked = !resolvedUserId.isNullOrBlank() && resolvedLikedBy[resolvedUserId] == true
+                            noteInventory.updateLikeStatus(dropId, resolvedLikeCount, resolvedLiked)
                         }
-                        auth.addAuthStateListener(listener)
-                        onDispose { auth.removeAuthStateListener(listener) }
                     }
-                    val currentUserId = currentUser?.uid
                     val userMode = if (currentUser != null) {
                         UserMode.SIGNED_IN
                     } else {
@@ -913,12 +991,28 @@ class DropDetailActivity : ComponentActivity() {
                                                 if (updated == previous) return@DropLikeSection
 
                                                 state = updated
+                                                if (hasCollected && dropId.isNotBlank()) {
+                                                    noteInventory.updateLikeStatus(
+                                                        dropId,
+                                                        updated.likeCount,
+                                                        desiredStatus == DropLikeStatus.LIKED
+                                                    )
+                                                }
                                                 isVoting = true
+                                                val previousLikeCount = previous.likeCount
+                                                val previousWasLiked = previous.userLikeStatus(userId) == DropLikeStatus.LIKED
                                                 scope.launch {
                                                     try {
                                                         repo.setDropLike(dropId, userId, desiredStatus)
                                                     } catch (e: Exception) {
                                                         state = previous
+                                                        if (hasCollected && dropId.isNotBlank()) {
+                                                            noteInventory.updateLikeStatus(
+                                                                dropId,
+                                                                previousLikeCount,
+                                                                previousWasLiked
+                                                            )
+                                                        }
                                                         if (e is FirebaseFirestoreException &&
                                                             e.code == FirebaseFirestoreException.Code.PERMISSION_DENIED
                                                         ) {

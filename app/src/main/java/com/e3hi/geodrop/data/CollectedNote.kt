@@ -27,6 +27,8 @@ data class CollectedNote(
     val redemptionCount: Int = 0,
     val isRedeemed: Boolean = false,
     val redeemedAt: Long? = null,
+    val likeCount: Long = 0,
+    val isLiked: Boolean = false,
     val collectedAt: Long,
     val isNsfw: Boolean = false,
     val nsfwLabels: List<String> = emptyList()
@@ -53,6 +55,8 @@ data class CollectedNote(
             put(KEY_REDEMPTION_COUNT, redemptionCount)
             put(KEY_IS_REDEEMED, isRedeemed)
             putOpt(KEY_REDEEMED_AT, redeemedAt)
+            putOpt(KEY_LIKE_COUNT, likeCount)
+            put(KEY_IS_LIKED, isLiked)
             put(KEY_COLLECTED_AT, collectedAt)
             put(KEY_IS_NSFW, isNsfw)
             put(KEY_NSFW_LABELS, JSONArray().apply { nsfwLabels.forEach { put(it) } })
@@ -80,6 +84,8 @@ data class CollectedNote(
         private const val KEY_REDEMPTION_COUNT = "redemptionCount"
         private const val KEY_IS_REDEEMED = "isRedeemed"
         private const val KEY_REDEEMED_AT = "redeemedAt"
+        private const val KEY_LIKE_COUNT = "likeCount"
+        private const val KEY_IS_LIKED = "isLiked"
         private const val KEY_COLLECTED_AT = "collectedAt"
         private const val KEY_IS_NSFW = "isNsfw"
         private const val KEY_NSFW_LABELS = "nsfwLabels"
@@ -105,6 +111,11 @@ data class CollectedNote(
             val redemptionCount = json.optInt(KEY_REDEMPTION_COUNT)
             val isRedeemed = json.optBoolean(KEY_IS_REDEEMED)
             val redeemedAt = json.optLong(KEY_REDEEMED_AT).takeIf { json.has(KEY_REDEEMED_AT) }
+            val likeCount = when {
+                json.has(KEY_LIKE_COUNT) -> json.optLong(KEY_LIKE_COUNT)
+                else -> 0L
+            }
+            val isLiked = json.optBoolean(KEY_IS_LIKED)
             val collectedAt = json.optLong(KEY_COLLECTED_AT)
             val nsfwLabels = json.optJSONArray(KEY_NSFW_LABELS)
                 ?.let { array ->
@@ -139,6 +150,8 @@ data class CollectedNote(
                 redemptionCount = redemptionCount,
                 isRedeemed = isRedeemed,
                 redeemedAt = redeemedAt,
+                likeCount = likeCount,
+                isLiked = isLiked,
                 collectedAt = collectedAt,
                 isNsfw = isNsfw,
                 nsfwLabels = nsfwLabels

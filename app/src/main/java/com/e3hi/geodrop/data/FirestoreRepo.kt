@@ -1013,6 +1013,17 @@ class FirestoreRepo(
         val nsfwLabels = (get("nsfwLabels") as? List<*>)
             ?.mapNotNull { value -> value?.toString()?.takeIf { it.isNotBlank() } }
             ?: emptyList()
+        val likeCount = when (val raw = get("likeCount")) {
+            is Number -> raw.toLong()
+            is String -> raw.toLongOrNull() ?: 0L
+            else -> 0L
+        }
+        val isLiked = when (val raw = get("isLiked")) {
+            is Boolean -> raw
+            is Number -> raw.toInt() != 0
+            is String -> raw.equals("true", ignoreCase = true) || raw == "1"
+            else -> false
+        }
 
         return CollectedNote(
             id = noteId,
@@ -1051,6 +1062,8 @@ class FirestoreRepo(
             },
             isRedeemed = getBoolean("isRedeemed") == true,
             redeemedAt = getLong("redeemedAt"),
+            likeCount = likeCount,
+            isLiked = isLiked,
             collectedAt = collectedAt,
             isNsfw = (getBoolean("isNsfw") == true) || nsfwLabels.isNotEmpty(),
             nsfwLabels = nsfwLabels
@@ -1067,6 +1080,8 @@ class FirestoreRepo(
             "dropType" to dropType.name,
             "redemptionCount" to redemptionCount,
             "isRedeemed" to isRedeemed,
+            "likeCount" to likeCount,
+            "isLiked" to isLiked,
             "isNsfw" to isNsfw,
             "nsfwLabels" to nsfwLabels
         )

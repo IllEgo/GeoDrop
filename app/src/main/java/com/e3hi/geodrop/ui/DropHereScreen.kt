@@ -1143,9 +1143,18 @@ fun DropHereScreen(
 
         val previousOtherDrops = otherDrops
         val previousMyDrops = myDrops
+        val previousCollectedNote = noteInventory.getCollectedNotes().firstOrNull { it.id == dropId }
 
         votingDropIds = votingDropIds + dropId
         updateDropInLists(dropId) { current -> current.applyUserLike(userId, desiredStatus) }
+        previousCollectedNote?.let {
+            noteInventory.updateLikeStatus(
+                dropId,
+                updatedDrop.likeCount,
+                updatedDrop.userLikeStatus(userId) == DropLikeStatus.LIKED
+            )
+            collectedNotes = noteInventory.getCollectedNotes()
+        }
 
         scope.launch {
             try {
@@ -1153,6 +1162,10 @@ fun DropHereScreen(
             } catch (e: Exception) {
                 otherDrops = previousOtherDrops
                 myDrops = previousMyDrops
+                previousCollectedNote?.let {
+                    noteInventory.updateLikeStatus(dropId, it.likeCount, it.isLiked)
+                    collectedNotes = noteInventory.getCollectedNotes()
+                }
                 if (e is FirebaseFirestoreException &&
                     e.code == FirebaseFirestoreException.Code.PERMISSION_DENIED
                 ) {
@@ -2376,6 +2389,11 @@ fun DropHereScreen(
                                         drop.businessId?.let { putExtra("dropBusinessId", it) }
                                         drop.redemptionLimit?.let { putExtra("dropRedemptionLimit", it) }
                                         putExtra("dropRedemptionCount", drop.redemptionCount)
+                                        putExtra("dropLikeCount", drop.likeCount)
+                                        val userId = currentUserId
+                                        if (!userId.isNullOrBlank() && drop.userLikeStatus(userId) == DropLikeStatus.LIKED) {
+                                            putExtra("dropIsLiked", true)
+                                        }
                                         putExtra("dropIsNsfw", drop.isNsfw)
                                         if (drop.nsfwLabels.isNotEmpty()) {
                                             putStringArrayListExtra("dropNsfwLabels", ArrayList(drop.nsfwLabels))
@@ -2466,6 +2484,10 @@ fun DropHereScreen(
                                         putExtra("dropCollectedAt", note.collectedAt)
                                         putExtra("dropIsRedeemed", note.isRedeemed)
                                         note.redeemedAt?.let { putExtra("dropRedeemedAt", it) }
+                                        putExtra("dropLikeCount", note.likeCount)
+                                        if (note.isLiked) {
+                                            putExtra("dropIsLiked", true)
+                                        }
                                         putExtra("dropIsNsfw", note.isNsfw)
                                         if (note.nsfwLabels.isNotEmpty()) {
                                             putStringArrayListExtra("dropNsfwLabels", ArrayList(note.nsfwLabels))
