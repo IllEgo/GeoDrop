@@ -257,6 +257,46 @@ service cloud.firestore {
         return beforeCollectedBy.diff(afterCollectedBy).affectedKeys().hasOnly([userId]);
       }
 
+      function hasTruthyValue(value) {
+        return (value is bool && value == true)
+          || (value is int && value != 0)
+          || (value is float && value != 0)
+          || (value is timestamp)
+          || (value is string && value.size() > 0 && value.lower() !in ['false', '0', 'off', 'no'])
+          || (value is map && value.size() > 0)
+          || (value is list && value.size() > 0);
+      }
+
+      function hasCollectedDrop(data, userId) {
+        if (!(data.collectedBy is map)) {
+          return false;
+        }
+
+        let collected = data.collectedBy;
+        if (!collected.keys().hasAny([userId])) {
+          return false;
+        }
+
+        let value = collected[userId];
+
+        return value != null && hasTruthyValue(value);
+      }
+
+      function canUserVoteOnDrop(before, after, userId) {
+        if (userId == null) {
+          return false;
+        }
+
+        let createdBefore = before.createdBy;
+        let createdAfter = after.createdBy;
+        let isOwner = (createdBefore is string && createdBefore == userId)
+          || (createdAfter is string && createdAfter == userId);
+
+        return isOwner
+          || hasCollectedDrop(before, userId)
+          || hasCollectedDrop(after, userId);
+      }
+
       function isValidVoteReportCollectUpdate(before, after, userId) {
         let allowedFields = [
           'voteMap',
@@ -290,10 +330,11 @@ service cloud.firestore {
         let collectedChanged = before.collectedBy != after.collectedBy;
         let reportChanged = before.reportedBy != after.reportedBy
           || before.reportCount != after.reportCount;
+        let userEligibleForVote = canUserVoteOnDrop(before, after, userId);
 
         return hasOnlyAllowedFields
           && hasOnlyAllowedWriteFields
-          && (!voteChanged || isValidVoteTransition(before, after, userId))
+          && (!voteChanged || (userEligibleForVote && isValidVoteTransition(before, after, userId)))
           && (!reportChanged || isValidReportTransition(before, after, userId))
           && (!collectedChanged || hasOnlyUserCollectedChange(before, after, userId));
       }
