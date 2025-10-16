@@ -87,7 +87,6 @@ import com.e3hi.geodrop.data.DropLikeStatus
 import com.e3hi.geodrop.data.FirestoreRepo
 import com.e3hi.geodrop.data.NoteInventory
 import com.e3hi.geodrop.data.RedemptionResult
-import com.e3hi.geodrop.data.applyUserVote
 import com.e3hi.geodrop.data.requiresRedemption
 import com.e3hi.geodrop.data.isRedeemedBy
 import com.e3hi.geodrop.data.canViewNsfw
