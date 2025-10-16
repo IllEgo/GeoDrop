@@ -282,7 +282,7 @@ service cloud.firestore {
           .concat(userCollectFields)
           .concat(userReportFields);
         let changedFields = before.diff(after).affectedKeys();
-        let hasOnlyAllowedFields = changedFields.hasOnly(allowedFields);
+        let hasOnlyAllowedFields = changedFields.hasOnly(allowedWriteFields);
         let hasOnlyAllowedWriteFields = request.writeFields.hasOnly(allowedWriteFields);
         let voteChanged = before.voteMap != after.voteMap
           || before.upvoteCount != after.upvoteCount
