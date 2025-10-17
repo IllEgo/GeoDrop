@@ -254,6 +254,7 @@ fun DropHereScreen(
     var accountGoogleSigningIn by remember { mutableStateOf(false) }
     var showAccountMenu by remember { mutableStateOf(false) }
     var showExplorerProfile by remember { mutableStateOf(false) }
+    var explorerDestination by rememberSaveable { mutableStateOf(ExplorerDestination.Discover.name) }
     var explorerUsernameField by rememberSaveable(stateSaver = TextFieldValue.Saver) {
         mutableStateOf(TextFieldValue(""))
     }
@@ -791,7 +792,6 @@ fun DropHereScreen(
     var businessDashboardError by remember { mutableStateOf<String?>(null) }
     var businessDashboardRefreshToken by remember { mutableStateOf(0) }
     var selectedHomeDestination by rememberSaveable { mutableStateOf(HomeDestination.Explorer.name) }
-    var explorerDestination by rememberSaveable { mutableStateOf(ExplorerDestination.Discover.name) }
     var notificationRadius by remember { mutableStateOf(notificationPrefs.getNotificationRadiusMeters()) }
     var showNotificationRadiusDialog by remember { mutableStateOf(false) }
 
