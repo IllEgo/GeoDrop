@@ -50,7 +50,11 @@ service cloud.firestore {
     }
 
     match /drops/{dropId} {
-      allow get, list: if isSignedIn() || request.auth == null;
+      allow get: if isSignedIn()
+        && hasCollectedDrop(resource.data, request.auth.uid);
+
+      allow list: if isSignedIn()
+        && request.query.where('collectedBy.' + request.auth.uid, '==', true);
       function hasOnlyAllowedDropFields() {
         return request.resource.data.keys().hasOnly([
           'text',
