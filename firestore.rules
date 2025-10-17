@@ -63,11 +63,15 @@ service cloud.firestore {
           || isActiveDrop(data)
           || hasCollectedDrop(data, userId);
       }
-      allow get: if isSignedIn()
-        && canBrowseDrop(resource.data, request.auth.uid);
+      allow get: if (isSignedIn()
+          && canBrowseDrop(resource.data, request.auth.uid))
+        || (!isSignedIn()
+          && isActiveDrop(resource.data));
 
-      allow list: if isSignedIn()
-        && canBrowseDrop(resource.data, request.auth.uid);
+      allow list: if (isSignedIn()
+          && canBrowseDrop(resource.data, request.auth.uid))
+        || (!isSignedIn()
+          && isActiveDrop(resource.data));
       function hasOnlyAllowedDropFields() {
         return request.resource.data.keys().hasOnly([
           'text',
