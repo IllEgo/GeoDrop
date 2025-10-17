@@ -525,8 +525,16 @@ fun DropHereScreen(
     }
 
     LaunchedEffect(userMode) {
-        if (userMode == UserMode.SIGNED_IN) {
-            guestModeEnabled = false
+        when (userMode) {
+            UserMode.SIGNED_IN -> {
+                guestModeEnabled = false
+            }
+
+            UserMode.GUEST -> {
+                explorerDestination = ExplorerDestination.Discover.name
+            }
+
+            null -> {}
         }
     }
 
@@ -1908,6 +1916,21 @@ fun DropHereScreen(
             .getOrDefault(ExplorerDestination.Discover)
     }
 
+    val effectiveExplorerDestination = remember(currentExplorerDestination, hasExplorerAccount) {
+        if (!hasExplorerAccount && currentExplorerDestination != ExplorerDestination.Discover) {
+            ExplorerDestination.Discover
+        } else {
+            currentExplorerDestination
+        }
+    }
+
+    LaunchedEffect(effectiveExplorerDestination) {
+        val desired = effectiveExplorerDestination.name
+        if (desired != explorerDestination) {
+            explorerDestination = desired
+        }
+    }
+
     LaunchedEffect(currentHomeDestination, currentExplorerDestination, myDropsRefreshToken) {
         val shouldLoad = currentHomeDestination == HomeDestination.Explorer &&
                 currentExplorerDestination == ExplorerDestination.MyDrops
@@ -1973,6 +1996,10 @@ fun DropHereScreen(
             }
 
             ExplorerDestination.Collected -> {
+                if (!hasExplorerAccount) {
+                    snackbar.showMessage(scope, participationRestriction("view collected drops"))
+                    return
+                }
                 val storedNotes = noteInventory.getCollectedNotes()
                 if (!canParticipate && storedNotes.isEmpty()) {
                     snackbar.showMessage(scope, participationRestriction("view collected drops"))
@@ -2239,12 +2266,14 @@ fun DropHereScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 20.dp, vertical = 16.dp),
-                        current = currentExplorerDestination,
-                        onSelect = { destination -> openExplorerDestination(destination) }
+                        current = effectiveExplorerDestination,
+                        onSelect = { destination -> openExplorerDestination(destination) },
+                        showMyDrops = hasExplorerAccount,
+                        showCollected = hasExplorerAccount
                     )
                 }
 
-                when (currentExplorerDestination) {
+                when (effectiveExplorerDestination) {
                     ExplorerDestination.Discover -> {
                         Box(modifier = Modifier.weight(1f)) {
                             LazyColumn(
@@ -2511,7 +2540,7 @@ fun DropHereScreen(
                     }
                 }
 
-                if (currentExplorerDestination != ExplorerDestination.Discover) {
+                if (effectiveExplorerDestination != ExplorerDestination.Discover) {
                     Spacer(Modifier.height(24.dp))
                 }
             }
@@ -4967,9 +4996,19 @@ private fun CollectedDropsContent(
 private fun ExplorerDestinationTabs(
     modifier: Modifier = Modifier,
     current: ExplorerDestination,
-    onSelect: (ExplorerDestination) -> Unit
+    onSelect: (ExplorerDestination) -> Unit,
+    showMyDrops: Boolean,
+    showCollected: Boolean
 ) {
-    val destinations = remember { ExplorerDestination.values() }
+    val destinations = remember(showMyDrops, showCollected) {
+        ExplorerDestination.values().filter { destination ->
+            when (destination) {
+                ExplorerDestination.MyDrops -> showMyDrops
+                ExplorerDestination.Collected -> showCollected
+                ExplorerDestination.Discover -> true
+            }
+        }
+    }
     SingleChoiceSegmentedButtonRow(modifier = modifier) {
         destinations.forEachIndexed { index, destination ->
             val selected = destination == current
