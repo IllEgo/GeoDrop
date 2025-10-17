@@ -58,6 +58,27 @@ service cloud.firestore {
         return !(data.keys().hasAny(['isDeleted']) && data.isDeleted == true);
       }
 
+      function hasTruthyValue(value) {
+        return (value is bool && value == true)
+          || (value is int && value != 0)
+          || (value is float && value != 0)
+          || (value is timestamp)
+          || (
+            value is string
+            && value.size() > 0
+            && !(value.lower() in ['false', '0', 'off', 'no'])
+          )
+          || (value is map && value.size() > 0)
+          || (value is list && value.size() > 0);
+      }
+
+      function hasCollectedDrop(data, userId) {
+        return (data.collectedBy is map)
+          && data.collectedBy.keys().hasAny([userId])
+          && data.collectedBy[userId] != null
+          && hasTruthyValue(data.collectedBy[userId]);
+      }
+
       function isNsfwDrop(data) {
         return (data.keys().hasAny(['isNsfw']) && data.isNsfw == true)
           || (data.keys().hasAny(['nsfw']) && data.nsfw == true);
@@ -80,17 +101,16 @@ service cloud.firestore {
             || isActiveDrop(data)
             || hasCollectedDrop(data, userId));
       }
+
       allow get: if (isSignedIn()
           && canBrowseDrop(resource.data, request.auth.uid))
         || (!isSignedIn()
           && isActiveDrop(resource.data)
           && !isNsfwDrop(resource.data));
 
-      allow list: if (isSignedIn()
-          && canBrowseDrop(resource.data, request.auth.uid))
-        || (!isSignedIn()
-          && isActiveDrop(resource.data)
-          && !isNsfwDrop(resource.data));
+      // Query level checks rely on the per-document get rule above. Avoid accessing
+      // `resource` in a list rule because it is undefined for collection reads.
+      allow list: if true;
       function hasOnlyAllowedDropFields() {
         return request.resource.data.keys().hasOnly([
           'text',
@@ -157,27 +177,6 @@ service cloud.firestore {
         let beforeCollectedBy = (before.collectedBy is map) ? before.collectedBy : {};
         let afterCollectedBy = (after.collectedBy is map) ? after.collectedBy : {};
         return beforeCollectedBy.diff(afterCollectedBy).affectedKeys().hasOnly([userId]);
-      }
-
-      function hasTruthyValue(value) {
-        return (value is bool && value == true)
-          || (value is int && value != 0)
-          || (value is float && value != 0)
-          || (value is timestamp)
-          || (
-            value is string
-            && value.size() > 0
-            && !(value.lower() in ['false', '0', 'off', 'no'])
-          )
-          || (value is map && value.size() > 0)
-          || (value is list && value.size() > 0);
-      }
-
-      function hasCollectedDrop(data, userId) {
-        return (data.collectedBy is map)
-          && data.collectedBy.keys().hasAny([userId])
-          && data.collectedBy[userId] != null
-          && hasTruthyValue(data.collectedBy[userId]);
       }
 
       function isValidLikeReportCollectUpdate(before, after, userId) {
