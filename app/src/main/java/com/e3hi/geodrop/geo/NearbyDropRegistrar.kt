@@ -107,6 +107,7 @@ class NearbyDropRegistrar {
         val db = Firebase.firestore
         val inventory = NoteInventory(context)
         val me = FirebaseAuth.getInstance().currentUser?.uid
+        inventory.setActiveUser(me)
         val allowedGroups = groupCodes.mapNotNull { GroupPreferences.normalizeGroupCode(it) }.toSet()
 
         CoroutineScope(Dispatchers.IO).launch {

@@ -168,7 +168,10 @@ class DropDetailActivity : ComponentActivity() {
                         onDispose { auth.removeAuthStateListener(listener) }
                     }
                     val currentUserId = currentUser?.uid
-                    val storedCollectedNote = remember(noteInventory, dropId) {
+                    LaunchedEffect(currentUserId) {
+                        noteInventory.setActiveUser(currentUserId)
+                    }
+                    val storedCollectedNote = remember(noteInventory, dropId, currentUserId) {
                         if (dropId.isBlank()) {
                             null
                         } else {

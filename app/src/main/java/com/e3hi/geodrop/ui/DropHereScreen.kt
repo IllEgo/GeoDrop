@@ -556,6 +556,12 @@ fun DropHereScreen(
     var ignoredDropIds by remember { mutableStateOf(noteInventory.getIgnoredDropIds()) }
     val collectedDropIds = remember(collectedNotes) { collectedNotes.map { it.id }.toSet() }
 
+    LaunchedEffect(currentUser?.uid) {
+        noteInventory.setActiveUser(currentUser?.uid)
+        collectedNotes = noteInventory.getCollectedNotes()
+        ignoredDropIds = noteInventory.getIgnoredDropIds()
+    }
+
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {

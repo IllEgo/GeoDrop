@@ -97,6 +97,7 @@ class DropDecisionReceiver : BroadcastReceiver() {
 
         val dropperUsername = runCatching { repo.fetchDropperUsername(dropId) }.getOrNull()
         val inventory = NoteInventory(context)
+        inventory.setActiveUser(FirebaseAuth.getInstance().currentUser?.uid)
         val note = CollectedNote(
             id = dropId,
             text = text,
@@ -137,6 +138,7 @@ class DropDecisionReceiver : BroadcastReceiver() {
 
     private suspend fun handleIgnore(context: Context, dropId: String) {
         val inventory = NoteInventory(context)
+        inventory.setActiveUser(FirebaseAuth.getInstance().currentUser?.uid)
         inventory.markIgnored(dropId)
         removeGeofence(context, dropId)
         Log.d(TAG, "Ignored drop $dropId")

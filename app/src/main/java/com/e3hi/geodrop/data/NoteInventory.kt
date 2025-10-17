@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.content.Intent
 import androidx.core.content.edit
+import com.google.firebase.auth.FirebaseAuth
 import java.util.HashSet
 import java.util.concurrent.CopyOnWriteArraySet
 import org.json.JSONArray
@@ -16,6 +17,8 @@ class NoteInventory(context: Context) {
     private val prefs: SharedPreferences =
         context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     private val appContext = context.applicationContext
+    @Volatile
+    private var activeUserKey: String = resolveUserKey(FirebaseAuth.getInstance().currentUser?.uid)
 
     /**
      * All [NoteInventory] instances read and write to the same SharedPreferences file, so changes
@@ -25,8 +28,17 @@ class NoteInventory(context: Context) {
      */
     private val listeners get() = sharedListeners
 
+    @Synchronized
+    fun setActiveUser(userId: String?) {
+        val normalized = resolveUserKey(userId)
+        if (activeUserKey == normalized) return
+
+        activeUserKey = normalized
+    }
+
     fun getCollectedNotes(): List<CollectedNote> {
-        val raw = prefs.getString(KEY_COLLECTED, null) ?: return emptyList()
+        ensureStorageMigrated()
+        val raw = prefs.getString(collectedKey(), null) ?: return emptyList()
         return try {
             val array = JSONArray(raw)
             buildList {
@@ -62,9 +74,10 @@ class NoteInventory(context: Context) {
     }
 
     fun markIgnored(id: String) {
-        val ignored = prefs.getStringSet(KEY_IGNORED, emptySet())?.toMutableSet() ?: mutableSetOf()
+        ensureStorageMigrated()
+        val ignored = prefs.getStringSet(ignoredKey(), emptySet())?.toMutableSet() ?: mutableSetOf()
         if (ignored.add(id)) {
-            prefs.edit { putStringSet(KEY_IGNORED, ignored) }
+            prefs.edit { putStringSet(ignoredKey(), ignored) }
             broadcastChange(changeType = CHANGE_IGNORED, dropId = id)
             notifyListeners(ChangeOrigin.LOCAL)
         }
@@ -108,17 +121,20 @@ class NoteInventory(context: Context) {
     }
 
     fun isCollected(id: String): Boolean {
-        val stored = prefs.getStringSet(KEY_COLLECTED_IDS, emptySet()) ?: emptySet()
+        ensureStorageMigrated()
+        val stored = prefs.getStringSet(collectedIdsKey(), emptySet()) ?: emptySet()
         return stored.contains(id)
     }
 
     fun isIgnored(id: String): Boolean {
-        val stored = prefs.getStringSet(KEY_IGNORED, emptySet()) ?: emptySet()
+        ensureStorageMigrated()
+        val stored = prefs.getStringSet(ignoredKey(), emptySet()) ?: emptySet()
         return stored.contains(id)
     }
 
     fun getIgnoredDropIds(): Set<String> {
-        val stored = prefs.getStringSet(KEY_IGNORED, emptySet()) ?: emptySet()
+        ensureStorageMigrated()
+        val stored = prefs.getStringSet(ignoredKey(), emptySet()) ?: emptySet()
         return stored.toSet()
     }
 
@@ -132,7 +148,7 @@ class NoteInventory(context: Context) {
         val previousIgnored = getIgnoredDropIds()
 
         persistCollected(snapshot.collectedNotes)
-        prefs.edit { putStringSet(KEY_IGNORED, HashSet(snapshot.ignoredDropIds)) }
+        prefs.edit { putStringSet(ignoredKey(), HashSet(snapshot.ignoredDropIds)) }
 
         val previousCollectedMap = previousCollected.associateBy { it.id }
         val newCollectedMap = snapshot.collectedNotes.associateBy { it.id }
@@ -169,15 +185,15 @@ class NoteInventory(context: Context) {
             ids.add(note.id)
         }
         prefs.edit {
-            putString(KEY_COLLECTED, array.toString())
-            putStringSet(KEY_COLLECTED_IDS, ids)
+            putString(collectedKey(), array.toString())
+            putStringSet(collectedIdsKey(), HashSet(ids))
         }
     }
 
     private fun removeIgnored(id: String) {
-        val ignored = prefs.getStringSet(KEY_IGNORED, emptySet())?.toMutableSet() ?: mutableSetOf()
+        val ignored = prefs.getStringSet(ignoredKey(), emptySet())?.toMutableSet() ?: mutableSetOf()
         if (ignored.remove(id)) {
-            prefs.edit { putStringSet(KEY_IGNORED, ignored) }
+            prefs.edit { putStringSet(ignoredKey(), ignored) }
         }
     }
 
@@ -202,6 +218,10 @@ class NoteInventory(context: Context) {
         private const val KEY_COLLECTED = "collected_notes"
         private const val KEY_COLLECTED_IDS = "collected_note_ids"
         private const val KEY_IGNORED = "ignored_drop_ids"
+        private const val KEY_COLLECTED_PREFIX = "collected_notes_v2_"
+        private const val KEY_COLLECTED_IDS_PREFIX = "collected_note_ids_v2_"
+        private const val KEY_IGNORED_PREFIX = "ignored_drop_ids_v2_"
+        private const val DEFAULT_USER_KEY = "guest"
 
         private val sharedListeners = CopyOnWriteArraySet<ChangeListener>()
     }
@@ -225,5 +245,53 @@ class NoteInventory(context: Context) {
         listeners.forEach { listener ->
             listener.onInventoryChanged(snapshot, origin)
         }
+    }
+
+    private fun collectedKey(): String = collectedKey(activeUserKey)
+
+    private fun collectedIdsKey(): String = collectedIdsKey(activeUserKey)
+
+    private fun ignoredKey(): String = ignoredKey(activeUserKey)
+
+    private fun collectedKey(userKey: String): String = "$KEY_COLLECTED_PREFIX$userKey"
+
+    private fun collectedIdsKey(userKey: String): String = "$KEY_COLLECTED_IDS_PREFIX$userKey"
+
+    private fun ignoredKey(userKey: String): String = "$KEY_IGNORED_PREFIX$userKey"
+
+    private fun ensureStorageMigrated() {
+        val legacyCollected = prefs.getString(KEY_COLLECTED, null)
+        val legacyIds = prefs.getStringSet(KEY_COLLECTED_IDS, null)
+        val legacyIgnored = prefs.getStringSet(KEY_IGNORED, null)
+        if (legacyCollected == null && legacyIds == null && legacyIgnored == null) return
+
+        val targetCollectedKey = collectedKey()
+        val targetIdsKey = collectedIdsKey()
+        val targetIgnoredKey = ignoredKey()
+        if (prefs.contains(targetCollectedKey) || prefs.contains(targetIdsKey) ||
+            prefs.contains(targetIgnoredKey)
+        ) {
+            // Data already migrated for this user; remove legacy leftovers to avoid reuse.
+            prefs.edit {
+                remove(KEY_COLLECTED)
+                remove(KEY_COLLECTED_IDS)
+                remove(KEY_IGNORED)
+            }
+            return
+        }
+
+        prefs.edit {
+            legacyCollected?.let { putString(targetCollectedKey, it) }
+            legacyIds?.let { putStringSet(targetIdsKey, HashSet(it)) }
+            legacyIgnored?.let { putStringSet(targetIgnoredKey, HashSet(it)) }
+            remove(KEY_COLLECTED)
+            remove(KEY_COLLECTED_IDS)
+            remove(KEY_IGNORED)
+        }
+    }
+
+    private fun resolveUserKey(userId: String?): String {
+        val raw = userId?.takeIf { it.isNotBlank() }
+        return raw ?: DEFAULT_USER_KEY
     }
 }

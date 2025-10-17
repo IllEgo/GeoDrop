@@ -56,6 +56,7 @@ class UserDataSyncRepository(
 
         stop()
         currentUserId = userId
+        noteInventory.setActiveUser(userId)
         groupPreferences.addChangeListener(groupChangeListener)
         noteInventory.addChangeListener(inventoryChangeListener)
         initializationJob = scope.launch(ioDispatcher) {
@@ -72,6 +73,7 @@ class UserDataSyncRepository(
         inventoryRegistration = null
         groupPreferences.removeChangeListener(groupChangeListener)
         noteInventory.removeChangeListener(inventoryChangeListener)
+        noteInventory.setActiveUser(null)
         currentUserId = null
     }
 

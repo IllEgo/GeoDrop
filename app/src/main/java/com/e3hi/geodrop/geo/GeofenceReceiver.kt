@@ -19,6 +19,7 @@ import com.e3hi.geodrop.util.EXTRA_SHOW_DECISION_OPTIONS
 import com.e3hi.geodrop.util.CHANNEL_NEARBY
 import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofencingEvent
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
 import kotlinx.coroutines.CoroutineScope
@@ -41,6 +42,7 @@ class GeofenceReceiver : BroadcastReceiver() {
         val id = event.triggeringGeofences?.firstOrNull()?.requestId ?: return
 
         val inventory = NoteInventory(context)
+        inventory.setActiveUser(FirebaseAuth.getInstance().currentUser?.uid)
         if (inventory.isCollected(id) || inventory.isIgnored(id)) {
             Log.d("GeoDrop", "Skipping geofence $id because it was already processed locally.")
             return
