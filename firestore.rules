@@ -58,20 +58,45 @@ service cloud.firestore {
         return !(data.keys().hasAny(['isDeleted']) && data.isDeleted == true);
       }
 
+      function isNsfwDrop(data) {
+        return (data.keys().hasAny(['isNsfw']) && data.isNsfw == true)
+          || (data.keys().hasAny(['nsfw']) && data.nsfw == true);
+      }
+
+      function hasEnabledNsfw(userId) {
+        if (!isSignedIn()) {
+          return false;
+        }
+
+        let userRef = /databases/$(database)/documents/users/$(userId);
+
+        return exists(userRef)
+          && (let userDoc = get(userRef);
+            userDoc.data.keys().hasAny(['nsfwEnabled'])
+            && userDoc.data.nsfwEnabled == true);
+      }
+
       function canBrowseDrop(data, userId) {
-        return isDropOwner(data, userId)
-          || isActiveDrop(data)
-          || hasCollectedDrop(data, userId);
+        let nsfwAllowed = !isNsfwDrop(data)
+          || isDropOwner(data, userId)
+          || hasEnabledNsfw(userId);
+
+        return nsfwAllowed
+          && (isDropOwner(data, userId)
+            || isActiveDrop(data)
+            || hasCollectedDrop(data, userId));
       }
       allow get: if (isSignedIn()
           && canBrowseDrop(resource.data, request.auth.uid))
         || (!isSignedIn()
-          && isActiveDrop(resource.data));
+          && isActiveDrop(resource.data)
+          && !isNsfwDrop(resource.data));
 
       allow list: if (isSignedIn()
           && canBrowseDrop(resource.data, request.auth.uid))
         || (!isSignedIn()
-          && isActiveDrop(resource.data));
+          && isActiveDrop(resource.data)
+          && !isNsfwDrop(resource.data));
       function hasOnlyAllowedDropFields() {
         return request.resource.data.keys().hasOnly([
           'text',
