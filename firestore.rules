@@ -64,12 +64,12 @@ service cloud.firestore {
       }
 
       function hasEnabledNsfw(userId) {
+        let userRef = /databases/$(database)/documents/users/$(userId);
+        let userDoc = exists(userRef) ? get(userRef) : null;
         return isSignedIn()
-          && (let userRef = /databases/$(database)/documents/users/$(userId);
-            exists(userRef)
-            && (let userDoc = get(userRef);
-              userDoc.data.keys().hasAny(['nsfwEnabled'])
-              && userDoc.data.nsfwEnabled == true));
+          && userDoc != null
+          && userDoc.data.keys().hasAny(['nsfwEnabled'])
+          && userDoc.data.nsfwEnabled == true;
       }
 
       function canBrowseDrop(data, userId) {
@@ -154,9 +154,9 @@ service cloud.firestore {
         );
 
       function hasOnlyUserCollectedChange(before, after, userId) {
-        return (let beforeCollectedBy = (before.collectedBy is map) ? before.collectedBy : {};
-          let afterCollectedBy = (after.collectedBy is map) ? after.collectedBy : {};
-          beforeCollectedBy.diff(afterCollectedBy).affectedKeys().hasOnly([userId]));
+        let beforeCollectedBy = (before.collectedBy is map) ? before.collectedBy : {};
+        let afterCollectedBy = (after.collectedBy is map) ? after.collectedBy : {};
+        return beforeCollectedBy.diff(afterCollectedBy).affectedKeys().hasOnly([userId]);
       }
 
       function hasTruthyValue(value) {
@@ -181,7 +181,7 @@ service cloud.firestore {
       }
 
       function isValidLikeReportCollectUpdate(before, after, userId) {
-        return (let allowedWriteFields = [
+        let allowedWriteFields = [
             'likedBy',
             'likeCount',
             'collectedBy',
@@ -191,11 +191,11 @@ service cloud.firestore {
           .concat(['likedBy.' + userId])
           .concat(['collectedBy.' + userId])
           .concat(['reportedBy.' + userId]);
-          let hasOnlyAllowedFields = before.diff(after).affectedKeys().hasOnly(allowedWriteFields);
-          let collectedChanged = before.collectedBy != after.collectedBy;
+        let hasOnlyAllowedFields = before.diff(after).affectedKeys().hasOnly(allowedWriteFields);
+        let collectedChanged = before.collectedBy != after.collectedBy;
 
-          hasOnlyAllowedFields
-            && (!collectedChanged || hasOnlyUserCollectedChange(before, after, userId)));
+        return hasOnlyAllowedFields
+          && (!collectedChanged || hasOnlyUserCollectedChange(before, after, userId));
       }
 
       function isRedeemableDrop(data) {
@@ -203,26 +203,26 @@ service cloud.firestore {
       }
 
       function isValidRedemptionTransition(before, after, userId) {
-        return (let beforeRedeemedBy = (before.redeemedBy is map) ? before.redeemedBy : {};
-          let afterRedeemedBy = (after.redeemedBy is map) ? after.redeemedBy : {};
-          let beforeCountValid = !before.keys().hasAny(['redemptionCount']) || before.redemptionCount is int;
-          let afterCountValid = after.redemptionCount is int;
-          let beforeCount = beforeCountValid ? ((before.redemptionCount is int) ? before.redemptionCount : 0) : 0;
-          let afterCount = afterCountValid ? after.redemptionCount : 0;
-          let diff = beforeRedeemedBy.diff(afterRedeemedBy);
-          let alreadyRedeemed = beforeRedeemedBy.keys().hasAny([userId]);
-          let nowRedeemed = afterRedeemedBy.keys().hasAny([userId]);
-          let redeemTimestamp = afterRedeemedBy[userId];
-          let limit = (before.redemptionLimit is int) ? before.redemptionLimit : null;
+        let beforeRedeemedBy = (before.redeemedBy is map) ? before.redeemedBy : {};
+        let afterRedeemedBy = (after.redeemedBy is map) ? after.redeemedBy : {};
+        let beforeCountValid = !before.keys().hasAny(['redemptionCount']) || before.redemptionCount is int;
+        let afterCountValid = after.redemptionCount is int;
+        let beforeCount = beforeCountValid ? ((before.redemptionCount is int) ? before.redemptionCount : 0) : 0;
+        let afterCount = afterCountValid ? after.redemptionCount : 0;
+        let diff = beforeRedeemedBy.diff(afterRedeemedBy);
+        let alreadyRedeemed = beforeRedeemedBy.keys().hasAny([userId]);
+        let nowRedeemed = afterRedeemedBy.keys().hasAny([userId]);
+        let redeemTimestamp = afterRedeemedBy[userId];
+        let limit = (before.redemptionLimit is int) ? before.redemptionLimit : null;
 
-          beforeCountValid
-            && afterCountValid
-            && !alreadyRedeemed
-            && nowRedeemed
-            && diff.affectedKeys().hasOnly([userId])
-            && redeemTimestamp is int
-            && afterCount == beforeCount + 1
-            && (limit == null || afterCount <= limit));
+        return beforeCountValid
+          && afterCountValid
+          && !alreadyRedeemed
+          && nowRedeemed
+          && diff.affectedKeys().hasOnly([userId])
+          && redeemTimestamp is int
+          && afterCount == beforeCount + 1
+          && (limit == null || afterCount <= limit);
       }
 
       function hasUserCollectedBeforeOrAfter(before, after, userId) {
