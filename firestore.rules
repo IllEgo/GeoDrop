@@ -207,10 +207,19 @@ service cloud.firestore {
           && (limit == null || afterCount <= limit);
       }
 
+      function hasUserCollectedBeforeOrAfter(before, after, userId) {
+        return hasCollectedDrop(before, userId)
+          || hasCollectedDrop(after, userId);
+      }
+
       allow update: if isSignedIn()
         && (
           (
             isValidLikeReportCollectUpdate(resource.data, request.resource.data, request.auth.uid)
+            && (
+              isDropOwner(resource.data, request.auth.uid)
+              || hasUserCollectedBeforeOrAfter(resource.data, request.resource.data, request.auth.uid)
+            )
           )
           || (
             resource.data.createdBy == request.auth.uid
