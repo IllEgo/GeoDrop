@@ -13,7 +13,6 @@ fun createNotificationChannelIfNeeded(ctx: Context) {
     if (Build.VERSION.SDK_INT >= 26) {
         val mgr = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val nearbyChannel = NotificationChannel(
-        val ch = NotificationChannel(
             CHANNEL_NEARBY,
             "Nearby drops",
             NotificationManager.IMPORTANCE_DEFAULT
