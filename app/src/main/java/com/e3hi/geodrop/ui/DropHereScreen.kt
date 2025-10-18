@@ -19,7 +19,6 @@ import android.util.Base64
 import android.util.Log
 import android.util.Patterns
 import android.provider.MediaStore
-import android.view.MotionEvent
 import android.webkit.MimeTypeMap
 import android.widget.Toast
 import android.view.ViewGroup
@@ -112,14 +111,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -6016,14 +6013,6 @@ private fun OtherDropsExplorerSection(
     onMapWeightChange: (Float) -> Unit
 ) {
     val context = LocalContext.current
-    val composeView = LocalView.current
-    DisposableEffect(composeView) {
-        onDispose {
-            composeView.parent?.requestDisallowInterceptTouchEvent(false)
-        }
-    }
-    var mapInteracting by remember { mutableStateOf(false) }
-    var activeMapPointers by remember { mutableStateOf(0) }
     val clampedMapWeight = mapWeight.coerceIn(MAP_LIST_MIN_WEIGHT, MAP_LIST_MAX_WEIGHT)
     var internalWeight by remember { mutableStateOf(clampedMapWeight) }
     internalWeight = clampedMapWeight
@@ -6145,34 +6134,6 @@ private fun OtherDropsExplorerSection(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .weight(internalWeight)
-                                .pointerInteropFilter { event ->
-                                    when (event.actionMasked) {
-                                        MotionEvent.ACTION_DOWN -> {
-                                            activeMapPointers = 1
-                                            mapInteracting = true
-                                            composeView.parent?.requestDisallowInterceptTouchEvent(true)
-                                        }
-                                        MotionEvent.ACTION_POINTER_DOWN -> {
-                                            activeMapPointers += 1
-                                            mapInteracting = true
-                                            composeView.parent?.requestDisallowInterceptTouchEvent(true)
-                                        }
-                                        MotionEvent.ACTION_UP,
-                                        MotionEvent.ACTION_CANCEL -> {
-                                            activeMapPointers = 0
-                                            mapInteracting = false
-                                            composeView.parent?.requestDisallowInterceptTouchEvent(false)
-                                        }
-                                        MotionEvent.ACTION_POINTER_UP -> {
-                                            activeMapPointers = (activeMapPointers - 1).coerceAtLeast(0)
-                                            if (activeMapPointers == 0) {
-                                                mapInteracting = false
-                                                composeView.parent?.requestDisallowInterceptTouchEvent(false)
-                                            }
-                                        }
-                                    }
-                                    false
-                                }
                         ) {
                             OtherDropsMap(
                                 drops = drops,
@@ -6225,7 +6186,6 @@ private fun OtherDropsExplorerSection(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .weight(1f),
-                                userScrollEnabled = !mapInteracting,
                                 contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
                                 verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
