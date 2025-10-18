@@ -8,6 +8,12 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffColorFilter
 import android.net.Uri
 import android.util.Base64
 import android.util.Log
@@ -106,8 +112,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -187,10 +193,11 @@ import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
 import com.google.android.gms.tasks.Tasks
 import com.google.android.gms.maps.CameraUpdateFactory
-import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
+import com.google.android.gms.maps.model.BitmapDescriptor
+import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.LatLng
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
@@ -7651,6 +7658,41 @@ private fun OtherDropsMap(
     notificationRadiusMeters: Double,
     onDropClick: (Drop) -> Unit
 ) {
+    val context = LocalContext.current
+    val baseMarkerBitmap = remember {
+        BitmapFactory.decodeResource(
+            context.resources,
+            R.drawable.explorer_drop_marker
+        )?.let { bitmap ->
+            if (bitmap.config == Bitmap.Config.ARGB_8888) {
+                bitmap
+            } else {
+                bitmap.copy(Bitmap.Config.ARGB_8888, false)
+            }
+        }
+    }
+    val markerDescriptorCache = remember(baseMarkerBitmap) { mutableMapOf<Float, BitmapDescriptor>() }
+
+    fun descriptorForHue(hue: Float): BitmapDescriptor {
+        markerDescriptorCache[hue]?.let { return it }
+        val descriptor = baseMarkerBitmap?.let { base ->
+            val tinted = Bitmap.createBitmap(base.width, base.height, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(tinted)
+            canvas.drawBitmap(base, 0f, 0f, null)
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                colorFilter = PorterDuffColorFilter(
+                    android.graphics.Color.HSVToColor(floatArrayOf(hue, 0.8f, 1f)),
+                    PorterDuff.Mode.SRC_ATOP
+                )
+                alpha = 200
+            }
+            canvas.drawBitmap(base, 0f, 0f, paint)
+            BitmapDescriptorFactory.fromBitmap(tinted)
+        } ?: BitmapDescriptorFactory.defaultMarker(hue)
+        markerDescriptorCache[hue] = descriptor
+        return descriptor
+    }
+
     val cameraPositionState = rememberCameraPositionState()
     val uiSettings = remember { MapUiSettings(zoomControlsEnabled = true) }
 
@@ -7729,9 +7771,9 @@ private fun OtherDropsMap(
             val isSelected = drop.id == selectedDropId
 
             val markerIcon = when {
-                isSelected -> BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE)
-                drop.isNsfw -> BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_MAGENTA)
-                else -> BitmapDescriptorFactory.defaultMarker(likeHueFor(drop.likeCount))
+                isSelected -> descriptorForHue(BitmapDescriptorFactory.HUE_BLUE)
+                drop.isNsfw -> descriptorForHue(BitmapDescriptorFactory.HUE_MAGENTA)
+                else -> descriptorForHue(likeHueFor(drop.likeCount))
             }
 
             Marker(
