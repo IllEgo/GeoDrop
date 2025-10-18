@@ -7672,16 +7672,21 @@ private fun OtherDropsMap(
         }
     }
     val businessMarkerDescriptor = remember {
-        BitmapFactory.decodeResource(
-            context.resources,
-            R.drawable.business_drop_marker
-        )?.let { bitmap ->
-            val argbBitmap = if (bitmap.config == Bitmap.Config.ARGB_8888) {
-                bitmap
-            } else {
-                bitmap.copy(Bitmap.Config.ARGB_8888, false)
+        runCatching {
+            BitmapFactory.decodeResource(
+                context.resources,
+                R.drawable.business_drop_marker
+            )?.let { bitmap ->
+                val argbBitmap = if (bitmap.config == Bitmap.Config.ARGB_8888) {
+                    bitmap
+                } else {
+                    bitmap.copy(Bitmap.Config.ARGB_8888, false)
+                }
+                BitmapDescriptorFactory.fromBitmap(argbBitmap)
             }
-            BitmapDescriptorFactory.fromBitmap(argbBitmap)
+        }.getOrElse { error ->
+            Log.e("GeoDrop", "Failed to load business drop marker", error)
+            null
         }
     }
     val markerDescriptorCache = remember(baseMarkerBitmap) { mutableMapOf<Float, BitmapDescriptor>() }
@@ -7784,7 +7789,7 @@ private fun OtherDropsMap(
             val isSelected = drop.id == selectedDropId
 
             val markerIcon = when {
-//                drop.isBusinessDrop() && businessMarkerDescriptor != null -> businessMarkerDescriptor
+                drop.isBusinessDrop() && businessMarkerDescriptor != null -> businessMarkerDescriptor
                 isSelected -> descriptorForHue(BitmapDescriptorFactory.HUE_BLUE)
                 drop.isNsfw -> descriptorForHue(BitmapDescriptorFactory.HUE_MAGENTA)
                 else -> descriptorForHue(likeHueFor(drop.likeCount))
