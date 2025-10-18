@@ -2753,6 +2753,7 @@ fun DropHereScreen(
                     try {
                         val updated = repo.updateNsfwPreference(userId, enable)
                         userProfile = updated
+                        otherDropsRefreshToken += 1
                         showNsfwDialog = false
                         val message = if (enable) {
                             "NSFW drops enabled."
