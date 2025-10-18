@@ -2286,110 +2286,108 @@ fun DropHereScreen(
 
                 when (effectiveExplorerDestination) {
                     ExplorerDestination.Discover -> {
-                        Box(modifier = Modifier.weight(1f)) {
-                            LazyColumn(
-                                modifier = Modifier.fillMaxSize(),
-                                verticalArrangement = Arrangement.spacedBy(20.dp)
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(20.dp)
+                        ) {
+                            if (readOnlyParticipationMessage != null) {
+                                Box(Modifier.padding(horizontal = 20.dp)) {
+                                    ReadOnlyModeCard(message = readOnlyParticipationMessage)
+                                }
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxWidth()
                             ) {
-                                if (readOnlyParticipationMessage != null) {
-                                    item {
-                                        Box(Modifier.padding(horizontal = 20.dp)) {
-                                            ReadOnlyModeCard(message = readOnlyParticipationMessage)
+                                OtherDropsExplorerSection(
+                                    modifier = Modifier.fillMaxSize(),
+                                    loading = otherDropsLoading,
+                                    drops = otherDrops,
+                                    currentLocation = otherDropsCurrentLocation,
+                                    notificationRadiusMeters = notificationRadius,
+                                    error = otherDropsError,
+                                    selectedId = otherDropsSelectedId,
+                                    onSelect = { drop ->
+                                        otherDropsSelectedId = if (otherDropsSelectedId == drop.id) {
+                                            null
+                                        } else {
+                                            drop.id
+                                        }
+                                    },
+                                    onPickUp = { drop -> pickUpDrop(drop) },
+                                    currentUserId = currentUserId,
+                                    votingDropIds = votingDropIds,
+                                    collectedDropIds = collectedDropIds,
+                                    canCollectDrops = canParticipate,
+                                    collectRestrictionMessage = when (userMode) {
+                                        UserMode.GUEST -> "Preview drops nearby, then create an account to pick them up when you're ready."
+                                        UserMode.SIGNED_IN -> null
+                                    },
+                                    showHeaderDescription = userMode != UserMode.GUEST,
+                                    canLikeDrops = canParticipate,
+                                    likeRestrictionMessage = if (canParticipate) null else participationRestriction("like drops"),
+                                    onLike = { drop, status -> submitLike(drop, status) },
+                                    onReport = report@{ drop ->
+                                        if (browseReportProcessing) return@report
+                                        val userId = currentUserId
+                                        if (userId.isNullOrBlank()) {
+                                            Toast.makeText(ctx, "Sign in to report drops.", Toast.LENGTH_SHORT).show()
+                                            return@report
+                                        }
+                                        if (drop.createdBy == userId) {
+                                            Toast.makeText(ctx, "You can't report your own drop.", Toast.LENGTH_SHORT).show()
+                                            return@report
+                                        }
+                                        val hasCollected = collectedDropIds.contains(drop.id)
+                                        val withinPickupRange = otherDropsCurrentLocation?.let { location ->
+                                            distanceBetweenMeters(
+                                                location.latitude,
+                                                location.longitude,
+                                                drop.lat,
+                                                drop.lng
+                                            ) <= DROP_PICKUP_RADIUS_METERS
+                                        } ?: false
+                                        if (!hasCollected && !withinPickupRange) {
+                                            val radiusMeters = DROP_PICKUP_RADIUS_METERS.roundToInt()
+                                            Toast.makeText(
+                                                ctx,
+                                                "Move within ${'$'}radiusMeters meters to report this drop, or collect it first.",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                            return@report
+                                        }
+                                        if (drop.reportedBy.containsKey(userId)) {
+                                            Toast.makeText(ctx, "You've already reported this drop.", Toast.LENGTH_SHORT).show()
+                                            return@report
+                                        }
+                                        browseReportTarget = drop.toReportableDrop(source = REPORT_SOURCE_BROWSE_MAP)
+                                        browseReportSelectedReasons = emptySet()
+                                        browseReportError = null
+                                        browseReportDialogOpen = true
+                                    },
+                                    reportingDropId = browseReportingDropId,
+                                    dismissedBrowseDropIds = dismissedBrowseDropIds,
+                                    snackbar = snackbar,
+                                    scope = scope,
+                                    onRefresh = { otherDropsRefreshToken += 1 },
+                                    listState = otherDropsListState,
+                                    mapWeight = otherDropsMapWeight,
+                                    onMapWeightChange = { weight ->
+                                        val coerced = weight.coerceIn(MAP_LIST_MIN_WEIGHT, MAP_LIST_MAX_WEIGHT)
+                                        if (coerced != otherDropsMapWeight) {
+                                            otherDropsMapWeight = coerced
                                         }
                                     }
-                                }
+                                )
+                            }
 
-                                item {
-                                    OtherDropsExplorerSection(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .fillParentMaxHeight(),
-                                        loading = otherDropsLoading,
-                                        drops = otherDrops,
-                                        currentLocation = otherDropsCurrentLocation,
-                                        notificationRadiusMeters = notificationRadius,
-                                        error = otherDropsError,
-                                        selectedId = otherDropsSelectedId,
-                                        onSelect = { drop ->
-                                            otherDropsSelectedId = if (otherDropsSelectedId == drop.id) {
-                                                null
-                                            } else {
-                                                drop.id
-                                            }
-                                        },
-                                        onPickUp = { drop -> pickUpDrop(drop) },
-                                        currentUserId = currentUserId,
-                                        votingDropIds = votingDropIds,
-                                        collectedDropIds = collectedDropIds,
-                                        canCollectDrops = canParticipate,
-                                        collectRestrictionMessage = when (userMode) {
-                                            UserMode.GUEST -> "Preview drops nearby, then create an account to pick them up when you're ready."
-                                            UserMode.SIGNED_IN -> null
-                                        },
-                                        showHeaderDescription = userMode != UserMode.GUEST,
-                                        canLikeDrops = canParticipate,
-                                        likeRestrictionMessage = if (canParticipate) null else participationRestriction("like drops"),
-                                        onLike = { drop, status -> submitLike(drop, status) },
-                                        onReport = report@{ drop ->
-                                            if (browseReportProcessing) return@report
-                                            val userId = currentUserId
-                                            if (userId.isNullOrBlank()) {
-                                                Toast.makeText(ctx, "Sign in to report drops.", Toast.LENGTH_SHORT).show()
-                                                return@report
-                                            }
-                                            if (drop.createdBy == userId) {
-                                                Toast.makeText(ctx, "You can't report your own drop.", Toast.LENGTH_SHORT).show()
-                                                return@report
-                                            }
-                                            val hasCollected = collectedDropIds.contains(drop.id)
-                                            val withinPickupRange = otherDropsCurrentLocation?.let { location ->
-                                                distanceBetweenMeters(
-                                                    location.latitude,
-                                                    location.longitude,
-                                                    drop.lat,
-                                                    drop.lng
-                                                ) <= DROP_PICKUP_RADIUS_METERS
-                                            } ?: false
-                                            if (!hasCollected && !withinPickupRange) {
-                                                val radiusMeters = DROP_PICKUP_RADIUS_METERS.roundToInt()
-                                                Toast.makeText(
-                                                    ctx,
-                                                    "Move within ${'$'}radiusMeters meters to report this drop, or collect it first.",
-                                                    Toast.LENGTH_SHORT
-                                                ).show()
-                                                return@report
-                                            }
-                                            if (drop.reportedBy.containsKey(userId)) {
-                                                Toast.makeText(ctx, "You've already reported this drop.", Toast.LENGTH_SHORT).show()
-                                                return@report
-                                            }
-                                            browseReportTarget = drop.toReportableDrop(source = REPORT_SOURCE_BROWSE_MAP)
-                                            browseReportSelectedReasons = emptySet()
-                                            browseReportError = null
-                                            browseReportDialogOpen = true
-                                        },
-                                        reportingDropId = browseReportingDropId,
-                                        dismissedBrowseDropIds = dismissedBrowseDropIds,
-                                        snackbar = snackbar,
-                                        scope = scope,
-                                        onRefresh = { otherDropsRefreshToken += 1 },
-                                        listState = otherDropsListState,
-                                        mapWeight = otherDropsMapWeight,
-                                        onMapWeightChange = { weight ->
-                                            val coerced = weight.coerceIn(MAP_LIST_MIN_WEIGHT, MAP_LIST_MAX_WEIGHT)
-                                            if (coerced != otherDropsMapWeight) {
-                                                otherDropsMapWeight = coerced
-                                            }
-                                        }
-                                    )
-                                }
-
-                                status?.let { message ->
-                                    item {
-                                        Box(Modifier.padding(horizontal = 20.dp)) {
-                                            StatusCard(message = message)
-                                        }
-                                    }
+                            status?.let { message ->
+                                Box(Modifier.padding(horizontal = 20.dp)) {
+                                    StatusCard(message = message)
                                 }
                             }
                         }
