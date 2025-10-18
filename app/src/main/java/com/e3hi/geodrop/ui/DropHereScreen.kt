@@ -13,6 +13,7 @@ import android.util.Base64
 import android.util.Log
 import android.util.Patterns
 import android.provider.MediaStore
+import android.view.MotionEvent
 import android.webkit.MimeTypeMap
 import android.widget.Toast
 import android.view.ViewGroup
@@ -105,11 +106,13 @@ import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -6004,6 +6007,12 @@ private fun OtherDropsExplorerSection(
     onMapWeightChange: (Float) -> Unit
 ) {
     val context = LocalContext.current
+    val composeView = LocalView.current
+    DisposableEffect(composeView) {
+        onDispose {
+            composeView.parent?.requestDisallowInterceptTouchEvent(false)
+        }
+    }
     val clampedMapWeight = mapWeight.coerceIn(MAP_LIST_MIN_WEIGHT, MAP_LIST_MAX_WEIGHT)
     var internalWeight by remember { mutableStateOf(clampedMapWeight) }
     internalWeight = clampedMapWeight
@@ -6125,6 +6134,19 @@ private fun OtherDropsExplorerSection(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .weight(internalWeight)
+                                .pointerInteropFilter { event ->
+                                    when (event.actionMasked) {
+                                        MotionEvent.ACTION_DOWN,
+                                        MotionEvent.ACTION_POINTER_DOWN -> {
+                                            composeView.parent?.requestDisallowInterceptTouchEvent(true)
+                                        }
+                                        MotionEvent.ACTION_UP,
+                                        MotionEvent.ACTION_CANCEL -> {
+                                            composeView.parent?.requestDisallowInterceptTouchEvent(false)
+                                        }
+                                    }
+                                    false
+                                }
                         ) {
                             OtherDropsMap(
                                 drops = drops,
