@@ -326,4 +326,26 @@ service cloud.firestore {
       allow delete: if isCurrentUser(userId);
     }
   }
+
+    match /users/{userId}/notificationTokens/{tokenId} {
+      function hasOnlyAllowedTokenFields() {
+        return request.resource.data.keys().hasOnly([
+          'token',
+          'platform',
+          'updatedAt'
+        ]);
+      }
+
+      allow read: if isCurrentUser(userId);
+
+      allow create, update: if isCurrentUser(userId)
+        && hasOnlyAllowedTokenFields()
+        && request.resource.data.token is string
+        && (!request.resource.data.keys().hasAny(['platform'])
+          || request.resource.data.platform is string)
+        && (!request.resource.data.keys().hasAny(['updatedAt'])
+          || request.resource.data.updatedAt is int);
+
+      allow delete: if isCurrentUser(userId);
+    }
 }

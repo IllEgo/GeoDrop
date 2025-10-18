@@ -9,12 +9,15 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.remember
 import androidx.core.content.ContextCompat
 import androidx.core.content.PermissionChecker
+import androidx.lifecycle.lifecycleScope
 import android.util.Log
 import com.e3hi.geodrop.BuildConfig
+import com.e3hi.geodrop.data.FirestoreRepo
 import com.e3hi.geodrop.ui.DropHereScreen
 import com.e3hi.geodrop.ui.theme.GeoDropTheme
 import com.e3hi.geodrop.util.GoogleVisionSafeSearchEvaluator
 import com.e3hi.geodrop.util.GroupPreferences
+import com.e3hi.geodrop.util.MessagingTokenStore
 import com.e3hi.geodrop.util.NotificationPreferences
 import com.e3hi.geodrop.util.createNotificationChannelIfNeeded
 import com.e3hi.geodrop.geo.NearbyDropRegistrar
@@ -22,6 +25,9 @@ import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuth.AuthStateListener
 import com.google.firebase.functions.FirebaseFunctions
+import com.google.firebase.ktx.Firebase
+import com.google.firebase.messaging.ktx.messaging
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
 class MainActivity : ComponentActivity() {
@@ -29,6 +35,8 @@ class MainActivity : ComponentActivity() {
     private val auth: FirebaseAuth by lazy { FirebaseAuth.getInstance() }
     private var authListener: AuthStateListener? = null
     private val registrar = NearbyDropRegistrar()
+    private val firestoreRepo by lazy { FirestoreRepo() }
+    private val messagingTokenStore by lazy { MessagingTokenStore(this) }
 
     private val requiredPermissions = buildList {
         add(Manifest.permission.ACCESS_FINE_LOCATION)
@@ -51,7 +59,16 @@ class MainActivity : ComponentActivity() {
         val notificationPrefs = NotificationPreferences(this)
 
         authListener = AuthStateListener { firebaseAuth ->
-            if (firebaseAuth.currentUser == null) return@AuthStateListener
+            val currentUser = firebaseAuth.currentUser
+            if (currentUser == null) {
+                messagingTokenStore.clearSynced()
+                return@AuthStateListener
+            }
+
+            lifecycleScope.launch {
+                ensureMessagingTokenRegistered(currentUser.uid)
+            }
+
             registrar.registerNearby(
                 this,
                 maxMeters = notificationPrefs.getNotificationRadiusMeters(),
@@ -94,6 +111,29 @@ class MainActivity : ComponentActivity() {
             ContextCompat.checkSelfPermission(this, it) != PermissionChecker.PERMISSION_GRANTED
         }
         if (need) permissionLauncher.launch(requiredPermissions)
+    }
+
+    private suspend fun ensureMessagingTokenRegistered(userId: String) {
+        if (userId.isBlank()) return
+
+        val token = runCatching { Firebase.messaging.token.await() }
+            .onFailure { error ->
+                Log.w("GeoDrop", "Failed to fetch messaging token", error)
+            }
+            .getOrNull()
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+            ?: return
+
+        messagingTokenStore.saveToken(token)
+        if (messagingTokenStore.lastSyncedToken() == token) return
+
+        runCatching {
+            firestoreRepo.registerMessagingToken(userId, token)
+            messagingTokenStore.markSynced(token)
+        }.onFailure { error ->
+            Log.e("GeoDrop", "Failed to register messaging token for $userId", error)
+        }
     }
 
     private fun fetchVisionApiKey(): String {

@@ -8,6 +8,17 @@
     <string name="menu_sign_in_full_participation">Inicia sesión para participar por completo</string>
     <string name="menu_sign_in_business_account">Inicia sesión o crea una cuenta de negocio</string>
     <string name="menu_notification_radius">Radio de notificación (%1$d m)</string>
+    <string name="push_drop_collected_title">Tu drop fue recogido</string>
+    <string name="push_drop_collected_body_singular">%1$s recogió %2$s.</string>
+    <plurals name="push_drop_collected_body_plural">
+        <item quantity="one">%1$s y %2$d persona más recogieron %3$s.</item>
+        <item quantity="other">%1$s y %2$d personas más recogieron %3$s.</item>
+    </plurals>
+    <string name="push_drop_collected_default_collector">Alguien</string>
+    <string name="push_drop_default_label">tu drop</string>
+    <string name="push_drop_label_photo">tu drop de foto</string>
+    <string name="push_drop_label_audio">tu drop de audio</string>
+    <string name="push_drop_label_video">tu drop de video</string>
     <string name="menu_disable_nsfw_drops">Desactivar drops NSFW</string>
     <string name="menu_enable_nsfw_drops">Activar drops NSFW</string>
     <string name="status_signing_out">Cerrando sesión…</string>

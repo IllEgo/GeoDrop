@@ -8,6 +8,17 @@
     <string name="menu_sign_in_full_participation">Sign in for full participation</string>
     <string name="menu_sign_in_business_account">Sign in or create a business account</string>
     <string name="menu_notification_radius">Notification radius (%1$d m)</string>
+    <string name="push_drop_collected_title">Your drop was collected</string>
+    <string name="push_drop_collected_body_singular">%1$s picked up %2$s.</string>
+    <plurals name="push_drop_collected_body_plural">
+        <item quantity="one">%1$s and %2$d other picked up %3$s.</item>
+        <item quantity="other">%1$s and %2$d others picked up %3$s.</item>
+    </plurals>
+    <string name="push_drop_collected_default_collector">Someone</string>
+    <string name="push_drop_default_label">your drop</string>
+    <string name="push_drop_label_photo">your photo drop</string>
+    <string name="push_drop_label_audio">your audio drop</string>
+    <string name="push_drop_label_video">your video drop</string>
     <string name="menu_disable_nsfw_drops">Disable NSFW drops</string>
     <string name="menu_enable_nsfw_drops">Enable NSFW drops</string>
     <string name="status_signing_out">Signing out…</string>

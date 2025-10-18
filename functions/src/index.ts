@@ -4,6 +4,7 @@ import {ImageAnnotatorClient} from "@google-cloud/vision";
 
 admin.initializeApp();
 const vision = new ImageAnnotatorClient();
+const messaging = admin.messaging();
 const MODERATION_QUEUE_COLLECTION = "dropModerationQueue";
 
 const encodeStoragePath = (path: string): string =>
@@ -25,6 +26,153 @@ const chunkArray = <T>(items: T[], chunkSize: number): T[][] => {
     chunks.push(items.slice(i, i + chunkSize));
   }
   return chunks;
+};
+
+const isTruthyValue = (value: unknown): boolean => {
+  if (value === null || value === undefined) return false;
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value !== 0;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (!normalized) return false;
+    return !["false", "0", "off", "no", "none"].includes(normalized);
+  }
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === "object") return Object.keys(value as Record<string, unknown>).length > 0;
+  return false;
+};
+
+const extractCollectorIds = (raw: unknown): Set<string> => {
+  if (!raw || typeof raw !== "object") return new Set();
+  const entries = Object.entries(raw as Record<string, unknown>);
+  const ids = entries
+    .map(([uid, flag]) => uid?.trim())
+    .filter((uid) => typeof uid === "string" && uid.length > 0) as string[];
+
+  const truthyIds = new Set<string>();
+  entries.forEach(([uid, value]) => {
+    const normalized = uid?.trim();
+    if (normalized && isTruthyValue(value)) {
+      truthyIds.add(normalized);
+    }
+  });
+
+  if (truthyIds.size > 0) {
+    return truthyIds;
+  }
+
+  return new Set(ids);
+};
+
+const fetchNotificationTokens = async (userId: string): Promise<string[]> => {
+  const snapshot = await admin
+    .firestore()
+    .collection("users")
+    .doc(userId)
+    .collection("notificationTokens")
+    .get();
+
+  const tokens = snapshot.docs
+    .map((doc) => {
+      const token = doc.get("token");
+      if (typeof token === "string" && token.trim().length > 0) {
+        return token.trim();
+      }
+      const fallback = doc.id.trim();
+      return fallback.length > 0 ? fallback : null;
+    })
+    .filter((token): token is string => Boolean(token));
+
+  return Array.from(new Set(tokens));
+};
+
+const removeInvalidTokens = async (userId: string, tokens: string[]): Promise<void> => {
+  if (tokens.length === 0) return;
+  const batch = admin.firestore().batch();
+  const baseRef = admin.firestore().collection("users").doc(userId).collection("notificationTokens");
+  tokens.forEach((token) => {
+    batch.delete(baseRef.doc(token));
+  });
+  await batch.commit();
+};
+
+const resolveCollectorLabel = async (userId: string): Promise<string> => {
+  if (!userId) return "Someone";
+  try {
+    const snapshot = await admin.firestore().collection("users").doc(userId).get();
+    if (!snapshot.exists) return "Someone";
+    const displayName = snapshot.get("displayName");
+    if (typeof displayName === "string" && displayName.trim().length > 0) {
+      return displayName.trim();
+    }
+    const username = snapshot.get("username");
+    if (typeof username === "string" && username.trim().length > 0) {
+      const normalized = username.trim();
+      return normalized.startsWith("@") ? normalized : `@${normalized}`;
+    }
+  } catch (error) {
+    console.warn(`Failed to resolve collector label for ${userId}`, error);
+  }
+  return "Someone";
+};
+
+const truncate = (value: string, maxLength = 80): string => {
+  if (value.length <= maxLength) return value;
+  return `${value.slice(0, maxLength - 1)}…`;
+};
+
+const resolveDropLabel = (data: admin.firestore.DocumentData | undefined | null): string => {
+  if (!data) return "your drop";
+  const rawText = typeof data.text === "string" ? data.text.trim() : "";
+  if (rawText.length > 0) {
+    return `"${truncate(rawText)}"`;
+  }
+  const description = typeof data.description === "string" ? data.description.trim() : "";
+  if (description.length > 0) {
+    return `"${truncate(description)}"`;
+  }
+  const contentTypeRaw = typeof data.contentType === "string" ? data.contentType.trim().toUpperCase() : "TEXT";
+  switch (contentTypeRaw) {
+    case "PHOTO":
+      return "your photo drop";
+    case "AUDIO":
+      return "your audio drop";
+    case "VIDEO":
+      return "your video drop";
+    default:
+      return "your drop";
+  }
+};
+
+const sendToUserTokens = async (
+  userId: string,
+  tokens: string[],
+  message: Omit<admin.messaging.MulticastMessage, "tokens">
+): Promise<void> => {
+  for (const batch of chunkArray(tokens, 500)) {
+    if (batch.length === 0) continue;
+    const response = await messaging.sendEachForMulticast({
+      ...message,
+      tokens: batch,
+    });
+
+    const invalid: string[] = [];
+    response.responses.forEach((result, index) => {
+      if (!result.success && result.error) {
+        const code = result.error.code;
+        if (
+          code === "messaging/registration-token-not-registered" ||
+          code === "messaging/invalid-registration-token"
+        ) {
+          invalid.push(batch[index]);
+        }
+      }
+    });
+
+    if (invalid.length > 0) {
+      await removeInvalidTokens(userId, invalid);
+    }
+  }
 };
 
 const USERNAME_MIN_LENGTH = 3;
@@ -229,6 +377,87 @@ export const applyPendingModeration = functions
 
     await change.after.ref.set({moderation}, {merge: true});
     await queueRef.delete();
+  });
+
+export const notifyDropCreatorOnCollection = functions
+  .region("us-central1")
+  .firestore.document("drops/{dropId}")
+  .onUpdate(async (change, context) => {
+    const before = change.before.data();
+    const after = change.after.data();
+    if (!after) return;
+
+    if (after.isDeleted === true) return;
+
+    const creatorRaw = after.createdBy;
+    const creatorId = typeof creatorRaw === "string" ? creatorRaw.trim() : "";
+    if (!creatorId) return;
+
+    const beforeCollectors = extractCollectorIds(before?.collectedBy);
+    const afterCollectors = extractCollectorIds(after.collectedBy);
+
+    if (afterCollectors.size === 0) return;
+
+    const newCollectors = Array.from(afterCollectors).filter(
+      (uid) => !beforeCollectors.has(uid) && uid !== creatorId
+    );
+
+    if (newCollectors.length === 0) return;
+
+    const tokens = await fetchNotificationTokens(creatorId);
+    if (tokens.length === 0) return;
+
+    const collectorLabel = await resolveCollectorLabel(newCollectors[0]);
+    const dropLabel = resolveDropLabel(after);
+    const othersCount = Math.max(newCollectors.length - 1, 0);
+
+    let body: string;
+    if (othersCount <= 0) {
+      body = `${collectorLabel} picked up ${dropLabel}.`;
+    } else if (othersCount === 1) {
+      body = `${collectorLabel} and ${othersCount} other picked up ${dropLabel}.`;
+    } else {
+      body = `${collectorLabel} and ${othersCount} others picked up ${dropLabel}.`;
+    }
+
+    const dropId = String(context.params.dropId ?? "");
+    if (!dropId) return;
+
+    const contentType = typeof after.contentType === "string"
+      ? after.contentType
+      : "TEXT";
+
+    const data: Record<string, string> = {
+      event: "DROP_COLLECTED",
+      dropId,
+      collectorName: collectorLabel,
+      collectorCount: String(newCollectors.length),
+      dropContentType: contentType,
+      title: "Your drop was collected!",
+      body,
+      dropLabel,
+    };
+
+    const text = typeof after.text === "string" ? after.text.trim() : "";
+    if (text) {
+      data.dropTitle = truncate(text, 200);
+    }
+    const description = typeof after.description === "string" ? after.description.trim() : "";
+    if (description) {
+      data.dropDescription = truncate(description, 200);
+    }
+
+    const message: Omit<admin.messaging.MulticastMessage, "tokens"> = {
+      android: {
+        priority: "high",
+      },
+      data,
+    };
+
+    await sendToUserTokens(creatorId, tokens, message);
+    console.log(
+      `Notified ${creatorId} about new collection on drop ${dropId} by ${newCollectors.length} user(s).`
+    );
   });
 
 export const cleanupCollectedNotesOnDropDelete = functions

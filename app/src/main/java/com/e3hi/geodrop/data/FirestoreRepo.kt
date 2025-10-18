@@ -44,6 +44,9 @@ class FirestoreRepo(
     private fun userBlockedCreatorsCollection(userId: String) =
         users.document(userId).collection("blockedCreators")
 
+    private fun userNotificationTokensCollection(userId: String) =
+        users.document(userId).collection("notificationTokens")
+
     /**
      * NEW: Suspend API. Writes a drop and returns the new document id.
      */
@@ -230,6 +233,25 @@ class FirestoreRepo(
             collected.sortByDescending { it.collectedAt }
             onChanged(NoteInventory.Snapshot(collected, ignored))
         }
+    }
+
+    suspend fun registerMessagingToken(userId: String, token: String, platform: String = "android") {
+        val trimmedUserId = userId.trim()
+        val trimmedToken = token.trim()
+        if (trimmedUserId.isEmpty() || trimmedToken.isEmpty()) return
+
+        val payload = hashMapOf<String, Any>(
+            "token" to trimmedToken,
+            "platform" to platform,
+            "updatedAt" to System.currentTimeMillis()
+        )
+
+        userNotificationTokensCollection(trimmedUserId)
+            .document(trimmedToken)
+            .set(payload, SetOptions.merge())
+            .await()
+
+        Log.d("GeoDrop", "Registered messaging token for $trimmedUserId")
     }
 
     suspend fun ensureUserProfile(userId: String, displayName: String? = null): UserProfile {

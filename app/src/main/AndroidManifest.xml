@@ -62,4 +62,12 @@
             android:name=".geo.DropDecisionReceiver"
             android:exported="false" />
     </application>
+
+    <service
+        android:name=".messaging.GeoDropMessagingService"
+        android:exported="false">
+        <intent-filter>
+            <action android:name="com.google.firebase.MESSAGING_EVENT" />
+        </intent-filter>
+    </service>
 </manifest>
