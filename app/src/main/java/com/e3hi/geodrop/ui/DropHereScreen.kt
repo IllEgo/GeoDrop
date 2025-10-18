@@ -7671,19 +7671,19 @@ private fun OtherDropsMap(
             }
         }
     }
-//    val businessMarkerDescriptor = remember {
-//        BitmapFactory.decodeResource(
-//            context.resources,
-//            R.drawable.business_drop_marker
-//        )?.let { bitmap ->
-//            val argbBitmap = if (bitmap.config == Bitmap.Config.ARGB_8888) {
-//                bitmap
-//            } else {
-//                bitmap.copy(Bitmap.Config.ARGB_8888, false)
-//            }
-//            BitmapDescriptorFactory.fromBitmap(argbBitmap)
-//        }
-//    }
+    val businessMarkerDescriptor = remember {
+        BitmapFactory.decodeResource(
+            context.resources,
+            R.drawable.business_drop_marker
+        )?.let { bitmap ->
+            val argbBitmap = if (bitmap.config == Bitmap.Config.ARGB_8888) {
+                bitmap
+            } else {
+                bitmap.copy(Bitmap.Config.ARGB_8888, false)
+            }
+            BitmapDescriptorFactory.fromBitmap(argbBitmap)
+        }
+    }
     val markerDescriptorCache = remember(baseMarkerBitmap) { mutableMapOf<Float, BitmapDescriptor>() }
 
     fun descriptorForHue(hue: Float): BitmapDescriptor {
