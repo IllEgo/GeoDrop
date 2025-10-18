@@ -7780,6 +7780,7 @@ private fun OtherDropsMap(
     }
 }
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 private fun Modifier.consumeMapGesturesInParent(): Modifier {
     val view = LocalView.current
