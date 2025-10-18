@@ -169,8 +169,10 @@ service cloud.firestore {
         && (
           (isExplorer() && !isBusinessDrop(request.resource.data))
           || (isBusiness()
-            && isBusinessDrop(request.resource.data)
-            && request.resource.data.businessId == request.auth.uid)
+            && (
+              !isBusinessDrop(request.resource.data)
+              || request.resource.data.businessId == request.auth.uid
+            ))
         );
 
       function hasOnlyUserCollectedChange(before, after, userId) {
