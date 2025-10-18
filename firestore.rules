@@ -230,14 +230,14 @@ service cloud.firestore {
       }
 
       allow update: if isSignedIn()
-        && (
-          (
-            isValidLikeReportCollectUpdate(resource.data, request.resource.data, request.auth.uid)
-            && (
-              isDropOwner(resource.data, request.auth.uid)
-              || hasUserCollectedBeforeOrAfter(resource.data, request.resource.data, request.auth.uid)
-            )
-          )
+        // && (
+        //  (
+        //    isValidLikeReportCollectUpdate(resource.data, request.resource.data, request.auth.uid)
+        //    && (
+        //      isDropOwner(resource.data, request.auth.uid)
+        //      || hasUserCollectedBeforeOrAfter(resource.data, request.resource.data, request.auth.uid)
+        //    )
+        //  )
           || (
             resource.data.createdBy == request.auth.uid
             && resource.data.diff(request.resource.data).affectedKeys().hasOnly(['isDeleted', 'deletedAt'])
@@ -252,7 +252,7 @@ service cloud.firestore {
             ])
             && isValidRedemptionTransition(resource.data, request.resource.data, request.auth.uid)
           )
-        );
+        // );
 
       allow delete: if isSignedIn()
         && resource.data.createdBy == request.auth.uid;
