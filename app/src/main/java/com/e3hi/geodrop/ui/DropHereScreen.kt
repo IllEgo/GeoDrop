@@ -6122,9 +6122,9 @@ private fun OtherDropsExplorerSection(
                             .onSizeChanged { containerHeight = it.height }
                     ) {
                         Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(internalWeight)
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(internalWeight)
                         ) {
                             OtherDropsMap(
                                 drops = drops,
@@ -6133,26 +6133,6 @@ private fun OtherDropsExplorerSection(
                                 notificationRadiusMeters = notificationRadiusMeters,
                                 onDropClick = onSelect
                             )
-
-                            Surface(
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
-                                tonalElevation = 3.dp,
-                                shadowElevation = 1.dp,
-                            modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .padding(16.dp)
-                        ) {
-                                IconButton(
-                                    onClick = onRefresh,
-                                    enabled = !loading
-                            ) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.Refresh,
-                                        contentDescription = stringResource(R.string.content_description_refresh_drops)
-                                )
-                            }
-                            }
                         }
 
                         Box(modifier = dividerModifier) {
