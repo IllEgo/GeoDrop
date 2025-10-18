@@ -6015,6 +6015,8 @@ private fun OtherDropsExplorerSection(
             composeView.parent?.requestDisallowInterceptTouchEvent(false)
         }
     }
+    var mapInteracting by remember { mutableStateOf(false) }
+    var activeMapPointers by remember { mutableStateOf(0) }
     val clampedMapWeight = mapWeight.coerceIn(MAP_LIST_MIN_WEIGHT, MAP_LIST_MAX_WEIGHT)
     var internalWeight by remember { mutableStateOf(clampedMapWeight) }
     internalWeight = clampedMapWeight
@@ -6138,13 +6140,28 @@ private fun OtherDropsExplorerSection(
                                 .weight(internalWeight)
                                 .pointerInteropFilter { event ->
                                     when (event.actionMasked) {
-                                        MotionEvent.ACTION_DOWN,
+                                        MotionEvent.ACTION_DOWN -> {
+                                            activeMapPointers = 1
+                                            mapInteracting = true
+                                            composeView.parent?.requestDisallowInterceptTouchEvent(true)
+                                        }
                                         MotionEvent.ACTION_POINTER_DOWN -> {
+                                            activeMapPointers += 1
+                                            mapInteracting = true
                                             composeView.parent?.requestDisallowInterceptTouchEvent(true)
                                         }
                                         MotionEvent.ACTION_UP,
                                         MotionEvent.ACTION_CANCEL -> {
+                                            activeMapPointers = 0
+                                            mapInteracting = false
                                             composeView.parent?.requestDisallowInterceptTouchEvent(false)
+                                        }
+                                        MotionEvent.ACTION_POINTER_UP -> {
+                                            activeMapPointers = (activeMapPointers - 1).coerceAtLeast(0)
+                                            if (activeMapPointers == 0) {
+                                                mapInteracting = false
+                                                composeView.parent?.requestDisallowInterceptTouchEvent(false)
+                                            }
                                         }
                                     }
                                     false
@@ -6201,6 +6218,7 @@ private fun OtherDropsExplorerSection(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .weight(1f),
+                                userScrollEnabled = !mapInteracting,
                                 contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
                                 verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
