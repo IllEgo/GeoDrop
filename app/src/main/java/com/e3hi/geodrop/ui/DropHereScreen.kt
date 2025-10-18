@@ -21,6 +21,7 @@ import android.util.Patterns
 import android.provider.MediaStore
 import android.webkit.MimeTypeMap
 import android.widget.Toast
+import android.view.MotionEvent
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.compose.animation.AnimatedVisibility
@@ -115,9 +116,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
@@ -6295,7 +6298,9 @@ private fun CollectedDropsMap(
         }
     } else {
         GoogleMap(
-            modifier = modifier.fillMaxSize(),
+            modifier = modifier
+                .fillMaxSize()
+                .consumeMapGesturesInParent(),
             cameraPositionState = cameraPositionState,
             uiSettings = uiSettings
         ) {
@@ -7051,7 +7056,9 @@ private fun MyDropsMap(
     }
 
     GoogleMap(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .consumeMapGesturesInParent(),
         cameraPositionState = cameraPositionState,
         uiSettings = uiSettings
     ) {
@@ -7687,7 +7694,9 @@ private fun OtherDropsMap(
     }
 
     GoogleMap(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .consumeMapGesturesInParent(),
         cameraPositionState = cameraPositionState,
         uiSettings = uiSettings
     ) {
@@ -7768,6 +7777,27 @@ private fun OtherDropsMap(
                 }
             )
         }
+    }
+}
+
+@Composable
+private fun Modifier.consumeMapGesturesInParent(): Modifier {
+    val view = LocalView.current
+    return pointerInteropFilter { event ->
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN,
+            MotionEvent.ACTION_MOVE,
+            MotionEvent.ACTION_POINTER_DOWN -> {
+                view.parent?.requestDisallowInterceptTouchEvent(true)
+            }
+
+            MotionEvent.ACTION_UP,
+            MotionEvent.ACTION_CANCEL,
+            MotionEvent.ACTION_POINTER_UP -> {
+                view.parent?.requestDisallowInterceptTouchEvent(false)
+            }
+        }
+        false
     }
 }
 
