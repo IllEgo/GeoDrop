@@ -7671,6 +7671,19 @@ private fun OtherDropsMap(
             }
         }
     }
+    val businessMarkerDescriptor = remember {
+        BitmapFactory.decodeResource(
+            context.resources,
+            R.drawable.business_drop_marker
+        )?.let { bitmap ->
+            val argbBitmap = if (bitmap.config == Bitmap.Config.ARGB_8888) {
+                bitmap
+            } else {
+                bitmap.copy(Bitmap.Config.ARGB_8888, false)
+            }
+            BitmapDescriptorFactory.fromBitmap(argbBitmap)
+        }
+    }
     val markerDescriptorCache = remember(baseMarkerBitmap) { mutableMapOf<Float, BitmapDescriptor>() }
 
     fun descriptorForHue(hue: Float): BitmapDescriptor {
@@ -7771,6 +7784,7 @@ private fun OtherDropsMap(
             val isSelected = drop.id == selectedDropId
 
             val markerIcon = when {
+                drop.isBusinessDrop() && businessMarkerDescriptor != null -> businessMarkerDescriptor
                 isSelected -> descriptorForHue(BitmapDescriptorFactory.HUE_BLUE)
                 drop.isNsfw -> descriptorForHue(BitmapDescriptorFactory.HUE_MAGENTA)
                 else -> descriptorForHue(likeHueFor(drop.likeCount))
