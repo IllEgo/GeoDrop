@@ -722,7 +722,7 @@ fun DropHereScreen(
     val canParticipate = userMode.canParticipate
     val hasExplorerAccount = userMode != UserMode.GUEST
     val readOnlyParticipationMessage = when (userMode) {
-        UserMode.GUEST -> "Create an account to fully participate."
+        UserMode.GUEST -> null
         UserMode.SIGNED_IN -> null
     }
 
