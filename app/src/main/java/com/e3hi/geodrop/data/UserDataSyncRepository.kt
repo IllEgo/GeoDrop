@@ -77,7 +77,14 @@ class UserDataSyncRepository(
 
             if (remoteGroups.isEmpty() && localGroups.isNotEmpty()) {
                 localGroups.forEach { membership ->
-                    runCatching { firestoreRepo.joinGroup(userId, membership.code) }
+                    val allowCreate = membership.role == GroupRole.OWNER
+                    runCatching {
+                        firestoreRepo.joinGroup(
+                            userId,
+                            membership.code,
+                            allowCreateIfMissing = allowCreate
+                        )
+                    }
                         .onFailure { error ->
                             Log.e(TAG, "Failed to migrate local group ${membership.code} for $userId", error)
                         }

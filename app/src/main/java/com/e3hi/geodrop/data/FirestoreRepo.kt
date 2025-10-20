@@ -148,7 +148,11 @@ class FirestoreRepo(
         }
     }
 
-    suspend fun joinGroup(userId: String, code: String): GroupMembership {
+    suspend fun joinGroup(
+        userId: String,
+        code: String,
+        allowCreateIfMissing: Boolean
+    ): GroupMembership {
         if (userId.isBlank()) throw IllegalArgumentException("User id required to join group")
         val normalized = GroupPreferences.normalizeGroupCode(code)
             ?: throw IllegalArgumentException("Invalid group code")
@@ -158,17 +162,25 @@ class FirestoreRepo(
             val groupSnapshot = transaction.get(groupRef)
             val now = System.currentTimeMillis()
             val existingOwner = groupSnapshot.getString("ownerId")?.takeIf { it.isNotBlank() }
-            val resolvedOwner = existingOwner ?: userId
+            val creatingGroup = !groupSnapshot.exists() || existingOwner == null
+            val resolvedOwner = when {
+                creatingGroup && allowCreateIfMissing -> userId
+                creatingGroup -> throw FirebaseFirestoreException(
+                    "Group $normalized doesn't exist yet.",
+                    FirebaseFirestoreException.Code.NOT_FOUND
+                )
+                else -> existingOwner!!
+            }
             val role = if (resolvedOwner == userId) GroupRole.OWNER else GroupRole.SUBSCRIBER
 
-            if (!groupSnapshot.exists() || existingOwner == null) {
+            if (creatingGroup) {
                 val data = hashMapOf(
                     "ownerId" to resolvedOwner,
                     "createdAt" to (groupSnapshot.getLong("createdAt") ?: now),
                     "updatedAt" to now
                 )
                 transaction.set(groupRef, data, SetOptions.merge())
-            } else if (existingOwner == userId) {
+            } else if (resolvedOwner == userId) {
                 transaction.set(groupRef, mapOf("updatedAt" to now), SetOptions.merge())
             }
 

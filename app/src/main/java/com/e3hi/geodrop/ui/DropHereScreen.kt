@@ -1627,7 +1627,13 @@ fun DropHereScreen(
                     var ownsGroup = runCatching { repo.isGroupOwner(ownerId, selectedGroupCode) }
                         .getOrDefault(false)
                     if (!ownsGroup) {
-                        val claimed = runCatching { repo.joinGroup(ownerId, selectedGroupCode) }
+                        val claimed = runCatching {
+                            repo.joinGroup(
+                                ownerId,
+                                selectedGroupCode,
+                                allowCreateIfMissing = true
+                            )
+                        }
                             .getOrNull()
                         if (claimed != null) {
                             groupPrefs.addGroup(claimed)
@@ -3001,7 +3007,7 @@ fun DropHereScreen(
         ManageGroupsDialog(
             groups = joinedGroups,
             onDismiss = { showManageGroups = false },
-            onAdd = { code ->
+            onCreate = { code ->
                 val uid = FirebaseAuth.getInstance().currentUser?.uid
                 if (uid.isNullOrBlank()) {
                     snackbar.showMessage(scope, "Sign in to manage groups.")
@@ -3010,7 +3016,42 @@ fun DropHereScreen(
                 scope.launch {
                     val normalized = GroupPreferences.normalizeGroupCode(code) ?: return@launch
                     try {
-                        val membership = repo.joinGroup(uid, normalized)
+                        val membership = repo.joinGroup(
+                            uid,
+                            normalized,
+                            allowCreateIfMissing = true
+                        )
+                        groupPrefs.addGroup(membership)
+                        joinedGroups = groupPrefs.getMemberships()
+                        if (dropVisibility == DropVisibility.GroupOnly && membership.role == GroupRole.OWNER) {
+                            groupCodeInput = TextFieldValue(normalized)
+                        }
+                        val message = if (membership.role == GroupRole.OWNER) {
+                            "Created group $normalized"
+                        } else {
+                            "Subscribed to $normalized"
+                        }
+                        snackbar.showMessage(scope, message)
+                    } catch (error: Exception) {
+                        val message = error.localizedMessage ?: "Couldn't save group $normalized"
+                        snackbar.showMessage(scope, message)
+                    }
+                }
+            },
+            onSubscribe = { code ->
+                val uid = FirebaseAuth.getInstance().currentUser?.uid
+                if (uid.isNullOrBlank()) {
+                    snackbar.showMessage(scope, "Sign in to manage groups.")
+                    return@ManageGroupsDialog
+                }
+                scope.launch {
+                    val normalized = GroupPreferences.normalizeGroupCode(code) ?: return@launch
+                    try {
+                        val membership = repo.joinGroup(
+                            uid,
+                            normalized,
+                            allowCreateIfMissing = false
+                        )
                         groupPrefs.addGroup(membership)
                         joinedGroups = groupPrefs.getMemberships()
                         if (dropVisibility == DropVisibility.GroupOnly && membership.role == GroupRole.OWNER) {
@@ -7334,7 +7375,8 @@ private fun CollectedNoteCard(
 private fun ManageGroupsDialog(
     groups: List<GroupMembership>,
     onDismiss: () -> Unit,
-    onAdd: (String) -> Unit,
+    onCreate: (String) -> Unit,
+    onSubscribe: (String) -> Unit,
     onRemove: (String) -> Unit
 ) {
     Dialog(
@@ -7412,7 +7454,7 @@ private fun ManageGroupsDialog(
                             Button(
                                 onClick = {
                                     createNormalized?.let {
-                                        onAdd(it)
+                                        onCreate(it)
                                         createCode = TextFieldValue("")
                                     }
                                 },
@@ -7473,7 +7515,7 @@ private fun ManageGroupsDialog(
                             Button(
                                 onClick = {
                                     subscribeNormalized?.let {
-                                        onAdd(it)
+                                        onSubscribe(it)
                                         subscribeCode = TextFieldValue("")
                                     }
                                 },
