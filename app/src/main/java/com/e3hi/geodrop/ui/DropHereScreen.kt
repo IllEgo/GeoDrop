@@ -734,6 +734,10 @@ fun DropHereScreen(
     }
 
     var joinedGroups by remember { mutableStateOf(groupPrefs.getMemberships()) }
+    var selectedExplorerGroupCode by rememberSaveable { mutableStateOf<String?>(null) }
+    val subscribedGroups = remember(joinedGroups) {
+        joinedGroups.filter { membership -> membership.role == GroupRole.SUBSCRIBER }
+    }
     var dropVisibility by remember { mutableStateOf(DropVisibility.Public) }
     var dropAnonymously by remember { mutableStateOf(false) }
     var dropContentType by remember { mutableStateOf(DropContentType.TEXT) }
@@ -815,6 +819,18 @@ fun DropHereScreen(
         groupPrefs.addChangeListener(listener)
         joinedGroups = groupPrefs.getMemberships()
         onDispose { groupPrefs.removeChangeListener(listener) }
+    }
+
+    LaunchedEffect(joinedGroups) {
+        val subscriberCodes = subscribedGroups.map { it.code }
+        val current = selectedExplorerGroupCode
+        if (subscriberCodes.isEmpty()) {
+            if (current != null) {
+                selectedExplorerGroupCode = null
+            }
+        } else if (current != null && current !in subscriberCodes) {
+            selectedExplorerGroupCode = subscriberCodes.firstOrNull()
+        }
     }
 
     DisposableEffect(currentUser?.uid) {
@@ -2056,14 +2072,43 @@ fun DropHereScreen(
     }
 
 
+    val filteredOtherDrops = remember(selectedExplorerGroupCode, otherDrops, subscribedGroups) {
+        selectedExplorerGroupCode?.takeIf { code -> subscribedGroups.any { it.code == code } }?.let { code ->
+            otherDrops.filter { drop -> drop.groupCode == code }
+        } ?: otherDrops
+    }
+    val filteredMyDrops = remember(selectedExplorerGroupCode, myDrops, subscribedGroups) {
+        selectedExplorerGroupCode?.takeIf { code -> subscribedGroups.any { it.code == code } }?.let { code ->
+            myDrops.filter { drop -> drop.groupCode == code }
+        } ?: myDrops
+    }
+    val filteredCollected = remember(selectedExplorerGroupCode, collectedNotes, subscribedGroups) {
+        selectedExplorerGroupCode?.takeIf { code -> subscribedGroups.any { it.code == code } }?.let { code ->
+            collectedNotes.filter { note -> note.groupCode == code }
+        } ?: collectedNotes
+    }
     val canViewNsfw = userProfile?.canViewNsfw() == true
     val visibleCollectedNotes = if (canViewNsfw) {
-        collectedNotes
+        filteredCollected
     } else {
-        collectedNotes.filterNot { note -> note.isNsfw || note.nsfwLabels.isNotEmpty() }
+        filteredCollected.filterNot { note -> note.isNsfw || note.nsfwLabels.isNotEmpty() }
     }
-    val hiddenNsfwCollectedCount = collectedNotes.size - visibleCollectedNotes.size
+    val hiddenNsfwCollectedCount = filteredCollected.size - visibleCollectedNotes.size
     val collectedCount = visibleCollectedNotes.size
+
+    LaunchedEffect(selectedExplorerGroupCode, filteredOtherDrops) {
+        val current = otherDropsSelectedId
+        if (current != null && filteredOtherDrops.none { drop -> drop.id == current }) {
+            otherDropsSelectedId = filteredOtherDrops.firstOrNull()?.id
+        }
+    }
+
+    LaunchedEffect(selectedExplorerGroupCode, filteredMyDrops) {
+        val current = myDropsSelectedId
+        if (current != null && filteredMyDrops.none { drop -> drop.id == current }) {
+            myDropsSelectedId = filteredMyDrops.firstOrNull()?.id
+        }
+    }
 
     LaunchedEffect(
         isBusinessUser,
@@ -2339,7 +2384,7 @@ fun DropHereScreen(
                                 OtherDropsExplorerSection(
                                     modifier = Modifier.fillMaxSize(),
                                     loading = otherDropsLoading,
-                                    drops = otherDrops,
+                                    drops = filteredOtherDrops,
                                     currentLocation = otherDropsCurrentLocation,
                                     notificationRadiusMeters = notificationRadius,
                                     error = otherDropsError,
@@ -2435,7 +2480,7 @@ fun DropHereScreen(
                             MyDropsContent(
                                 modifier = Modifier.fillMaxSize(),
                                 loading = myDropsLoading,
-                                drops = myDrops,
+                                drops = filteredMyDrops,
                                 currentLocation = myDropsCurrentLocation,
                                 deletingId = myDropsDeletingId,
                                 error = myDropsError,
