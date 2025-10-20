@@ -2187,6 +2187,14 @@ fun DropHereScreen(
                         actionIconContentColor = MaterialTheme.colorScheme.onBackground
                     ),
                     actions = {
+                        if (currentHomeDestination == HomeDestination.Explorer && subscribedGroups.isNotEmpty()) {
+                            IconButton(onClick = { showManageGroups = true }) {
+                                Icon(
+                                    imageVector = Icons.Rounded.ManageAccounts,
+                                    contentDescription = stringResource(R.string.manage_groups)
+                                )
+                            }
+                        }
                         Box {
                             IconButton(onClick = { showAccountMenu = !showAccountMenu }) {
                                 Icon(
@@ -2371,8 +2379,7 @@ fun DropHereScreen(
                     ExplorerGroupPicker(
                         memberships = subscribedGroups,
                         selectedCode = selectedExplorerGroupCode,
-                        onSelect = { code -> selectedExplorerGroupCode = code },
-                        onManageGroups = { showManageGroups = true }
+                        onSelect = { code -> selectedExplorerGroupCode = code }
                     )
                 }
 
@@ -5569,15 +5576,13 @@ private fun ExplorerFilterBanner(
 private fun ExplorerGroupPicker(
     memberships: List<GroupMembership>,
     selectedCode: String?,
-    onSelect: (String?) -> Unit,
-    onManageGroups: () -> Unit
+    onSelect: (String?) -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 20.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        verticalAlignment = Alignment.CenterVertically
     ) {
         FlowRow(
             modifier = Modifier.weight(1f, fill = false),
@@ -5597,13 +5602,6 @@ private fun ExplorerGroupPicker(
                     label = { Text(membership.code) }
                 )
             }
-        }
-
-        IconButton(onClick = onManageGroups) {
-            Icon(
-                imageVector = Icons.Rounded.ManageAccounts,
-                contentDescription = stringResource(R.string.manage_groups)
-            )
         }
     }
 }
