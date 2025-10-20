@@ -7368,74 +7368,144 @@ private fun ManageGroupsDialog(
                     )
                 }
             ) { padding ->
-                Column(
+                var createCode by rememberSaveable(stateSaver = TextFieldValue.Saver) {
+                    mutableStateOf(TextFieldValue(""))
+                }
+                var subscribeCode by rememberSaveable(stateSaver = TextFieldValue.Saver) {
+                    mutableStateOf(TextFieldValue(""))
+                }
+
+                val ownedGroups = groups.filter { it.role == GroupRole.OWNER }
+                val subscribedGroups = groups.filter { it.role == GroupRole.SUBSCRIBER }
+                val createNormalized = GroupPreferences.normalizeGroupCode(createCode.text)
+                val subscribeNormalized = GroupPreferences.normalizeGroupCode(subscribeCode.text)
+
+                LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(padding)
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                        .padding(horizontal = 16.dp),
+                    contentPadding = PaddingValues(vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(24.dp)
                 ) {
-                    var newCode by rememberSaveable(stateSaver = TextFieldValue.Saver) {
-                        mutableStateOf(TextFieldValue(""))
-                    }
-
-                    OutlinedTextField(
-                        value = newCode,
-                        onValueChange = { newCode = it },
-                        label = { Text("Add a group code") },
-                        supportingText = {
-                            Text("Codes stay on this device. Share with people you trust.")
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    val normalized = GroupPreferences.normalizeGroupCode(newCode.text)
-                    Button(
-                        onClick = {
-                            normalized?.let {
-                                onAdd(it)
-                                newCode = TextFieldValue("")
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text(
+                                text = "Create a group",
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                            Text(
+                                text = "Pick a code to share with your crew. Only you can add or remove drops.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            OutlinedTextField(
+                                value = createCode,
+                                onValueChange = { createCode = it },
+                                label = { Text("Group code") },
+                                supportingText = {
+                                    Text("Codes stay on this device. Share with people you trust.")
+                                },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Button(
+                                onClick = {
+                                    createNormalized?.let {
+                                        onAdd(it)
+                                        createCode = TextFieldValue("")
+                                    }
+                                },
+                                enabled = createNormalized != null,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Create group")
                             }
-                        },
-                        enabled = normalized != null,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Save code")
+                        }
                     }
 
-                    if (groups.isEmpty()) {
-                        Spacer(Modifier.height(16.dp))
-                        Text(
-                            text = "No saved group codes yet.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.fillMaxWidth(),
-                            textAlign = TextAlign.Center
-                        )
-                        Text(
-                            text = "Use group codes to keep drops private for weddings, team ops, and scavenger hunts.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    } else {
-                        Text(
-                            text = "Your saved codes",
-                            style = MaterialTheme.typography.titleMedium
-                        )
-
-                        LazyColumn(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .weight(1f, fill = false),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            items(groups, key = { it.code }) { membership ->
-                                GroupCodeRow(
-                                    membership = membership,
-                                    onRemove = onRemove
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text(
+                                text = "Groups you created",
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                            if (ownedGroups.isEmpty()) {
+                                Text(
+                                    text = "You haven't created any groups yet.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
+                            } else {
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    ownedGroups.forEach { membership ->
+                                        GroupCodeRow(
+                                            membership = membership,
+                                            onRemove = onRemove
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text(
+                                text = "Subscribe to a group",
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                            Text(
+                                text = "Enter a code you received to follow drops from others.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            OutlinedTextField(
+                                value = subscribeCode,
+                                onValueChange = { subscribeCode = it },
+                                label = { Text("Group code") },
+                                supportingText = {
+                                    Text("Codes stay on this device. You can leave anytime.")
+                                },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Button(
+                                onClick = {
+                                    subscribeNormalized?.let {
+                                        onAdd(it)
+                                        subscribeCode = TextFieldValue("")
+                                    }
+                                },
+                                enabled = subscribeNormalized != null,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Subscribe")
+                            }
+                        }
+                    }
+
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text(
+                                text = "Groups you're subscribed to",
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                            if (subscribedGroups.isEmpty()) {
+                                Text(
+                                    text = "You haven't subscribed to any groups yet.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            } else {
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    subscribedGroups.forEach { membership ->
+                                        GroupCodeRow(
+                                            membership = membership,
+                                            onRemove = onRemove
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
