@@ -2362,6 +2362,15 @@ fun DropHereScreen(
                     )
                 }
 
+                if (subscribedGroups.isNotEmpty()) {
+                    ExplorerGroupPicker(
+                        memberships = subscribedGroups,
+                        selectedCode = selectedExplorerGroupCode,
+                        onSelect = { code -> selectedExplorerGroupCode = code },
+                        onManageGroups = { showManageGroups = true }
+                    )
+                }
+
                 when (effectiveExplorerDestination) {
                     ExplorerDestination.Discover -> {
                         Column(
@@ -5467,6 +5476,54 @@ private fun CollectedDropsContent(
                 }
             }
         }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ExplorerGroupPicker(
+    memberships: List<GroupMembership>,
+    selectedCode: String?,
+    onSelect: (String?) -> Unit,
+    onManageGroups: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        FlowRow(
+            modifier = Modifier.weight(1f, fill = false),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            FilterChip(
+                selected = selectedCode == null,
+                onClick = { onSelect(null) },
+                label = { Text("All groups") }
+            )
+
+            memberships.forEach { membership ->
+                FilterChip(
+                    selected = selectedCode == membership.code,
+                    onClick = { onSelect(membership.code) },
+                    label = { Text(membership.code) }
+                )
+            }
+        }
+
+        AssistChip(
+            onClick = onManageGroups,
+            label = { Text("Manage groups") },
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Rounded.Edit,
+                    contentDescription = null
+                )
+            }
+        )
     }
 }
 
