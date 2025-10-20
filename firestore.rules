@@ -49,6 +49,22 @@ service cloud.firestore {
       allow create: if isSignedIn();
     }
 
+    match /groups/{groupCode} {
+      allow read: if isSignedIn();
+
+      allow create: if isSignedIn()
+        && request.resource.data.keys().hasOnly(['ownerId', 'createdAt', 'updatedAt'])
+        && request.resource.data.ownerId == request.auth.uid;
+
+      allow update: if isSignedIn()
+        && resource.data.keys().hasAny(['ownerId'])
+        && resource.data.ownerId == request.auth.uid
+        && request.resource.data.keys().hasOnly(['ownerId', 'createdAt', 'updatedAt'])
+        && request.resource.data.ownerId == resource.data.ownerId;
+
+      allow delete: if false;
+    }
+
     match /drops/{dropId} {
       function isDropOwner(data, userId) {
         return data.createdBy is string && data.createdBy == userId;
@@ -258,6 +274,23 @@ service cloud.firestore {
 
       allow delete: if isSignedIn()
         && resource.data.createdBy == request.auth.uid;
+    }
+
+    match /users/{userId}/groups/{groupCode} {
+      allow read: if isCurrentUser(userId);
+
+      allow create, update: if isCurrentUser(userId)
+        && request.resource.data.keys().hasOnly(['code', 'role', 'ownerId', 'updatedAt'])
+        && (!request.resource.data.keys().hasAny(['code'])
+          || request.resource.data.code is string)
+        && (!request.resource.data.keys().hasAny(['role'])
+          || request.resource.data.role in ['OWNER', 'SUBSCRIBER'])
+        && (!request.resource.data.keys().hasAny(['ownerId'])
+          || request.resource.data.ownerId is string)
+        && (!request.resource.data.keys().hasAny(['updatedAt'])
+          || request.resource.data.updatedAt is int);
+
+      allow delete: if isCurrentUser(userId);
     }
 
     match /users/{userId}/inventory/{dropId} {

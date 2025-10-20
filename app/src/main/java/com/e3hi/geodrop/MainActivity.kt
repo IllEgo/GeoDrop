@@ -72,7 +72,7 @@ class MainActivity : ComponentActivity() {
             registrar.registerNearby(
                 this,
                 maxMeters = notificationPrefs.getNotificationRadiusMeters(),
-                groupCodes = groupPrefs.getJoinedGroups().toSet()
+                groupCodes = groupPrefs.getMemberships().map { it.code }.toSet()
             )
         }
         authListener?.let { auth.addAuthStateListener(it) }

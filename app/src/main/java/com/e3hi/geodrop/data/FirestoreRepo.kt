@@ -32,6 +32,7 @@ class FirestoreRepo(
     private val users = db.collection("users")
     private val usernames = db.collection("usernames")
     private val reports = db.collection("reports")
+    private val groups = db.collection("groups")
     private val functions = Firebase.functions(BuildConfig.FIREBASE_FUNCTIONS_REGION)
     private val claimExplorerUsernameCallableUnavailable = AtomicBoolean(false)
 
@@ -78,44 +79,36 @@ class FirestoreRepo(
             }
     }
 
-    suspend fun fetchUserGroups(userId: String): List<String> {
+    suspend fun fetchUserGroupMemberships(userId: String): List<GroupMembership> {
         if (userId.isBlank()) return emptyList()
 
         val snapshot = userGroupsCollection(userId).get().await()
         return snapshot.documents
             .mapNotNull { doc ->
                 val code = doc.getString("code") ?: doc.id
-                GroupPreferences.normalizeGroupCode(code)
-            }
-            .distinct()
-            .sorted()
-    }
-
-    suspend fun replaceUserGroups(userId: String, codes: Collection<String>) {
-        if (userId.isBlank()) return
-
-        val normalized = codes
-            .mapNotNull { GroupPreferences.normalizeGroupCode(it) }
-            .distinct()
-
-        val collection = userGroupsCollection(userId)
-        val existing = collection.get().await()
-
-        db.runBatch { batch ->
-            existing.documents.forEach { doc -> batch.delete(doc.reference) }
-            normalized.forEach { code ->
-                val data = hashMapOf(
-                    "code" to code,
-                    "updatedAt" to System.currentTimeMillis()
+                val normalized = GroupPreferences.normalizeGroupCode(code) ?: return@mapNotNull null
+                val storedRole = GroupRole.fromRaw(doc.getString("role"))
+                val ownerId = doc.getString("ownerId")?.takeIf { it.isNotBlank() }
+                val resolvedRole = when {
+                    ownerId != null && ownerId == userId -> GroupRole.OWNER
+                    ownerId != null && ownerId != userId -> storedRole
+                    storedRole == GroupRole.OWNER -> GroupRole.OWNER
+                    else -> GroupRole.OWNER
+                }
+                val resolvedOwnerId = ownerId ?: if (resolvedRole == GroupRole.OWNER) userId else ownerId
+                GroupMembership(
+                    code = normalized,
+                    ownerId = resolvedOwnerId,
+                    role = resolvedRole
                 )
-                batch.set(collection.document(code), data)
             }
-        }.await()
+            .distinctBy { it.code }
+            .sortedBy { it.code }
     }
 
-    fun listenForUserGroups(
+    fun listenForUserGroupMemberships(
         userId: String,
-        onChanged: (List<String>) -> Unit,
+        onChanged: (List<GroupMembership>) -> Unit,
         onError: (Exception) -> Unit = {}
     ): ListenerRegistration? {
         if (userId.isBlank()) return null
@@ -130,15 +123,92 @@ class FirestoreRepo(
                 return@addSnapshotListener
             }
 
-            val codes = snapshot.documents
+            val memberships = snapshot.documents
                 .mapNotNull { doc ->
                     val code = doc.getString("code") ?: doc.id
-                    GroupPreferences.normalizeGroupCode(code)
+                    val normalized = GroupPreferences.normalizeGroupCode(code) ?: return@mapNotNull null
+                    val storedRole = GroupRole.fromRaw(doc.getString("role"))
+                    val ownerId = doc.getString("ownerId")?.takeIf { it.isNotBlank() }
+                    val resolvedRole = when {
+                        ownerId != null && ownerId == userId -> GroupRole.OWNER
+                        ownerId != null && ownerId != userId -> storedRole
+                        storedRole == GroupRole.OWNER -> GroupRole.OWNER
+                        else -> GroupRole.OWNER
+                    }
+                    val resolvedOwnerId = ownerId ?: if (resolvedRole == GroupRole.OWNER) userId else ownerId
+                    GroupMembership(
+                        code = normalized,
+                        ownerId = resolvedOwnerId,
+                        role = resolvedRole
+                    )
                 }
-                .distinct()
-                .sorted()
-            onChanged(codes)
+                .distinctBy { it.code }
+                .sortedBy { it.code }
+            onChanged(memberships)
         }
+    }
+
+    suspend fun joinGroup(userId: String, code: String): GroupMembership {
+        if (userId.isBlank()) throw IllegalArgumentException("User id required to join group")
+        val normalized = GroupPreferences.normalizeGroupCode(code)
+            ?: throw IllegalArgumentException("Invalid group code")
+
+        val result = db.runTransaction { transaction ->
+            val groupRef = groups.document(normalized)
+            val groupSnapshot = transaction.get(groupRef)
+            val now = System.currentTimeMillis()
+            val existingOwner = groupSnapshot.getString("ownerId")?.takeIf { it.isNotBlank() }
+            val resolvedOwner = existingOwner ?: userId
+            val role = if (resolvedOwner == userId) GroupRole.OWNER else GroupRole.SUBSCRIBER
+
+            if (!groupSnapshot.exists() || existingOwner == null) {
+                val data = hashMapOf(
+                    "ownerId" to resolvedOwner,
+                    "createdAt" to groupSnapshot.getLong("createdAt") ?: now,
+                    "updatedAt" to now
+                )
+                transaction.set(groupRef, data, SetOptions.merge())
+            } else if (existingOwner == userId) {
+                transaction.set(groupRef, mapOf("updatedAt" to now), SetOptions.merge())
+            }
+
+            val membershipData = hashMapOf(
+                "code" to normalized,
+                "role" to role.name,
+                "ownerId" to resolvedOwner,
+                "updatedAt" to now
+            )
+            transaction.set(
+                userGroupsCollection(userId).document(normalized),
+                membershipData,
+                SetOptions.merge()
+            )
+
+            GroupMembership(
+                code = normalized,
+                ownerId = resolvedOwner,
+                role = role
+            )
+        }
+
+        return result.await()
+    }
+
+    suspend fun leaveGroup(userId: String, code: String) {
+        if (userId.isBlank()) return
+        val normalized = GroupPreferences.normalizeGroupCode(code) ?: return
+
+        userGroupsCollection(userId).document(normalized).delete().await()
+        groups.document(normalized).set(mapOf("updatedAt" to System.currentTimeMillis()), SetOptions.merge())
+    }
+
+    suspend fun isGroupOwner(userId: String, code: String): Boolean {
+        if (userId.isBlank()) return false
+        val normalized = GroupPreferences.normalizeGroupCode(code) ?: return false
+
+        val snapshot = groups.document(normalized).get().await()
+        val ownerId = snapshot.getString("ownerId")?.takeIf { it.isNotBlank() }
+        return ownerId == userId
     }
 
     suspend fun fetchUserInventory(userId: String): NoteInventory.Snapshot {

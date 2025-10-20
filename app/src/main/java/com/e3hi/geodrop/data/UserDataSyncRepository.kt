@@ -25,17 +25,6 @@ class UserDataSyncRepository(
     private var inventoryRegistration: ListenerRegistration? = null
     private var initializationJob: Job? = null
 
-    private val groupChangeListener = GroupPreferences.ChangeListener { groups, origin ->
-        if (origin != GroupPreferences.ChangeOrigin.LOCAL) return@ChangeListener
-        val uid = currentUserId ?: return@ChangeListener
-        scope.launch(ioDispatcher) {
-            runCatching { firestoreRepo.replaceUserGroups(uid, groups) }
-                .onFailure { error ->
-                    Log.e(TAG, "Failed to sync groups for $uid", error)
-                }
-        }
-    }
-
     private val inventoryChangeListener = NoteInventory.ChangeListener { snapshot, origin ->
         if (origin != NoteInventory.ChangeOrigin.LOCAL) return@ChangeListener
         val uid = currentUserId ?: return@ChangeListener
@@ -57,7 +46,6 @@ class UserDataSyncRepository(
         stop()
         currentUserId = userId
         noteInventory.setActiveUser(userId)
-        groupPreferences.addChangeListener(groupChangeListener)
         noteInventory.addChangeListener(inventoryChangeListener)
         initializationJob = scope.launch(ioDispatcher) {
             initializeSync(userId)
@@ -71,7 +59,6 @@ class UserDataSyncRepository(
         groupRegistration = null
         inventoryRegistration?.remove()
         inventoryRegistration = null
-        groupPreferences.removeChangeListener(groupChangeListener)
         noteInventory.removeChangeListener(inventoryChangeListener)
         noteInventory.setActiveUser(null)
         currentUserId = null
@@ -79,8 +66,8 @@ class UserDataSyncRepository(
 
     private suspend fun initializeSync(userId: String) {
         try {
-            val localGroups = groupPreferences.getJoinedGroups()
-            val remoteGroups = runCatching { firestoreRepo.fetchUserGroups(userId) }
+            val localGroups = groupPreferences.getMemberships()
+            val remoteGroups = runCatching { firestoreRepo.fetchUserGroupMemberships(userId) }
                 .onFailure { error ->
                     Log.e(TAG, "Failed to fetch remote groups for $userId", error)
                 }
@@ -89,10 +76,17 @@ class UserDataSyncRepository(
             if (!coroutineContext.isActive) return
 
             if (remoteGroups.isEmpty() && localGroups.isNotEmpty()) {
-                runCatching { firestoreRepo.replaceUserGroups(userId, localGroups) }
-                    .onFailure { error ->
-                        Log.e(TAG, "Failed to migrate local groups for $userId", error)
-                    }
+                localGroups.forEach { membership ->
+                    runCatching { firestoreRepo.joinGroup(userId, membership.code) }
+                        .onFailure { error ->
+                            Log.e(TAG, "Failed to migrate local group ${membership.code} for $userId", error)
+                        }
+                }
+                val refreshed = runCatching { firestoreRepo.fetchUserGroupMemberships(userId) }
+                    .getOrDefault(emptyList())
+                withContext(Dispatchers.Main) {
+                    groupPreferences.replaceAllFromSync(refreshed)
+                }
             } else {
                 withContext(Dispatchers.Main) {
                     groupPreferences.replaceAllFromSync(remoteGroups)
@@ -101,11 +95,11 @@ class UserDataSyncRepository(
 
             if (!coroutineContext.isActive) return
 
-            groupRegistration = firestoreRepo.listenForUserGroups(
+            groupRegistration = firestoreRepo.listenForUserGroupMemberships(
                 userId,
-                onChanged = { codes ->
+                onChanged = { memberships ->
                     scope.launch {
-                        groupPreferences.replaceAllFromSync(codes)
+                        groupPreferences.replaceAllFromSync(memberships)
                     }
                 },
                 onError = { error ->

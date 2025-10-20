@@ -150,6 +150,8 @@ import com.e3hi.geodrop.data.CollectedNote
 import com.e3hi.geodrop.data.BusinessDropTemplate
 import com.e3hi.geodrop.data.Drop
 import com.e3hi.geodrop.data.DropContentType
+import com.e3hi.geodrop.data.GroupMembership
+import com.e3hi.geodrop.data.GroupRole
 import com.e3hi.geodrop.data.displayTitle
 import com.e3hi.geodrop.data.mediaLabel
 import com.e3hi.geodrop.data.FirestoreRepo
@@ -731,7 +733,7 @@ fun DropHereScreen(
         UserMode.SIGNED_IN -> ""
     }
 
-    var joinedGroups by remember { mutableStateOf(groupPrefs.getJoinedGroups()) }
+    var joinedGroups by remember { mutableStateOf(groupPrefs.getMemberships()) }
     var dropVisibility by remember { mutableStateOf(DropVisibility.Public) }
     var dropAnonymously by remember { mutableStateOf(false) }
     var dropContentType by remember { mutableStateOf(DropContentType.TEXT) }
@@ -811,7 +813,7 @@ fun DropHereScreen(
             joinedGroups = groups
         }
         groupPrefs.addChangeListener(listener)
-        joinedGroups = groupPrefs.getJoinedGroups()
+        joinedGroups = groupPrefs.getMemberships()
         onDispose { groupPrefs.removeChangeListener(listener) }
     }
 
@@ -1221,7 +1223,7 @@ fun DropHereScreen(
             registrar.registerNearby(
                 ctx,
                 maxMeters = notificationRadius,
-                groupCodes = joinedGroups.toSet()
+                groupCodes = joinedGroups.map { it.code }.toSet()
             )
         }
     }
@@ -1558,10 +1560,6 @@ fun DropHereScreen(
         )
 
         repo.addDrop(dropToSave) // suspend (uses Firestore .await() internally)
-        if (groupCode != null) {
-            groupPrefs.addGroup(groupCode)
-            joinedGroups = groupPrefs.getJoinedGroups()
-        }
         uiDone(lat, lng, groupCode, contentType, dropType)
         return safety
     }
@@ -1587,6 +1585,41 @@ fun DropHereScreen(
                         }
                 } else {
                     null
+                }
+                val uid = FirebaseAuth.getInstance().currentUser?.uid
+                if (selectedGroupCode != null) {
+                    if (!groupPrefs.isGroupOwned(selectedGroupCode)) {
+                        isSubmitting = false
+                        snackbar.showMessage(
+                            scope,
+                            "Only groups you created can receive drops."
+                        )
+                        return@launch
+                    }
+                    val ownerId = uid ?: run {
+                        isSubmitting = false
+                        snackbar.showMessage(scope, "Sign in to share drops with a group.")
+                        return@launch
+                    }
+                    var ownsGroup = runCatching { repo.isGroupOwner(ownerId, selectedGroupCode) }
+                        .getOrDefault(false)
+                    if (!ownsGroup) {
+                        val claimed = runCatching { repo.joinGroup(ownerId, selectedGroupCode) }
+                            .getOrNull()
+                        if (claimed != null) {
+                            groupPrefs.addGroup(claimed)
+                            joinedGroups = groupPrefs.getMemberships()
+                            ownsGroup = claimed.role == GroupRole.OWNER
+                        }
+                    }
+                    if (!ownsGroup) {
+                        isSubmitting = false
+                        snackbar.showMessage(
+                            scope,
+                            "Only the creator of $selectedGroupCode can share drops with that group."
+                        )
+                        return@launch
+                    }
                 }
                 var mediaUrlResult: String? = null
                 var mediaStoragePathResult: String? = null
@@ -1871,7 +1904,7 @@ fun DropHereScreen(
                 try {
                     val drops = repo.getVisibleDropsForUser(
                         effectiveUid,
-                        joinedGroups.toSet(),
+                        joinedGroups.map { it.code }.toSet(),
                         allowNsfw = userProfile?.canViewNsfw() == true && canParticipate
                     )
                         .sortedByDescending { it.createdAt }
@@ -2254,7 +2287,7 @@ fun DropHereScreen(
                     .padding(innerPadding),
                 businessName = userProfile?.businessName,
                 businessCategories = businessCategories,
-                joinedGroups = joinedGroups,
+                joinedGroups = joinedGroups.map { it.code },
                 statusMessage = status,
                 metrics = businessHomeMetrics,
                 onViewDashboard = {
@@ -2587,7 +2620,7 @@ fun DropHereScreen(
             onDropAnonymouslyChange = { dropAnonymously = it },
             groupCodeInput = groupCodeInput,
             onGroupCodeInputChange = { groupCodeInput = it },
-            joinedGroups = joinedGroups,
+            joinedGroups = joinedGroups.filter { it.role == GroupRole.OWNER }.map { it.code },
             onSelectGroupCode = { code -> groupCodeInput = TextFieldValue(code) },
             redemptionCodeInput = redemptionCodeInput,
             onRedemptionCodeChange = { redemptionCodeInput = it },
@@ -2738,7 +2771,7 @@ fun DropHereScreen(
                 registrar.registerNearby(
                     ctx,
                     maxMeters = newRadius,
-                    groupCodes = groupPrefs.getJoinedGroups().toSet()
+                    groupCodes = groupPrefs.getMemberships().map { it.code }.toSet()
                 )
             },
             onDismiss = { showNotificationRadiusDialog = false }
@@ -2773,7 +2806,7 @@ fun DropHereScreen(
                         registrar.registerNearby(
                             ctx,
                             maxMeters = notificationRadius,
-                            groupCodes = groupPrefs.getJoinedGroups().toSet()
+                            groupCodes = groupPrefs.getMemberships().map { it.code }.toSet()
                         )
                     } catch (error: Exception) {
                         nsfwUpdateError = error.localizedMessage ?: "Couldn't update settings."
@@ -2871,21 +2904,54 @@ fun DropHereScreen(
             groups = joinedGroups,
             onDismiss = { showManageGroups = false },
             onAdd = { code ->
-                groupPrefs.addGroup(code)
-                joinedGroups = groupPrefs.getJoinedGroups()
-                if (dropVisibility == DropVisibility.GroupOnly) {
-                    groupCodeInput = TextFieldValue(code)
+                val uid = FirebaseAuth.getInstance().currentUser?.uid
+                if (uid.isNullOrBlank()) {
+                    snackbar.showMessage(scope, "Sign in to manage groups.")
+                    return@ManageGroupsDialog
                 }
-                snackbar.showMessage(scope, "Saved group $code")
+                scope.launch {
+                    val normalized = GroupPreferences.normalizeGroupCode(code) ?: return@launch
+                    try {
+                        val membership = repo.joinGroup(uid, normalized)
+                        groupPrefs.addGroup(membership)
+                        joinedGroups = groupPrefs.getMemberships()
+                        if (dropVisibility == DropVisibility.GroupOnly && membership.role == GroupRole.OWNER) {
+                            groupCodeInput = TextFieldValue(normalized)
+                        }
+                        val message = if (membership.role == GroupRole.OWNER) {
+                            "Created group $normalized"
+                        } else {
+                            "Subscribed to $normalized"
+                        }
+                        snackbar.showMessage(scope, message)
+                    } catch (error: Exception) {
+                        val message = error.localizedMessage ?: "Couldn't save group $normalized"
+                        snackbar.showMessage(scope, message)
+                    }
+                }
             },
             onRemove = { code ->
-                groupPrefs.removeGroup(code)
-                joinedGroups = groupPrefs.getJoinedGroups()
-                val currentInput = GroupPreferences.normalizeGroupCode(groupCodeInput.text)
-                if (currentInput == code) {
-                    groupCodeInput = TextFieldValue("")
+                val uid = FirebaseAuth.getInstance().currentUser?.uid
+                if (uid.isNullOrBlank()) {
+                    snackbar.showMessage(scope, "Sign in to manage groups.")
+                    return@ManageGroupsDialog
                 }
-                snackbar.showMessage(scope, "Removed group $code")
+                scope.launch {
+                    val normalized = GroupPreferences.normalizeGroupCode(code) ?: return@launch
+                    try {
+                        repo.leaveGroup(uid, normalized)
+                        groupPrefs.removeGroup(normalized)
+                        joinedGroups = groupPrefs.getMemberships()
+                        val currentInput = GroupPreferences.normalizeGroupCode(groupCodeInput.text)
+                        if (currentInput == normalized) {
+                            groupCodeInput = TextFieldValue("")
+                        }
+                        snackbar.showMessage(scope, "Removed group $normalized")
+                    } catch (error: Exception) {
+                        val message = error.localizedMessage ?: "Couldn't remove group $normalized"
+                        snackbar.showMessage(scope, message)
+                    }
+                }
             }
         )
     }
@@ -6932,7 +6998,7 @@ private fun CollectedNoteCard(
 
 @Composable
 private fun ManageGroupsDialog(
-    groups: List<String>,
+    groups: List<GroupMembership>,
     onDismiss: () -> Unit,
     onAdd: (String) -> Unit,
     onRemove: (String) -> Unit
@@ -7031,10 +7097,10 @@ private fun ManageGroupsDialog(
                                 .weight(1f, fill = false),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            items(groups, key = { it }) { code ->
+                            items(groups, key = { it.code }) { membership ->
                                 GroupCodeRow(
-                                    code = code,
-                                    onRemove = { onRemove(code) }
+                                    membership = membership,
+                                    onRemove = onRemove
                                 )
                             }
                         }
@@ -7242,8 +7308,8 @@ private fun DividerDragHandleHint(
 
 @Composable
 private fun GroupCodeRow(
-    code: String,
-    onRemove: () -> Unit
+    membership: GroupMembership,
+    onRemove: (String) -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -7255,6 +7321,8 @@ private fun GroupCodeRow(
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            val code = membership.code
+            val isOwner = membership.role == GroupRole.OWNER
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = code,
@@ -7262,7 +7330,11 @@ private fun GroupCodeRow(
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
-                    text = "Share this code so only your group sees the drop.",
+                    text = if (isOwner) {
+                        "You created this group. Only you can add or remove drops."
+                    } else {
+                        "Subscribed to this group's drops and updates."
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -7270,7 +7342,7 @@ private fun GroupCodeRow(
 
             Spacer(Modifier.width(8.dp))
 
-            IconButton(onClick = onRemove) {
+            IconButton(onClick = { onRemove(code) }) {
                 Icon(
                     imageVector = Icons.Filled.Delete,
                     contentDescription = "Remove group code"
@@ -9228,7 +9300,7 @@ private fun DropVisibilitySection(
                 label = { Text("Group code") },
                 modifier = Modifier.fillMaxWidth(),
                 supportingText = {
-                    Text("Codes stay on this device. Share them with your crew or guests.")
+                    Text("Only groups you created appear here. Create and manage codes from the menu.")
                 }
             )
 
@@ -9255,9 +9327,9 @@ private fun DropVisibilitySection(
             }
         } else {
             val visibilityMessage = if (joinedGroups.isEmpty()) {
-                "Add a group code to keep drops private for weddings, crew ops, or hunts."
+                "Create a group in Manage group codes to share private drops with your crew."
             } else {
-                "Active group codes: ${joinedGroups.joinToString()}."
+                "Groups you created: ${joinedGroups.joinToString()}."
             }
             Text(
                 text = visibilityMessage,
