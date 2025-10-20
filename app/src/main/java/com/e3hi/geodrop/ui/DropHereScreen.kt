@@ -2405,15 +2405,6 @@ fun DropHereScreen(
                                     .fillMaxWidth(),
                                 verticalArrangement = Arrangement.spacedBy(16.dp)
                             ) {
-                                selectedExplorerGroupCode?.let { code ->
-                                    ExplorerFilterBanner(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 20.dp),
-                                        groupCode = code
-                                    )
-                                }
-
                                 Box(
                                     modifier = Modifier
                                         .weight(1f)
@@ -2520,15 +2511,6 @@ fun DropHereScreen(
                                 .fillMaxWidth(),
                             verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
-                            selectedExplorerGroupCode?.let { code ->
-                                ExplorerFilterBanner(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 20.dp),
-                                    groupCode = code
-                                )
-                            }
-
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
@@ -2621,15 +2603,6 @@ fun DropHereScreen(
                                 .fillMaxWidth(),
                             verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
-                            selectedExplorerGroupCode?.let { code ->
-                                ExplorerFilterBanner(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 20.dp),
-                                    groupCode = code
-                                )
-                            }
-
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
@@ -5621,28 +5594,6 @@ private fun CollectedDropsContent(
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun ExplorerFilterBanner(
-    modifier: Modifier = Modifier,
-    groupCode: String
-) {
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        tonalElevation = 2.dp,
-        shadowElevation = 0.dp
-    ) {
-        Text(
-            text = "Filtered to group $groupCode",
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Medium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
     }
 }
 
