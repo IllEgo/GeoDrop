@@ -736,7 +736,11 @@ fun DropHereScreen(
     var joinedGroups by remember { mutableStateOf(groupPrefs.getMemberships()) }
     var selectedExplorerGroupCode by rememberSaveable { mutableStateOf<String?>(null) }
     val subscribedGroups = remember(joinedGroups) {
-        joinedGroups.filter { membership -> membership.role == GroupRole.SUBSCRIBER }
+        joinedGroups.filter { membership ->
+            when (membership.role) {
+                GroupRole.SUBSCRIBER, GroupRole.OWNER -> true
+            }
+        }
     }
     var dropVisibility by remember { mutableStateOf(DropVisibility.Public) }
     var dropAnonymously by remember { mutableStateOf(false) }
