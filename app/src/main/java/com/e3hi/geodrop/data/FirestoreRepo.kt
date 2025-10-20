@@ -164,7 +164,7 @@ class FirestoreRepo(
             if (!groupSnapshot.exists() || existingOwner == null) {
                 val data = hashMapOf(
                     "ownerId" to resolvedOwner,
-                    "createdAt" to groupSnapshot.getLong("createdAt") ?: now,
+                    "createdAt" to (groupSnapshot.getLong("createdAt") ?: now),
                     "updatedAt" to now
                 )
                 transaction.set(groupRef, data, SetOptions.merge())
