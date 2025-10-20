@@ -6711,7 +6711,7 @@ private fun OtherDropsExplorerSection(
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Text(
-                            text = emptyMessage ?: "No drops from other users are available right now.",v
+                            text = emptyMessage ?: "No drops from other users are available right now.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
