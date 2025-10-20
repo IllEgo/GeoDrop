@@ -92,8 +92,4 @@
     <string name="explorer_profile_save">Save username</string>
     <string name="explorer_profile_status_saved">Username updated to %1$s.</string>
     <string name="explorer_profile_status_claiming">Finishing your explorer setup…</string>
-    <string name="explorer_groups_manage_button">Manage group codes</string>
-    <string name="explorer_groups_empty_title">Subscribe to a group</string>
-    <string name="explorer_groups_empty_body">Add a group code to see exclusive drops from your crew.</string>
-    <string name="explorer_groups_empty_action">Add a group code</string>
 </resources>

@@ -68,7 +68,6 @@ import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.GraphicEq
-import androidx.compose.material.icons.rounded.GroupAdd
 import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.Inbox
 import androidx.compose.material.icons.rounded.Info
@@ -2382,12 +2381,7 @@ fun DropHereScreen(
                     ExplorerGroupPicker(
                         memberships = subscribedGroups,
                         selectedCode = selectedExplorerGroupCode,
-                        onSelect = { code -> selectedExplorerGroupCode = code },
-                        onManageGroups = { showManageGroups = true }
-                    )
-                } else {
-                    ExplorerGroupEmptyState(
-                        onManageGroups = { showManageGroups = true }
+                        onSelect = { code -> selectedExplorerGroupCode = code }
                     )
                 }
 
@@ -5607,8 +5601,7 @@ private fun CollectedDropsContent(
 private fun ExplorerGroupPicker(
     memberships: List<GroupMembership>,
     selectedCode: String?,
-    onSelect: (String?) -> Unit,
-    onManageGroups: () -> Unit
+    onSelect: (String?) -> Unit
 ) {
     val ownedGroups = remember(memberships) {
         memberships
@@ -5629,8 +5622,7 @@ private fun ExplorerGroupPicker(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 20.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Box(modifier = Modifier.weight(1f)) {
             FilledTonalButton(
@@ -5761,75 +5753,6 @@ private fun ExplorerGroupPicker(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-            }
-        }
-
-        FilledTonalButton(
-            onClick = onManageGroups,
-            shape = RoundedCornerShape(16.dp),
-            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.GroupAdd,
-                contentDescription = null
-            )
-            Spacer(Modifier.width(8.dp))
-            Text(stringResource(R.string.explorer_groups_manage_button))
-        }
-    }
-}
-
-@Composable
-private fun ExplorerGroupEmptyState(
-    modifier: Modifier = Modifier,
-    onManageGroups: () -> Unit
-) {
-    ElevatedCard(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 12.dp),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.elevatedCardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        )
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.Groups,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary
-            )
-            Text(
-                text = stringResource(R.string.explorer_groups_empty_title),
-                style = MaterialTheme.typography.titleMedium,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
-            )
-            Text(
-                text = stringResource(R.string.explorer_groups_empty_body),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
-            )
-            FilledTonalButton(
-                onClick = onManageGroups,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.GroupAdd,
-                    contentDescription = null
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(stringResource(R.string.explorer_groups_empty_action))
             }
         }
     }
