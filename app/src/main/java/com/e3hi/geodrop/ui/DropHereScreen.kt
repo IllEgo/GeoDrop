@@ -60,8 +60,10 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.rounded.AccountCircle
+import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.Bookmark
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Description
@@ -5644,36 +5646,162 @@ private fun ExplorerFilterBanner(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ExplorerGroupPicker(
     memberships: List<GroupMembership>,
     selectedCode: String?,
     onSelect: (String?) -> Unit
 ) {
+    val ownedGroups = remember(memberships) {
+        memberships
+            .filter { it.role == GroupRole.OWNER }
+            .sortedBy { it.code }
+    }
+    val subscribedGroups = remember(memberships) {
+        memberships
+            .filter { it.role == GroupRole.SUBSCRIBER }
+            .sortedBy { it.code }
+    }
+    val activeSelection = selectedCode?.takeIf { code -> memberships.any { it.code == code } }
+    val buttonLabel = activeSelection ?: "All groups"
+
+    var expanded by remember { mutableStateOf(false) }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 20.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        FlowRow(
-            modifier = Modifier.weight(1f, fill = false),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            FilterChip(
-                selected = selectedCode == null,
-                onClick = { onSelect(null) },
-                label = { Text("All groups") }
-            )
+        Box(modifier = Modifier.weight(1f)) {
+            FilledTonalButton(
+                onClick = { expanded = !expanded },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = buttonLabel,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Icon(
+                        imageVector = Icons.Rounded.ArrowDropDown,
+                        contentDescription = null
+                    )
+                }
+            }
 
-            memberships.forEach { membership ->
-                FilterChip(
-                    selected = selectedCode == membership.code,
-                    onClick = { onSelect(membership.code) },
-                    label = { Text(membership.code) }
+            DropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                DropdownMenuItem(
+                    text = { Text("All groups") },
+                    leadingIcon = if (activeSelection == null) {
+                        {
+                            Icon(
+                                imageVector = Icons.Rounded.Check,
+                                contentDescription = null
+                            )
+                        }
+                    } else {
+                        null
+                    },
+                    onClick = {
+                        expanded = false
+                        onSelect(null)
+                    }
                 )
+
+                Divider(modifier = Modifier.padding(vertical = 4.dp))
+
+                Text(
+                    text = "Groups you created",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                if (ownedGroups.isNotEmpty()) {
+                    ownedGroups.forEach { membership ->
+                        val isSelected = activeSelection == membership.code
+                        DropdownMenuItem(
+                            text = { Text(membership.code) },
+                            leadingIcon = if (isSelected) {
+                                {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Check,
+                                        contentDescription = null
+                                    )
+                                }
+                            } else {
+                                null
+                            },
+                            onClick = {
+                                expanded = false
+                                onSelect(membership.code)
+                            }
+                        )
+                    }
+                } else {
+                    Text(
+                        text = "You haven't created any groups yet",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Divider(modifier = Modifier.padding(vertical = 4.dp))
+
+                Text(
+                    text = "Groups you're subscribed to",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                if (subscribedGroups.isNotEmpty()) {
+                    subscribedGroups.forEach { membership ->
+                        val isSelected = activeSelection == membership.code
+                        DropdownMenuItem(
+                            text = { Text(membership.code) },
+                            leadingIcon = if (isSelected) {
+                                {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Check,
+                                        contentDescription = null
+                                    )
+                                }
+                            } else {
+                                null
+                            },
+                            onClick = {
+                                expanded = false
+                                onSelect(membership.code)
+                            }
+                        )
+                    }
+                } else {
+                    Text(
+                        text = "You're not subscribed to any groups yet",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }
