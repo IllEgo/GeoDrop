@@ -2345,7 +2345,7 @@ fun DropHereScreen(
                     .padding(innerPadding),
                 businessName = userProfile?.businessName,
                 businessCategories = businessCategories,
-                joinedGroups = joinedGroups.map { it.code },
+                groupMemberships = joinedGroups,
                 statusMessage = status,
                 metrics = businessHomeMetrics,
                 onViewDashboard = {
@@ -3630,7 +3630,7 @@ private fun BusinessHomeScreen(
     modifier: Modifier = Modifier,
     businessName: String?,
     businessCategories: List<BusinessCategory>,
-    joinedGroups: List<String>,
+    groupMemberships: List<GroupMembership>,
     statusMessage: String?,
     metrics: BusinessHomeMetrics,
     onViewDashboard: () -> Unit,
@@ -3642,8 +3642,6 @@ private fun BusinessHomeScreen(
     val pendingReviewCount = metrics.pendingReviewCount
     val unresolvedRedemptionCount = metrics.unresolvedRedemptionCount
     val expiringOfferCount = metrics.expiringOfferCount
-    val groupCount = joinedGroups.size
-
     LazyColumn(
         modifier = modifier,
         contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 24.dp, bottom = 128.dp),
@@ -3653,7 +3651,7 @@ private fun BusinessHomeScreen(
             BusinessHeroCard(
                 businessName = businessName,
                 businessCategories = businessCategories,
-                joinedGroups = joinedGroups,
+                memberships = groupMemberships,
                 onManageGroups = onManageGroups
             )
         }
@@ -3713,12 +3711,12 @@ private fun BusinessHomeScreen(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 private fun BusinessHeroCard(
     businessName: String?,
     businessCategories: List<BusinessCategory>,
-    joinedGroups: List<String>,
+    memberships: List<GroupMembership>,
     brandImageUrl: String? = null,
     onManageGroups: () -> Unit,
 ) {
@@ -3858,46 +3856,121 @@ private fun BusinessHeroCard(
                 }
             }
 
-            if (joinedGroups.isNotEmpty()) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        text = "Active access codes",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        fontWeight = FontWeight.SemiBold
+            if (memberships.isNotEmpty()) {
+                val ownedGroups = memberships
+                    .filter { it.role == GroupRole.OWNER }
+                    .sortedBy { it.code }
+                val subscribedGroups = memberships
+                    .filter { it.role == GroupRole.SUBSCRIBER }
+                    .sortedBy { it.code }
+                val sortedMemberships = ownedGroups + subscribedGroups
+                val onPrimary = MaterialTheme.colorScheme.onPrimaryContainer
+                val dropdownSummary = when (sortedMemberships.size) {
+                    1 -> sortedMemberships.first().code
+                    2 -> sortedMemberships.joinToString(separator = ", ") { it.code }
+                    else -> "${sortedMemberships.first().code} + ${sortedMemberships.size - 1} more"
+                }
+                var groupsExpanded by remember { mutableStateOf(false) }
+
+                ExposedDropdownMenuBox(
+                    expanded = groupsExpanded,
+                    onExpandedChange = { groupsExpanded = !groupsExpanded },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    OutlinedTextField(
+                        value = dropdownSummary,
+                        onValueChange = {},
+                        readOnly = true,
+                        modifier = Modifier
+                            .menuAnchor()
+                            .fillMaxWidth(),
+                        textStyle = MaterialTheme.typography.bodyMedium,
+                        singleLine = true,
+                        shape = RoundedCornerShape(16.dp),
+                        colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(
+                            focusedBorderColor = onPrimary.copy(alpha = 0.4f),
+                            unfocusedBorderColor = onPrimary.copy(alpha = 0.3f),
+                            focusedTextColor = onPrimary,
+                            unfocusedTextColor = onPrimary,
+                            focusedTrailingIconColor = onPrimary,
+                            unfocusedTrailingIconColor = onPrimary,
+                            focusedLabelColor = onPrimary.copy(alpha = 0.9f),
+                            unfocusedLabelColor = onPrimary.copy(alpha = 0.9f),
+                            cursorColor = onPrimary
+                        ),
+                        label = {
+                            Text(
+                                text = "Active access codes",
+                                color = onPrimary.copy(alpha = 0.9f)
+                            )
+                        },
+                        trailingIcon = {
+                            ExposedDropdownMenuDefaults.TrailingIcon(expanded = groupsExpanded)
+                        }
                     )
 
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ExposedDropdownMenu(
+                        expanded = groupsExpanded,
+                        onDismissRequest = { groupsExpanded = false },
+                        modifier = Modifier.exposedDropdownSize()
                     ) {
-                        joinedGroups.forEach { code ->
-                            AssistChip(
-                                onClick = onManageGroups,
-                                label = {
-                                    Text(
-                                        text = code,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                },
-                                leadingIcon = {
-                                    Icon(
-                                        imageVector = Icons.Rounded.CheckCircle,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onPrimaryContainer
-                                    )
-                                },
-                                colors = AssistChipDefaults.assistChipColors(
-                                    containerColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.12f),
-                                    labelColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    leadingIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                                ),
-                                border = BorderStroke(
-                                    width = 1.dp,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.3f)
+                        Text(
+                            text = "Groups you created",
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        if (ownedGroups.isNotEmpty()) {
+                            ownedGroups.forEach { membership ->
+                                DropdownMenuItem(
+                                    text = { Text(membership.code) },
+                                    onClick = {
+                                        groupsExpanded = false
+                                        onManageGroups()
+                                    }
                                 )
+                            }
+                        } else {
+                            Text(
+                                text = "You haven't created any groups yet",
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        Divider(modifier = Modifier.padding(vertical = 4.dp))
+
+                        Text(
+                            text = "Groups you're subscribed to",
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        if (subscribedGroups.isNotEmpty()) {
+                            subscribedGroups.forEach { membership ->
+                                DropdownMenuItem(
+                                    text = { Text(membership.code) },
+                                    onClick = {
+                                        groupsExpanded = false
+                                        onManageGroups()
+                                    }
+                                )
+                            }
+                        } else {
+                            Text(
+                                text = "You're not subscribed to any groups yet",
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
