@@ -72,6 +72,7 @@ import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Logout
 import androidx.compose.material.icons.rounded.Map
+import androidx.compose.material.icons.rounded.ManageAccounts
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.material.icons.rounded.Place
@@ -5598,16 +5599,12 @@ private fun ExplorerGroupPicker(
             }
         }
 
-        AssistChip(
-            onClick = onManageGroups,
-            label = { Text("Manage groups") },
-            leadingIcon = {
-                Icon(
-                    imageVector = Icons.Rounded.Edit,
-                    contentDescription = null
-                )
-            }
-        )
+        IconButton(onClick = onManageGroups) {
+            Icon(
+                imageVector = Icons.Rounded.ManageAccounts,
+                contentDescription = stringResource(R.string.manage_groups)
+            )
+        }
     }
 }
 
