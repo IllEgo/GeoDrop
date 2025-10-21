@@ -163,6 +163,9 @@ class FirestoreRepo(
             val now = System.currentTimeMillis()
             val existingOwner = groupSnapshot.getString("ownerId")?.takeIf { it.isNotBlank() }
             val creatingGroup = !groupSnapshot.exists() || existingOwner == null
+            if (!creatingGroup && allowCreateIfMissing && existingOwner != null && existingOwner != userId) {
+                throw GroupAlreadyExistsException(normalized)
+            }
             val resolvedOwner = when {
                 creatingGroup && allowCreateIfMissing -> userId
                 creatingGroup -> throw GroupNotFoundException(normalized)

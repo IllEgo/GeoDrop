@@ -155,6 +155,7 @@ import com.e3hi.geodrop.data.BusinessDropTemplate
 import com.e3hi.geodrop.data.Drop
 import com.e3hi.geodrop.data.DropContentType
 import com.e3hi.geodrop.data.GroupMembership
+import com.e3hi.geodrop.data.GroupAlreadyExistsException
 import com.e3hi.geodrop.data.GroupNotFoundException
 import com.e3hi.geodrop.data.GroupRole
 import com.e3hi.geodrop.data.displayTitle
@@ -3045,6 +3046,8 @@ fun DropHereScreen(
                         manageGroupsSnackbar.showMessage(scope, message)
                     } catch (error: Exception) {
                         val message = when (error) {
+                            is GroupAlreadyExistsException ->
+                                "Group ${error.code} doesn't exist. Ask the creator to share it once it's ready."
                             is GroupNotFoundException ->
                                 "Group $normalized doesn't exist. Ask the creator to share it once it's ready."
                             else -> error.localizedMessage ?: "Couldn't save group $normalized"
