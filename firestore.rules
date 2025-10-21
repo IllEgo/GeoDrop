@@ -277,6 +277,19 @@ service cloud.firestore {
     }
 
     match /users/{userId}/groups/{groupCode} {
+      function groupDocMatchesOwner() {
+        let groupPath = /databases/$(database)/documents/groups/$(groupCode);
+        let groupDoc = exists(groupPath) ? get(groupPath) : null;
+        return groupDoc != null
+          && (
+            !request.resource.data.keys().hasAny(['ownerId'])
+            || (
+              groupDoc.data.keys().hasAny(['ownerId'])
+              && groupDoc.data.ownerId == request.resource.data.ownerId
+            )
+          );
+      }
+
       allow read: if isCurrentUser(userId);
 
       allow create, update: if isCurrentUser(userId)
@@ -289,15 +302,7 @@ service cloud.firestore {
           || request.resource.data.ownerId is string)
         && (!request.resource.data.keys().hasAny(['updatedAt'])
           || request.resource.data.updatedAt is int)
-        && (let groupDoc = get(/databases/$(database)/documents/groups/$(groupCode));
-          groupDoc != null
-          && (
-            !request.resource.data.keys().hasAny(['ownerId'])
-            || (
-              groupDoc.data.keys().hasAny(['ownerId'])
-              && groupDoc.data.ownerId == request.resource.data.ownerId
-            )
-          ));
+        && groupDocMatchesOwner();
 
       allow delete: if isCurrentUser(userId);
     }
