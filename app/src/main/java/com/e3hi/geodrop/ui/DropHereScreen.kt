@@ -2201,7 +2201,7 @@ fun DropHereScreen(
                         actionIconContentColor = MaterialTheme.colorScheme.onBackground
                     ),
                     actions = {
-                        if (currentHomeDestination == HomeDestination.Explorer && explorerGroups.isNotEmpty()) {
+                        if (currentHomeDestination == HomeDestination.Explorer) {
                             IconButton(onClick = { showManageGroups = true }) {
                                 Icon(
                                     imageVector = Icons.Rounded.ManageAccounts,
