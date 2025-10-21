@@ -715,6 +715,7 @@ fun DropHereScreen(
     }
 
     val snackbar = remember { SnackbarHostState() }
+    val manageGroupsSnackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
     val fused = remember { LocationServices.getFusedLocationProviderClient(ctx) }
@@ -3015,11 +3016,12 @@ fun DropHereScreen(
     if (showManageGroups) {
         ManageGroupsDialog(
             groups = joinedGroups,
+            snackbarHostState = manageGroupsSnackbar,
             onDismiss = { showManageGroups = false },
             onCreate = { code ->
                 val uid = FirebaseAuth.getInstance().currentUser?.uid
                 if (uid.isNullOrBlank()) {
-                    snackbar.showMessage(scope, "Sign in to manage groups.")
+                    manageGroupsSnackbar.showMessage(scope, "Sign in to manage groups.")
                     return@ManageGroupsDialog
                 }
                 scope.launch {
@@ -3040,21 +3042,21 @@ fun DropHereScreen(
                         } else {
                             "Subscribed to $normalized"
                         }
-                        snackbar.showMessage(scope, message)
+                        manageGroupsSnackbar.showMessage(scope, message)
                     } catch (error: Exception) {
                         val message = when (error) {
                             is GroupNotFoundException ->
                                 "Group $normalized doesn't exist. Ask the creator to share it once it's ready."
                             else -> error.localizedMessage ?: "Couldn't save group $normalized"
                         }
-                        snackbar.showMessage(scope, message)
+                        manageGroupsSnackbar.showMessage(scope, message)
                     }
                 }
             },
             onSubscribe = { code ->
                 val uid = FirebaseAuth.getInstance().currentUser?.uid
                 if (uid.isNullOrBlank()) {
-                    snackbar.showMessage(scope, "Sign in to manage groups.")
+                    manageGroupsSnackbar.showMessage(scope, "Sign in to manage groups.")
                     return@ManageGroupsDialog
                 }
                 scope.launch {
@@ -3075,21 +3077,21 @@ fun DropHereScreen(
                         } else {
                             "Subscribed to $normalized"
                         }
-                        snackbar.showMessage(scope, message)
+                        manageGroupsSnackbar.showMessage(scope, message)
                     } catch (error: Exception) {
                         val message = when (error) {
                             is GroupNotFoundException ->
                                 "Group $normalized doesn't exist. Ask the creator to share it once it's ready."
                             else -> error.localizedMessage ?: "Couldn't save group $normalized"
                         }
-                        snackbar.showMessage(scope, message)
+                        manageGroupsSnackbar.showMessage(scope, message)
                     }
                 }
             },
             onRemove = { code ->
                 val uid = FirebaseAuth.getInstance().currentUser?.uid
                 if (uid.isNullOrBlank()) {
-                    snackbar.showMessage(scope, "Sign in to manage groups.")
+                    manageGroupsSnackbar.showMessage(scope, "Sign in to manage groups.")
                     return@ManageGroupsDialog
                 }
                 scope.launch {
@@ -3102,10 +3104,10 @@ fun DropHereScreen(
                         if (currentInput == normalized) {
                             groupCodeInput = TextFieldValue("")
                         }
-                        snackbar.showMessage(scope, "Removed group $normalized")
+                        manageGroupsSnackbar.showMessage(scope, "Removed group $normalized")
                     } catch (error: Exception) {
                         val message = error.localizedMessage ?: "Couldn't remove group $normalized"
-                        snackbar.showMessage(scope, message)
+                        manageGroupsSnackbar.showMessage(scope, message)
                     }
                 }
             }
@@ -7397,6 +7399,7 @@ private fun CollectedNoteCard(
 @Composable
 private fun ManageGroupsDialog(
     groups: List<GroupMembership>,
+    snackbarHostState: SnackbarHostState,
     onDismiss: () -> Unit,
     onCreate: (String) -> Unit,
     onSubscribe: (String) -> Unit,

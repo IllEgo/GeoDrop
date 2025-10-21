@@ -13,3 +13,11 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# iOS build artifacts
+ios/Pods/
+ios/GeoDropIOS.xcworkspace/
+ios/GeoDropIOS.xcodeproj/project.xcworkspace/
+ios/GeoDropIOS.xcodeproj/xcuserdata/
+ios/build/
+ios/DerivedData/
