@@ -1,0 +1,11 @@
+platform :ios, '15.0'
+use_frameworks!
+inhibit_all_warnings!
+
+target 'GeoDropIOS' do
+  pod 'Firebase/Auth'
+  pod 'Firebase/Firestore'
+  pod 'Firebase/Functions'
+  pod 'Firebase/Messaging'
+  pod 'Firebase/Storage'
+end
