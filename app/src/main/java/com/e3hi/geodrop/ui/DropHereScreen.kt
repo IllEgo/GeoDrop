@@ -2223,6 +2223,7 @@ fun DropHereScreen(
             },
             bottomBar = {
                 NavigationBar(
+                    modifier = Modifier.height(64.dp),
                     containerColor = MaterialTheme.colorScheme.surface,
                     contentColor = MaterialTheme.colorScheme.onSurface
                 ) {
@@ -2343,38 +2344,44 @@ fun DropHereScreen(
                         }
                     }
 
-                    if (canParticipate) {
-                        NavigationBarItem(
-                            selected = false,
-                            onClick = {
-                                if (isSubmitting) return@NavigationBarItem
-                                showDropComposer = true
-                            },
-                            icon = { Icon(Icons.Rounded.Place, contentDescription = null) },
-                            label = {
-                                Text(
-                                    stringResource(
-                                        if (isSubmitting) R.string.status_dropping else R.string.action_drop_something
-                                    )
+                    NavigationBarItem(
+                        selected = false,
+                        onClick = {
+                            if (isSubmitting) return@NavigationBarItem
+                            if (!canParticipate) {
+                                snackbar.showMessage(scope, participationRestriction("share drops"))
+                                return@NavigationBarItem
+                            }
+                            showDropComposer = true
+                        },
+                        icon = { Icon(Icons.Rounded.Place, contentDescription = null) },
+                        label = {
+                            Text(
+                                stringResource(
+                                    if (isSubmitting) R.string.status_dropping else R.string.action_drop_something
                                 )
-                            },
-                            enabled = !isSubmitting
-                        )
-                    }
+                            )
+                        },
+                        enabled = !isSubmitting
+                    )
 
-                    if (currentHomeDestination == HomeDestination.Explorer && userMode != UserMode.GUEST) {
-                        NavigationBarItem(
-                            selected = false,
-                            onClick = { showManageGroups = true },
-                            icon = {
-                                Icon(
-                                    imageVector = Icons.Rounded.ManageAccounts,
-                                    contentDescription = stringResource(R.string.manage_groups)
-                                )
-                            },
-                            label = { Text(stringResource(R.string.manage_groups)) }
-                        )
-                    }
+                    NavigationBarItem(
+                        selected = false,
+                        onClick = {
+                            if (userMode == UserMode.GUEST) {
+                                snackbar.showMessage(scope, participationRestriction("manage groups"))
+                                return@NavigationBarItem
+                            }
+                            showManageGroups = true
+                        },
+                        icon = {
+                            Icon(
+                                imageVector = Icons.Rounded.ManageAccounts,
+                                contentDescription = stringResource(R.string.manage_groups)
+                            )
+                        },
+                        label = { Text(stringResource(R.string.manage_groups)) }
+                    )
                 }
             },
             snackbarHost = {}
