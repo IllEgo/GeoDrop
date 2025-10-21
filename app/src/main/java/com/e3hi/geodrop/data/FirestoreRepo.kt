@@ -165,10 +165,7 @@ class FirestoreRepo(
             val creatingGroup = !groupSnapshot.exists() || existingOwner == null
             val resolvedOwner = when {
                 creatingGroup && allowCreateIfMissing -> userId
-                creatingGroup -> throw FirebaseFirestoreException(
-                    "Group $normalized doesn't exist yet.",
-                    FirebaseFirestoreException.Code.NOT_FOUND
-                )
+                creatingGroup -> throw GroupNotFoundException(normalized)
                 else -> existingOwner!!
             }
             val role = if (resolvedOwner == userId) GroupRole.OWNER else GroupRole.SUBSCRIBER
