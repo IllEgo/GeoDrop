@@ -288,7 +288,16 @@ service cloud.firestore {
         && (!request.resource.data.keys().hasAny(['ownerId'])
           || request.resource.data.ownerId is string)
         && (!request.resource.data.keys().hasAny(['updatedAt'])
-          || request.resource.data.updatedAt is int);
+          || request.resource.data.updatedAt is int)
+        && (let groupDoc = get(/databases/$(database)/documents/groups/$(groupCode));
+          groupDoc != null
+          && (
+            !request.resource.data.keys().hasAny(['ownerId'])
+            || (
+              groupDoc.data.keys().hasAny(['ownerId'])
+              && groupDoc.data.ownerId == request.resource.data.ownerId
+            )
+          ));
 
       allow delete: if isCurrentUser(userId);
     }
