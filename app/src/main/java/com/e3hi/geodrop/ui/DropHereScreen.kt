@@ -135,6 +135,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.progressBarRangeInfo
@@ -2185,8 +2186,9 @@ fun DropHereScreen(
         }
     }
 
-    Scaffold(
-        modifier = Modifier.fillMaxSize(),
+    Box(modifier = Modifier.fillMaxSize()) {
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
         topBar = {
             Column {
                 TopAppBar(
@@ -2216,7 +2218,8 @@ fun DropHereScreen(
 
                             DropdownMenu(
                                 expanded = showAccountMenu,
-                                onDismissRequest = { showAccountMenu = false }
+                                onDismissRequest = { showAccountMenu = false },
+                                modifier = Modifier.zIndex(1f)
                             ) {
                                 when (userMode) {
                                     UserMode.GUEST -> {
@@ -2322,7 +2325,7 @@ fun DropHereScreen(
                 }
             }
         },
-        floatingActionButton = {
+            floatingActionButton = {
             if (canParticipate) {
                 ExtendedFloatingActionButton(
                     onClick = {
@@ -2341,14 +2344,9 @@ fun DropHereScreen(
                     }
                 )
             }
-        },
-        snackbarHost = {
-            SnackbarHost(
-                hostState = snackbar,
-                modifier = Modifier.padding(bottom = 16.dp)
-            )
-        }
-    ) { innerPadding ->
+            },
+            snackbarHost = {}
+        ) { innerPadding ->
         if (isBusinessUser && currentHomeDestination == HomeDestination.Business) {
             BusinessHomeScreen(
                 modifier = Modifier
@@ -2694,6 +2692,14 @@ fun DropHereScreen(
                 }
             }
         }
+
+            SnackbarHost(
+                hostState = snackbar,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 16.dp)
+                    .zIndex(1f)
+            )
     }
 
     if (showDropComposer) {
@@ -3939,7 +3945,9 @@ private fun BusinessHeroCard(
                     ExposedDropdownMenu(
                         expanded = groupsExpanded,
                         onDismissRequest = { groupsExpanded = false },
-                        modifier = Modifier.exposedDropdownSize()
+                        modifier = Modifier
+                            .exposedDropdownSize()
+                            .zIndex(1f)
                     ) {
                         Text(
                             text = "Groups you created",
@@ -5702,7 +5710,9 @@ private fun ExplorerGroupPicker(
             DropdownMenu(
                 expanded = expanded,
                 onDismissRequest = { expanded = false },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .zIndex(1f)
             ) {
                 DropdownMenuItem(
                     text = { Text("All groups") },
