@@ -2228,9 +2228,14 @@ fun DropHereScreen(
                     contentColor = MaterialTheme.colorScheme.onSurface
                 ) {
                     val navigationBarScope = this
-                    Box {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                    ) {
                         navigationBarScope.NavigationBarItem(
-                            selected = false,
+                            modifier = Modifier.fillMaxSize(),
+                            selected = showAccountMenu,
                             onClick = { showAccountMenu = !showAccountMenu },
                             icon = {
                                 Icon(
@@ -2238,7 +2243,8 @@ fun DropHereScreen(
                                     contentDescription = stringResource(R.string.content_description_account_options)
                                 )
                             },
-                            label = { Text(stringResource(R.string.bottom_nav_profile)) }
+                            label = { Text(stringResource(R.string.bottom_nav_profile)) },
+                            alwaysShowLabel = true
                         )
 
                         DropdownMenu(
@@ -2345,7 +2351,8 @@ fun DropHereScreen(
                     }
 
                     NavigationBarItem(
-                        selected = false,
+                        modifier = Modifier.weight(1f),
+                        selected = showDropComposer,
                         onClick = {
                             if (isSubmitting) return@NavigationBarItem
                             if (!canParticipate) {
@@ -2362,11 +2369,13 @@ fun DropHereScreen(
                                 )
                             )
                         },
-                        enabled = !isSubmitting
+                        enabled = !isSubmitting,
+                        alwaysShowLabel = true
                     )
 
                     NavigationBarItem(
-                        selected = false,
+                        modifier = Modifier.weight(1f),
+                        selected = showManageGroups,
                         onClick = {
                             if (userMode == UserMode.GUEST) {
                                 snackbar.showMessage(scope, participationRestriction("manage groups"))
@@ -2380,7 +2389,8 @@ fun DropHereScreen(
                                 contentDescription = stringResource(R.string.manage_groups)
                             )
                         },
-                        label = { Text(stringResource(R.string.manage_groups)) }
+                        label = { Text(stringResource(R.string.manage_groups)) },
+                        alwaysShowLabel = true
                     )
                 }
             },
