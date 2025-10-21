@@ -60,7 +60,6 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.rounded.AccountCircle
-import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.Bookmark
 import androidx.compose.material.icons.rounded.Check
@@ -5665,6 +5664,7 @@ private fun CollectedDropsContent(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ExplorerGroupPicker(
     memberships: List<GroupMembership>,
@@ -5693,34 +5693,42 @@ private fun ExplorerGroupPicker(
             .padding(bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(modifier = Modifier.weight(1f)) {
-            FilledTonalButton(
-                onClick = { expanded = !expanded },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+        ExposedDropdownMenuBox(
+            expanded = expanded,
+            onExpandedChange = { expanded = !expanded },
+            modifier = Modifier.weight(1f)
+        ) {
+            OutlinedTextField(
+                value = buttonLabel,
+                onValueChange = {},
+                readOnly = true,
+                modifier = Modifier
+                    .menuAnchor()
+                    .fillMaxWidth(),
+                label = { Text("Filter by group") },
+                trailingIcon = {
+                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+                },
+                supportingText = {
                     Text(
-                        text = buttonLabel,
-                        style = MaterialTheme.typography.bodyMedium
+                        text = if (activeSelection == null) {
+                            "Showing drops from all groups."
+                        } else {
+                            "Filtering by ${'$'}activeSelection."
+                        }
                     )
-                    Icon(
-                        imageVector = Icons.Rounded.ArrowDropDown,
-                        contentDescription = null
-                    )
-                }
-            }
+                },
+                textStyle = MaterialTheme.typography.bodyMedium,
+                singleLine = true,
+                shape = RoundedCornerShape(16.dp),
+                colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors()
+            )
 
-            DropdownMenu(
+            ExposedDropdownMenu(
                 expanded = expanded,
                 onDismissRequest = { expanded = false },
                 modifier = Modifier
-                    .fillMaxWidth()
+                    .exposedDropdownSize()
                     .zIndex(1f)
             ) {
                 DropdownMenuItem(
