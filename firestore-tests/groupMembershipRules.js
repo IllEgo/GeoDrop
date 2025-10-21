@@ -81,6 +81,14 @@ async function seedGroup(env, data) {
       )
     );
 
+    // Subscribing without providing an owner should fail when the group doesn't exist.
+    await env.clearFirestore();
+    const ownerlessMissingGroup = baseMembershipData({
+      updatedAt: 35,
+    });
+    delete ownerlessMissingGroup.ownerId;
+    await assertFails(membershipRef.set(ownerlessMissingGroup));
+
     // Subscribing without providing an owner should succeed when the group exists.
     await env.clearFirestore();
     await seedGroup(env, {

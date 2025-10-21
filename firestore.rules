@@ -279,14 +279,16 @@ service cloud.firestore {
     match /users/{userId}/groups/{groupCode} {
       function groupDocMatchesOwner() {
         let groupPath = /databases/$(database)/documents/groups/$(groupCode);
-        let groupDoc = exists(groupPath) ? get(groupPath) : null;
+        let groupDoc = existsAfter(groupPath)
+          ? getAfter(groupPath)
+          : (exists(groupPath) ? get(groupPath) : null);
         return groupDoc != null
+          && groupDoc.data.keys().hasAny(['ownerId'])
+          && groupDoc.data.ownerId is string
+          && groupDoc.data.ownerId.size() > 0
           && (
             !request.resource.data.keys().hasAny(['ownerId'])
-            || (
-              groupDoc.data.keys().hasAny(['ownerId'])
-              && groupDoc.data.ownerId == request.resource.data.ownerId
-            )
+            || groupDoc.data.ownerId == request.resource.data.ownerId
           );
       }
 
