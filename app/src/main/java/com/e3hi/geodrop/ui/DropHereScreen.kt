@@ -1175,7 +1175,7 @@ fun DropHereScreen(
 
     fun submitLike(drop: Drop, desiredStatus: DropLikeStatus) {
         if (!canParticipate) {
-            snackbar.showMessage(scope, participationRestriction("like drops"))
+            snackbar.showMessage(scope, participationRestriction("liked drops"))
             return
         }
         val userId = currentUserId
