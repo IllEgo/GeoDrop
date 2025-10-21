@@ -3047,7 +3047,7 @@ fun DropHereScreen(
                     } catch (error: Exception) {
                         val message = when (error) {
                             is GroupAlreadyExistsException ->
-                                "Group ${error.code} doesn't exist. Ask the creator to share it once it's ready."
+                                "Group ${error.code} already exist."
                             is GroupNotFoundException ->
                                 "Group $normalized doesn't exist. Ask the creator to share it once it's ready."
                             else -> error.localizedMessage ?: "Couldn't save group $normalized"
