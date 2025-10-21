@@ -2378,7 +2378,8 @@ fun DropHereScreen(
                     ExplorerDestinationTabs(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 20.dp, vertical = 16.dp),
+                            .padding(horizontal = 20.dp)
+                            .padding(top = 16.dp),
                         current = effectiveExplorerDestination,
                         onSelect = { destination -> openExplorerDestination(destination) },
                         showMyDrops = hasExplorerAccount,
@@ -5688,7 +5689,8 @@ private fun ExplorerGroupPicker(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 8.dp),
+            .padding(horizontal = 20.dp)
+            .padding(bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(modifier = Modifier.weight(1f)) {
