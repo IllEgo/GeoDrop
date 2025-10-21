@@ -2190,161 +2190,191 @@ fun DropHereScreen(
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
             modifier = Modifier.fillMaxSize(),
-        topBar = {
-            Column {
-                TopAppBar(
-                    title = { Text(stringResource(R.string.app_name)) },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.background,
-                        scrolledContainerColor = MaterialTheme.colorScheme.background,
-                        titleContentColor = MaterialTheme.colorScheme.onBackground,
-                        actionIconContentColor = MaterialTheme.colorScheme.onBackground
-                    ),
-                    actions = {
-                        if (currentHomeDestination == HomeDestination.Explorer && userMode != UserMode.GUEST) {
-                            IconButton(onClick = { showManageGroups = true }) {
-                                Icon(
-                                    imageVector = Icons.Rounded.ManageAccounts,
-                                    contentDescription = stringResource(R.string.manage_groups)
+            topBar = {
+                Column {
+                    TopAppBar(
+                        title = {
+                            if (currentHomeDestination == HomeDestination.Explorer && userMode != null) {
+                                ExplorerDestinationTabs(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 20.dp)
+                                        .padding(vertical = 12.dp),
+                                    current = effectiveExplorerDestination,
+                                    onSelect = { destination -> openExplorerDestination(destination) },
+                                    showMyDrops = hasExplorerAccount,
+                                    showCollected = hasExplorerAccount
                                 )
+                            } else {
+                                Text(stringResource(R.string.app_name))
                             }
-                        }
-                        Box {
-                            IconButton(onClick = { showAccountMenu = !showAccountMenu }) {
+                        },
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = MaterialTheme.colorScheme.background,
+                            scrolledContainerColor = MaterialTheme.colorScheme.background,
+                            titleContentColor = MaterialTheme.colorScheme.onBackground,
+                            actionIconContentColor = MaterialTheme.colorScheme.onBackground
+                        )
+                    )
+                    if (isBusinessUser) {
+                        Divider()
+                    }
+                }
+            },
+            bottomBar = {
+                NavigationBar(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    contentColor = MaterialTheme.colorScheme.onSurface
+                ) {
+                    Box {
+                        NavigationBarItem(
+                            selected = false,
+                            onClick = { showAccountMenu = !showAccountMenu },
+                            icon = {
                                 Icon(
                                     imageVector = Icons.Rounded.AccountCircle,
                                     contentDescription = stringResource(R.string.content_description_account_options)
                                 )
-                            }
+                            },
+                            label = { Text(stringResource(R.string.bottom_nav_profile)) }
+                        )
 
-                            DropdownMenu(
-                                expanded = showAccountMenu,
-                                onDismissRequest = { showAccountMenu = false },
-                                modifier = Modifier.zIndex(1f)
-                            ) {
-                                when (userMode) {
-                                    UserMode.GUEST -> {
-                                        DropdownMenuItem(
-                                            text = { Text(stringResource(R.string.menu_sign_in_full_participation)) },
-                                            leadingIcon = { Icon(Icons.Rounded.CheckCircle, contentDescription = null) },
-                                            onClick = {
-                                                showAccountMenu = false
-                                                guestModeEnabled = false
-                                                openAccountAuthDialog(
-                                                    initialType = AccountType.EXPLORER,
-                                                    initialMode = AccountAuthMode.SIGN_IN,
-                                                    lockAccountType = true
-                                                )
-                                            }
-                                        )
-                                    }
-
-                                    UserMode.SIGNED_IN -> {
-                                        if (!isBusinessUser) {
-                                            val explorerUsername = userProfile?.username?.takeIf { it.isNotBlank() }
-                                            DropdownMenuItem(
-                                                text = {
-                                                    Text(
-                                                        explorerUsername?.let {
-                                                            stringResource(
-                                                                R.string.menu_edit_username_with_value,
-                                                                it
-                                                            )
-                                                        } ?: stringResource(R.string.menu_set_username)
-                                                    )
-                                                },
-                                                leadingIcon = { Icon(Icons.Rounded.Edit, contentDescription = null) },
-                                                onClick = {
-                                                    showAccountMenu = false
-                                                    explorerProfileError = null
-                                                    explorerProfileSubmitting = false
-                                                    explorerUsernameField = TextFieldValue(explorerUsername.orEmpty())
-                                                    showExplorerProfile = true
-                                                }
-                                            )
-                                        }
-                                    }
-                                }
-
-                                if (canParticipate) {
-                                    val nsfwEnabled = userProfile?.canViewNsfw() == true
+                        DropdownMenu(
+                            expanded = showAccountMenu,
+                            onDismissRequest = { showAccountMenu = false },
+                            modifier = Modifier.zIndex(1f)
+                        ) {
+                            when (userMode) {
+                                UserMode.GUEST -> {
                                     DropdownMenuItem(
-                                        text = {
-                                            Text(
-                                                stringResource(
-                                                    R.string.menu_notification_radius,
-                                                    notificationRadius.roundToInt()
-                                                )
-                                            )
-                                        },
-                                        leadingIcon = { Icon(Icons.Rounded.Map, contentDescription = null) },
+                                        text = { Text(stringResource(R.string.menu_sign_in_full_participation)) },
+                                        leadingIcon = { Icon(Icons.Rounded.CheckCircle, contentDescription = null) },
                                         onClick = {
                                             showAccountMenu = false
-                                            showNotificationRadiusDialog = true
+                                            guestModeEnabled = false
+                                            openAccountAuthDialog(
+                                                initialType = AccountType.EXPLORER,
+                                                initialMode = AccountAuthMode.SIGN_IN,
+                                                lockAccountType = true
+                                            )
                                         }
                                     )
+                                }
+
+                                UserMode.SIGNED_IN -> {
                                     if (!isBusinessUser) {
+                                        val explorerUsername = userProfile?.username?.takeIf { it.isNotBlank() }
                                         DropdownMenuItem(
                                             text = {
                                                 Text(
-                                                    stringResource(
-                                                        if (nsfwEnabled) {
-                                                            R.string.menu_disable_nsfw_drops
-                                                        } else {
-                                                            R.string.menu_enable_nsfw_drops
-                                                        }
-                                                    )
+                                                    explorerUsername?.let {
+                                                        stringResource(
+                                                            R.string.menu_edit_username_with_value,
+                                                            it
+                                                        )
+                                                    } ?: stringResource(R.string.menu_set_username)
                                                 )
                                             },
-                                            leadingIcon = { Icon(Icons.Rounded.Flag, contentDescription = null) },
+                                            leadingIcon = { Icon(Icons.Rounded.Edit, contentDescription = null) },
                                             onClick = {
                                                 showAccountMenu = false
-                                                nsfwUpdateError = null
-                                                showNsfwDialog = true
+                                                explorerProfileError = null
+                                                explorerProfileSubmitting = false
+                                                explorerUsernameField = TextFieldValue(explorerUsername.orEmpty())
+                                                showExplorerProfile = true
                                             }
                                         )
                                     }
+                                }
+                            }
+
+                            if (canParticipate) {
+                                val nsfwEnabled = userProfile?.canViewNsfw() == true
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            stringResource(
+                                                R.string.menu_notification_radius,
+                                                notificationRadius.roundToInt()
+                                            )
+                                        )
+                                    },
+                                    leadingIcon = { Icon(Icons.Rounded.Map, contentDescription = null) },
+                                    onClick = {
+                                        showAccountMenu = false
+                                        showNotificationRadiusDialog = true
+                                    }
+                                )
+                                if (!isBusinessUser) {
                                     DropdownMenuItem(
                                         text = {
                                             Text(
                                                 stringResource(
-                                                    if (signingOut) R.string.status_signing_out else R.string.menu_sign_out
+                                                    if (nsfwEnabled) {
+                                                        R.string.menu_disable_nsfw_drops
+                                                    } else {
+                                                        R.string.menu_enable_nsfw_drops
+                                                    }
                                                 )
                                             )
                                         },
-                                        leadingIcon = { Icon(Icons.Rounded.Logout, contentDescription = null) },
-                                        enabled = !signingOut,
-                                        onClick = { handleSignOut() }
+                                        leadingIcon = { Icon(Icons.Rounded.Flag, contentDescription = null) },
+                                        onClick = {
+                                            showAccountMenu = false
+                                            nsfwUpdateError = null
+                                            showNsfwDialog = true
+                                        }
                                     )
                                 }
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            stringResource(
+                                                if (signingOut) R.string.status_signing_out else R.string.menu_sign_out
+                                            )
+                                        )
+                                    },
+                                    leadingIcon = { Icon(Icons.Rounded.Logout, contentDescription = null) },
+                                    enabled = !signingOut,
+                                    onClick = { handleSignOut() }
+                                )
                             }
                         }
                     }
-                )
-                if (isBusinessUser) {
-                    Divider()
-                }
-            }
-        },
-            floatingActionButton = {
-            if (canParticipate) {
-                ExtendedFloatingActionButton(
-                    onClick = {
-                        if (isSubmitting) return@ExtendedFloatingActionButton
-                        showDropComposer = true
-                    },
-                    containerColor = MaterialTheme.colorScheme.secondary,
-                    contentColor = MaterialTheme.colorScheme.onSecondary,
-                    icon = { Icon(Icons.Rounded.Place, contentDescription = null) },
-                    text = {
-                        Text(
-                            stringResource(
-                                if (isSubmitting) R.string.status_dropping else R.string.action_drop_something
-                            )
+
+                    if (canParticipate) {
+                        NavigationBarItem(
+                            selected = false,
+                            onClick = {
+                                if (isSubmitting) return@NavigationBarItem
+                                showDropComposer = true
+                            },
+                            icon = { Icon(Icons.Rounded.Place, contentDescription = null) },
+                            label = {
+                                Text(
+                                    stringResource(
+                                        if (isSubmitting) R.string.status_dropping else R.string.action_drop_something
+                                    )
+                                )
+                            },
+                            enabled = !isSubmitting
                         )
                     }
-                )
-            }
+
+                    if (currentHomeDestination == HomeDestination.Explorer && userMode != UserMode.GUEST) {
+                        NavigationBarItem(
+                            selected = false,
+                            onClick = { showManageGroups = true },
+                            icon = {
+                                Icon(
+                                    imageVector = Icons.Rounded.ManageAccounts,
+                                    contentDescription = stringResource(R.string.manage_groups)
+                                )
+                            },
+                            label = { Text(stringResource(R.string.manage_groups)) }
+                        )
+                    }
+                }
             },
             snackbarHost = {}
         ) { innerPadding ->
@@ -2373,19 +2403,6 @@ fun DropHereScreen(
                     .fillMaxSize()
                     .padding(innerPadding)
             ) {
-                if (currentHomeDestination == HomeDestination.Explorer && userMode != null) {
-                    ExplorerDestinationTabs(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 20.dp)
-                            .padding(top = 16.dp),
-                        current = effectiveExplorerDestination,
-                        onSelect = { destination -> openExplorerDestination(destination) },
-                        showMyDrops = hasExplorerAccount,
-                        showCollected = hasExplorerAccount
-                    )
-                }
-
                 if (explorerGroups.isNotEmpty()) {
                     ExplorerGroupPicker(
                         memberships = explorerGroups,

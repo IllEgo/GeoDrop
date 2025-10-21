@@ -5,6 +5,7 @@
     <string name="google_maps_key">AIzaSyDD9c_0xHim_ITvXZlHY67b_m_SR-9DUJs</string>
     <string name="drag_to_resize">Drag to resize</string>
     <string name="content_description_account_options">Account options</string>
+    <string name="bottom_nav_profile">Profile</string>
     <string name="menu_sign_in_full_participation">Sign in for full participation</string>
     <string name="menu_sign_in_business_account">Sign in or create a business account</string>
     <string name="menu_notification_radius">Notification radius (%1$d m)</string>
