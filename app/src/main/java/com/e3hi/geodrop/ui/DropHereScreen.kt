@@ -7434,6 +7434,12 @@ private fun ManageGroupsDialog(
                             }
                         }
                     )
+                },
+                snackbarHost = {
+                    SnackbarHost(
+                        hostState = snackbarHostState,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp)
+                    )
                 }
             ) { padding ->
                 var createCode by rememberSaveable(stateSaver = TextFieldValue.Saver) {
