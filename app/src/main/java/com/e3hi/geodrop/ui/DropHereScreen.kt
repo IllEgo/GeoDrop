@@ -2226,8 +2226,9 @@ fun DropHereScreen(
                     containerColor = MaterialTheme.colorScheme.surface,
                     contentColor = MaterialTheme.colorScheme.onSurface
                 ) {
+                    val navigationBarScope = this
                     Box {
-                        NavigationBarItem(
+                        navigationBarScope.NavigationBarItem(
                             selected = false,
                             onClick = { showAccountMenu = !showAccountMenu },
                             icon = {
