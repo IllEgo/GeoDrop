@@ -739,12 +739,14 @@ fun DropHereScreen(
 
     var joinedGroups by remember { mutableStateOf(groupPrefs.getMemberships()) }
     var selectedExplorerGroupCode by rememberSaveable { mutableStateOf<String?>(null) }
+    val createdGroups = remember(joinedGroups) {
+        joinedGroups.filter { membership -> membership.role == GroupRole.OWNER }
+    }
     val subscribedGroups = remember(joinedGroups) {
-        joinedGroups.filter { membership ->
-            when (membership.role) {
-                GroupRole.SUBSCRIBER, GroupRole.OWNER -> true
-            }
-        }
+        joinedGroups.filter { membership -> membership.role == GroupRole.SUBSCRIBER }
+    }
+    val explorerGroups = remember(createdGroups, subscribedGroups) {
+        (createdGroups + subscribedGroups).distinctBy { it.code }
     }
     var dropVisibility by remember { mutableStateOf(DropVisibility.Public) }
     var dropAnonymously by remember { mutableStateOf(false) }
@@ -829,15 +831,15 @@ fun DropHereScreen(
         onDispose { groupPrefs.removeChangeListener(listener) }
     }
 
-    LaunchedEffect(joinedGroups) {
-        val subscriberCodes = subscribedGroups.map { it.code }
+    LaunchedEffect(explorerGroups) {
+        val availableCodes = explorerGroups.map { it.code }
         val current = selectedExplorerGroupCode
-        if (subscriberCodes.isEmpty()) {
+        if (availableCodes.isEmpty()) {
             if (current != null) {
                 selectedExplorerGroupCode = null
             }
-        } else if (current != null && current !in subscriberCodes) {
-            selectedExplorerGroupCode = subscriberCodes.firstOrNull()
+        } else if (current != null && current !in availableCodes) {
+            selectedExplorerGroupCode = availableCodes.firstOrNull()
         }
     }
 
@@ -2086,18 +2088,18 @@ fun DropHereScreen(
     }
 
 
-    val filteredOtherDrops = remember(selectedExplorerGroupCode, otherDrops, subscribedGroups) {
-        selectedExplorerGroupCode?.takeIf { code -> subscribedGroups.any { it.code == code } }?.let { code ->
+    val filteredOtherDrops = remember(selectedExplorerGroupCode, otherDrops, explorerGroups) {
+        selectedExplorerGroupCode?.takeIf { code -> explorerGroups.any { it.code == code } }?.let { code ->
             otherDrops.filter { drop -> drop.groupCode == code }
         } ?: otherDrops
     }
-    val filteredMyDrops = remember(selectedExplorerGroupCode, myDrops, subscribedGroups) {
-        selectedExplorerGroupCode?.takeIf { code -> subscribedGroups.any { it.code == code } }?.let { code ->
+    val filteredMyDrops = remember(selectedExplorerGroupCode, myDrops, explorerGroups) {
+        selectedExplorerGroupCode?.takeIf { code -> explorerGroups.any { it.code == code } }?.let { code ->
             myDrops.filter { drop -> drop.groupCode == code }
         } ?: myDrops
     }
-    val filteredCollected = remember(selectedExplorerGroupCode, collectedNotes, subscribedGroups) {
-        selectedExplorerGroupCode?.takeIf { code -> subscribedGroups.any { it.code == code } }?.let { code ->
+    val filteredCollected = remember(selectedExplorerGroupCode, collectedNotes, explorerGroups) {
+        selectedExplorerGroupCode?.takeIf { code -> explorerGroups.any { it.code == code } }?.let { code ->
             collectedNotes.filter { note -> note.groupCode == code }
         } ?: collectedNotes
     }
@@ -2196,7 +2198,7 @@ fun DropHereScreen(
                         actionIconContentColor = MaterialTheme.colorScheme.onBackground
                     ),
                     actions = {
-                        if (currentHomeDestination == HomeDestination.Explorer && subscribedGroups.isNotEmpty()) {
+                        if (currentHomeDestination == HomeDestination.Explorer && explorerGroups.isNotEmpty()) {
                             IconButton(onClick = { showManageGroups = true }) {
                                 Icon(
                                     imageVector = Icons.Rounded.ManageAccounts,
@@ -2384,9 +2386,9 @@ fun DropHereScreen(
                     )
                 }
 
-                if (subscribedGroups.isNotEmpty()) {
+                if (explorerGroups.isNotEmpty()) {
                     ExplorerGroupPicker(
-                        memberships = subscribedGroups,
+                        memberships = explorerGroups,
                         selectedCode = selectedExplorerGroupCode,
                         onSelect = { code -> selectedExplorerGroupCode = code }
                     )
@@ -2725,7 +2727,7 @@ fun DropHereScreen(
             onDropAnonymouslyChange = { dropAnonymously = it },
             groupCodeInput = groupCodeInput,
             onGroupCodeInputChange = { groupCodeInput = it },
-            joinedGroups = joinedGroups.filter { it.role == GroupRole.OWNER }.map { it.code },
+            joinedGroups = createdGroups.map { it.code },
             onSelectGroupCode = { code -> groupCodeInput = TextFieldValue(code) },
             redemptionCodeInput = redemptionCodeInput,
             onRedemptionCodeChange = { redemptionCodeInput = it },
