@@ -5,13 +5,14 @@ final class AuthService {
     static let shared = AuthService()
 
     private var authHandle: AuthStateDidChangeListenerHandle?
-    private(set) var currentUser: User? { Auth.auth().currentUser }
+    private(set) var currentUser: User? = Auth.auth().currentUser
 
     func observeAuthChanges(_ onChange: @escaping (User?) -> Void) {
         if let handle = authHandle {
             Auth.auth().removeStateDidChangeListener(handle)
         }
-        authHandle = Auth.auth().addStateDidChangeListener { _, user in
+        authHandle = Auth.auth().addStateDidChangeListener { [weak self] _, user in
+                    self?.currentUser = user
             onChange(user)
         }
     }

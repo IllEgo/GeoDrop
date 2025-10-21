@@ -7,19 +7,35 @@ final class SafeSearchService {
     private let minimumLikelihood: Likelihood
     private let functions: Functions
 
-    init(apiKey: String, endpoint: String = "https://vision.googleapis.com/v1/images:annotate", minimumLikelihood: Likelihood = .likely, functions: Functions = Functions.functions()) {
+    init(
+        apiKey: String,
+        endpoint: String = "https://vision.googleapis.com/v1/images:annotate",
+        minimumLikelihood: Likelihood = .likely,
+        functions: Functions = Functions.functions()
+    ) {
         self.apiKey = apiKey
         self.endpoint = URL(string: endpoint) ?? URL(string: "https://vision.googleapis.com/v1/images:annotate")!
         self.minimumLikelihood = minimumLikelihood
         self.functions = functions
     }
 
-    func assess(contentType: DropContentType, mediaMimeType: String?, mediaData: String?, mediaUrl: String?) async -> DropSafetyAssessment {
-        let eligibleForVision = contentType == .photo && ((mediaMimeType?.hasPrefix("image/") ?? false) || !(mediaData?.isEmpty ?? true) || !(mediaUrl?.isEmpty ?? true))
+    func assess(
+        contentType: DropContentType,
+        mediaMimeType: String?,
+        mediaData: String?,
+        mediaUrl: String?
+    ) async -> DropSafetyAssessment {
+        let eligibleForVision =
+            contentType == .photo &&
+            ((mediaMimeType?.hasPrefix("image/") ?? false) ||
+             !(mediaData?.isEmpty ?? true) ||
+             !(mediaUrl?.isEmpty ?? true))
+
         guard eligibleForVision else {
             return DropSafetyAssessment(isNsfw: false, reasons: [], visionStatus: .notEligible)
         }
 
+        // Try direct Vision API call when an API key is configured
         if !apiKey.isEmpty {
             do {
                 if let result = try await requestSafeSearch(mediaData: mediaData, mediaUrl: mediaUrl) {
@@ -30,16 +46,23 @@ final class SafeSearchService {
             }
         }
 
+        // Fallback to callable
         do {
             if let callableResult = try await requestViaCallable(mediaData: mediaData) {
                 return finalizeAssessment(result: callableResult)
             }
-            return DropSafetyAssessment(isNsfw: false, reasons: [], visionStatus: apiKey.isEmpty ? .notConfigured : .error)
+            return DropSafetyAssessment(
+                isNsfw: false,
+                reasons: [],
+                visionStatus: apiKey.isEmpty ? .notConfigured : .error
+            )
         } catch {
             print("GeoDrop: Vision callable failed \(error)")
             return DropSafetyAssessment(isNsfw: false, reasons: [], visionStatus: .error)
         }
     }
+
+    // MARK: - Vision (HTTP)
 
     private func requestSafeSearch(mediaData: String?, mediaUrl: String?) async throws -> VisionAssessment? {
         guard let body = buildRequestBody(mediaData: mediaData, mediaUrl: mediaUrl) else { return nil }
@@ -64,32 +87,41 @@ final class SafeSearchService {
         return try parseVisionResponse(data: data)
     }
 
+    // MARK: - Vision (Callable)
+
     private func requestViaCallable(mediaData: String?) async throws -> VisionAssessment? {
         guard let payload = extractBase64Payload(mediaData) else { return nil }
-        let result = try await withCheckedThrowingContinuation { continuation in
-            functions.httpsCallable("safeSearch").call(["base64": payload]) { result, error in
+
+        // EXPLICIT GENERIC TYPE ANNOTATION (fixes the T inference error)
+        let dataMap: [String: Any] = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
+            let callable = functions.httpsCallable("safeSearch")
+            callable.call(["base64": payload]) { callableResult, error in
                 if let error = error {
                     continuation.resume(throwing: error)
-                } else if let map = result?.data as? [String: Any] {
+                    return
+                }
+                if let map = callableResult?.data as? [String: Any] {
                     continuation.resume(returning: map)
                 } else {
                     continuation.resume(returning: [:])
                 }
             }
         }
-        return parseCallableResponse(result)
+
+        return parseCallableResponse(dataMap)
     }
+
+    // MARK: - Helpers
 
     private func buildRequestBody(mediaData: String?, mediaUrl: String?) -> Data? {
         var imagePayload: [String: Any]?
         if let base64 = extractBase64Payload(mediaData) {
             imagePayload = ["content": base64]
         } else if let url = mediaUrl?.trimmingCharacters(in: .whitespacesAndNewlines), !url.isEmpty {
-            imagePayload = [
-                "source": ["imageUri": url]
-            ]
+            imagePayload = ["source": ["imageUri": url]]
         }
         guard let payload = imagePayload else { return nil }
+
         let request: [String: Any] = [
             "requests": [[
                 "image": payload,
@@ -103,13 +135,18 @@ final class SafeSearchService {
         let json = try JSONSerialization.jsonObject(with: data, options: []) as? [String: Any]
         guard let root = json,
               let responses = root["responses"] as? [[String: Any]],
-              let first = responses.first,
-              let annotation = first["safeSearchAnnotation"] as? [String: Any] else {
+              let first = responses.first else {
             return nil
         }
+
         if let error = first["error"] as? [String: Any], let message = error["message"] as? String {
             throw NSError(domain: "GeoDropVision", code: -1, userInfo: [NSLocalizedDescriptionKey: message])
         }
+
+        guard let annotation = first["safeSearchAnnotation"] as? [String: Any] else {
+            return nil
+        }
+
         var likelihoods: [SafeSearchCategory: Likelihood] = [:]
         for category in SafeSearchCategory.allCases {
             let raw = annotation[category.responseKey] as? String
@@ -129,7 +166,7 @@ final class SafeSearchService {
 
     private func buildAssessment(from likelihoods: [SafeSearchCategory: Likelihood]) -> VisionAssessment {
         let flagged = likelihoods.filter { _, value in
-            (value?.rank ?? 0) >= minimumLikelihood.rank
+            value.rank >= minimumLikelihood.rank
         }
         let labels = flagged.map { $0.key.displayName }.sorted()
         return VisionAssessment(isNsfw: !labels.isEmpty, labels: labels)
@@ -150,17 +187,15 @@ final class SafeSearchService {
     }
 }
 
+// MARK: - Types
+
 private struct VisionAssessment {
     let isNsfw: Bool
     let labels: [String]
 }
 
 enum SafeSearchCategory: CaseIterable {
-    case adult
-    case spoof
-    case medical
-    case violence
-    case racy
+    case adult, spoof, medical, violence, racy
 
     var responseKey: String {
         switch self {

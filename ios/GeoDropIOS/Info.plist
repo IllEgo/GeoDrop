@@ -2,42 +2,42 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleDevelopmentRegion</key>
-    <string>en</string>
-    <key>CFBundleExecutable</key>
-    <string>$(EXECUTABLE_NAME)</string>
-    <key>CFBundleIdentifier</key>
-    <string>com.e3hi.geodrop.ios</string>
-    <key>CFBundleInfoDictionaryVersion</key>
-    <string>6.0</string>
-    <key>CFBundleName</key>
-    <string>GeoDrop</string>
-    <key>CFBundlePackageType</key>
-    <string>APPL</string>
-    <key>CFBundleShortVersionString</key>
-    <string>1.0</string>
-    <key>CFBundleVersion</key>
-    <string>1</string>
-    <key>UISupportedInterfaceOrientations</key>
-    <array>
-        <string>UIInterfaceOrientationPortrait</string>
-    </array>
-    <key>UIApplicationSceneManifest</key>
-    <dict>
-        <key>UIApplicationSupportsMultipleScenes</key>
-        <false/>
-    </dict>
-    <key>NSLocationWhenInUseUsageDescription</key>
-    <string>GeoDrop needs your location to show nearby drops.</string>
-    <key>NSCameraUsageDescription</key>
-    <string>GeoDrop uses the camera to attach photos to drops.</string>
-    <key>NSPhotoLibraryUsageDescription</key>
-    <string>GeoDrop needs photo access to share media in drops.</string>
-    <key>NSMicrophoneUsageDescription</key>
-    <string>GeoDrop needs microphone access to record audio drops.</string>
-    <key>FirebaseAppDelegateProxyEnabled</key>
-    <true/>
-    <key>GOOGLE_VISION_API_KEY</key>
-    <string></string>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.e3hi.geodrop.ios</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>GeoDrop</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+	</array>
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<false/>
+	</dict>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>GeoDrop needs your location to show nearby drops.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>GeoDrop uses the camera to attach photos to drops.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>GeoDrop needs photo access to share media in drops.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>GeoDrop needs microphone access to record audio drops.</string>
+	<key>FirebaseAppDelegateProxyEnabled</key>
+	<true/>
+	<key>GOOGLE_VISION_API_KEY</key>
+	<string>AIzaSyDD9c_0xHim_ITvXZlHY67b_m_SR-9DUJs</string>
 </dict>
 </plist>

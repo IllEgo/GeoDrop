@@ -15,10 +15,10 @@ final class FirestoreService {
 
     private init() {}
 
-    // MARK: - Helpers
+    // MARK: - Helpers (Continuations typed explicitly)
 
     private func getDocuments(_ query: Query) async throws -> QuerySnapshot {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<QuerySnapshot, Error>) in
             query.getDocuments { snapshot, error in
                 if let error = error {
                     continuation.resume(throwing: error)
@@ -32,7 +32,7 @@ final class FirestoreService {
     }
 
     private func getDocument(_ ref: DocumentReference) async throws -> DocumentSnapshot {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<DocumentSnapshot, Error>) in
             ref.getDocument { snapshot, error in
                 if let error = error {
                     continuation.resume(throwing: error)
@@ -46,32 +46,32 @@ final class FirestoreService {
     }
 
     private func setDocument(_ ref: DocumentReference, data: [String: Any], merge: Bool = true) async throws {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             ref.setData(data, merge: merge) { error in
                 if let error = error {
                     continuation.resume(throwing: error)
                 } else {
-                    continuation.resume()
+                    continuation.resume(returning: ())
                 }
             }
         }
     }
 
     private func deleteDocument(_ ref: DocumentReference) async throws {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             ref.delete { error in
                 if let error = error {
                     continuation.resume(throwing: error)
                 } else {
-                    continuation.resume()
+                    continuation.resume(returning: ())
                 }
             }
         }
     }
 
     private func addDocument(_ collection: CollectionReference, data: [String: Any]) async throws -> DocumentReference {
-        try await withCheckedThrowingContinuation { continuation in
-            var reference: DocumentReference? = nil
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<DocumentReference, Error>) in
+            var reference: DocumentReference?
             reference = collection.addDocument(data: data) { error in
                 if let error = error {
                     continuation.resume(throwing: error)
@@ -85,7 +85,7 @@ final class FirestoreService {
     }
 
     private func callFunction(name: String, data: [String: Any]) async throws -> HTTPSCallableResult {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<HTTPSCallableResult, Error>) in
             functions.httpsCallable(name).call(data) { result, error in
                 if let error = error {
                     continuation.resume(throwing: error)
@@ -126,7 +126,7 @@ final class FirestoreService {
 
     func setDropLike(dropId: String, userId: String, status: DropLikeStatus) async throws {
         guard !dropId.isEmpty, !userId.isEmpty else { return }
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             self.db.runTransaction({ transaction, errorPointer -> Any? in
                 do {
                     let docRef = self.drops.document(dropId)
@@ -134,11 +134,15 @@ final class FirestoreService {
                     guard var drop = Drop(document: snapshot), !drop.isDeleted else {
                         throw FirestoreError.dropMissing
                     }
+
                     let shouldLike = status == .liked
                     let alreadyLiked = drop.likedBy[userId] == true
+
+                    // No-op if state unchanged
                     if shouldLike == alreadyLiked {
                         return true
                     }
+
                     if alreadyLiked {
                         drop.likedBy.removeValue(forKey: userId)
                         drop.likeCount = max(drop.likeCount - 1, 0)
@@ -147,6 +151,7 @@ final class FirestoreService {
                         drop.likedBy[userId] = true
                         drop.likeCount += 1
                     }
+
                     var updates: [String: Any] = ["likeCount": drop.likeCount]
                     updates["likedBy.\(userId)"] = shouldLike ? true : FieldValue.delete()
                     transaction.updateData(updates, forDocument: docRef)
@@ -167,7 +172,7 @@ final class FirestoreService {
 
     func markDropCollected(dropId: String, userId: String) async throws {
         guard !dropId.isEmpty, !userId.isEmpty else { return }
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             self.db.runTransaction({ transaction, errorPointer -> Any? in
                 do {
                     let docRef = self.drops.document(dropId)
@@ -195,10 +200,12 @@ final class FirestoreService {
 
     func submitReport(dropId: String, reporterId: String, reasonCodes: [String], context: [String: Any] = [:]) async throws {
         guard !dropId.isEmpty, !reporterId.isEmpty else { return }
+
         let sanitizedReasons = reasonCodes
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
         let reasons = sanitizedReasons.isEmpty ? ["unspecified"] : sanitizedReasons
+
         let now = Timestamp(date: Date())
         var report: [String: Any] = [
             "dropId": dropId,
@@ -208,22 +215,27 @@ final class FirestoreService {
             "status": "pending"
         ]
         if !context.isEmpty { report["context"] = context }
+
         let dropRef = drops.document(dropId)
         let dropSnapshot = try? await getDocument(dropRef)
         if let drop = dropSnapshot.flatMap(Drop.init(document:)) {
             report["dropSnapshot"] = drop.toFirestoreData()
         }
+
         _ = try await addDocument(reports, data: report)
 
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             self.db.runTransaction({ transaction, errorPointer -> Any? in
                 do {
                     let snapshot = try transaction.getDocument(dropRef)
                     guard snapshot.exists else { return false }
+
                     let already = (snapshot.get("reportedBy.\(reporterId)") as? Timestamp) != nil
                     var updates: [String: Any] = ["reportedBy.\(reporterId)": now]
                     if !already {
-                        let current = snapshot.get("reportCount") as? Int ?? (snapshot.get("reportCount") as? NSNumber)?.intValue ?? 0
+                        let current = snapshot.get("reportCount") as? Int
+                            ?? (snapshot.get("reportCount") as? NSNumber)?.intValue
+                            ?? 0
                         updates["reportCount"] = current + 1
                     }
                     transaction.setData(updates, forDocument: dropRef, merge: true)
@@ -252,7 +264,7 @@ final class FirestoreService {
             let normalized = allowedGroups.compactMap(self.normalize)
             let filtered = documents.compactMap(Drop.init(document:)).filter { drop in
                 if drop.isDeleted { return false }
-                if let group = drop.groupCode, !normalized.contains(group) && group != "PUBLIC" { return false }
+                if let group = drop.groupCode, !normalized.contains(group), group != "PUBLIC" { return false }
                 if drop.isNsfw && !allowNsfw && drop.createdBy != userId { return false }
                 if drop.isExpired { return false }
                 return true
@@ -317,14 +329,17 @@ final class FirestoreService {
     func joinGroup(userId: String, code: String, allowCreate: Bool) async throws -> GroupMembership {
         guard !userId.isEmpty else { throw FirestoreError.invalidInput }
         guard let normalized = normalize(group: code) else { throw FirestoreError.invalidGroupCode }
-        return try await withCheckedThrowingContinuation { continuation in
+
+        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<GroupMembership, Error>) in
             self.db.runTransaction({ transaction, errorPointer -> Any? in
                 do {
                     let groupRef = self.groups.document(normalized)
                     let snapshot = try transaction.getDocument(groupRef)
                     let now = Timestamp(date: Date())
+
                     let existingOwner = snapshot.get("ownerId") as? String
                     let creating = !snapshot.exists || existingOwner == nil
+
                     let resolvedOwner: String
                     if creating {
                         guard allowCreate else { throw FirestoreError.groupMissing }
@@ -338,6 +353,7 @@ final class FirestoreService {
                         resolvedOwner = existingOwner ?? userId
                         transaction.setData(["updatedAt": now], forDocument: groupRef, merge: true)
                     }
+
                     let role: GroupRole = resolvedOwner == userId ? .owner : .subscriber
                     transaction.setData([
                         "code": normalized,
@@ -345,6 +361,7 @@ final class FirestoreService {
                         "ownerId": resolvedOwner,
                         "updatedAt": now
                     ], forDocument: self.users.document(userId).collection("groups").document(normalized), merge: true)
+
                     return GroupMembership(code: normalized, ownerId: resolvedOwner, role: role)
                 } catch {
                     errorPointer?.pointee = error as NSError
@@ -381,8 +398,10 @@ final class FirestoreService {
 
     func ensureUserProfile(userId: String, displayName: String?) async throws -> UserProfile {
         guard !userId.isEmpty else { return UserProfile() }
+
         let ref = users.document(userId)
         let snapshot = try await getDocument(ref)
+
         let storedRole = UserRole.from(raw: snapshot.get("role"))
         let storedBusinessName = snapshot.get("businessName") as? String
         let storedCategories = (snapshot.get("businessCategories") as? [String])?.compactMap(BusinessCategory.from) ?? []
@@ -407,9 +426,11 @@ final class FirestoreService {
             if snapshot.get("nsfwEnabled") == nil { updates["nsfwEnabled"] = nsfwEnabled }
             if snapshot.get("nsfwEnabledAt") == nil, let date = nsfwEnabledAt { updates["nsfwEnabledAt"] = Timestamp(date: date) }
         }
+
         if !updates.isEmpty {
             try await setDocument(ref, data: updates, merge: true)
         }
+
         return UserProfile(
             id: userId,
             displayName: storedDisplayName ?? displayName,
@@ -446,6 +467,7 @@ final class FirestoreService {
         let sanitized = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !sanitized.isEmpty else { throw FirestoreError.invalidInput }
         guard !categories.isEmpty else { throw FirestoreError.invalidInput }
+
         var profile = try await ensureUserProfile(userId: userId, displayName: nil)
         try await setDocument(users.document(userId), data: [
             "businessName": sanitized,
@@ -504,6 +526,8 @@ final class FirestoreService {
         }
     }
 }
+
+// MARK: - Errors
 
 extension FirestoreService {
     enum FirestoreError: Error {

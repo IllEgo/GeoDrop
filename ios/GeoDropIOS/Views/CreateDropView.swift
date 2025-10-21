@@ -4,12 +4,13 @@ import UIKit
 
 struct CreateDropView: View {
     @EnvironmentObject private var viewModel: AppViewModel
-    @State private var text: String = ""
-    @State private var description: String = ""
-    @State private var isAnonymous: Bool = false
+    @State private var text = ""
+    @State private var description = ""
+    @State private var isAnonymous = false
     @State private var dropType: DropType = .community
     @State private var contentType: DropContentType = .text
-    @State private var selectedPhoto: PhotosPickerItem?
+
+    // These are fine across iOS versions
     @State private var mediaPreview: Image?
     @State private var mediaData: Data?
     @State private var mediaMimeType: String?
@@ -19,8 +20,8 @@ struct CreateDropView: View {
             Form {
                 Section(header: Text("Message")) {
                     TextField("Headline", text: $text)
-                    TextField("Description", text: $description, axis: .vertical)
-                        .lineLimit(3, reservesSpace: true)
+                    TextField("Description", text: $description)
+                        .lineLimit(3)
                     Toggle("Post anonymously", isOn: $isAnonymous)
                 }
 
@@ -42,32 +43,25 @@ struct CreateDropView: View {
                 }
 
                 if contentType == .photo {
-                    Section(header: Text("Media")) {
-                        PhotosPicker(selection: $selectedPhoto, matching: .images, photoLibrary: .shared()) {
-                            HStack {
-                                Image(systemName: "photo")
-                                Text(mediaData == nil ? "Select photo" : "Change photo")
-                            }
+                    if #available(iOS 16.0, *) {
+                        PhotoPickerSection(
+                            mediaPreview: $mediaPreview,
+                            mediaData: $mediaData,
+                            mediaMimeType: $mediaMimeType
+                        )
+                    } else {
+                        Section(header: Text("Media")) {
+                            Label("Photo uploads require iOS 16", systemImage: "exclamationmark.triangle")
+                                .foregroundColor(.secondary)
                         }
-                        if let mediaPreview = mediaPreview {
-                            mediaPreview
-                                .resizable()
-                                .scaledToFit()
-                                .frame(maxHeight: 200)
-                        }
-                    }
-                    .onChange(of: selectedPhoto) { newValue in
-                        Task { await loadPhoto(item: newValue) }
                     }
                 }
             }
             .navigationTitle("New drop")
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Drop") { Task { await submit() } }
-                        .disabled(!canSubmit)
-                }
-            }
+            .navigationBarItems(trailing:
+                Button("Drop") { Task { await submit() } }
+                    .disabled(!canSubmit)
+            )
         }
     }
 
@@ -77,9 +71,7 @@ struct CreateDropView: View {
     }
 
     private func submit() async {
-        guard let groupCode = viewModel.selectedGroupCode, !groupCode.isEmpty else {
-            return
-        }
+        guard let groupCode = viewModel.selectedGroupCode, !groupCode.isEmpty else { return }
         var mediaPayload: NewDropRequest.MediaPayload?
         if let data = mediaData, let mimeType = mediaMimeType {
             let ext = mimeType.components(separatedBy: "/").last ?? "jpg"
@@ -95,13 +87,37 @@ struct CreateDropView: View {
         )
         await viewModel.createDrop(request: request)
         if viewModel.errorMessage == nil {
-            text = ""
-            description = ""
-            isAnonymous = false
-            mediaPreview = nil
-            mediaData = nil
-            mediaMimeType = nil
-            selectedPhoto = nil
+            text = ""; description = ""; isAnonymous = false
+            mediaPreview = nil; mediaData = nil; mediaMimeType = nil
+        }
+    }
+}
+
+@available(iOS 16.0, *)
+private struct PhotoPickerSection: View {
+    @Binding var mediaPreview: Image?
+    @Binding var mediaData: Data?
+    @Binding var mediaMimeType: String?
+
+    @State private var selectedPhoto: PhotosPickerItem?
+
+    var body: some View {
+        Section(header: Text("Media")) {
+            PhotosPicker(selection: $selectedPhoto, matching: .images, photoLibrary: .shared()) {
+                HStack {
+                    Image(systemName: "photo")
+                    Text(mediaData == nil ? "Select photo" : "Change photo")
+                }
+            }
+            if let mediaPreview {
+                mediaPreview
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxHeight: 200)
+            }
+        }
+        .onChange(of: selectedPhoto) { newValue in
+            Task { await loadPhoto(item: newValue) }
         }
     }
 
