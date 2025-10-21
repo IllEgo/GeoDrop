@@ -3113,6 +3113,8 @@ fun DropHereScreen(
     }
 }
 
+}
+
 @Composable
 private fun TermsAcceptanceScreen(
     onAccept: () -> Unit,
