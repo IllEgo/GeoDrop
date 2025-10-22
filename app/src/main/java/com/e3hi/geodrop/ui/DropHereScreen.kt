@@ -122,6 +122,8 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.text.input.ImeAction
@@ -133,6 +135,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.zIndex
@@ -2200,19 +2203,34 @@ fun DropHereScreen(
                 Column {
                     TopAppBar(
                         title = {
-                            if (currentHomeDestination == HomeDestination.Explorer && userMode != null) {
-                                ExplorerDestinationTabs(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 20.dp)
-                                        .padding(vertical = 12.dp),
-                                    current = effectiveExplorerDestination,
-                                    onSelect = { destination -> openExplorerDestination(destination) },
-                                    showMyDrops = hasExplorerAccount,
-                                    showCollected = hasExplorerAccount
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 20.dp)
+                                    .padding(vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = stringResource(R.string.app_name),
+                                    style = MaterialTheme.typography.titleLarge.copy(
+                                        fontFamily = FontFamily.Cursive,
+                                        fontStyle = FontStyle.Italic,
+                                        fontWeight = FontWeight.Bold,
+                                        letterSpacing = 1.5.sp
+                                    ),
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(end = 16.dp)
                                 )
-                            } else {
-                                Text(stringResource(R.string.app_name))
+
+                                if (currentHomeDestination == HomeDestination.Explorer && userMode != null) {
+                                    ExplorerDestinationTabs(
+                                        modifier = Modifier.weight(1f),
+                                        current = effectiveExplorerDestination,
+                                        onSelect = { destination -> openExplorerDestination(destination) },
+                                        showMyDrops = hasExplorerAccount,
+                                        showCollected = hasExplorerAccount
+                                    )
+                                }
                             }
                         },
                         colors = TopAppBarDefaults.topAppBarColors(
