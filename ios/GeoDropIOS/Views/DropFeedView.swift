@@ -45,7 +45,7 @@ struct DropFeedView: View {
                                     }
                                     let start = dragStartFraction ?? clampedFraction
                                     let translationFraction = value.translation.height / totalHeight
-                                    let proposed = start - translationFraction
+                                    let proposed = start + translationFraction
                                     mapHeightFraction = min(max(proposed, minFraction), maxFraction)
                                 }
                                 .onEnded { _ in
