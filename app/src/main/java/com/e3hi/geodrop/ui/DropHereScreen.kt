@@ -2366,7 +2366,7 @@ fun DropHereScreen(
                         label = {
                             Text(
                                 modifier = labelSpacingModifier,
-                                stringResource(
+                                text = stringResource(
                                     if (isSubmitting) R.string.status_dropping else R.string.action_drop_something
                                 )
                             )
