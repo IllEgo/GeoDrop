@@ -60,6 +60,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.rounded.AccountCircle
+import androidx.compose.material.icons.rounded.AddCircle
 import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.Bookmark
 import androidx.compose.material.icons.rounded.Check
@@ -67,13 +68,13 @@ import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.GraphicEq
+import androidx.compose.material.icons.rounded.GroupAdd
 import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.Inbox
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Logout
 import androidx.compose.material.icons.rounded.Map
-import androidx.compose.material.icons.rounded.ManageAccounts
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.material.icons.rounded.Place
@@ -742,10 +743,14 @@ fun DropHereScreen(
     var joinedGroups by remember { mutableStateOf(groupPrefs.getMemberships()) }
     var selectedExplorerGroupCode by rememberSaveable { mutableStateOf<String?>(null) }
     val createdGroups = remember(joinedGroups) {
-        joinedGroups.filter { membership -> membership.role == GroupRole.OWNER }
+        joinedGroups
+            .filter { membership -> membership.role == GroupRole.OWNER }
+            .sortedBy { it.code }
     }
     val subscribedGroups = remember(joinedGroups) {
-        joinedGroups.filter { membership -> membership.role == GroupRole.SUBSCRIBER }
+        joinedGroups
+            .filter { membership -> membership.role == GroupRole.SUBSCRIBER }
+            .sortedBy { it.code }
     }
     val explorerGroups = remember(createdGroups, subscribedGroups) {
         (createdGroups + subscribedGroups).distinctBy { it.code }
@@ -814,6 +819,7 @@ fun DropHereScreen(
     var myDropCountHint by remember { mutableStateOf<Int?>(null) }
     var myDropPendingReviewHint by remember { mutableStateOf<Int?>(null) }
     var showManageGroups by remember { mutableStateOf(false) }
+    var showGroupMenu by remember { mutableStateOf(false) }
     var showDropComposer by remember { mutableStateOf(false) }
     var showBusinessDashboard by remember { mutableStateOf(false) }
     var businessDrops by remember { mutableStateOf<List<Drop>>(emptyList()) }
@@ -2237,7 +2243,10 @@ fun DropHereScreen(
                         navigationBarScope.NavigationBarItem(
                             modifier = Modifier.fillMaxSize(),
                             selected = showAccountMenu,
-                            onClick = { showAccountMenu = !showAccountMenu },
+                            onClick = {
+                                showGroupMenu = false
+                                showAccountMenu = !showAccountMenu
+                            },
                             icon = {
                                 Icon(
                                     imageVector = Icons.Rounded.AccountCircle,
@@ -2356,6 +2365,8 @@ fun DropHereScreen(
                         selected = showDropComposer,
                         onClick = {
                             if (isSubmitting) return@NavigationBarItem
+                            showAccountMenu = false
+                            showGroupMenu = false
                             if (!canParticipate) {
                                 snackbar.showMessage(scope, participationRestriction("share drops"))
                                 return@NavigationBarItem
@@ -2375,25 +2386,178 @@ fun DropHereScreen(
                         alwaysShowLabel = true
                     )
 
-                    NavigationBarItem(
-                        modifier = Modifier.weight(1f),
-                        selected = showManageGroups,
-                        onClick = {
-                            if (userMode == UserMode.GUEST) {
-                                snackbar.showMessage(scope, participationRestriction("manage groups"))
-                                return@NavigationBarItem
-                            }
-                            showManageGroups = true
-                        },
-                        icon = {
-                            Icon(
-                                imageVector = Icons.Rounded.ManageAccounts,
-                                contentDescription = stringResource(R.string.manage_groups)
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                    ) {
+                        navigationBarScope.NavigationBarItem(
+                            modifier = Modifier.fillMaxSize(),
+                            selected = showGroupMenu,
+                            onClick = {
+                                if (userMode == UserMode.GUEST) {
+                                    snackbar.showMessage(scope, participationRestriction("manage groups"))
+                                    return@NavigationBarItem
+                                }
+                                showAccountMenu = false
+                                showGroupMenu = !showGroupMenu
+                            },
+                            icon = {
+                                Icon(
+                                    imageVector = Icons.Rounded.Groups,
+                                    contentDescription = stringResource(R.string.manage_groups)
+                                )
+                            },
+                            label = { Text(stringResource(R.string.manage_groups), modifier = labelSpacingModifier) },
+                            alwaysShowLabel = true
+                        )
+
+                        DropdownMenu(
+                            expanded = showGroupMenu,
+                            onDismissRequest = { showGroupMenu = false },
+                            modifier = Modifier.zIndex(1f)
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Create group") },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Rounded.AddCircle,
+                                        contentDescription = null
+                                    )
+                                },
+                                onClick = {
+                                    showGroupMenu = false
+                                    showAccountMenu = false
+                                    showManageGroups = true
+                                }
                             )
-                        },
-                        label = { Text(stringResource(R.string.manage_groups), modifier = labelSpacingModifier) },
-                        alwaysShowLabel = true
-                    )
+                            DropdownMenuItem(
+                                text = { Text("Subscribe to group") },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Rounded.GroupAdd,
+                                        contentDescription = null
+                                    )
+                                },
+                                onClick = {
+                                    showGroupMenu = false
+                                    showAccountMenu = false
+                                    showManageGroups = true
+                                }
+                            )
+
+                            Divider(modifier = Modifier.padding(vertical = 4.dp))
+
+                            val activeGroupSelection = selectedExplorerGroupCode?.takeIf { code ->
+                                joinedGroups.any { it.code == code }
+                            }
+
+                            DropdownMenuItem(
+                                text = { Text("All groups") },
+                                leadingIcon = if (activeGroupSelection == null) {
+                                    {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Check,
+                                            contentDescription = null
+                                        )
+                                    }
+                                } else {
+                                    null
+                                },
+                                onClick = {
+                                    showGroupMenu = false
+                                    selectedHomeDestination = HomeDestination.Explorer.name
+                                    selectedExplorerGroupCode = null
+                                }
+                            )
+
+                            Divider(modifier = Modifier.padding(vertical = 4.dp))
+
+                            Text(
+                                text = "Owned groups",
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            if (createdGroups.isEmpty()) {
+                                Text(
+                                    text = "You haven't created any groups yet",
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            } else {
+                                createdGroups.forEach { membership ->
+                                    val isSelected = activeGroupSelection == membership.code
+                                    DropdownMenuItem(
+                                        text = { Text(membership.code) },
+                                        leadingIcon = if (isSelected) {
+                                            {
+                                                Icon(
+                                                    imageVector = Icons.Rounded.Check,
+                                                    contentDescription = null
+                                                )
+                                            }
+                                        } else {
+                                            null
+                                        },
+                                        onClick = {
+                                            showGroupMenu = false
+                                            selectedHomeDestination = HomeDestination.Explorer.name
+                                            selectedExplorerGroupCode = membership.code
+                                        }
+                                    )
+                                }
+                            }
+
+                            Divider(modifier = Modifier.padding(vertical = 4.dp))
+
+                            Text(
+                                text = "Subscribed groups",
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            if (subscribedGroups.isEmpty()) {
+                                Text(
+                                    text = "You're not subscribed to any groups yet",
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            } else {
+                                subscribedGroups.forEach { membership ->
+                                    val isSelected = activeGroupSelection == membership.code
+                                    DropdownMenuItem(
+                                        text = { Text(membership.code) },
+                                        leadingIcon = if (isSelected) {
+                                            {
+                                                Icon(
+                                                    imageVector = Icons.Rounded.Check,
+                                                    contentDescription = null
+                                                )
+                                            }
+                                        } else {
+                                            null
+                                        },
+                                        onClick = {
+                                            showGroupMenu = false
+                                            selectedHomeDestination = HomeDestination.Explorer.name
+                                            selectedExplorerGroupCode = membership.code
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             },
             snackbarHost = {}
@@ -3055,7 +3219,10 @@ fun DropHereScreen(
         ManageGroupsDialog(
             groups = joinedGroups,
             snackbarHostState = manageGroupsSnackbar,
-            onDismiss = { showManageGroups = false },
+            onDismiss = {
+                showManageGroups = false
+                showGroupMenu = false
+            },
             onCreate = { code ->
                 val uid = FirebaseAuth.getInstance().currentUser?.uid
                 if (uid.isNullOrBlank()) {
