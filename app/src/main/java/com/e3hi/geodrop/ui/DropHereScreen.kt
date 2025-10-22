@@ -116,6 +116,7 @@ import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -133,6 +134,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -2195,56 +2197,63 @@ fun DropHereScreen(
         }
     }
 
+    var topBarHeightPx by remember { mutableStateOf(0) }
+
     Box(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .background(MaterialTheme.colorScheme.background)
+                .onSizeChanged { size -> topBarHeightPx = size.height }
+                .zIndex(1f)
+        ) {
+            TopAppBar(
+                modifier = Modifier.fillMaxWidth(),
+                title = {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp)
+                            .padding(vertical = 12.dp),
+                        horizontalAlignment = Alignment.Start
+                    ) {
+                        Text(
+                            text = stringResource(R.string.app_name),
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.5.sp
+                            ),
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+
+                        if (currentHomeDestination == HomeDestination.Explorer && userMode != null) {
+                            ExplorerDestinationTabs(
+                                modifier = Modifier.fillMaxWidth(),
+                                current = effectiveExplorerDestination,
+                                onSelect = { destination -> openExplorerDestination(destination) },
+                                showMyDrops = hasExplorerAccount,
+                                showCollected = hasExplorerAccount
+                            )
+                        }
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    scrolledContainerColor = MaterialTheme.colorScheme.background,
+                    titleContentColor = MaterialTheme.colorScheme.onBackground,
+                    actionIconContentColor = MaterialTheme.colorScheme.onBackground
+                )
+            )
+            if (isBusinessUser) {
+                Divider()
+            }
+        }
+
         Scaffold(
             modifier = Modifier.fillMaxSize(),
-            topBar = {
-                Column(
-                    modifier = Modifier.zIndex(1f)
-                ) {
-                    TopAppBar(
-                        modifier = Modifier.zIndex(1f),
-                        title = {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 20.dp)
-                                    .padding(vertical = 12.dp),
-                                horizontalAlignment = Alignment.Start
-                            ) {
-                                Text(
-                                    text = stringResource(R.string.app_name),
-                                    style = MaterialTheme.typography.titleLarge.copy(
-                                        fontWeight = FontWeight.Bold,
-                                        letterSpacing = 1.5.sp
-                                    ),
-                                    color = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.padding(bottom = 8.dp)
-                                )
-
-                                if (currentHomeDestination == HomeDestination.Explorer && userMode != null) {
-                                    ExplorerDestinationTabs(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        current = effectiveExplorerDestination,
-                                        onSelect = { destination -> openExplorerDestination(destination) },
-                                        showMyDrops = hasExplorerAccount,
-                                        showCollected = hasExplorerAccount
-                                    )
-                                }
-                            }
-                        },
-                        colors = TopAppBarDefaults.topAppBarColors(
-                            containerColor = MaterialTheme.colorScheme.background,
-                            scrolledContainerColor = MaterialTheme.colorScheme.background,
-                            titleContentColor = MaterialTheme.colorScheme.onBackground,
-                            actionIconContentColor = MaterialTheme.colorScheme.onBackground
-                        )
-                    )
-                    if (isBusinessUser) {
-                        Divider(modifier = Modifier.zIndex(1f))
-                    }
-                }
-            },
             bottomBar = {
                 NavigationBar(
                     modifier = Modifier.height(56.dp),
@@ -2571,37 +2580,47 @@ fun DropHereScreen(
             val bottomPadding = innerPadding.calculateBottomPadding()
             val startPadding = innerPadding.calculateStartPadding(layoutDirection)
             val endPadding = innerPadding.calculateEndPadding(layoutDirection)
+            val topBarHeight = with(LocalDensity.current) { topBarHeightPx.toDp() }
+            val navAwareTopPadding = if (topBarHeight > topPadding) topBarHeight else topPadding
 
-        if (isBusinessUser && currentHomeDestination == HomeDestination.Business) {
-            BusinessHomeScreen(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-                businessName = userProfile?.businessName,
-                businessCategories = businessCategories,
-                groupMemberships = joinedGroups,
-                statusMessage = status,
-                metrics = businessHomeMetrics,
-                onViewDashboard = {
-                    if (!userProfileLoading) {
-                        showBusinessDashboard = true
+            if (isBusinessUser && currentHomeDestination == HomeDestination.Business) {
+                BusinessHomeScreen(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(
+                            start = startPadding,
+                            top = navAwareTopPadding,
+                            end = endPadding,
+                            bottom = bottomPadding
+                        ),
+                    businessName = userProfile?.businessName,
+                    businessCategories = businessCategories,
+                    groupMemberships = joinedGroups,
+                    statusMessage = status,
+                    metrics = businessHomeMetrics,
+                    onViewDashboard = {
+                        if (!userProfileLoading) {
+                            showBusinessDashboard = true
+                        }
+                    },
+                    onUpdateBusinessProfile = { showBusinessOnboarding = true },
+                    onViewMyDrops = { openExplorerDestination(ExplorerDestination.MyDrops) },
+                    onManageGroups = { showManageGroups = true }
+                )
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(
+                            start = startPadding,
+                            end = endPadding,
+                            bottom = bottomPadding
+                        )
+                ) {
+                    if (effectiveExplorerDestination != ExplorerDestination.Discover) {
+                        Spacer(Modifier.height(navAwareTopPadding))
                     }
-                },
-                onUpdateBusinessProfile = { showBusinessOnboarding = true },
-                onViewMyDrops = { openExplorerDestination(ExplorerDestination.MyDrops) },
-                onManageGroups = { showManageGroups = true }
-            )
-        } else {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(
-                        start = startPadding,
-                        end = endPadding,
-                        bottom = bottomPadding
-                    )
-            ) {
-                when (effectiveExplorerDestination) {
+                    when (effectiveExplorerDestination) {
                     ExplorerDestination.Discover -> {
                         Column(
                             modifier = Modifier
@@ -2610,7 +2629,7 @@ fun DropHereScreen(
                             verticalArrangement = Arrangement.spacedBy(20.dp)
                         ) {
                             if (readOnlyParticipationMessage != null) {
-                                Spacer(Modifier.height(topPadding))
+                                Spacer(Modifier.height(navAwareTopPadding))
                                 Box(Modifier.padding(horizontal = 20.dp)) {
                                     ReadOnlyModeCard(message = readOnlyParticipationMessage)
                                 }
@@ -2629,6 +2648,7 @@ fun DropHereScreen(
                                 ) {
                                     OtherDropsExplorerSection(
                                         modifier = Modifier.fillMaxSize(),
+                                        topContentPadding = navAwareTopPadding,
                                         loading = otherDropsLoading,
                                         drops = filteredOtherDrops,
                                         currentLocation = otherDropsCurrentLocation,
@@ -6860,6 +6880,7 @@ private fun BusinessDropAnalyticsCard(drop: Drop) {
 @Composable
 private fun OtherDropsExplorerSection(
     modifier: Modifier = Modifier,
+    topContentPadding: Dp = 0.dp,
     loading: Boolean,
     drops: List<Drop>,
     currentLocation: LatLng?,
@@ -6934,15 +6955,16 @@ private fun OtherDropsExplorerSection(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(vertical = 20.dp),
+            .padding(bottom = 20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         when {
                 loading -> {
                     Box(
                         modifier = Modifier
+                            .weight(1f)
                             .fillMaxWidth()
-                            .weight(1f),
+                            .padding(top = topContentPadding),
                         contentAlignment = Alignment.Center
                     ) {
                         CircularProgressIndicator()
@@ -6952,9 +6974,10 @@ private fun OtherDropsExplorerSection(
                 error != null -> {
                     Column(
                         modifier = Modifier
+                            .weight(1f)
                             .fillMaxWidth()
                             .padding(horizontal = 20.dp)
-                            .weight(1f),
+                            .padding(top = topContentPadding),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Text(
@@ -6973,9 +6996,10 @@ private fun OtherDropsExplorerSection(
                 drops.isEmpty() -> {
                     Column(
                         modifier = Modifier
+                            .weight(1f)
                             .fillMaxWidth()
                             .padding(horizontal = 20.dp)
-                            .weight(1f),
+                            .padding(top = topContentPadding),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Text(
