@@ -2631,9 +2631,6 @@ fun DropHereScreen(
                             bottom = bottomPadding
                         )
                 ) {
-                    if (effectiveExplorerDestination != ExplorerDestination.Discover) {
-                        Spacer(Modifier.height(navAwareTopPadding))
-                    }
                     when (effectiveExplorerDestination) {
                     ExplorerDestination.Discover -> {
                         Column(
@@ -2769,6 +2766,8 @@ fun DropHereScreen(
                             ) {
                                 MyDropsContent(
                                     modifier = Modifier.fillMaxSize(),
+                                    topContentPadding = navAwareTopPadding,
+                                    contentPadding = PaddingValues(bottom = 16.dp),
                                     loading = myDropsLoading,
                                     drops = filteredMyDrops,
                                     currentLocation = myDropsCurrentLocation,
@@ -2861,6 +2860,8 @@ fun DropHereScreen(
                             ) {
                                 CollectedDropsContent(
                                     modifier = Modifier.fillMaxSize(),
+                                    topContentPadding = navAwareTopPadding,
+                                    contentPadding = PaddingValues(bottom = 16.dp),
                                     notes = visibleCollectedNotes,
                                     hiddenNsfwCount = hiddenNsfwCollectedCount,
                                     canReportDrops = !currentUserId.isNullOrBlank(),
@@ -5708,6 +5709,7 @@ private fun CollectedDropsContent(
     onView: (CollectedNote) -> Unit,
     onRemove: (CollectedNote) -> Unit,
     emptyMessage: String? = null,
+    topContentPadding: Dp = 0.dp,
     contentPadding: PaddingValues = PaddingValues(vertical = 16.dp)
 ) {
     if (notes.isEmpty()) {
@@ -5721,6 +5723,7 @@ private fun CollectedDropsContent(
             modifier = modifier
                 .fillMaxSize()
                 .padding(contentPadding)
+                .padding(top = topContentPadding)
         ) {
             DialogMessageContent(
                 message = message,
@@ -5796,6 +5799,7 @@ private fun CollectedDropsContent(
             .fillMaxSize()
             .padding(contentPadding)
             .onSizeChanged { containerHeight = it.height }
+            .padding(top = topContentPadding)
     ) {
         if (hiddenNsfwCount > 0) {
             val plural = if (hiddenNsfwCount == 1) "drop" else "drops"
@@ -7712,6 +7716,7 @@ private fun MyDropsContent(
     onRetry: () -> Unit,
     onView: (Drop) -> Unit,
     onDelete: (Drop) -> Unit,
+    topContentPadding: Dp = 0.dp,
     contentPadding: PaddingValues = PaddingValues(vertical = 16.dp)
 ) {
     Box(
@@ -7721,25 +7726,44 @@ private fun MyDropsContent(
     ) {
         when {
             loading -> {
-                CircularProgressIndicator(Modifier.align(Alignment.Center))
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(top = topContentPadding),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
             }
 
             error != null -> {
-                DialogMessageContent(
-                    message = error,
-                    primaryLabel = "Retry",
-                    onPrimary = onRetry,
-                    onDismiss = null
-                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(top = topContentPadding)
+                ) {
+                    DialogMessageContent(
+                        message = error,
+                        primaryLabel = "Retry",
+                        onPrimary = onRetry,
+                        onDismiss = null
+                    )
+                }
             }
 
             drops.isEmpty() -> {
-                DialogMessageContent(
-                    message = emptyMessage ?: "You haven't dropped any notes yet.",
-                    primaryLabel = null,
-                    onPrimary = null,
-                    onDismiss = null
-                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(top = topContentPadding)
+                ) {
+                    DialogMessageContent(
+                        message = emptyMessage ?: "You haven't dropped any notes yet.",
+                        primaryLabel = null,
+                        onPrimary = null,
+                        onDismiss = null
+                    )
+                }
             }
 
             else -> {
@@ -7798,6 +7822,7 @@ private fun MyDropsContent(
                     modifier = Modifier
                         .fillMaxSize()
                         .onSizeChanged { containerHeight = it.height }
+                        .padding(top = topContentPadding)
                 ) {
                     Box(
                         modifier = Modifier
