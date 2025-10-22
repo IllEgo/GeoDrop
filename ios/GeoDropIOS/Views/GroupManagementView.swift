@@ -43,7 +43,7 @@ struct GroupManagementView: View {
                     }
                 }
             }
-            .navigationTitle("Groups")
+            .geoDropNavigationTitle(subtitle: "Groups")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close", action: dismiss.callAsFunction)

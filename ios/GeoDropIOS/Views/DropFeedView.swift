@@ -105,7 +105,7 @@ struct DropFeedView: View {
                     .listStyle(.insetGrouped)
                 }
             }
-            .navigationTitle("Discover")
+            .geoDropNavigationTitle(subtitle: "Discover")
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {

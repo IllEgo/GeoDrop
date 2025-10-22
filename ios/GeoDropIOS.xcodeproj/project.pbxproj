@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		2C80A525C06DDAB0419B0AD1 /* Pods_GeoDropIOS.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 99FB8E99D0F98B0D7555E1CF /* Pods_GeoDropIOS.framework */; };
 		7505D8D12EA83D740039BFE9 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 7505D8D02EA83D740039BFE9 /* GoogleService-Info.plist */; };
+		75C66D762EA8C4E200BBC3FE /* GeoDropNavigationTitleModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75C66D752EA8C4C600BBC3FE /* GeoDropNavigationTitleModifier.swift */; };
 		AA0000100000000000000001 /* GeoDropIOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000200000000000000001 /* GeoDropIOSApp.swift */; };
 		AA0000100000000000000002 /* AppConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000200000000000000002 /* AppConfiguration.swift */; };
 		AA0000100000000000000003 /* Drop.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000200000000000000003 /* Drop.swift */; };
@@ -31,11 +32,12 @@
 		AA0000100000000000000014 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000200000000000000014 /* MainTabView.swift */; };
 		AA0000100000000000000015 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000200000000000000015 /* ProfileView.swift */; };
 		AA0000100000000000000016 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000200000000000000016 /* RootView.swift */; };
-		AA0000100000000000000017 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA0000200000000000000018 /* Assets.xcassets */; };
+		AA0000100000000000000017 /* Resources/Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA0000200000000000000018 /* Resources/Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		7505D8D02EA83D740039BFE9 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
+		75C66D752EA8C4C600BBC3FE /* GeoDropNavigationTitleModifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeoDropNavigationTitleModifier.swift; sourceTree = "<group>"; };
 		99FB8E99D0F98B0D7555E1CF /* Pods_GeoDropIOS.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_GeoDropIOS.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA0000000000000000000001 /* GeoDropIOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GeoDropIOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA0000200000000000000001 /* GeoDropIOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeoDropIOSApp.swift; sourceTree = "<group>"; };
@@ -61,7 +63,7 @@
 		AA0000200000000000000015 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
 		AA0000200000000000000016 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		AA0000200000000000000017 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		AA0000200000000000000018 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Resources/Assets.xcassets; sourceTree = "<group>"; };
+		AA0000200000000000000018 /* Resources/Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Resources/Assets.xcassets; sourceTree = "<group>"; };
 		B0D1EE3ABB4BAECCCEC24F88 /* Pods-GeoDropIOS.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-GeoDropIOS.release.xcconfig"; path = "Target Support Files/Pods-GeoDropIOS/Pods-GeoDropIOS.release.xcconfig"; sourceTree = "<group>"; };
 		BE9A9DFE18B2E2BA8B0BADD6 /* Pods-GeoDropIOS.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-GeoDropIOS.debug.xcconfig"; path = "Target Support Files/Pods-GeoDropIOS/Pods-GeoDropIOS.debug.xcconfig"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -109,7 +111,7 @@
 			isa = PBXGroup;
 			children = (
 				AA0000400000000000000003 /* Sources */,
-				AA0000200000000000000018 /* Assets.xcassets */,
+				AA0000200000000000000018 /* Resources/Assets.xcassets */,
 				AA0000200000000000000017 /* Info.plist */,
 				7505D8D02EA83D740039BFE9 /* GoogleService-Info.plist */,
 			);
@@ -172,6 +174,7 @@
 		AA0000400000000000000008 /* Utilities */ = {
 			isa = PBXGroup;
 			children = (
+				75C66D752EA8C4C600BBC3FE /* GeoDropNavigationTitleModifier.swift */,
 				AA000020000000000000000C /* DropSafetyAssessment.swift */,
 				AA000020000000000000000D /* ExplorerUsername.swift */,
 			);
@@ -267,7 +270,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				AA0000100000000000000017 /* Assets.xcassets in Resources */,
+				AA0000100000000000000017 /* Resources/Assets.xcassets in Resources */,
 				7505D8D12EA83D740039BFE9 /* GoogleService-Info.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -305,9 +308,13 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-GeoDropIOS/Pods-GeoDropIOS-frameworks-${CONFIGURATION}-input-files.xcfilelist",
 			);
+			inputPaths = (
+			);
 			name = "[CP] Embed Pods Frameworks";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-GeoDropIOS/Pods-GeoDropIOS-frameworks-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -334,6 +341,7 @@
 				AA000010000000000000000C /* DropSafetyAssessment.swift in Sources */,
 				AA000010000000000000000B /* StorageService.swift in Sources */,
 				AA000010000000000000000A /* SafeSearchService.swift in Sources */,
+				75C66D762EA8C4E200BBC3FE /* GeoDropNavigationTitleModifier.swift in Sources */,
 				AA0000100000000000000009 /* MessagingService.swift in Sources */,
 				AA0000100000000000000008 /* LocationService.swift in Sources */,
 				AA0000100000000000000007 /* FirestoreService.swift in Sources */,

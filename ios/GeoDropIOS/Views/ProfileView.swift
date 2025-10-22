@@ -72,7 +72,7 @@ struct ProfileView: View {
                     }
                 }
             }
-            .navigationTitle("Profile")
+            .geoDropNavigationTitle(subtitle: "Profile")
         }
     }
 }

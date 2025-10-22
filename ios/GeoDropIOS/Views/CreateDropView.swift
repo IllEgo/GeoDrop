@@ -57,7 +57,7 @@ struct CreateDropView: View {
                     }
                 }
             }
-            .navigationTitle("New drop")
+            .geoDropNavigationTitle(subtitle: "New drop")
             .navigationBarItems(trailing:
                 Button("Drop") { Task { await submit() } }
                     .disabled(!canSubmit)

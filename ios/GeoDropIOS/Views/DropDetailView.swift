@@ -47,7 +47,7 @@ struct DropDetailView: View {
                 }
                 .padding()
             }
-            .navigationTitle("Drop")
+            .geoDropNavigationTitle(subtitle: "Drop")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close", action: dismiss.callAsFunction)
@@ -66,7 +66,7 @@ struct DropDetailView: View {
                         }
                         .disabled(reportReason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
-                    .navigationTitle("Report drop")
+                    .geoDropNavigationTitle(subtitle: "Report drop")
                     .toolbar {
                         ToolbarItem(placement: .cancellationAction) {
                             Button("Cancel") { showingReport = false }
