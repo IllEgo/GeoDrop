@@ -117,8 +117,9 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -2562,6 +2563,12 @@ fun DropHereScreen(
             },
             snackbarHost = {}
         ) { innerPadding ->
+            val layoutDirection = LocalLayoutDirection.current
+            val topPadding = innerPadding.calculateTopPadding()
+            val bottomPadding = innerPadding.calculateBottomPadding()
+            val startPadding = innerPadding.calculateStartPadding(layoutDirection)
+            val endPadding = innerPadding.calculateEndPadding(layoutDirection)
+
         if (isBusinessUser && currentHomeDestination == HomeDestination.Business) {
             BusinessHomeScreen(
                 modifier = Modifier
@@ -2585,7 +2592,11 @@ fun DropHereScreen(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(innerPadding)
+                    .padding(
+                        start = startPadding,
+                        end = endPadding,
+                        bottom = bottomPadding
+                    )
             ) {
                 when (effectiveExplorerDestination) {
                     ExplorerDestination.Discover -> {
@@ -2596,6 +2607,7 @@ fun DropHereScreen(
                             verticalArrangement = Arrangement.spacedBy(20.dp)
                         ) {
                             if (readOnlyParticipationMessage != null) {
+                                Spacer(Modifier.height(topPadding))
                                 Box(Modifier.padding(horizontal = 20.dp)) {
                                     ReadOnlyModeCard(message = readOnlyParticipationMessage)
                                 }
