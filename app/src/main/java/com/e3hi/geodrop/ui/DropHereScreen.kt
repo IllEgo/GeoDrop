@@ -7049,6 +7049,7 @@ private fun OtherDropsExplorerSection(
                             .fillMaxWidth()
                             .weight(1f)
                             .onSizeChanged { containerHeight = it.height }
+                            .padding(top = topContentPadding)
                     ) {
                         Box(
                             modifier = Modifier
