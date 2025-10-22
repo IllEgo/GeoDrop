@@ -122,8 +122,6 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.text.input.ImeAction
@@ -2203,28 +2201,26 @@ fun DropHereScreen(
                 Column {
                     TopAppBar(
                         title = {
-                            Row(
+                            Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(horizontal = 20.dp)
                                     .padding(vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                                horizontalAlignment = Alignment.Start
                             ) {
                                 Text(
                                     text = stringResource(R.string.app_name),
                                     style = MaterialTheme.typography.titleLarge.copy(
-                                        fontFamily = FontFamily.Cursive,
-                                        fontStyle = FontStyle.Italic,
                                         fontWeight = FontWeight.Bold,
                                         letterSpacing = 1.5.sp
                                     ),
                                     color = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.padding(end = 16.dp)
+                                    modifier = Modifier.padding(bottom = 8.dp)
                                 )
 
                                 if (currentHomeDestination == HomeDestination.Explorer && userMode != null) {
                                     ExplorerDestinationTabs(
-                                        modifier = Modifier.weight(1f),
+                                        modifier = Modifier.fillMaxWidth(),
                                         current = effectiveExplorerDestination,
                                         onSelect = { destination -> openExplorerDestination(destination) },
                                         showMyDrops = hasExplorerAccount,
