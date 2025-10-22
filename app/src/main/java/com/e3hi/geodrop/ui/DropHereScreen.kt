@@ -2609,7 +2609,6 @@ fun DropHereScreen(
                         ),
                     businessName = userProfile?.businessName,
                     businessCategories = businessCategories,
-                    groupMemberships = joinedGroups,
                     statusMessage = status,
                     metrics = businessHomeMetrics,
                     onViewDashboard = {
@@ -2618,8 +2617,7 @@ fun DropHereScreen(
                         }
                     },
                     onUpdateBusinessProfile = { showBusinessOnboarding = true },
-                    onViewMyDrops = { openExplorerDestination(ExplorerDestination.MyDrops) },
-                    onManageGroups = { showManageGroups = true }
+                    onViewMyDrops = { openExplorerDestination(ExplorerDestination.MyDrops) }
                 )
             } else {
                 Column(
@@ -3912,13 +3910,11 @@ private fun BusinessHomeScreen(
     modifier: Modifier = Modifier,
     businessName: String?,
     businessCategories: List<BusinessCategory>,
-    groupMemberships: List<GroupMembership>,
     statusMessage: String?,
     metrics: BusinessHomeMetrics,
     onViewDashboard: () -> Unit,
     onUpdateBusinessProfile: () -> Unit,
     onViewMyDrops: () -> Unit,
-    onManageGroups: () -> Unit,
 ) {
     val activeDropCount = metrics.liveDropCount
     val pendingReviewCount = metrics.pendingReviewCount
@@ -3932,9 +3928,7 @@ private fun BusinessHomeScreen(
         item {
             BusinessHeroCard(
                 businessName = businessName,
-                businessCategories = businessCategories,
-                memberships = groupMemberships,
-                onManageGroups = onManageGroups
+                businessCategories = businessCategories
             )
         }
 
@@ -3998,9 +3992,7 @@ private fun BusinessHomeScreen(
 private fun BusinessHeroCard(
     businessName: String?,
     businessCategories: List<BusinessCategory>,
-    memberships: List<GroupMembership>,
-    brandImageUrl: String? = null,
-    onManageGroups: () -> Unit,
+    brandImageUrl: String? = null
 ) {
     val title = businessName?.takeIf { it.isNotBlank() }?.let { "$it on GeoDrop" }
         ?: "Welcome to GeoDrop Business"
@@ -4136,141 +4128,6 @@ private fun BusinessHeroCard(
                             }
                         }
                 }
-            }
-
-            if (memberships.isNotEmpty()) {
-                val ownedGroups = memberships
-                    .filter { it.role == GroupRole.OWNER }
-                    .sortedBy { it.code }
-                val subscribedGroups = memberships
-                    .filter { it.role == GroupRole.SUBSCRIBER }
-                    .sortedBy { it.code }
-                val sortedMemberships = ownedGroups + subscribedGroups
-                val onPrimary = MaterialTheme.colorScheme.onPrimaryContainer
-                val dropdownSummary = when (sortedMemberships.size) {
-                    1 -> sortedMemberships.first().code
-                    2 -> sortedMemberships.joinToString(separator = ", ") { it.code }
-                    else -> "${sortedMemberships.first().code} + ${sortedMemberships.size - 1} more"
-                }
-                var groupsExpanded by remember { mutableStateOf(false) }
-
-                ExposedDropdownMenuBox(
-                    expanded = groupsExpanded,
-                    onExpandedChange = { groupsExpanded = !groupsExpanded },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    OutlinedTextField(
-                        value = dropdownSummary,
-                        onValueChange = {},
-                        readOnly = true,
-                        modifier = Modifier
-                            .menuAnchor()
-                            .fillMaxWidth(),
-                        textStyle = MaterialTheme.typography.bodyMedium,
-                        singleLine = true,
-                        shape = RoundedCornerShape(16.dp),
-                        colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(
-                            focusedBorderColor = onPrimary.copy(alpha = 0.4f),
-                            unfocusedBorderColor = onPrimary.copy(alpha = 0.3f),
-                            focusedTextColor = onPrimary,
-                            unfocusedTextColor = onPrimary,
-                            focusedTrailingIconColor = onPrimary,
-                            unfocusedTrailingIconColor = onPrimary,
-                            focusedLabelColor = onPrimary.copy(alpha = 0.9f),
-                            unfocusedLabelColor = onPrimary.copy(alpha = 0.9f),
-                            cursorColor = onPrimary
-                        ),
-                        label = {
-                            Text(
-                                text = "Active access codes",
-                                color = onPrimary.copy(alpha = 0.9f)
-                            )
-                        },
-                        trailingIcon = {
-                            ExposedDropdownMenuDefaults.TrailingIcon(expanded = groupsExpanded)
-                        }
-                    )
-
-                    ExposedDropdownMenu(
-                        expanded = groupsExpanded,
-                        onDismissRequest = { groupsExpanded = false },
-                        modifier = Modifier
-                            .exposedDropdownSize()
-                            .zIndex(1f)
-                    ) {
-                        Text(
-                            text = "Groups you created",
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        if (ownedGroups.isNotEmpty()) {
-                            ownedGroups.forEach { membership ->
-                                DropdownMenuItem(
-                                    text = { Text(membership.code) },
-                                    onClick = {
-                                        groupsExpanded = false
-                                        onManageGroups()
-                                    }
-                                )
-                            }
-                        } else {
-                            Text(
-                                text = "You haven't created any groups yet",
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-
-                        Divider(modifier = Modifier.padding(vertical = 4.dp))
-
-                        Text(
-                            text = "Groups you're subscribed to",
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        if (subscribedGroups.isNotEmpty()) {
-                            subscribedGroups.forEach { membership ->
-                                DropdownMenuItem(
-                                    text = { Text(membership.code) },
-                                    onClick = {
-                                        groupsExpanded = false
-                                        onManageGroups()
-                                    }
-                                )
-                            }
-                        } else {
-                            Text(
-                                text = "You're not subscribed to any groups yet",
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-            }
-
-            TextButton(
-                onClick = onManageGroups,
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.textButtonColors(
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-            ) {
-                Icon(Icons.Rounded.Groups, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text("Manage group codes")
             }
         }
     }
