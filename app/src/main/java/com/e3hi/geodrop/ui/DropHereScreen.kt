@@ -2221,44 +2221,32 @@ fun DropHereScreen(
                         )
                     )
             ) {
-                TopAppBar(
-                    modifier = Modifier.fillMaxWidth(),
-                    title = {
-                        Column(
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    TopAppBar(
+                        modifier = Modifier.fillMaxWidth(),
+                        title = { GeoDropHeader() },
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = Color.Transparent,
+                            scrolledContainerColor = Color.Transparent,
+                            titleContentColor = MaterialTheme.colorScheme.onBackground,
+                            actionIconContentColor = MaterialTheme.colorScheme.onBackground
+                        )
+                    )
+
+                    if (currentHomeDestination == HomeDestination.Explorer && userMode != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        ExplorerDestinationTabs(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 20.dp)
-                                .padding(vertical = 12.dp),
-                            horizontalAlignment = Alignment.Start
-                        ) {
-                            Text(
-                                text = stringResource(R.string.app_name),
-                                style = MaterialTheme.typography.titleLarge.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    letterSpacing = 1.5.sp
-                                ),
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(bottom = 8.dp)
-                            )
-
-                            if (currentHomeDestination == HomeDestination.Explorer && userMode != null) {
-                                ExplorerDestinationTabs(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    current = effectiveExplorerDestination,
-                                    onSelect = { destination -> openExplorerDestination(destination) },
-                                    showMyDrops = hasExplorerAccount,
-                                    showCollected = hasExplorerAccount
-                                )
-                            }
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = Color.Transparent,
-                        scrolledContainerColor = Color.Transparent,
-                        titleContentColor = MaterialTheme.colorScheme.onBackground,
-                        actionIconContentColor = MaterialTheme.colorScheme.onBackground
-                    )
-                )
+                                .padding(bottom = 12.dp),
+                            current = effectiveExplorerDestination,
+                            onSelect = { destination -> openExplorerDestination(destination) },
+                            showMyDrops = hasExplorerAccount,
+                            showCollected = hasExplorerAccount
+                        )
+                    }
+                }
             }
             if (isBusinessUser) {
                 Divider()
@@ -5905,6 +5893,25 @@ private fun CollectedDropsContent(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun GeoDropHeader(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 12.dp),
+        contentAlignment = Alignment.CenterStart
+    ) {
+        Text(
+            text = stringResource(R.string.app_name),
+            style = MaterialTheme.typography.titleLarge.copy(
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.5.sp
+            ),
+            color = MaterialTheme.colorScheme.primary
+        )
     }
 }
 
