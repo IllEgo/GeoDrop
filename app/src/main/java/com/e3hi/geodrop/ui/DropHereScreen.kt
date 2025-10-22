@@ -243,6 +243,7 @@ import java.util.concurrent.TimeUnit
 import kotlin.math.asin
 import kotlin.math.ceil
 import kotlin.math.cos
+import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlin.math.sin
@@ -2199,6 +2200,7 @@ fun DropHereScreen(
     }
 
     var topBarHeightPx by remember { mutableStateOf(0) }
+    var explorerNavigationHeightPx by remember { mutableStateOf(0) }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(
@@ -2234,17 +2236,25 @@ fun DropHereScreen(
                     )
 
                     if (currentHomeDestination == HomeDestination.Explorer && userMode != null) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        ExplorerDestinationTabs(
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 20.dp)
-                                .padding(bottom = 12.dp),
-                            current = effectiveExplorerDestination,
-                            onSelect = { destination -> openExplorerDestination(destination) },
-                            showMyDrops = hasExplorerAccount,
-                            showCollected = hasExplorerAccount
-                        )
+                                .onSizeChanged { size -> explorerNavigationHeightPx = size.height }
+                        ) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            ExplorerDestinationTabs(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 20.dp)
+                                    .padding(bottom = 12.dp),
+                                current = effectiveExplorerDestination,
+                                onSelect = { destination -> openExplorerDestination(destination) },
+                                showMyDrops = hasExplorerAccount,
+                                showCollected = hasExplorerAccount
+                            )
+                        }
+                    } else {
+                        SideEffect { explorerNavigationHeightPx = 0 }
                     }
                 }
             }
@@ -2581,8 +2591,11 @@ fun DropHereScreen(
             val bottomPadding = innerPadding.calculateBottomPadding()
             val startPadding = innerPadding.calculateStartPadding(layoutDirection)
             val endPadding = innerPadding.calculateEndPadding(layoutDirection)
-            val topBarHeight = with(LocalDensity.current) { topBarHeightPx.toDp() }
-            val navAwareTopPadding = if (topBarHeight > topPadding) topBarHeight else topPadding
+            val density = LocalDensity.current
+            val topPaddingPx = with(density) { topPadding.toPx() }
+            val headerHeightPx = (topBarHeightPx - explorerNavigationHeightPx).coerceAtLeast(0)
+            val navAwareTopPaddingPx = max(topPaddingPx, headerHeightPx.toFloat())
+            val navAwareTopPadding = with(density) { navAwareTopPaddingPx.toDp() }
 
             if (isBusinessUser && currentHomeDestination == HomeDestination.Business) {
                 BusinessHomeScreen(
