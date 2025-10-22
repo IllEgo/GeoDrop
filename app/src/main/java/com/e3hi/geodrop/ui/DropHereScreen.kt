@@ -2223,10 +2223,11 @@ fun DropHereScreen(
             },
             bottomBar = {
                 NavigationBar(
-                    modifier = Modifier.height(64.dp),
+                    modifier = Modifier.height(56.dp),
                     containerColor = MaterialTheme.colorScheme.surface,
                     contentColor = MaterialTheme.colorScheme.onSurface
                 ) {
+                    val labelSpacingModifier = Modifier.offset(y = (-4).dp)
                     val navigationBarScope = this
                     Box(
                         modifier = Modifier
@@ -2243,7 +2244,7 @@ fun DropHereScreen(
                                     contentDescription = stringResource(R.string.content_description_account_options)
                                 )
                             },
-                            label = { Text(stringResource(R.string.bottom_nav_profile)) },
+                            label = { Text(stringResource(R.string.bottom_nav_profile), modifier = labelSpacingModifier) },
                             alwaysShowLabel = true
                         )
 
@@ -2364,6 +2365,7 @@ fun DropHereScreen(
                         icon = { Icon(Icons.Rounded.Place, contentDescription = null) },
                         label = {
                             Text(
+                                modifier = labelSpacingModifier,
                                 stringResource(
                                     if (isSubmitting) R.string.status_dropping else R.string.action_drop_something
                                 )
@@ -2389,7 +2391,7 @@ fun DropHereScreen(
                                 contentDescription = stringResource(R.string.manage_groups)
                             )
                         },
-                        label = { Text(stringResource(R.string.manage_groups)) },
+                        label = { Text(stringResource(R.string.manage_groups), modifier = labelSpacingModifier) },
                         alwaysShowLabel = true
                     )
                 }
