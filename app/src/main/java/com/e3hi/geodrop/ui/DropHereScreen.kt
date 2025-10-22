@@ -111,6 +111,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.layout.onSizeChanged
@@ -2205,48 +2206,60 @@ fun DropHereScreen(
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
                 .statusBarsPadding()
-                .background(MaterialTheme.colorScheme.background)
                 .onSizeChanged { size -> topBarHeightPx = size.height }
                 .zIndex(1f)
         ) {
-            TopAppBar(
-                modifier = Modifier.fillMaxWidth(),
-                title = {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 20.dp)
-                            .padding(vertical = 12.dp),
-                        horizontalAlignment = Alignment.Start
-                    ) {
-                        Text(
-                            text = stringResource(R.string.app_name),
-                            style = MaterialTheme.typography.titleLarge.copy(
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 1.5.sp
-                            ),
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(bottom = 8.dp)
-                        )
-
-                        if (currentHomeDestination == HomeDestination.Explorer && userMode != null) {
-                            ExplorerDestinationTabs(
-                                modifier = Modifier.fillMaxWidth(),
-                                current = effectiveExplorerDestination,
-                                onSelect = { destination -> openExplorerDestination(destination) },
-                                showMyDrops = hasExplorerAccount,
-                                showCollected = hasExplorerAccount
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                MaterialTheme.colorScheme.background.copy(alpha = 0.85f),
+                                MaterialTheme.colorScheme.background.copy(alpha = 0f)
                             )
+                        )
+                    )
+            ) {
+                TopAppBar(
+                    modifier = Modifier.fillMaxWidth(),
+                    title = {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp)
+                                .padding(vertical = 12.dp),
+                            horizontalAlignment = Alignment.Start
+                        ) {
+                            Text(
+                                text = stringResource(R.string.app_name),
+                                style = MaterialTheme.typography.titleLarge.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 1.5.sp
+                                ),
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
+
+                            if (currentHomeDestination == HomeDestination.Explorer && userMode != null) {
+                                ExplorerDestinationTabs(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    current = effectiveExplorerDestination,
+                                    onSelect = { destination -> openExplorerDestination(destination) },
+                                    showMyDrops = hasExplorerAccount,
+                                    showCollected = hasExplorerAccount
+                                )
+                            }
                         }
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    scrolledContainerColor = MaterialTheme.colorScheme.background,
-                    titleContentColor = MaterialTheme.colorScheme.onBackground,
-                    actionIconContentColor = MaterialTheme.colorScheme.onBackground
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color.Transparent,
+                        scrolledContainerColor = Color.Transparent,
+                        titleContentColor = MaterialTheme.colorScheme.onBackground,
+                        actionIconContentColor = MaterialTheme.colorScheme.onBackground
+                    )
                 )
-            )
+            }
             if (isBusinessUser) {
                 Divider()
             }
