@@ -2199,8 +2199,11 @@ fun DropHereScreen(
         Scaffold(
             modifier = Modifier.fillMaxSize(),
             topBar = {
-                Column {
+                Column(
+                    modifier = Modifier.zIndex(1f)
+                ) {
                     TopAppBar(
+                        modifier = Modifier.zIndex(1f),
                         title = {
                             Column(
                                 modifier = Modifier
@@ -2238,7 +2241,7 @@ fun DropHereScreen(
                         )
                     )
                     if (isBusinessUser) {
-                        Divider()
+                        Divider(modifier = Modifier.zIndex(1f))
                     }
                 }
             },
