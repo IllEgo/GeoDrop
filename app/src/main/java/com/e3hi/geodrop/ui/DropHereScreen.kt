@@ -2418,24 +2418,10 @@ fun DropHereScreen(
                             modifier = Modifier.zIndex(1f)
                         ) {
                             DropdownMenuItem(
-                                text = { Text("Create group") },
+                                text = { Text("Create/Subscribe") },
                                 leadingIcon = {
                                     Icon(
                                         imageVector = Icons.Rounded.AddCircle,
-                                        contentDescription = null
-                                    )
-                                },
-                                onClick = {
-                                    showGroupMenu = false
-                                    showAccountMenu = false
-                                    showManageGroups = true
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Subscribe to group") },
-                                leadingIcon = {
-                                    Icon(
-                                        imageVector = Icons.Rounded.GroupAdd,
                                         contentDescription = null
                                     )
                                 },
