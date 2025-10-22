@@ -2767,7 +2767,7 @@ fun DropHereScreen(
                                 MyDropsContent(
                                     modifier = Modifier.fillMaxSize(),
                                     topContentPadding = navAwareTopPadding,
-                                    contentPadding = PaddingValues(bottom = 16.dp),
+                                    contentPadding = PaddingValues(bottom = 0.dp),
                                     loading = myDropsLoading,
                                     drops = filteredMyDrops,
                                     currentLocation = myDropsCurrentLocation,
@@ -2861,7 +2861,7 @@ fun DropHereScreen(
                                 CollectedDropsContent(
                                     modifier = Modifier.fillMaxSize(),
                                     topContentPadding = navAwareTopPadding,
-                                    contentPadding = PaddingValues(bottom = 16.dp),
+                                    contentPadding = PaddingValues(bottom = 0.dp),
                                     notes = visibleCollectedNotes,
                                     hiddenNsfwCount = hiddenNsfwCollectedCount,
                                     canReportDrops = !currentUserId.isNullOrBlank(),
@@ -2930,10 +2930,6 @@ fun DropHereScreen(
                             }
                         }
                     }
-                }
-
-                if (effectiveExplorerDestination != ExplorerDestination.Discover) {
-                    Spacer(Modifier.height(24.dp))
                 }
             }
         }
@@ -6991,8 +6987,7 @@ private fun OtherDropsExplorerSection(
 
     Column(
         modifier = modifier
-            .fillMaxSize()
-            .padding(bottom = 20.dp),
+            .fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         when {
