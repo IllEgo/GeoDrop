@@ -155,12 +155,16 @@ struct AuthView: View {
     }
 
     private func currentRootController() -> UIViewController? {
-        guard let root = UIApplication.shared
-            .connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .flatMap { $0.windows }
-            .first(where: { $0.isKeyWindow })?
-            .rootViewController else { return nil }
+        guard
+            let scene = UIApplication.shared
+                .connectedScenes
+                .compactMap({ $0 as? UIWindowScene })
+                .first(where: { $0.activationState == .foregroundActive }),
+            let root = scene
+                .windows
+                .first(where: { $0.isKeyWindow })?
+                .rootViewController
+        else { return nil }
 
         var top = root
         while let presented = top.presentedViewController {

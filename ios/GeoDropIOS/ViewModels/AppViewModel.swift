@@ -241,12 +241,17 @@ final class AppViewModel: ObservableObject {
             errorMessage = "Current location unavailable"
             return
         }
-        guard let groupCode = selectedGroupCode else {
-            errorMessage = "Join a group before dropping."
-            return
-        }
+        
         isPerformingAction = true
         defer { isPerformingAction = false }
+        
+        let groupCode: String?
+        switch request.visibility {
+        case .public:
+            groupCode = "PUBLIC"
+        case .group(let code):
+            groupCode = code
+        }
 
         var drop = Drop(
             text: request.text,
@@ -262,10 +267,14 @@ final class AppViewModel: ObservableObject {
             businessId: session.profile.role == .business ? session.user.uid : nil,
             businessName: session.profile.businessName,
             contentType: request.contentType,
-            isNsfw: false
+            mediaData: nil,
+            isNsfw: false,
+            redemptionCode: request.redemptionCode,
+            redemptionLimit: request.redemptionLimit,
+            decayDays: request.decayDays
         )
 
-        var mediaDataString: String?
+        var safeSearchPayload: String?
         if let media = request.media {
             do {
                 let upload = try await StorageService.shared.uploadMedia(
@@ -278,17 +287,38 @@ final class AppViewModel: ObservableObject {
                 drop.mediaMimeType = media.mimeType
                 drop.mediaStoragePath = upload.path
                 let base64 = media.data.base64EncodedString()
-                mediaDataString = "data:\(media.mimeType);base64,\(base64)"
+                switch request.contentType {
+                case .photo:
+                    safeSearchPayload = "data:\(media.mimeType);base64,\(base64)"
+                case .audio:
+                    drop.mediaData = base64
+                    safeSearchPayload = "data:\(media.mimeType);base64,\(base64)"
+                case .video:
+                    safeSearchPayload = nil
+                case .text:
+                    safeSearchPayload = nil
+                }
             } catch {
                 errorMessage = "Upload failed: \(error.localizedDescription)"
                 return
             }
         }
+        
+        let textForSafety: String? = {
+            let components = [request.text, request.description].compactMap { value -> String? in
+                guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else {
+                    return nil
+                }
+                return trimmed
+            }
+            return components.isEmpty ? nil : components.joined(separator: "\n")
+        }()
 
         let assessment = await safeSearch.assess(
+            text: textForSafety,
             contentType: drop.contentType,
             mediaMimeType: drop.mediaMimeType,
-            mediaData: mediaDataString,
+            mediaData: safeSearchPayload,
             mediaUrl: drop.mediaURL?.absoluteString
         )
         drop.isNsfw = assessment.isNsfw
@@ -551,6 +581,11 @@ struct NewDropRequest {
         let mimeType: String
         let fileExtension: String
     }
+    
+    enum Visibility {
+        case `public`
+        case group(String)
+    }
 
     var text: String
     var description: String?
@@ -558,4 +593,8 @@ struct NewDropRequest {
     var dropType: DropType
     var contentType: DropContentType
     var media: MediaPayload?
+    var redemptionCode: String?
+    var redemptionLimit: Int?
+    var decayDays: Int?
+    var visibility: Visibility
 }

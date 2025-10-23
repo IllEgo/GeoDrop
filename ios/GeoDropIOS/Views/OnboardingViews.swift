@@ -15,7 +15,7 @@ struct TermsAcceptanceView: View {
                         .resizable()
                         .scaledToFit()
                         .frame(width: 90, height: 90)
-                        .foregroundStyle(.accent)
+                        .foregroundStyle(Color.accentColor)
                         .padding(.top, 40)
 
                     Text("Before you explore GeoDrop, please review and accept our Terms of Service and Privacy Policy.")

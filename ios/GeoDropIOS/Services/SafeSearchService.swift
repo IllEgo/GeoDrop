@@ -20,11 +20,13 @@ final class SafeSearchService {
     }
 
     func assess(
+        text: String?,
         contentType: DropContentType,
         mediaMimeType: String?,
         mediaData: String?,
         mediaUrl: String?
     ) async -> DropSafetyAssessment {
+        _ = text
         let eligibleForVision =
             contentType == .photo &&
             ((mediaMimeType?.hasPrefix("image/") ?? false) ||

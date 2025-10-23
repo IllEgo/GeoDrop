@@ -21,6 +21,7 @@ struct Drop: Identifiable, Equatable {
     var contentType: DropContentType
     var mediaURL: URL?
     var mediaMimeType: String?
+    var mediaData: String?
     var mediaStoragePath: String?
     var isNsfw: Bool
     var nsfwLabels: [String]
@@ -54,6 +55,7 @@ struct Drop: Identifiable, Equatable {
         contentType: DropContentType = .text,
         mediaURL: URL? = nil,
         mediaMimeType: String? = nil,
+        mediaData: String? = nil,
         mediaStoragePath: String? = nil,
         isNsfw: Bool = false,
         nsfwLabels: [String] = [],
@@ -86,6 +88,7 @@ struct Drop: Identifiable, Equatable {
         self.contentType = contentType
         self.mediaURL = mediaURL
         self.mediaMimeType = mediaMimeType
+        self.mediaData = mediaData
         self.mediaStoragePath = mediaStoragePath
         self.isNsfw = isNsfw
         self.nsfwLabels = nsfwLabels
@@ -156,6 +159,15 @@ struct Drop: Identifiable, Equatable {
 extension Drop {
     init?(document: DocumentSnapshot) {
         guard let data = document.data() else { return nil }
+        
+        let inlineData: String?
+        if let string = data["mediaData"] as? String, !string.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            inlineData = string
+        } else if let blob = data["mediaData"] as? Data, !blob.isEmpty {
+            inlineData = blob.base64EncodedString()
+        } else {
+            inlineData = nil
+        }
         self.init(
             id: document.documentID,
             text: data["text"] as? String ?? "",
@@ -177,6 +189,7 @@ extension Drop {
             mediaURL: (data["mediaUrl"] as? String).flatMap(URL.init(string:)),
             mediaMimeType: data["mediaMimeType"] as? String,
             mediaStoragePath: data["mediaStoragePath"] as? String,
+            mediaData: inlineData,
             isNsfw: data["isNsfw"] as? Bool ?? false,
             nsfwLabels: data["nsfwLabels"] as? [String] ?? [],
             likeCount: (data["likeCount"] as? NSNumber)?.intValue ?? 0,
@@ -222,6 +235,7 @@ extension Drop {
         if let mediaURL { data["mediaUrl"] = mediaURL.absoluteString }
         if let mediaMimeType { data["mediaMimeType"] = mediaMimeType }
         if let mediaStoragePath { data["mediaStoragePath"] = mediaStoragePath }
+        if let mediaData { data["mediaData"] = mediaData }
         if let deletedAt { data["deletedAt"] = Timestamp(date: deletedAt) }
         if let redemptionCode { data["redemptionCode"] = redemptionCode }
         if let redemptionLimit { data["redemptionLimit"] = redemptionLimit }
