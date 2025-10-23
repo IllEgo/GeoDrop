@@ -1,16 +1,21 @@
 import SwiftUI
-import MapKit
+import CoreLocation
 
 struct DropFeedView: View {
     @EnvironmentObject private var viewModel: AppViewModel
     @State private var showingGroupJoin = false
-    @State private var mapRegion = MKCoordinateRegion(center: Self.defaultCoordinate, span: Self.defaultSpan)
+    @State private var mapCameraState = GoogleMapCameraState(
+        latitude: Self.defaultCoordinate.latitude,
+        longitude: Self.defaultCoordinate.longitude,
+        zoom: Self.defaultZoom
+    )
     @State private var selectedDropID: Drop.ID?
     @State private var mapHeightFraction: CGFloat = 0.45
     @State private var dragStartFraction: CGFloat?
-
+    @State private var shouldAnimateCamera = false
+    
     private static let defaultCoordinate = CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194)
-    private static let defaultSpan = MKCoordinateSpan(latitudeDelta: 0.1, longitudeDelta: 0.1)
+    private static let defaultZoom: Float = GoogleMapCameraState.defaultZoom
 
     var body: some View {
         NavigationView {
@@ -53,24 +58,13 @@ struct DropFeedView: View {
                                 }
 
                             VStack(spacing: 0) {
-                                Map(
-                                    coordinateRegion: $mapRegion,
-                                    interactionModes: .all,
-                                    showsUserLocation: false,
-                                    annotationItems: viewModel.drops
-                                ) { drop in
-                                    MapAnnotation(coordinate: coordinate(for: drop)) {
-                                        Button {
-                                            focus(on: drop)
-                                        } label: {
-                                            Image(systemName: selectedDropID == drop.id ? "mappin.circle.fill" : "mappin.circle")
-                                                .font(.title2)
-                                                .foregroundColor(selectedDropID == drop.id ? .accentColor : .red)
-                                                .shadow(radius: 2)
-                                        }
-                                        .buttonStyle(.plain)
-                                    }
-                                }
+                                GoogleMapView(
+                                    drops: viewModel.drops,
+                                    selectedDropID: $selectedDropID,
+                                    cameraState: $mapCameraState,
+                                    shouldAnimateCamera: $shouldAnimateCamera,
+                                    onSelectDrop: { drop in focus(on: drop) }
+                                )
                                 .frame(height: mapHeight)
                                 .clipped()
 
@@ -236,18 +230,15 @@ struct DropRowView: View {
 }
 
 extension DropFeedView {
-    private var defaultRegion: MKCoordinateRegion {
-        MKCoordinateRegion(center: Self.defaultCoordinate, span: Self.defaultSpan)
-    }
-
-    private func coordinate(for drop: Drop) -> CLLocationCoordinate2D {
-        CLLocationCoordinate2D(latitude: drop.latitude, longitude: drop.longitude)
-    }
-
     private func updateSelection(for drops: [Drop]) {
         guard let first = drops.first else {
             selectedDropID = nil
-            mapRegion = defaultRegion
+            mapCameraState = GoogleMapCameraState(
+                latitude: Self.defaultCoordinate.latitude,
+                longitude: Self.defaultCoordinate.longitude,
+                zoom: Self.defaultZoom
+            )
+            shouldAnimateCamera = false
             return
         }
 
@@ -255,28 +246,25 @@ extension DropFeedView {
            let currentDrop = drops.first(where: { $0.id == currentID }) {
             focus(on: currentDrop, animated: false)
         } else {
-            focus(on: first, animated: false, preserveSpan: false)
+            focus(on: first, animated: false, preserveZoom: false)
         }
     }
 
-    private func focus(on drop: Drop, animated: Bool = true, preserveSpan: Bool = true) {
+    private func focus(on drop: Drop, animated: Bool = true, preserveZoom: Bool = true) {
         selectedDropID = drop.id
-        let span = preserveSpan ? sanitizedSpan(mapRegion.span) : Self.defaultSpan
-        let region = MKCoordinateRegion(center: coordinate(for: drop), span: span)
-
-        if animated {
-            withAnimation(.easeInOut) {
-                mapRegion = region
-            }
-        } else {
-            mapRegion = region
-        }
+        let zoom = preserveZoom ? sanitizedZoom(mapCameraState.zoom) : Self.defaultZoom
+        mapCameraState = GoogleMapCameraState(
+            latitude: drop.latitude,
+            longitude: drop.longitude,
+            zoom: zoom
+        )
+        shouldAnimateCamera = animated
     }
 
-    private func sanitizedSpan(_ span: MKCoordinateSpan) -> MKCoordinateSpan {
-        guard span.latitudeDelta > 0, span.longitudeDelta > 0 else {
-            return Self.defaultSpan
+    private func sanitizedZoom(_ zoom: Float) -> Float {
+        guard zoom.isFinite, zoom > 0 else {
+            return Self.defaultZoom
         }
-        return span
+        return zoom
     }
 }

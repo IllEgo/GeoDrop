@@ -35,9 +35,11 @@
 	<string>GeoDrop needs photo access to share media in drops.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>GeoDrop needs microphone access to record audio drops.</string>
-	<key>FirebaseAppDelegateProxyEnabled</key>
-	<true/>
-	<key>GOOGLE_VISION_API_KEY</key>
-	<string>AIzaSyDD9c_0xHim_ITvXZlHY67b_m_SR-9DUJs</string>
+    <key>FirebaseAppDelegateProxyEnabled</key>
+    <true/>
+    <key>GOOGLE_MAPS_API_KEY</key>
+    <string>AIzaSyAPrfdD0LrMqreZG6iXb0r73RT_3uWwsAU</string>
+    <key>GOOGLE_VISION_API_KEY</key>
+    <string>AIzaSyDD9c_0xHim_ITvXZlHY67b_m_SR-9DUJs</string>
 </dict>
 </plist>

@@ -1,6 +1,7 @@
 import SwiftUI
 import Firebase
 import FirebaseMessaging
+import GoogleMaps
 
 @main
 struct GeoDropIOSApp: App {
@@ -20,6 +21,9 @@ struct GeoDropIOSApp: App {
 
 final class AppDelegate: NSObject, UIApplicationDelegate, MessagingDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
+        if !AppConfiguration.shared.mapsApiKey.isEmpty {
+            GMSServices.provideAPIKey(AppConfiguration.shared.mapsApiKey)
+        }
         FirebaseApp.configure()
         Messaging.messaging().delegate = self
         application.registerForRemoteNotifications()

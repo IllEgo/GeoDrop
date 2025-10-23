@@ -15,6 +15,7 @@ This directory contains the SwiftUI iOS client for GeoDrop. It mirrors the Andro
 2. Install CocoaPods (`sudo gem install cocoapods`).
 3. Provide Firebase configuration by copying your iOS `GoogleService-Info.plist` into `ios/GeoDropIOS/GoogleService-Info.plist` (a placeholder is committed).
 4. Add your Google Vision API key to the `GOOGLE_VISION_API_KEY` entry in `ios/GeoDropIOS/Info.plist`.
+5. Add your Google Maps SDK key to the `GOOGLE_MAPS_API_KEY` entry in `ios/GeoDropIOS/Info.plist`.
 
 ## Building
 

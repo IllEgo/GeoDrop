@@ -1,13 +1,27 @@
 import SwiftUI
-import MapKit
 
 struct DropDetailView: View {
     @EnvironmentObject private var viewModel: AppViewModel
     let drop: Drop
+    @State private var detailCameraState: GoogleMapCameraState
+    @State private var detailShouldAnimate = false
+    @State private var detailSelectedDropID: Drop.ID?
     @Environment(\.dismiss) private var dismiss
     @State private var reportReason: String = ""
     @State private var showingReport = false
-
+    
+    init(drop: Drop) {
+        self.drop = drop
+        _detailCameraState = State(
+            initialValue: GoogleMapCameraState(
+                latitude: drop.latitude,
+                longitude: drop.longitude,
+                zoom: GoogleMapCameraState.defaultZoom
+            )
+        )
+        _detailSelectedDropID = State(initialValue: drop.id)
+    }
+    
     var body: some View {
         NavigationView {
             ScrollView {
@@ -19,10 +33,16 @@ struct DropDetailView: View {
                     if let description = drop.description, !description.isEmpty {
                         Text(description)
                     }
-
-                    Map(coordinateRegion: .constant(MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: drop.latitude, longitude: drop.longitude), span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01))), interactionModes: [])
-                        .frame(height: 200)
-                        .cornerRadius(12)
+                    
+                    GoogleMapView(
+                        drops: [drop],
+                        selectedDropID: $detailSelectedDropID,
+                        cameraState: $detailCameraState,
+                        shouldAnimateCamera: $detailShouldAnimate,
+                        isInteractionEnabled: false
+                    )
+                    .frame(height: 200)
+                    .cornerRadius(12)
 
                     if let url = drop.mediaURL {
                         Link("Open media", destination: url)
