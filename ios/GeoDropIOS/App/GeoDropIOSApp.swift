@@ -2,6 +2,7 @@ import SwiftUI
 import Firebase
 import FirebaseMessaging
 import GoogleMaps
+import GoogleSignIn
 
 @main
 struct GeoDropIOSApp: App {
@@ -37,6 +38,10 @@ final class AppDelegate: NSObject, UIApplicationDelegate, MessagingDelegate {
     func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
         guard let token = fcmToken else { return }
         NotificationCenter.default.post(name: .messagingTokenUpdated, object: token)
+    }
+    
+    func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey : Any] = [:]) -> Bool {
+        return GIDSignIn.sharedInstance.handle(url)
     }
 }
 

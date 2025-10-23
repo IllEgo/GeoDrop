@@ -9,4 +9,5 @@ target 'GeoDropIOS' do
   pod 'Firebase/Messaging'
   pod 'Firebase/Storage'
   pod 'GoogleMaps'
+  pod 'GoogleSignIn'
 end

@@ -2,6 +2,7 @@ import Foundation
 import Combine
 import FirebaseAuth
 import FirebaseFirestore
+import UIKit
 
 @MainActor
 final class AppViewModel: ObservableObject {
@@ -9,6 +10,14 @@ final class AppViewModel: ObservableObject {
         case loading
         case signedOut
         case signedIn(UserSession)
+    }
+    
+    enum UserMode: String {
+        case guest
+        case signedIn
+
+        var isReadOnly: Bool { self != .signedIn }
+        var canParticipate: Bool { self == .signedIn }
     }
 
     struct UserSession {
@@ -23,12 +32,20 @@ final class AppViewModel: ObservableObject {
     }
 
     @Published private(set) var authState: AuthState = .loading
+    @Published private(set) var userMode: UserMode?
+    @Published private(set) var hasAcceptedTerms: Bool
+    @Published private(set) var hasCompletedOnboarding: Bool
     @Published var groups: [GroupMembership] = []
     @Published var selectedGroupCode: String?
     @Published var drops: [Drop] = []
     @Published var allowNsfw: Bool = false
     @Published var errorMessage: String?
     @Published var isPerformingAction: Bool = false
+    @Published var pendingAccountRole: UserRole?
+    @Published var isAuthenticating: Bool = false
+    @Published var isGoogleSigningIn: Bool = false
+    @Published var authFlowError: String?
+    @Published var authFlowStatus: String?
 
     private let authService = AuthService.shared
     private let firestore = FirestoreService.shared
@@ -38,6 +55,31 @@ final class AppViewModel: ObservableObject {
     private var groupListener: ListenerRegistration?
     private var dropsListener: ListenerRegistration?
     private var cancellables: Set<AnyCancellable> = []
+    private let defaults: UserDefaults
+
+    private enum DefaultsKeys {
+        static let acceptedTerms = "geodrop.termsAccepted"
+        static let completedOnboarding = "geodrop.onboardingCompleted"
+        static let userMode = "geodrop.userMode"
+    }
+
+    init(userDefaults: UserDefaults = .standard) {
+        self.defaults = userDefaults
+        let accepted = userDefaults.bool(forKey: DefaultsKeys.acceptedTerms)
+        self.hasAcceptedTerms = accepted
+        let onboarding = userDefaults.bool(forKey: DefaultsKeys.completedOnboarding)
+        self.hasCompletedOnboarding = onboarding
+        if let rawMode = userDefaults.string(forKey: DefaultsKeys.userMode),
+           let restoredMode = UserMode(rawValue: rawMode) {
+            if restoredMode == .signedIn, authService.currentUser == nil {
+                self.userMode = nil
+            } else {
+                self.userMode = restoredMode
+            }
+        } else {
+            self.userMode = nil
+        }
+    }
 
     func bootstrap() {
         messagingService.requestAuthorization()
@@ -55,6 +97,41 @@ final class AppViewModel: ObservableObject {
             Task { await self?.handleAuthChange(user: user) }
         }
     }
+    
+    // MARK: - Onboarding & Mode Selection
+
+    func acceptTerms() {
+        hasAcceptedTerms = true
+        defaults.set(true, forKey: DefaultsKeys.acceptedTerms)
+    }
+
+    func completeOnboarding() {
+        hasCompletedOnboarding = true
+        defaults.set(true, forKey: DefaultsKeys.completedOnboarding)
+    }
+
+    func selectGuestMode() {
+        pendingAccountRole = nil
+        resetAuthFlowMessages()
+        setUserMode(.guest)
+    }
+
+    func beginAuthentication(for role: UserRole) {
+        pendingAccountRole = role
+        resetAuthFlowMessages()
+    }
+
+    func cancelAuthenticationFlow() {
+        pendingAccountRole = nil
+        isAuthenticating = false
+        isGoogleSigningIn = false
+        resetAuthFlowMessages()
+    }
+
+    func resetAuthFlowMessages() {
+        authFlowError = nil
+        authFlowStatus = nil
+    }
 
     deinit {
         groupListener?.remove()
@@ -65,24 +142,38 @@ final class AppViewModel: ObservableObject {
     // MARK: - Auth
 
     func signIn(email: String, password: String) {
+        isAuthenticating = true
+        resetAuthFlowMessages()
         Task {
             do {
                 try await authService.signIn(email: email, password: password)
+                await MainActor.run {
+                    self.authFlowStatus = "Signed in successfully."
+                    self.isAuthenticating = false
+                }
             } catch {
                 await MainActor.run {
-                    self.errorMessage = error.localizedDescription
+                    self.authFlowError = error.localizedDescription
+                    self.isAuthenticating = false
                 }
             }
         }
     }
 
     func createAccount(email: String, password: String) {
+        isAuthenticating = true
+        resetAuthFlowMessages()
         Task {
             do {
                 try await authService.createAccount(email: email, password: password)
+                await MainActor.run {
+                    self.authFlowStatus = "Account created successfully."
+                    self.isAuthenticating = false
+                }
             } catch {
                 await MainActor.run {
-                    self.errorMessage = error.localizedDescription
+                    self.authFlowError = error.localizedDescription
+                    self.isAuthenticating = false
                 }
             }
         }
@@ -91,8 +182,34 @@ final class AppViewModel: ObservableObject {
     func signOut() {
         do {
             try authService.signOut()
+            setUserMode(nil)
+            pendingAccountRole = nil
+            isAuthenticating = false
+            isGoogleSigningIn = false
+            resetAuthFlowMessages()
         } catch {
             errorMessage = error.localizedDescription
+        }
+    }
+    
+    func signInWithGoogle(presenting viewController: UIViewController) {
+        isGoogleSigningIn = true
+        resetAuthFlowMessages()
+        Task {
+            do {
+                try await authService.signInWithGoogle(presenting: viewController)
+                await MainActor.run {
+                    self.authFlowStatus = "Signed in with Google."
+                    self.isGoogleSigningIn = false
+                    self.isAuthenticating = false
+                }
+            } catch {
+                await MainActor.run {
+                    self.authFlowError = error.localizedDescription
+                    self.isGoogleSigningIn = false
+                    self.isAuthenticating = false
+                }
+            }
         }
     }
 
@@ -363,6 +480,14 @@ final class AppViewModel: ObservableObject {
             drops = []
             selectedGroupCode = nil
             authState = .signedOut
+            isAuthenticating = false
+            isGoogleSigningIn = false
+            let persistedMode = persistedUserMode()
+            if persistedMode == .guest {
+                setUserMode(.guest, persist: false)
+            } else {
+                setUserMode(nil)
+            }
         }
     }
 
@@ -378,6 +503,9 @@ final class AppViewModel: ObservableObject {
             groups = memberships
             selectedGroupCode = memberships.first?.code
             authState = .signedIn(session)
+            pendingAccountRole = nil
+            resetAuthFlowMessages()
+            setUserMode(.signedIn)
 
             groupListener?.remove()
             groupListener = firestore.listenForGroupMemberships(userId: user.uid) { [weak self] memberships in
@@ -399,6 +527,21 @@ final class AppViewModel: ObservableObject {
     private func syncMessagingToken(_ token: String?) async {
         guard let token = token, case let .signedIn(session) = authState else { return }
         await firestore.registerMessagingToken(userId: session.user.uid, token: token, platform: "ios")
+    }
+    
+    private func persistedUserMode() -> UserMode? {
+        guard let rawValue = defaults.string(forKey: DefaultsKeys.userMode) else { return nil }
+        return UserMode(rawValue: rawValue)
+    }
+
+    private func setUserMode(_ mode: UserMode?, persist: Bool = true) {
+        userMode = mode
+        guard persist else { return }
+        if let mode {
+            defaults.set(mode.rawValue, forKey: DefaultsKeys.userMode)
+        } else {
+            defaults.removeObject(forKey: DefaultsKeys.userMode)
+        }
     }
 }
 
