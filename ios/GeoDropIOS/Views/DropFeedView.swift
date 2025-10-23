@@ -1,5 +1,6 @@
 import SwiftUI
 import CoreLocation
+import AVKit
 
 struct DropFeedView: View {
     @EnvironmentObject private var viewModel: AppViewModel
@@ -155,43 +156,78 @@ struct DropRowView: View {
     let isSelected: Bool
     let onSelect: () -> Void
     @State private var showingDetail = false
-
+    @State private var isExpanded = false
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text(drop.displayTitle)
-                    .font(.headline)
-                Spacer()
-                if drop.requiresRedemption() {
-                    Label("Redeem", systemImage: "tag")
-                        .font(.caption)
-                        .foregroundColor(.orange)
+            Button {
+                onSelect()
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                    isExpanded.toggle()
                 }
-            }
+            } label: {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(alignment: .center, spacing: 8) {
+                        Text(drop.displayTitle)
+                            .font(.headline)
+                            .multilineTextAlignment(.leading)
+                        Spacer(minLength: 12)
+                        if drop.requiresRedemption() {
+                            Label("Redeem", systemImage: "tag")
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                                .labelStyle(.titleAndIcon)
+                        }
+                        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundColor(.secondary)
+                    }
 
-            if let description = drop.description, !description.isEmpty {
-                Text(description)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-            }
-
-            HStack(spacing: 16) {
-                Button(action: toggleLike) {
-                    Label("Like", systemImage: drop.isLiked(by: currentUserId) == .liked ? "hand.thumbsup.fill" : "hand.thumbsup")
+                    if let description = drop.description, !description.isEmpty {
+                        Text(description)
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .lineLimit(isExpanded ? nil : 2)
+                            .multilineTextAlignment(.leading)
+                    }
                 }
-                .buttonStyle(.borderless)
-
-                Button("Collect", action: markCollected)
-                    .buttonStyle(.bordered)
-
-                Spacer()
-
-                Button("Details") {
-                    onSelect()
-                    showingDetail = true
-                }
-                    .font(.subheadline)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .buttonStyle(.plain)
+
+            if isExpanded {
+                VStack(alignment: .leading, spacing: 12) {
+                    if hasMediaPreview {
+                        mediaPreview
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
+
+                    if let description = expandedDescriptionText, description != headerDescriptionText {
+                        Text(description)
+                            .font(.body)
+                            .foregroundColor(.primary)
+                    }
+
+                    HStack(spacing: 16) {
+                        Button(action: toggleLike) {
+                            Label("Like", systemImage: drop.isLiked(by: currentUserId) == .liked ? "hand.thumbsup.fill" : "hand.thumbsup")
+                        }
+                        .buttonStyle(.borderless)
+
+                        Button("Collect", action: markCollected)
+                            .buttonStyle(.bordered)
+                        
+                
+                        Spacer()
+
+                        Button("Details") {
+                            onSelect()
+                            showingDetail = true
+                        }
+                        .font(.subheadline)
+                    }
+                }
+                .transition(.opacity)            }
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -226,6 +262,98 @@ struct DropRowView: View {
 
     private func markCollected() {
         viewModel.markCollected(drop: drop)
+    }
+    
+    private var expandedDescriptionText: String? {
+        let trimmed = drop.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+            return trimmed
+        }
+        if let description = drop.description?.trimmingCharacters(in: .whitespacesAndNewlines), !description.isEmpty {
+            return description
+        }
+        return nil
+    }
+
+    private var headerDescriptionText: String? {
+        drop.description?.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var hasMediaPreview: Bool {
+        guard drop.mediaURL != nil else { return false }
+        switch drop.contentType {
+        case .photo, .video:
+            return true
+        default:
+            return false
+        }
+    }
+
+    @ViewBuilder
+    private var mediaPreview: some View {
+        switch drop.contentType {
+        case .photo:
+            if let url = drop.mediaURL {
+                AsyncImage(url: url, transaction: Transaction(animation: .easeInOut)) { phase in
+                    switch phase {
+                    case .empty:
+                        ProgressView()
+                            .progressViewStyle(.circular)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .scaledToFill()
+                            .clipped()
+                    case .failure:
+                        Image(systemName: "photo")
+                            .font(.largeTitle)
+                            .foregroundColor(.secondary)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    @unknown default:
+                        EmptyView()
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 220)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color(uiColor: .tertiarySystemFill))
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+        case .video:
+            if let url = drop.mediaURL {
+                DropVideoPlayerView(url: url)
+                    .frame(height: 240)
+                    .frame(maxWidth: .infinity)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.secondary.opacity(0.2))
+                    )
+            }
+        default:
+            EmptyView()
+        }
+    }
+}
+
+private struct DropVideoPlayerView: View {
+    let url: URL
+    @State private var player: AVPlayer?
+    
+    var body: some View {
+        VideoPlayer(player: player)
+            .onAppear {
+                if player == nil {
+                    player = AVPlayer(url: url)
+                }
+            }
+            .onDisappear {
+                player?.pause()
+                player?.seek(to: .zero)
+            }
     }
 }
 
