@@ -2,6 +2,7 @@ import SwiftUI
 import MapKit
 import AVKit
 import AVFoundation
+import UIKit
 
 struct DropDetailView: View {
     @EnvironmentObject private var viewModel: AppViewModel
@@ -22,6 +23,8 @@ struct DropDetailView: View {
     @State private var redemptionErrorMessage: String?
     @State private var isRedeeming = false
     @State private var isBlockingCreator = false
+    @State private var isPresentingShareSheet = false
+    @State private var shareItems: [Any] = []
     
     init(drop: Drop) {
         self.drop = drop
@@ -95,6 +98,9 @@ struct DropDetailView: View {
         }
         .sheet(isPresented: $showingReport) {
             reportSheet(for: resolvedDrop)
+        }
+        .sheet(isPresented: $isPresentingShareSheet) {
+            ShareSheet(activityItems: shareItems)
         }
         .alert("Notice", isPresented: Binding(
             get: { infoAlertMessage != nil },
@@ -236,10 +242,20 @@ struct DropDetailView: View {
     private func shareSection(for drop: Drop) -> some View {
         HStack(spacing: 12) {
             if let shareText = shareText(for: drop) {
-                ShareLink(item: shareText) {
-                    Label("Share", systemImage: "square.and.arrow.up")
+                if #available(iOS 16.0, *) {
+                    ShareLink(item: shareText) {
+                        Label("Share", systemImage: "square.and.arrow.up")
+                    }
+                    .buttonStyle(.bordered)
+                } else {
+                    Button {
+                        shareItems = [shareText]
+                        isPresentingShareSheet = true
+                    } label: {
+                        Label("Share", systemImage: "square.and.arrow.up")
+                    }
+                    .buttonStyle(.bordered)
                 }
-                .buttonStyle(.bordered)
             }
 
             Button {
@@ -560,6 +576,16 @@ struct DropDetailView: View {
         )
         .presentationDetents([.medium, .large])
     }
+}
+
+private struct ShareSheet: UIViewControllerRepresentable {
+    let activityItems: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
 private struct InlineVideoPlayer: View {
