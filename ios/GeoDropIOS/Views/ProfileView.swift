@@ -7,7 +7,7 @@ struct ProfileView: View {
     @State private var selectedCategories: Set<BusinessCategory> = []
 
     var body: some View {
-        NavigationView {
+        GeoDropNavigationContainer(subtitle: "Profile") {
             Form {
                 if case let .signedIn(session) = viewModel.authState {
                     Section(header: Text("Account")) {
@@ -72,7 +72,6 @@ struct ProfileView: View {
                     }
                 }
             }
-            .geoDropNavigationTitle(subtitle: "Profile")
         }
     }
 }

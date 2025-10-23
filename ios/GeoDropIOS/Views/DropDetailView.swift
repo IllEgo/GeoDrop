@@ -23,7 +23,14 @@ struct DropDetailView: View {
     }
     
     var body: some View {
-        NavigationView {
+        GeoDropNavigationContainer(
+            subtitle: "Drop",
+            trailing: {
+                Button("Close", action: dismiss.callAsFunction)
+                    .font(.callout.weight(.semibold))
+                    .foregroundColor(.accentColor)
+            }
+        ) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     Text(drop.displayTitle)
@@ -67,31 +74,26 @@ struct DropDetailView: View {
                 }
                 .padding()
             }
-            .geoDropNavigationTitle(subtitle: "Drop")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close", action: dismiss.callAsFunction)
+        }
+        .sheet(isPresented: $showingReport) {
+            GeoDropNavigationContainer(
+                subtitle: "Report drop",
+                trailing: {
+                    Button("Cancel") { showingReport = false }
+                        .font(.callout.weight(.semibold))
+                        .foregroundColor(.accentColor)
                 }
-            }
-            .sheet(isPresented: $showingReport) {
-                NavigationView {
-                    Form {
-                        Section(header: Text("Tell us what's wrong")) {
-                            TextField("Reason", text: $reportReason)
-                        }
-                        Button("Submit") {
-                            viewModel.report(drop: drop, reasons: [reportReason])
-                            reportReason = ""
-                            dismiss()
-                        }
-                        .disabled(reportReason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            ) {
+                Form {
+                    Section(header: Text("Tell us what's wrong")) {
+                        TextField("Reason", text: $reportReason)
                     }
-                    .geoDropNavigationTitle(subtitle: "Report drop")
-                    .toolbar {
-                        ToolbarItem(placement: .cancellationAction) {
-                            Button("Cancel") { showingReport = false }
-                        }
+                    Button("Submit") {
+                        viewModel.report(drop: drop, reasons: [reportReason])
+                        reportReason = ""
+                        dismiss()
                     }
+                    .disabled(reportReason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
         }

@@ -19,7 +19,10 @@ struct DropFeedView: View {
     private static let defaultZoom: Float = GoogleMapCameraState.defaultZoom
 
     var body: some View {
-        NavigationView {
+        GeoDropNavigationContainer(
+            subtitle: "Discover",
+            trailing: { topBarActions }
+        ) {
             VStack(spacing: 0) {
                 if viewModel.groups.isEmpty {
                     VStack(spacing: 16) {
@@ -100,32 +103,42 @@ struct DropFeedView: View {
                     .listStyle(.insetGrouped)
                 }
             }
-            .geoDropNavigationTitle(subtitle: "Discover")
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        showingGroupJoin = true
-                    } label: {
-                        Image(systemName: "person.3")
-                    }
-                }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        Task { await viewModel.refreshDrops() }
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                    }
-                }
-            }
-            .sheet(isPresented: $showingGroupJoin) {
-                GroupManagementView()
-                    .environmentObject(viewModel)
-            }
+        }
+        .sheet(isPresented: $showingGroupJoin) {
+            GroupManagementView()
+                .environmentObject(viewModel)
         }
         .onAppear { updateSelection(for: viewModel.drops) }
         .onChange(of: viewModel.drops) { updateSelection(for: $0) }
     }
+    
+    private var topBarActions: some View {
+        HStack(spacing: 12) {
+            Button {
+                showingGroupJoin = true
+            } label: {
+                topBarIcon(systemName: "person.3")
+                    .accessibilityLabel("Manage groups")
+            }
 
+            Button {
+                Task { await viewModel.refreshDrops() }
+            } label: {
+                topBarIcon(systemName: "arrow.clockwise")
+                    .accessibilityLabel("Refresh drops")
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func topBarIcon(systemName: String) -> some View {
+        Image(systemName: systemName)
+            .font(.title3.weight(.semibold))
+            .frame(width: 36, height: 36)
+            .foregroundColor(.accentColor)
+            .background(Color.accentColor.opacity(0.12))
+            .clipShape(Circle())
+    }
     private var groupSelector: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 12) {

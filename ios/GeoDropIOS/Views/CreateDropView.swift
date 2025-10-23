@@ -16,7 +16,10 @@ struct CreateDropView: View {
     @State private var mediaMimeType: String?
 
     var body: some View {
-        NavigationView {
+        GeoDropNavigationContainer(
+            subtitle: "New drop",
+            trailing: { submitAction }
+        ) {
             Form {
                 Section(header: Text("Message")) {
                     TextField("Headline", text: $text)
@@ -57,14 +60,26 @@ struct CreateDropView: View {
                     }
                 }
             }
-            .geoDropNavigationTitle(subtitle: "New drop")
-            .navigationBarItems(trailing:
-                Button("Drop") { Task { await submit() } }
-                    .disabled(!canSubmit)
-            )
         }
     }
-
+    
+    private var submitAction: some View {
+        Button {
+            Task { await submit() }
+        } label: {
+            Text("Drop")
+                .font(.callout.weight(.semibold))
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(canSubmit ? Color.accentColor : Color.accentColor.opacity(0.35))
+                .foregroundColor(.white)
+                .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .disabled(!canSubmit)
+        .opacity(canSubmit ? 1 : 0.6)
+    }
+    
     private var canSubmit: Bool {
         if contentType == .photo && mediaData == nil { return false }
         return !(viewModel.selectedGroupCode?.isEmpty ?? true)

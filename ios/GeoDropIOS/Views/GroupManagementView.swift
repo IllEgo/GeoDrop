@@ -7,7 +7,14 @@ struct GroupManagementView: View {
     @State private var allowCreate: Bool = false
 
     var body: some View {
-        NavigationView {
+        GeoDropNavigationContainer(
+            subtitle: "Groups",
+            trailing: {
+                Button("Close", action: dismiss.callAsFunction)
+                    .font(.callout.weight(.semibold))
+                    .foregroundColor(.accentColor)
+            }
+        ) {
             Form {
                 Section(header: Text("Join a group")) {
                     TextField("Group code", text: $groupCode)
@@ -41,12 +48,6 @@ struct GroupManagementView: View {
                             }
                         }
                     }
-                }
-            }
-            .geoDropNavigationTitle(subtitle: "Groups")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close", action: dismiss.callAsFunction)
                 }
             }
         }
