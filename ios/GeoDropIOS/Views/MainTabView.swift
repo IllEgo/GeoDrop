@@ -5,9 +5,9 @@ struct MainTabView: View {
 
     var body: some View {
         TabView {
-            DropFeedView()
+            ProfileView()
                 .tabItem {
-                    Label("Discover", systemImage: "map")
+                    Label("Profile", systemImage: "person.circle")
                 }
 
             CreateDropView()
@@ -15,9 +15,9 @@ struct MainTabView: View {
                     Label("Drop", systemImage: "plus.circle")
                 }
 
-            ProfileView()
+            GroupManagementView(showsCloseButton: false)
                 .tabItem {
-                    Label("Profile", systemImage: "person.circle")
+                    Label("Groups", systemImage: "person.3")
                 }
         }
     }

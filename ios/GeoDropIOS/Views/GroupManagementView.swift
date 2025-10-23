@@ -5,14 +5,21 @@ struct GroupManagementView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var groupCode: String = ""
     @State private var allowCreate: Bool = false
+    private let showsCloseButton: Bool
 
+    init(showsCloseButton: Bool = true) {
+        self.showsCloseButton = showsCloseButton
+    }
+    
     var body: some View {
         GeoDropNavigationContainer(
             subtitle: "Groups",
             trailing: {
-                Button("Close", action: dismiss.callAsFunction)
-                    .font(.callout.weight(.semibold))
-                    .foregroundColor(.accentColor)
+                if showsCloseButton {
+                    Button("Close", action: dismiss.callAsFunction)
+                        .font(.callout.weight(.semibold))
+                        .foregroundColor(.accentColor)
+                }
             }
         ) {
             Form {
