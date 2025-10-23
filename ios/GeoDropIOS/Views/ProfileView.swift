@@ -70,6 +70,31 @@ struct ProfileView: View {
                             viewModel.signOut()
                         }
                     }
+                } else if viewModel.userMode == .guest {
+                    Section {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("You're exploring as a guest.")
+                                .font(.headline)
+                            Text("Sign in to personalize your profile, join groups, and participate in drops.")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.vertical, 4)
+                    }
+
+                    Section(header: Text("Upgrade your account")) {
+                        Button {
+                            viewModel.beginAuthentication(for: .explorer)
+                        } label: {
+                            Label("Sign in as Explorer", systemImage: "figure.walk")
+                        }
+
+                        Button {
+                            viewModel.beginAuthentication(for: .business)
+                        } label: {
+                            Label("Sign in as Business", systemImage: "briefcase.fill")
+                        }
+                    }
                 }
             }
         }
