@@ -262,6 +262,7 @@ final class AppViewModel: ObservableObject {
             createdAt: Date(),
             dropperUsername: session.profile.username,
             isAnonymous: request.isAnonymous,
+            decayDays: request.decayDays,
             groupCode: groupCode,
             dropType: request.dropType,
             businessId: session.profile.role == .business ? session.user.uid : nil,
@@ -270,8 +271,7 @@ final class AppViewModel: ObservableObject {
             mediaData: nil,
             isNsfw: false,
             redemptionCode: request.redemptionCode,
-            redemptionLimit: request.redemptionLimit,
-            decayDays: request.decayDays
+            redemptionLimit: request.redemptionLimit
         )
 
         var safeSearchPayload: String?
