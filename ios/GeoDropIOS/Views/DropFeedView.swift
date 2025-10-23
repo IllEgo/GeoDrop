@@ -227,9 +227,14 @@ struct DropRowView: View {
     let onSelect: () -> Void
     @State private var showingDetail = false
     @State private var isExpanded = false
+    @State private var infoAlertMessage: String?
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        let likePermission = viewModel.likePermission(for: drop)
+        let hasCollected = viewModel.hasCollected(drop: drop)
+        let shouldHideContent = viewModel.shouldHideContent(for: drop)
+
+        return VStack(alignment: .leading, spacing: 12) {
             Button {
                 onSelect()
                 withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
@@ -267,15 +272,19 @@ struct DropRowView: View {
 
             if isExpanded {
                 VStack(alignment: .leading, spacing: 12) {
-                    if hasMediaPreview {
-                        mediaPreview
-                            .transition(.opacity.combined(with: .move(edge: .top)))
-                    }
+                    if shouldHideContent {
+                        nsfwNotice
+                    } else {
+                        if hasMediaPreview {
+                            mediaPreview
+                                .transition(.opacity.combined(with: .move(edge: .top)))
+                        }
 
-                    if let description = expandedDescriptionText, description != headerDescriptionText {
-                        Text(description)
-                            .font(.body)
-                            .foregroundColor(.primary)
+                        if let description = expandedDescriptionText, description != headerDescriptionText {
+                            Text(description)
+                                .font(.body)
+                                .foregroundColor(.primary)
+                        }
                     }
 
                     HStack(spacing: 16) {
@@ -284,9 +293,9 @@ struct DropRowView: View {
                         }
                         .buttonStyle(.borderless)
 
-                        Button("Collect", action: markCollected)
+                        Button(hasCollected ? "Collected" : "Collect", action: markCollected)
                             .buttonStyle(.bordered)
-                        
+                            .disabled(hasCollected)
                 
                         Spacer()
 
@@ -296,8 +305,15 @@ struct DropRowView: View {
                         }
                         .font(.subheadline)
                     }
+                    
+                    if !likePermission.allowed, let message = likePermission.message {
+                        Text(message)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
                 }
-                .transition(.opacity)            }
+                .transition(.opacity)
+            }
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -316,6 +332,14 @@ struct DropRowView: View {
             DropDetailView(drop: drop)
                 .environmentObject(viewModel)
         }
+        .alert("Notice", isPresented: Binding(
+            get: { infoAlertMessage != nil },
+            set: { if !$0 { infoAlertMessage = nil } }
+        )) {
+            Button("OK", role: .cancel) { infoAlertMessage = nil }
+        } message: {
+            Text(infoAlertMessage ?? "")
+        }
     }
 
     private var currentUserId: String? {
@@ -326,11 +350,19 @@ struct DropRowView: View {
     }
 
     private func toggleLike() {
+        let permission = viewModel.likePermission(for: drop)
+        guard permission.allowed else {
+            if let message = permission.message {
+                infoAlertMessage = message
+            }
+            return
+        }
         let status = drop.isLiked(by: currentUserId) == .liked ? DropLikeStatus.none : .liked
         viewModel.like(drop: drop, status: status)
     }
 
     private func markCollected() {
+        guard !viewModel.hasCollected(drop: drop) else { return }
         viewModel.markCollected(drop: drop)
     }
     
@@ -347,6 +379,22 @@ struct DropRowView: View {
 
     private var headerDescriptionText: String? {
         drop.description?.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    
+    private var nsfwNotice: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Adult content hidden", systemImage: "eye.slash")
+                .font(.subheadline.weight(.semibold))
+                .foregroundColor(.secondary)
+            Text("Enable adult content in Profile settings to view this drop.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(uiColor: .tertiarySystemBackground))
+        )
     }
 
     private var hasMediaPreview: Bool {

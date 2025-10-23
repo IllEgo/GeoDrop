@@ -30,6 +30,31 @@ final class AppViewModel: ObservableObject {
         let email: String?
         let displayName: String?
     }
+    
+    struct LikePermission {
+        let allowed: Bool
+        let message: String?
+    }
+
+    enum DropActionError: LocalizedError {
+        case notSignedIn
+        case invalidInput(String)
+        case missingDrop
+        case missingCreator
+
+        var errorDescription: String? {
+            switch self {
+            case .notSignedIn:
+                return "Sign in to continue."
+            case .invalidInput(let message):
+                return message
+            case .missingDrop:
+                return "Drop information is missing."
+            case .missingCreator:
+                return "Creator information is unavailable."
+            }
+        }
+    }
 
     @Published private(set) var authState: AuthState = .loading
     @Published private(set) var userMode: UserMode?
@@ -38,6 +63,7 @@ final class AppViewModel: ObservableObject {
     @Published var groups: [GroupMembership] = []
     @Published var selectedGroupCode: String?
     @Published var drops: [Drop] = []
+    @Published private(set) var blockedCreatorIDs: Set<String> = []
     @Published var allowNsfw: Bool = false
     @Published var errorMessage: String?
     @Published var isPerformingAction: Bool = false
@@ -56,6 +82,7 @@ final class AppViewModel: ObservableObject {
     private var dropsListener: ListenerRegistration?
     private var cancellables: Set<AnyCancellable> = []
     private let defaults: UserDefaults
+    private var localCollectedDropIDs: Set<String> = []
 
     private enum DefaultsKeys {
         static let acceptedTerms = "geodrop.termsAccepted"
@@ -79,6 +106,13 @@ final class AppViewModel: ObservableObject {
         } else {
             self.userMode = nil
         }
+    }
+    
+    var currentUserID: String? {
+        if case let .signedIn(session) = authState {
+            return session.user.uid
+        }
+        return nil
     }
 
     func bootstrap() {
@@ -230,7 +264,12 @@ final class AppViewModel: ObservableObject {
             allowNsfw: allowNsfw
         ) { [weak self] drops in
             DispatchQueue.main.async {
-                self?.drops = drops
+                guard let self = self else { return }
+                let filtered = drops.filter { drop in
+                    let creator = drop.createdBy.trimmingCharacters(in: .whitespacesAndNewlines)
+                    return creator.isEmpty || !self.blockedCreatorIDs.contains(creator)
+                }
+                self.drops = filtered
             }
         }
     }
@@ -348,9 +387,12 @@ final class AppViewModel: ObservableObject {
 
     func like(drop: Drop, status: DropLikeStatus) {
         guard case let .signedIn(session) = authState else { return }
+        let permission = likePermission(for: drop)
+        guard permission.allowed else { return }
+        let userId = session.user.uid
         Task {
             do {
-                try await firestore.setDropLike(dropId: drop.id, userId: session.user.uid, status: status)
+                try await firestore.setDropLike(dropId: drop.id, userId: userId, status: status)
             } catch {
                 await MainActor.run {
                     self.errorMessage = error.localizedDescription
@@ -364,6 +406,12 @@ final class AppViewModel: ObservableObject {
         Task {
             do {
                 try await firestore.markDropCollected(dropId: drop.id, userId: session.user.uid)
+                await MainActor.run {
+                    self.localCollectedDropIDs.insert(drop.id)
+                    self.mutateDrop(withId: drop.id) { value in
+                        value.collectedBy[session.user.uid] = true
+                    }
+                }
             } catch {
                 await MainActor.run {
                     self.errorMessage = error.localizedDescription
@@ -372,17 +420,130 @@ final class AppViewModel: ObservableObject {
         }
     }
 
-    func report(drop: Drop, reasons: [String], context: [String: Any] = [:]) {
-        guard case let .signedIn(session) = authState else { return }
-        Task {
-            do {
-                try await firestore.submitReport(dropId: drop.id, reporterId: session.user.uid, reasonCodes: reasons, context: context)
-            } catch {
-                await MainActor.run {
-                    self.errorMessage = error.localizedDescription
+    func report(drop: Drop, reasonCodes: Set<String>, additionalContext: [String: Any] = [:]) async -> Result<Void, Error> {
+        guard let userId = currentUserID else {
+            return .failure(DropActionError.notSignedIn)
+        }
+        let sanitizedReasons = reasonCodes
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        guard !sanitizedReasons.isEmpty else {
+            return .failure(DropActionError.invalidInput("Select at least one reason."))
+        }
+
+        do {
+            try await firestore.submitReport(
+                dropId: drop.id,
+                reporterId: userId,
+                reasonCodes: sanitizedReasons,
+                context: additionalContext
+            )
+            mutateDrop(withId: drop.id) { value in
+                let already = value.reportedBy[userId] != nil
+                value.reportedBy[userId] = Date().timeIntervalSince1970
+                if !already {
+                    value.reportCount += 1
                 }
             }
+            return .success(())
+        } catch {
+            return .failure(error)
         }
+    }
+    
+    func redeem(drop: Drop, code: String) async -> RedemptionResult {
+        guard let userId = currentUserID else {
+            return .error("Sign in to redeem offers.")
+        }
+        let trimmed = code.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return .invalidCode }
+        do {
+            let result = try await firestore.redeemDrop(dropId: drop.id, userId: userId, providedCode: trimmed)
+            if case let .success(count, _, redeemedAt) = result {
+                mutateDrop(withId: drop.id) { value in
+                    value.redemptionCount = count
+                    value.redeemedBy[userId] = redeemedAt
+                }
+            }
+            return result
+        } catch {
+            return .error(error.localizedDescription)
+        }
+    }
+
+    func blockCreator(of drop: Drop) async -> Result<Void, Error> {
+        guard let userId = currentUserID else {
+            return .failure(DropActionError.notSignedIn)
+        }
+        let creatorId = drop.createdBy.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !creatorId.isEmpty else {
+            return .failure(DropActionError.missingCreator)
+        }
+        if creatorId == userId {
+            return .failure(DropActionError.invalidInput("You can't block your own drops."))
+        }
+
+        do {
+            try await firestore.blockDropCreator(userId: userId, creatorId: creatorId)
+            blockedCreatorIDs.insert(creatorId)
+            drops.removeAll { current in
+                current.createdBy.trimmingCharacters(in: .whitespacesAndNewlines) == creatorId
+            }
+            return .success(())
+        } catch {
+            return .failure(error)
+        }
+    }
+
+    // MARK: - Drop Helpers
+
+    func hasCollected(drop: Drop) -> Bool {
+        guard let userId = currentUserID else { return false }
+        if localCollectedDropIDs.contains(drop.id) { return true }
+        if drop.collectedBy[userId] == true {
+            localCollectedDropIDs.insert(drop.id)
+            return true
+        }
+        return false
+    }
+
+    func shouldHideContent(for drop: Drop) -> Bool {
+        guard drop.isNsfw else { return false }
+        if let ownerId = currentUserID, ownerId == drop.createdBy {
+            return false
+        }
+        return !allowNsfw
+    }
+
+    func likePermission(for drop: Drop) -> LikePermission {
+        guard let userId = currentUserID else {
+            return LikePermission(allowed: false, message: "Sign in to like drops.")
+        }
+        if let mode = userMode, !mode.canParticipate {
+            return LikePermission(allowed: false, message: "Upgrade to a full account to like drops.")
+        }
+        if drop.createdBy == userId {
+            return LikePermission(allowed: false, message: "You can't like your own drop.")
+        }
+        if shouldHideContent(for: drop) {
+            return LikePermission(allowed: false, message: "Enable adult content in Profile to interact with this drop.")
+        }
+        guard hasCollected(drop: drop) else {
+            return LikePermission(allowed: false, message: "Collect this drop to like it.")
+        }
+        return LikePermission(allowed: true, message: nil)
+    }
+
+    func isOwner(of drop: Drop) -> Bool {
+        guard let userId = currentUserID else { return false }
+        return drop.createdBy == userId
+    }
+
+    private func mutateDrop(withId id: Drop.ID, apply: (inout Drop) -> Void) {
+        guard let index = drops.firstIndex(where: { $0.id == id }) else { return }
+        var updated = drops[index]
+        apply(&updated)
+        drops[index] = updated
     }
 
     // MARK: - Groups
@@ -509,6 +670,8 @@ final class AppViewModel: ObservableObject {
             groups = []
             drops = []
             selectedGroupCode = nil
+            blockedCreatorIDs = []
+            localCollectedDropIDs = []
             authState = .signedOut
             isAuthenticating = false
             isGoogleSigningIn = false
@@ -525,6 +688,7 @@ final class AppViewModel: ObservableObject {
         do {
             let profile = try await firestore.ensureUserProfile(userId: user.uid, displayName: user.displayName)
             let memberships = try await firestore.fetchUserGroupMemberships(userId: user.uid)
+            let blocked = try await firestore.fetchBlockedCreators(userId: user.uid)
             let session = UserSession(
                 user: AuthenticatedUser(uid: user.uid, email: user.email, displayName: user.displayName),
                 profile: profile
@@ -532,6 +696,8 @@ final class AppViewModel: ObservableObject {
             allowNsfw = profile.nsfwEnabled
             groups = memberships
             selectedGroupCode = memberships.first?.code
+            blockedCreatorIDs = blocked
+            localCollectedDropIDs = []
             authState = .signedIn(session)
             pendingAccountRole = nil
             resetAuthFlowMessages()

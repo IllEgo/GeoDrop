@@ -197,6 +197,112 @@ final class FirestoreService {
             })
         }
     }
+    
+    func redeemDrop(dropId: String, userId: String, providedCode: String) async throws -> RedemptionResult {
+        guard !dropId.isEmpty, !userId.isEmpty else { return .error("Missing identifiers") }
+        let trimmed = providedCode.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return .invalidCode }
+
+        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<RedemptionResult, Error>) in
+            self.db.runTransaction({ transaction, errorPointer -> Any? in
+                do {
+                    let docRef = self.drops.document(dropId)
+                    let snapshot = try transaction.getDocument(docRef)
+                    guard snapshot.exists else {
+                        return RedemptionResult.notEligible
+                    }
+
+                    let rawType = snapshot.get("dropType") as? String ?? ""
+                    let dropType = DropType(rawValue: rawType.uppercased()) ?? .community
+                    guard dropType == .restaurantCoupon else {
+                        return RedemptionResult.notEligible
+                    }
+
+                    let storedCode = (snapshot.get("redemptionCode") as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard let redemptionCode = storedCode, !redemptionCode.isEmpty else {
+                        return RedemptionResult.notEligible
+                    }
+
+                    guard redemptionCode == trimmed else {
+                        return RedemptionResult.invalidCode
+                    }
+
+                    let redeemedPath = FieldPath(["redeemedBy", userId])
+                    if snapshot.get(redeemedPath) != nil {
+                        return RedemptionResult.alreadyRedeemed
+                    }
+
+                    let limitValue = snapshot.get("redemptionLimit") as? Int
+                        ?? (snapshot.get("redemptionLimit") as? NSNumber)?.intValue
+                    let currentCount = snapshot.get("redemptionCount") as? Int
+                        ?? (snapshot.get("redemptionCount") as? NSNumber)?.intValue
+                        ?? 0
+                    if let limit = limitValue, currentCount >= limit {
+                        return RedemptionResult.outOfRedemptions
+                    }
+
+                    let updatedCount = currentCount + 1
+                    let redeemedAt = Date().timeIntervalSince1970
+                    let updates: [String: Any] = [
+                        "redemptionCount": updatedCount,
+                        "redeemedBy.\(userId)": redeemedAt
+                    ]
+                    transaction.updateData(updates, forDocument: docRef)
+
+                    return RedemptionResult.success(
+                        count: updatedCount,
+                        limit: limitValue,
+                        redeemedAt: redeemedAt
+                    )
+                } catch {
+                    errorPointer?.pointee = error as NSError
+                    return nil
+                }
+            }, completion: { result, error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                } else if let redemptionResult = result as? RedemptionResult {
+                    continuation.resume(returning: redemptionResult)
+                } else {
+                    continuation.resume(throwing: FirestoreError.missingSnapshot)
+                }
+            })
+        }
+    }
+
+    func blockDropCreator(userId: String, creatorId: String) async throws {
+        let sanitizedUser = userId.trimmingCharacters(in: .whitespacesAndNewlines)
+        let sanitizedCreator = creatorId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !sanitizedUser.isEmpty, !sanitizedCreator.isEmpty else { return }
+
+        let data: [String: Any] = [
+            "creatorId": sanitizedCreator,
+            "blockedAt": Date().timeIntervalSince1970
+        ]
+
+        try await setDocument(
+            users.document(sanitizedUser)
+                .collection("blockedCreators")
+                .document(sanitizedCreator),
+            data: data
+        )
+    }
+
+    func fetchBlockedCreators(userId: String) async throws -> Set<String> {
+        let trimmed = userId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+        let snapshot = try await getDocuments(users.document(trimmed).collection("blockedCreators"))
+        let identifiers: [String] = snapshot.documents.compactMap { doc in
+            let documentId = doc.documentID.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !documentId.isEmpty { return documentId }
+            if let stored = doc.get("creatorId") as? String {
+                let sanitized = stored.trimmingCharacters(in: .whitespacesAndNewlines)
+                return sanitized.isEmpty ? nil : sanitized
+            }
+            return nil
+        }
+        return Set(identifiers)
+    }
 
     func submitReport(dropId: String, reporterId: String, reasonCodes: [String], context: [String: Any] = [:]) async throws {
         guard !dropId.isEmpty, !reporterId.isEmpty else { return }
@@ -547,4 +653,13 @@ extension FirestoreService {
             }
         }
     }
+}
+
+enum RedemptionResult: Equatable {
+    case success(count: Int, limit: Int?, redeemedAt: TimeInterval)
+    case invalidCode
+    case alreadyRedeemed
+    case outOfRedemptions
+    case notEligible
+    case error(String)
 }

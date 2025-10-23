@@ -1,4 +1,7 @@
 import SwiftUI
+import MapKit
+import AVKit
+import AVFoundation
 
 struct DropDetailView: View {
     @EnvironmentObject private var viewModel: AppViewModel
@@ -7,8 +10,18 @@ struct DropDetailView: View {
     @State private var detailShouldAnimate = false
     @State private var detailSelectedDropID: Drop.ID?
     @Environment(\.dismiss) private var dismiss
-    @State private var reportReason: String = ""
+    
     @State private var showingReport = false
+    @State private var selectedReportReasons: Set<String> = []
+    @State private var isSubmittingReport = false
+    @State private var reportErrorMessage: String?
+    @State private var actionStatusMessage: String?
+    @State private var infoAlertMessage: String?
+    @State private var redemptionCodeInput: String = ""
+    @State private var redemptionStatusMessage: String?
+    @State private var redemptionErrorMessage: String?
+    @State private var isRedeeming = false
+    @State private var isBlockingCreator = false
     
     init(drop: Drop) {
         self.drop = drop
@@ -23,7 +36,17 @@ struct DropDetailView: View {
     }
     
     var body: some View {
-        GeoDropNavigationContainer(
+        let resolvedDrop = viewModel.drops.first(where: { $0.id == drop.id }) ?? drop
+        let likePermission = viewModel.likePermission(for: resolvedDrop)
+        let hasCollected = viewModel.hasCollected(drop: resolvedDrop)
+        let shouldHideContent = viewModel.shouldHideContent(for: resolvedDrop)
+        let userId = viewModel.currentUserID
+        let alreadyReported = userId.flatMap { resolvedDrop.reportedBy[$0] != nil } ?? false
+        let alreadyRedeemed = resolvedDrop.isRedeemed(by: userId)
+        let canParticipate = viewModel.userMode?.canParticipate ?? false
+        let isOwner = viewModel.isOwner(of: resolvedDrop)
+
+        return GeoDropNavigationContainer(
             subtitle: "Drop",
             trailing: {
                 Button("Close", action: dismiss.callAsFunction)
@@ -32,70 +55,732 @@ struct DropDetailView: View {
             }
         ) {
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    Text(drop.displayTitle)
-                        .font(.title)
-                        .fontWeight(.bold)
+                VStack(alignment: .leading, spacing: 20) {
+                    headerSection(for: resolvedDrop)
 
-                    if let description = drop.description, !description.isEmpty {
-                        Text(description)
+                    if shouldHideContent {
+                        nsfwNotice(labels: resolvedDrop.nsfwLabels)
+                    } else {
+                        descriptionSection(for: resolvedDrop)
+                        mediaSection(for: resolvedDrop)
                     }
-                    
-                    GoogleMapView(
-                        drops: [drop],
-                        selectedDropID: $detailSelectedDropID,
-                        cameraState: $detailCameraState,
-                        shouldAnimateCamera: $detailShouldAnimate,
-                        isInteractionEnabled: false
+
+                    mapSection(for: resolvedDrop)
+
+                    actionButtons(for: resolvedDrop, likePermission: likePermission, hasCollected: hasCollected)
+
+                    shareSection(for: resolvedDrop)
+
+                    if resolvedDrop.requiresRedemption() {
+                        redemptionSection(
+                            for: resolvedDrop,
+                            alreadyRedeemed: alreadyRedeemed,
+                            canParticipate: canParticipate
+                        )
+                    }
+
+                    moderationSection(
+                        for: resolvedDrop,
+                        alreadyReported: alreadyReported,
+                        isOwner: isOwner,
+                        canParticipate: canParticipate
                     )
-                    .frame(height: 200)
-                    .cornerRadius(12)
 
-                    if let url = drop.mediaURL {
-                        Link("Open media", destination: url)
+                    if let message = actionStatusMessage {
+                        statusBanner(message)
                     }
-
-                    if drop.requiresRedemption() {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Redemption details")
-                                .font(.headline)
-                            if let code = drop.redemptionCode {
-                                Text("Code: \(code)")
-                            }
-                            if let limit = drop.redemptionLimit {
-                                Text("Redemptions left: \(max(limit - drop.redemptionCount, 0))")
-                            }
-                        }
-                    }
-
-                    Button("Report drop") { showingReport = true }
-                        .buttonStyle(.bordered)
-                        .padding(.top)
                 }
                 .padding()
             }
         }
         .sheet(isPresented: $showingReport) {
-            GeoDropNavigationContainer(
-                subtitle: "Report drop",
-                trailing: {
-                    Button("Cancel") { showingReport = false }
-                        .font(.callout.weight(.semibold))
+            reportSheet(for: resolvedDrop)
+        }
+        .alert("Notice", isPresented: Binding(
+            get: { infoAlertMessage != nil },
+            set: { if !$0 { infoAlertMessage = nil } }
+        )) {
+            Button("OK", role: .cancel) { infoAlertMessage = nil }
+        } message: {
+            Text(infoAlertMessage ?? "")
+        }
+    }
+
+    private func headerSection(for drop: Drop) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(drop.displayTitle)
+                .font(.title)
+                .fontWeight(.bold)
+            if let businessName = drop.businessName, !businessName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Text(businessName)
+                    .font(.headline)
+                    .foregroundColor(.secondary)
+            }
+            Text(drop.createdAt, style: .date)
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private func descriptionSection(for drop: Drop) -> some View {
+        if let description = drop.description?.trimmingCharacters(in: .whitespacesAndNewlines), !description.isEmpty {
+            Text(description)
+                .font(.body)
+                .foregroundColor(.primary)
+        }
+    }
+
+    @ViewBuilder
+    private func mediaSection(for drop: Drop) -> some View {
+        switch drop.contentType {
+        case .photo:
+            if let url = drop.mediaURL {
+                AsyncImage(url: url, transaction: Transaction(animation: .easeInOut)) { phase in
+                    switch phase {
+                    case .empty:
+                        ProgressView()
+                            .frame(maxWidth: .infinity, minHeight: 220)
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .scaledToFill()
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 260)
+                            .clipped()
+                            .cornerRadius(16)
+                    case .failure:
+                        fallbackMediaPlaceholder(label: "Unable to load image")
+                    @unknown default:
+                        fallbackMediaPlaceholder(label: "Unable to load image")
+                    }
+                }
+            }
+        case .video:
+            if let url = drop.mediaURL {
+                InlineVideoPlayer(url: url)
+                    .frame(height: 260)
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16)
+                            .stroke(Color.secondary.opacity(0.2))
+                    )
+            } else {
+                fallbackMediaPlaceholder(label: "Video unavailable")
+            }
+        case .audio:
+            DropAudioPlayerView(url: drop.mediaURL, inlineBase64: drop.mediaData)
+        case .text:
+            EmptyView()
+        }
+    }
+
+    private func fallbackMediaPlaceholder(label: String) -> some View {
+        RoundedRectangle(cornerRadius: 16)
+            .fill(Color(uiColor: .tertiarySystemBackground))
+            .frame(height: 220)
+            .overlay {
+                VStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.title2)
+                        .foregroundColor(.secondary)
+                    Text(label)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+    }
+
+    private func mapSection(for drop: Drop) -> some View {
+        GoogleMapView(
+            drops: [drop],
+            selectedDropID: $detailSelectedDropID,
+            cameraState: $detailCameraState,
+            shouldAnimateCamera: $detailShouldAnimate,
+            isInteractionEnabled: false
+        )
+        .frame(height: 200)
+        .cornerRadius(16)
+    }
+
+    private func actionButtons(for drop: Drop, likePermission: AppViewModel.LikePermission, hasCollected: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 12) {
+                Button {
+                    handleLike(drop)
+                } label: {
+                    Label(
+                        drop.isLiked(by: viewModel.currentUserID) == .liked ? "Liked" : "Like",
+                        systemImage: drop.isLiked(by: viewModel.currentUserID) == .liked ? "hand.thumbsup.fill" : "hand.thumbsup"
+                    )
+                }
+                .buttonStyle(.borderedProminent)
+
+                Button {
+                    handleCollect(drop)
+                } label: {
+                    Label(hasCollected ? "Collected" : "Collect", systemImage: hasCollected ? "checkmark.circle" : "tray.and.arrow.down")
+                }
+                .buttonStyle(.bordered)
+                .disabled(hasCollected)
+            }
+
+            if !likePermission.allowed, let message = likePermission.message {
+                Text(message)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
+
+    private func shareSection(for drop: Drop) -> some View {
+        HStack(spacing: 12) {
+            if let shareText = shareText(for: drop) {
+                ShareLink(item: shareText) {
+                    Label("Share", systemImage: "square.and.arrow.up")
+                }
+                .buttonStyle(.bordered)
+            }
+
+            Button {
+                openInMaps(for: drop)
+            } label: {
+                Label("Open in Maps", systemImage: "map")
+            }
+            .buttonStyle(.bordered)
+        }
+    }
+
+    private func redemptionSection(for drop: Drop, alreadyRedeemed: Bool, canParticipate: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Business redemption")
+                .font(.headline)
+
+            if let limit = drop.redemptionLimit {
+                let remaining = max(limit - drop.redemptionCount, 0)
+                Text("Redemptions left: \(remaining)")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            }
+
+            if alreadyRedeemed {
+                Text("You've already redeemed this offer.")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            } else {
+                TextField("Enter redemption code", text: $redemptionCodeInput)
+                    .textFieldStyle(.roundedBorder)
+                    .disabled(!canParticipate || viewModel.currentUserID == nil)
+
+                Button {
+                    redeem(drop)
+                } label: {
+                    if isRedeeming {
+                        ProgressView()
+                            .progressViewStyle(.circular)
+                    } else {
+                        Text("Redeem offer")
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(isRedeeming || !canParticipate || viewModel.currentUserID == nil)
+            }
+
+            if let redemptionStatusMessage {
+                Text(redemptionStatusMessage)
+                    .font(.subheadline)
+                    .foregroundColor(.green)
+            }
+
+            if let redemptionErrorMessage {
+                Text(redemptionErrorMessage)
+                    .font(.subheadline)
+                    .foregroundColor(.red)
+            }
+
+            if !canParticipate || viewModel.currentUserID == nil {
+                Text("Sign in with a full account to redeem offers.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(uiColor: .tertiarySystemBackground))
+        )
+    }
+
+    private func moderationSection(for drop: Drop, alreadyReported: Bool, isOwner: Bool, canParticipate: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Keep GeoDrop welcoming")
+                .font(.headline)
+
+            HStack(spacing: 12) {
+                Button {
+                    startReport(for: drop, alreadyReported: alreadyReported, isOwner: isOwner, canParticipate: canParticipate)
+                } label: {
+                    Label(alreadyReported ? "Reported" : "Report", systemImage: "exclamationmark.bubble")
+                }
+                .buttonStyle(.bordered)
+                .disabled(isSubmittingReport)
+
+                if !isOwner {
+                    Button {
+                        blockCreator(drop, canParticipate: canParticipate)
+                    } label: {
+                        if isBlockingCreator {
+                            ProgressView()
+                                .progressViewStyle(.circular)
+                        } else {
+                            Label("Block creator", systemImage: "hand.raised")
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(isBlockingCreator)
+                }
+            }
+
+            if alreadyReported {
+                Text("Thanks for your report. We'll review it soon.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            if viewModel.currentUserID == nil {
+                Text("Sign in to report or block this creator.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            } else if !canParticipate {
+                Text("Upgrade to a full account to moderate drops.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
+
+    private func statusBanner(_ message: String) -> some View {
+        Text(message)
+            .font(.subheadline)
+            .padding()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color.accentColor.opacity(0.12))
+            )
+    }
+
+    private func nsfwNotice(labels: [String]) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Adult content hidden", systemImage: "eye.slash")
+                .font(.headline)
+            Text("Enable adult content in Profile settings to view this drop.")
+                .font(.body)
+                .foregroundColor(.primary)
+            if !labels.isEmpty {
+                Text("Flagged because: \(labels.joined(separator: ", "))")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(uiColor: .tertiarySystemBackground))
+        )
+    }
+
+    private func shareText(for drop: Drop) -> String? {
+        let trimmedDescription = drop.description?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let descriptionComponent = (trimmedDescription?.isEmpty == false) ? trimmedDescription : nil
+        var components: [String] = [drop.displayTitle]
+        if let descriptionComponent {
+            components.append(descriptionComponent)
+        }
+        if let mapUrl = mapURL(for: drop) {
+            components.append(mapUrl.absoluteString)
+        } else {
+            components.append("Lat: \(drop.latitude), Lng: \(drop.longitude)")
+        }
+        return components.joined(separator: "
+
+")
+    }
+
+    private func mapURL(for drop: Drop) -> URL? {
+        var components = URLComponents(string: "https://maps.apple.com/")
+        components?.queryItems = [
+            URLQueryItem(name: "ll", value: "\(drop.latitude),\(drop.longitude)"),
+            URLQueryItem(name: "q", value: drop.displayTitle.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed))
+        ]
+        return components?.url
+    }
+
+    private func openInMaps(for drop: Drop) {
+        let coordinate = CLLocationCoordinate2D(latitude: drop.latitude, longitude: drop.longitude)
+        let placemark = MKPlacemark(coordinate: coordinate)
+        let mapItem = MKMapItem(placemark: placemark)
+        mapItem.name = drop.displayTitle
+        mapItem.openInMaps(launchOptions: [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDriving])
+    }
+
+    private func handleLike(_ drop: Drop) {
+        let permission = viewModel.likePermission(for: drop)
+        guard permission.allowed else {
+            if let message = permission.message {
+                infoAlertMessage = message
+            }
+            return
+        }
+        let isLiked = drop.isLiked(by: viewModel.currentUserID) == .liked
+        viewModel.like(drop: drop, status: isLiked ? .none : .liked)
+    }
+
+    private func handleCollect(_ drop: Drop) {
+        guard !viewModel.hasCollected(drop: drop) else { return }
+        viewModel.markCollected(drop: drop)
+    }
+
+    private func startReport(for drop: Drop, alreadyReported: Bool, isOwner: Bool, canParticipate: Bool) {
+        guard let _ = viewModel.currentUserID else {
+            infoAlertMessage = "Sign in to report drops."
+            return
+        }
+        guard canParticipate else {
+            infoAlertMessage = "Upgrade to a full account to report drops."
+            return
+        }
+        guard !isOwner else {
+            infoAlertMessage = "You created this drop."
+            return
+        }
+        guard !alreadyReported else {
+            infoAlertMessage = "Thanks for your report. We'll review it soon."
+            return
+        }
+        selectedReportReasons = []
+        reportErrorMessage = nil
+        showingReport = true
+    }
+
+    private func submitReport(for drop: Drop) {
+        if selectedReportReasons.isEmpty {
+            reportErrorMessage = "Select at least one reason."
+            return
+        }
+        reportErrorMessage = nil
+        isSubmittingReport = true
+        Task { @MainActor in
+            let result = await viewModel.report(drop: drop, reasonCodes: selectedReportReasons)
+            isSubmittingReport = false
+            switch result {
+            case .success:
+                actionStatusMessage = "Thanks for your report. We'll review it soon."
+                showingReport = false
+                selectedReportReasons = []
+            case .failure(let error):
+                let message = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+                reportErrorMessage = message.isEmpty ? "Couldn't submit report. Try again." : message
+            }
+        }
+    }
+
+    private func redeem(_ drop: Drop) {
+        let trimmed = redemptionCodeInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            redemptionErrorMessage = "Enter the code shared by the business."
+            redemptionStatusMessage = nil
+            return
+        }
+        redemptionErrorMessage = nil
+        redemptionStatusMessage = nil
+        isRedeeming = true
+        Task { @MainActor in
+            let result = await viewModel.redeem(drop: drop, code: trimmed)
+            isRedeeming = false
+            switch result {
+            case let .success(_, _, _):
+                redemptionStatusMessage = "Offer redeemed! Show this confirmation to the business."
+                redemptionErrorMessage = nil
+                redemptionCodeInput = ""
+            case .invalidCode:
+                redemptionErrorMessage = "That code didn't match. Try again."
+            case .alreadyRedeemed:
+                redemptionErrorMessage = "This offer was already redeemed for your account."
+            case .outOfRedemptions:
+                redemptionErrorMessage = "This offer has reached its redemption limit."
+            case .notEligible:
+                redemptionErrorMessage = "This drop cannot be redeemed."
+            case .error(let message):
+                let fallback = message.trimmingCharacters(in: .whitespacesAndNewlines)
+                redemptionErrorMessage = fallback.isEmpty ? "Couldn't complete redemption." : fallback
+            }
+        }
+    }
+
+    private func blockCreator(_ drop: Drop, canParticipate: Bool) {
+        guard let _ = viewModel.currentUserID else {
+            infoAlertMessage = "Sign in to block creators."
+            return
+        }
+        guard canParticipate else {
+            infoAlertMessage = "Upgrade to a full account to block creators."
+            return
+        }
+        guard !viewModel.isOwner(of: drop) else {
+            infoAlertMessage = "You can't block your own drop."
+            return
+        }
+        isBlockingCreator = true
+        Task { @MainActor in
+            let result = await viewModel.blockCreator(of: drop)
+            isBlockingCreator = false
+            switch result {
+            case .success:
+                actionStatusMessage = "Creator blocked. You won't see their drops anymore."
+            case .failure(let error):
+                let message = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+                infoAlertMessage = message.isEmpty ? "Couldn't block this creator. Try again." : message
+            }
+        }
+    }
+
+    private func reportSheet(for drop: Drop) -> some View {
+        ReportDropSheet(
+            reasons: defaultReportReasons,
+            selectedReasonCodes: $selectedReportReasons,
+            isSubmitting: isSubmittingReport,
+            errorMessage: reportErrorMessage,
+            onDismiss: {
+                if !isSubmittingReport {
+                    showingReport = false
+                }
+            },
+            onSubmit: {
+                submitReport(for: drop)
+            }
+        )
+        .presentationDetents([.medium, .large])
+    }
+}
+
+private struct InlineVideoPlayer: View {
+    let url: URL
+    @State private var player: AVPlayer?
+
+    var body: some View {
+        VideoPlayer(player: player)
+            .onAppear {
+                if player == nil {
+                    player = AVPlayer(url: url)
+                }
+            }
+            .onDisappear {
+                player?.pause()
+                player?.seek(to: .zero)
+            }
+    }
+}
+
+private struct DropAudioPlayerView: View {
+    let url: URL?
+    let inlineBase64: String?
+    @State private var player: AVPlayer?
+    @State private var tempURL: URL?
+    @State private var isPreparing = false
+    @State private var isPlaying = false
+    @State private var errorMessage: String?
+    @State private var playbackObserver: NSObjectProtocol?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 12) {
+                Button(action: togglePlayback) {
+                    Image(systemName: isPlaying ? "pause.circle.fill" : "play.circle.fill")
+                        .font(.system(size: 36))
                         .foregroundColor(.accentColor)
                 }
-            ) {
-                Form {
-                    Section(header: Text("Tell us what's wrong")) {
-                        TextField("Reason", text: $reportReason)
+                .disabled(isPreparing || (player == nil && errorMessage != nil))
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Audio drop")
+                        .font(.headline)
+                    if let errorMessage {
+                        Text(errorMessage)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    } else if isPlaying {
+                        Text("Playing…")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    } else {
+                        Text("Tap play to listen inline.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
                     }
-                    Button("Submit") {
-                        viewModel.report(drop: drop, reasons: [reportReason])
-                        reportReason = ""
-                        dismiss()
+                }
+                Spacer()
+            }
+
+            if isPreparing {
+                ProgressView()
+                    .progressViewStyle(.circular)
+            }
+        }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(uiColor: .tertiarySystemBackground))
+        )
+        .onDisappear {
+            stopPlayback()
+            cleanup()
+        }
+    }
+
+    private func togglePlayback() {
+        if player == nil {
+            preparePlayerIfNeeded()
+        }
+        guard let player = player else { return }
+        if isPlaying {
+            player.pause()
+            isPlaying = false
+        } else {
+            player.play()
+            isPlaying = true
+            startObservingPlayer()
+        }
+    }
+
+    private func preparePlayerIfNeeded() {
+        guard !isPreparing else { return }
+        guard player == nil else { return }
+        isPreparing = true
+        errorMessage = nil
+
+        if let url {
+            player = AVPlayer(url: url)
+            isPreparing = false
+        } else if let inlineBase64, let data = Data(base64Encoded: inlineBase64) {
+            let temp = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .appendingPathExtension("m4a")
+            do {
+                try data.write(to: temp)
+                tempURL = temp
+                player = AVPlayer(url: temp)
+            } catch {
+                errorMessage = "Audio unavailable."
+            }
+            isPreparing = false
+        } else {
+            errorMessage = "Audio unavailable."
+            isPreparing = false
+        }
+    }
+
+    private func startObservingPlayer() {
+        guard let item = player?.currentItem, playbackObserver == nil else { return }
+        playbackObserver = NotificationCenter.default.addObserver(
+            forName: .AVPlayerItemDidPlayToEndTime,
+            object: item,
+            queue: .main
+        ) { _ in
+            stopPlayback()
+        }
+    }
+
+    private func stopPlayback() {
+        player?.pause()
+        player?.seek(to: .zero)
+        isPlaying = false
+    }
+
+    private func cleanup() {
+        if let playbackObserver {
+            NotificationCenter.default.removeObserver(playbackObserver)
+            self.playbackObserver = nil
+        }
+        if let tempURL {
+            try? FileManager.default.removeItem(at: tempURL)
+            self.tempURL = nil
+        }
+    }
+}
+
+struct ReportReason: Identifiable, Hashable {
+    let code: String
+    let label: String
+    var id: String { code }
+}
+
+let defaultReportReasons: [ReportReason] = [
+    ReportReason(code: "spam", label: "Spam or misleading"),
+    ReportReason(code: "harassment", label: "Harassment or hate"),
+    ReportReason(code: "nsfw", label: "Sexual or adult content"),
+    ReportReason(code: "violence", label: "Violence or dangerous activity"),
+    ReportReason(code: "other", label: "Something else")
+]
+
+struct ReportDropSheet: View {
+    let reasons: [ReportReason]
+    @Binding var selectedReasonCodes: Set<String>
+    let isSubmitting: Bool
+    let errorMessage: String?
+    let onDismiss: () -> Void
+    let onSubmit: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section(footer: Text("Select one or more reasons so our team can review this drop.")) {
+                    ForEach(reasons) { reason in
+                        Toggle(isOn: binding(for: reason)) {
+                            Text(reason.label)
+                        }
+                        .disabled(isSubmitting)
                     }
-                    .disabled(reportReason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+
+                if let errorMessage {
+                    Section {
+                        Text(errorMessage)
+                            .foregroundColor(.red)
+                    }
+                }
+            }
+            .navigationTitle("Report drop")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { onDismiss() }
+                        .disabled(isSubmitting)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(action: onSubmit) {
+                        if isSubmitting {
+                            ProgressView()
+                                .progressViewStyle(.circular)
+                        } else {
+                            Text("Submit")
+                        }
+                    }
+                    .disabled(isSubmitting)
                 }
             }
         }
+    }
+    
+    private func binding(for reason: ReportReason) -> Binding<Bool> {
+        Binding(
+            get: { selectedReasonCodes.contains(reason.code) },
+            set: { isSelected in
+                if isSelected {
+                    selectedReasonCodes.insert(reason.code)
+                } else {
+                    selectedReasonCodes.remove(reason.code)
+                }
+            }
+        )
     }
 }
