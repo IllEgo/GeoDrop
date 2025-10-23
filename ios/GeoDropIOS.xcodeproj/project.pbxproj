@@ -33,7 +33,7 @@
 		AA0000100000000000000014 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000200000000000000014 /* MainTabView.swift */; };
 		AA0000100000000000000015 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000200000000000000015 /* ProfileView.swift */; };
 		AA0000100000000000000016 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000200000000000000016 /* RootView.swift */; };
-		AA0000100000000000000017 /* Resources/Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA0000200000000000000018 /* Resources/Assets.xcassets */; };
+		AA0000100000000000000017 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA0000200000000000000018 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -65,7 +65,7 @@
 		AA0000200000000000000015 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
 		AA0000200000000000000016 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		AA0000200000000000000017 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		AA0000200000000000000018 /* Resources/Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Resources/Assets.xcassets; sourceTree = "<group>"; };
+		AA0000200000000000000018 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Resources/Assets.xcassets; sourceTree = "<group>"; };
 		B0D1EE3ABB4BAECCCEC24F88 /* Pods-GeoDropIOS.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-GeoDropIOS.release.xcconfig"; path = "Target Support Files/Pods-GeoDropIOS/Pods-GeoDropIOS.release.xcconfig"; sourceTree = "<group>"; };
 		BE9A9DFE18B2E2BA8B0BADD6 /* Pods-GeoDropIOS.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-GeoDropIOS.debug.xcconfig"; path = "Target Support Files/Pods-GeoDropIOS/Pods-GeoDropIOS.debug.xcconfig"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -113,7 +113,7 @@
 			isa = PBXGroup;
 			children = (
 				AA0000400000000000000003 /* Sources */,
-				AA0000200000000000000018 /* Resources/Assets.xcassets */,
+				AA0000200000000000000018 /* Assets.xcassets */,
 				AA0000200000000000000017 /* Info.plist */,
 				7505D8D02EA83D740039BFE9 /* GoogleService-Info.plist */,
 			);
@@ -227,6 +227,7 @@
 				AA0000300000000000000001 /* Frameworks */,
 				AA0000300000000000000003 /* Resources */,
 				C9814F6C1CD9DE2ECF91AE92 /* [CP] Embed Pods Frameworks */,
+				6A7FD91BB17AD7471F7586D5 /* [CP] Copy Pods Resources */,
 			);
 			buildRules = (
 			);
@@ -273,7 +274,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				AA0000100000000000000017 /* Resources/Assets.xcassets in Resources */,
+				AA0000100000000000000017 /* Assets.xcassets in Resources */,
 				7505D8D12EA83D740039BFE9 /* GoogleService-Info.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -303,6 +304,23 @@
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
 		};
+		6A7FD91BB17AD7471F7586D5 /* [CP] Copy Pods Resources */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-GeoDropIOS/Pods-GeoDropIOS-resources-${CONFIGURATION}-input-files.xcfilelist",
+			);
+			name = "[CP] Copy Pods Resources";
+			outputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-GeoDropIOS/Pods-GeoDropIOS-resources-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-GeoDropIOS/Pods-GeoDropIOS-resources.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
 		C9814F6C1CD9DE2ECF91AE92 /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
@@ -311,13 +329,9 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-GeoDropIOS/Pods-GeoDropIOS-frameworks-${CONFIGURATION}-input-files.xcfilelist",
 			);
-			inputPaths = (
-			);
 			name = "[CP] Embed Pods Frameworks";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-GeoDropIOS/Pods-GeoDropIOS-frameworks-${CONFIGURATION}-output-files.xcfilelist",
-			);
-			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
