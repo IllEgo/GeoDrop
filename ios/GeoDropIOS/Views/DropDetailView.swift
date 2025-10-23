@@ -762,42 +762,66 @@ struct ReportDropSheet: View {
     let onSubmit: () -> Void
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section(footer: Text("Select one or more reasons so our team can review this drop.")) {
-                    ForEach(reasons) { reason in
-                        Toggle(isOn: binding(for: reason)) {
-                            Text(reason.label)
-                        }
-                        .disabled(isSubmitting)
-                    }
-                }
+        reportNavigationContainer
+    }
 
-                if let errorMessage {
-                    Section {
-                        Text(errorMessage)
-                            .foregroundColor(.red)
-                    }
-                }
+    @ViewBuilder
+    private var reportNavigationContainer: some View {
+        if #available(iOS 16.0, *) {
+            NavigationStack {
+                reportNavigationContent
             }
-            .navigationTitle("Report drop")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { onDismiss() }
-                        .disabled(isSubmitting)
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(action: onSubmit) {
-                        if isSubmitting {
-                            ProgressView()
-                                .progressViewStyle(.circular)
-                        } else {
-                            Text("Submit")
-                        }
+        } else {
+            NavigationView {
+                reportNavigationContent
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var reportForm: some View {
+        Form {
+            Section(footer: Text("Select one or more reasons so our team can review this drop.")) {
+                ForEach(reasons) { reason in
+                    Toggle(isOn: binding(for: reason)) {
+                        Text(reason.label)
                     }
                     .disabled(isSubmitting)
                 }
             }
+
+            if let errorMessage {
+                Section {
+                    Text(errorMessage)
+                        .foregroundColor(.red)
+                }
+            }
+        }
+    }
+
+    private var reportNavigationContent: some View {
+        reportForm
+            .navigationTitle("Report drop")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { reportToolbar }
+    }
+
+    @ToolbarContentBuilder
+    private var reportToolbar: some ToolbarContent {
+        ToolbarItem(placement: .cancellationAction) {
+            Button("Cancel") { onDismiss() }
+                .disabled(isSubmitting)
+        }
+        ToolbarItem(placement: .confirmationAction) {
+            Button(action: onSubmit) {
+                if isSubmitting {
+                    ProgressView()
+                        .progressViewStyle(.circular)
+                } else {
+                    Text("Submit")
+                }
+            }
+            .disabled(isSubmitting)
         }
     }
     
