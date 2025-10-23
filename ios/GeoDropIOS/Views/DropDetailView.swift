@@ -402,9 +402,7 @@ struct DropDetailView: View {
         } else {
             components.append("Lat: \(drop.latitude), Lng: \(drop.longitude)")
         }
-        return components.joined(separator: "
-
-")
+        return components.joined(separator: "\n\n")
     }
 
     private func mapURL(for drop: Drop) -> URL? {
