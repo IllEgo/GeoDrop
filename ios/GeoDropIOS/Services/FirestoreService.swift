@@ -291,17 +291,27 @@ final class FirestoreService {
     func fetchBlockedCreators(userId: String) async throws -> Set<String> {
         let trimmed = userId.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return [] }
-        let snapshot = try await getDocuments(users.document(trimmed).collection("blockedCreators"))
-        let identifiers: [String] = snapshot.documents.compactMap { doc in
-            let documentId = doc.documentID.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !documentId.isEmpty { return documentId }
-            if let stored = doc.get("creatorId") as? String {
-                let sanitized = stored.trimmingCharacters(in: .whitespacesAndNewlines)
-                return sanitized.isEmpty ? nil : sanitized
+        do {
+            let snapshot = try await getDocuments(users.document(trimmed).collection("blockedCreators"))
+            let identifiers: [String] = snapshot.documents.compactMap { doc in
+                let documentId = doc.documentID.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !documentId.isEmpty { return documentId }
+                if let stored = doc.get("creatorId") as? String {
+                    let sanitized = stored.trimmingCharacters(in: .whitespacesAndNewlines)
+                    return sanitized.isEmpty ? nil : sanitized
+                }
+                return nil
             }
-            return nil
+            return Set(identifiers)
+        } catch {
+            if let nsError = error as NSError?,
+               nsError.domain == FirestoreErrorDomain,
+               nsError.code == FirestoreErrorCode.permissionDenied.rawValue {
+                print("GeoDrop: Missing permission to load blocked creators for \(trimmed); continuing without filters.")
+                return []
+            }
+            throw error
         }
-        return Set(identifiers)
     }
 
     func submitReport(dropId: String, reporterId: String, reasonCodes: [String], context: [String: Any] = [:]) async throws {
