@@ -559,8 +559,9 @@ struct DropDetailView: View {
         }
     }
 
+    @ViewBuilder
     private func reportSheet(for drop: Drop) -> some View {
-        ReportDropSheet(
+        let sheet = ReportDropSheet(
             reasons: defaultReportReasons,
             selectedReasonCodes: $selectedReportReasons,
             isSubmitting: isSubmittingReport,
@@ -574,7 +575,12 @@ struct DropDetailView: View {
                 submitReport(for: drop)
             }
         )
-        .presentationDetents([.medium, .large])
+        
+        if #available(iOS 16.0, *) {
+            sheet.presentationDetents([.medium, .large])
+        } else {
+            sheet
+        }
     }
 }
 
