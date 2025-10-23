@@ -14,6 +14,7 @@ struct DropFeedView: View {
     @State private var mapHeightFraction: CGFloat = 0.45
     @State private var dragStartFraction: CGFloat?
     @State private var shouldAnimateCamera = false
+    @State private var selectedFilter: DropFeedFilter = .browseMap
     
     private static let defaultCoordinate = CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194)
     private static let defaultZoom: Float = GoogleMapCameraState.defaultZoom
@@ -62,13 +63,21 @@ struct DropFeedView: View {
                                 }
 
                             VStack(spacing: 0) {
-                                GoogleMapView(
-                                    drops: viewModel.drops,
-                                    selectedDropID: $selectedDropID,
-                                    cameraState: $mapCameraState,
-                                    shouldAnimateCamera: $shouldAnimateCamera,
-                                    onSelectDrop: { drop in focus(on: drop) }
-                                )
+                                ZStack(alignment: .top) {
+                                    GoogleMapView(
+                                        drops: displayedDrops,
+                                        selectedDropID: $selectedDropID,
+                                        cameraState: $mapCameraState,
+                                        shouldAnimateCamera: $shouldAnimateCamera,
+                                        onSelectDrop: { drop in focus(on: drop) }
+                                    )
+                                    VStack {
+                                        filterBar
+                                            .padding(.horizontal, 20)
+                                            .padding(.top, 12)
+                                        Spacer()
+                                    }
+                                }
                                 .frame(height: mapHeight)
                                 .clipped()
 
@@ -82,18 +91,24 @@ struct DropFeedView: View {
                                 .contentShape(Rectangle())
                                 .gesture(drag)
 
-                                ScrollView {
-                                    LazyVStack(spacing: 12) {
-                                        ForEach(viewModel.drops) { drop in
-                                            DropRowView(
-                                                drop: drop,
-                                                isSelected: drop.id == selectedDropID,
-                                                onSelect: { focus(on: drop) }
-                                            )
-                                            .padding(.horizontal)
+                                Group {
+                                    if displayedDrops.isEmpty {
+                                        emptyStateView
+                                    } else {
+                                        ScrollView {
+                                            LazyVStack(spacing: 12) {
+                                                ForEach(displayedDrops) { drop in
+                                                    DropRowView(
+                                                        drop: drop,
+                                                        isSelected: drop.id == selectedDropID,
+                                                        onSelect: { focus(on: drop) }
+                                                    )
+                                                    .padding(.horizontal)
+                                                }
+                                            }
+                                            .padding(.vertical, 12)
                                         }
                                     }
-                                    .padding(.vertical, 12)
                                 }
                                 .frame(height: listHeight)
                                 .background(Color(uiColor: .systemGroupedBackground))
@@ -108,8 +123,9 @@ struct DropFeedView: View {
             GroupManagementView()
                 .environmentObject(viewModel)
         }
-        .onAppear { updateSelection(for: viewModel.drops) }
-        .onChange(of: viewModel.drops) { updateSelection(for: $0) }
+        .onAppear { updateSelection(for: displayedDrops) }
+        .onChange(of: viewModel.drops) { updateSelection(for: filteredDrops(for: selectedFilter, from: $0)) }
+        .onChange(of: selectedFilter) { updateSelection(for: filteredDrops(for: $0, from: viewModel.drops)) }
     }
     
     private var topBarActions: some View {
@@ -139,6 +155,47 @@ struct DropFeedView: View {
             .background(Color.accentColor.opacity(0.12))
             .clipShape(Circle())
     }
+    
+    private var filterBar: some View {
+        HStack(spacing: 8) {
+            ForEach(DropFeedFilter.allCases) { filter in
+                filterButton(for: filter)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(.ultraThinMaterial, in: Capsule())
+        .shadow(color: Color.black.opacity(0.08), radius: 12, x: 0, y: 6)
+    }
+
+    private func filterButton(for filter: DropFeedFilter) -> some View {
+        let isSelected = filter == selectedFilter
+        return Button {
+            guard selectedFilter != filter else { return }
+            withAnimation(.easeInOut(duration: 0.2)) {
+                selectedFilter = filter
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: filter.systemImageName)
+                    .font(.subheadline.weight(.semibold))
+                Text(filter.title)
+                    .font(.subheadline.weight(.semibold))
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+            .padding(.horizontal, 12)
+            .background(
+                Capsule()
+                    .fill(isSelected ? Color.accentColor : Color.clear)
+            )
+            .foregroundColor(isSelected ? .white : .primary)
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity)
+        .accessibilityLabel(filter.title)
+    }
+
     private var groupSelector: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 12) {
@@ -371,6 +428,49 @@ private struct DropVideoPlayerView: View {
 }
 
 extension DropFeedView {
+    private var displayedDrops: [Drop] {
+        filteredDrops(for: selectedFilter, from: viewModel.drops)
+    }
+
+    private var currentUserID: String? {
+        if case let .signedIn(session) = viewModel.authState {
+            return session.user.uid
+        }
+        return nil
+    }
+
+    private func filteredDrops(for filter: DropFeedFilter, from drops: [Drop]) -> [Drop] {
+        switch filter {
+        case .browseMap:
+            return drops
+        case .myDrops:
+            guard let userID = currentUserID else { return [] }
+            return drops.filter { $0.createdBy == userID }
+        case .savedDrops:
+            guard let userID = currentUserID else { return [] }
+            return drops.filter { drop in
+                drop.collectedBy[userID] == true
+            }
+        }
+    }
+
+    private var emptyStateView: some View {
+        VStack(spacing: 12) {
+            Image(systemName: selectedFilter.emptyStateIcon)
+                .font(.largeTitle.weight(.semibold))
+                .foregroundColor(.secondary)
+            Text(selectedFilter.emptyStateTitle)
+                .font(.headline)
+            Text(selectedFilter.emptyStateMessage)
+                .font(.subheadline)
+                .multilineTextAlignment(.center)
+                .foregroundColor(.secondary)
+                .padding(.horizontal)
+        }
+        .padding()
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
     private func updateSelection(for drops: [Drop]) {
         guard let first = drops.first else {
             selectedDropID = nil
@@ -407,5 +507,68 @@ extension DropFeedView {
             return Self.defaultZoom
         }
         return zoom
+    }
+}
+
+private enum DropFeedFilter: CaseIterable, Identifiable {
+    case browseMap
+    case myDrops
+    case savedDrops
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .browseMap:
+            return "Browse Map"
+        case .myDrops:
+            return "My Drops"
+        case .savedDrops:
+            return "Saved Drops"
+        }
+    }
+
+    var systemImageName: String {
+        switch self {
+        case .browseMap:
+            return "map"
+        case .myDrops:
+            return "tray.full"
+        case .savedDrops:
+            return "bookmark"
+        }
+    }
+
+    var emptyStateIcon: String {
+        switch self {
+        case .browseMap:
+            return "mappin.and.ellipse"
+        case .myDrops:
+            return "tray"
+        case .savedDrops:
+            return "bookmark.slash"
+        }
+    }
+
+    var emptyStateTitle: String {
+        switch self {
+        case .browseMap:
+            return "No drops nearby"
+        case .myDrops:
+            return "No drops yet"
+        case .savedDrops:
+            return "No saved drops"
+        }
+    }
+
+    var emptyStateMessage: String {
+        switch self {
+        case .browseMap:
+            return "Try refreshing or explore another group to discover more drops."
+        case .myDrops:
+            return "Drops you create will appear here for easy access."
+        case .savedDrops:
+            return "Collect drops to save them for later."
+        }
     }
 }
