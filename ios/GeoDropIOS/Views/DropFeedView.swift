@@ -157,7 +157,7 @@ struct DropFeedView: View {
     @ViewBuilder
     private func listSection(height: CGFloat) -> some View {
         Group {
-            if viewModel.authState == .loading && viewModel.drops.isEmpty {
+            if viewModel.isAuthLoading && viewModel.drops.isEmpty {
                 loadingStateView
             } else if let message = viewModel.errorMessage {
                 errorStateView(message: message)

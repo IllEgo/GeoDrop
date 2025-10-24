@@ -157,6 +157,13 @@ final class AppViewModel: ObservableObject {
         }
     }
     
+    var isAuthLoading: Bool {
+        if case .loading = authState {
+            return true
+        }
+        return false
+    }
+    
     func setExplorerDestination(_ destination: ExplorerDestination) {
         guard canAccess(destination: destination) else {
             explorerRestrictionMessage = destination.restrictionMessage(for: userMode)
