@@ -220,7 +220,7 @@ struct BusinessCategory: Identifiable, Equatable, Hashable, Codable {
                     description: "Deliver instant coupons for walk-ins."
                 )
             ]
-        )
+        ),
         GroupMetadata(
             group: .travelAndTransportation,
             title: Group.travelAndTransportation.displayName,
