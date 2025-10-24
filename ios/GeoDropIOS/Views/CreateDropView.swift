@@ -4,6 +4,7 @@ import UIKit
 
 struct CreateDropView: View {
     @EnvironmentObject private var viewModel: AppViewModel
+    @Environment(\.geoDropTheme) private var geoDropTheme
     @State private var text = ""
     @State private var description = ""
     @State private var isAnonymous = false
@@ -52,6 +53,9 @@ struct CreateDropView: View {
 
                 timingSection
             }
+            .tint(geoDropTheme.colors.primary)
+            .scrollContentBackground(.hidden)
+            .background(geoDropTheme.colors.background)
             .onAppear {
                 updateVisibilitySelection()
                 ensureAnonymousState()
@@ -160,7 +164,7 @@ struct CreateDropView: View {
             if !canPostAnonymously {
                 Text("Business drops always display your profile.")
                     .font(.footnote)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
             }
         }
     }
@@ -184,19 +188,20 @@ struct CreateDropView: View {
             if !hasBusinessCategories {
                 Text("Add business categories in Profile to unlock tailored suggestions.")
                     .font(.footnote)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
             }
 
             Button {
                 isShowingTemplateBrowser = true
             } label: {
                 Label("Browse all templates", systemImage: "sparkles")
+                    .foregroundColor(geoDropTheme.colors.primary)
             }
 
             if let callToAction = activeTemplate?.callToAction, !callToAction.isEmpty {
                 Text(callToAction)
                     .font(.footnote)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
             }
         }
     }
@@ -224,7 +229,7 @@ struct CreateDropView: View {
             switch contentType {
             case .text:
                 Label("Text-only drop", systemImage: "text.alignleft")
-                    .foregroundColor(.secondary)
+                    .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
             case .photo:
                 Button {
                     presentPhotoCapture()
@@ -250,7 +255,7 @@ struct CreateDropView: View {
                 if let duration = audioDuration {
                     Text("Recorded length: \(formatDuration(duration))")
                         .font(.footnote)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
                 }
                 if mediaData != nil {
                     Button("Remove audio", role: .destructive) { resetMedia() }
@@ -271,7 +276,7 @@ struct CreateDropView: View {
                 if let duration = videoDuration {
                     Text("Clip length: \(formatDuration(duration))")
                         .font(.footnote)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
                 }
                 if mediaData != nil {
                     Button("Remove video", role: .destructive) { resetMedia() }
@@ -288,7 +293,7 @@ struct CreateDropView: View {
                 .keyboardType(.numberPad)
             Text("Leave the limit blank for unlimited redemptions.")
                 .font(.footnote)
-                .foregroundColor(.secondary)
+                .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
         }
     }
 
@@ -298,7 +303,7 @@ struct CreateDropView: View {
                 .keyboardType(.numberPad)
             Text("Leave blank to keep this drop forever (max \(maxDecayDays) days).")
                 .font(.footnote)
-                .foregroundColor(.secondary)
+                .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
 
             Picker("Visible to", selection: $selectedVisibility) {
                 ForEach(visibilityOptions, id: \.self) { option in
@@ -316,8 +321,8 @@ struct CreateDropView: View {
                 .font(.callout.weight(.semibold))
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
-                .background(canSubmit ? Color.accentColor : Color.accentColor.opacity(0.35))
-                .foregroundColor(.white)
+                .background(canSubmit ? geoDropTheme.colors.primary : geoDropTheme.colors.primary.opacity(0.35))
+                .foregroundColor(geoDropTheme.colors.onPrimary)
                 .clipShape(Capsule())
         }
         .buttonStyle(.plain)
@@ -636,6 +641,7 @@ struct BusinessTemplateCard: View {
     let template: BusinessDropTemplate
     var actionTitle: String = "Use this idea"
     var onApply: ((BusinessDropTemplate) -> Void)? = nil
+    @Environment(\.geoDropTheme) private var geoDropTheme
 
     private var dropTypeIconName: String {
         switch template.dropType {
@@ -659,9 +665,10 @@ struct BusinessTemplateCard: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(template.title)
                     .font(.headline)
+                    .foregroundColor(geoDropTheme.colors.onSurface)
                 Text("Inspired by \(template.category.displayName)")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
             }
 
             HStack(spacing: 12) {
@@ -670,24 +677,28 @@ struct BusinessTemplateCard: View {
                 Label(template.contentType == .text ? "Text" : template.contentType == .photo ? "Photo" : template.contentType == .audio ? "Audio" : "Video", systemImage: contentIconName)
                     .font(.caption)
             }
-            .foregroundColor(.secondary)
+            .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
 
             Text(template.description)
                 .font(.subheadline)
-
+                .foregroundColor(geoDropTheme.colors.onSurface)
+            
             Divider()
+                .background(geoDropTheme.colors.outline.opacity(0.3))
 
             VStack(alignment: .leading, spacing: 6) {
                 if !template.caption.isEmpty {
                     Text(template.caption)
                         .font(.body.weight(.semibold))
+                        .foregroundColor(geoDropTheme.colors.onSurface)
                 }
                 Text(template.note)
                     .font(.body)
+                    .foregroundColor(geoDropTheme.colors.onSurface)
                 if let callToAction = template.callToAction, !callToAction.isEmpty {
                     Text(callToAction)
                         .font(.footnote)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
                 }
             }
             
@@ -696,20 +707,22 @@ struct BusinessTemplateCard: View {
                     onApply(template)
                 }
                 .buttonStyle(.borderedProminent)
+                .tint(geoDropTheme.colors.primary)
             }
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 16).fill(Color(uiColor: .secondarySystemBackground)))
+        .background(RoundedRectangle(cornerRadius: 16).fill(geoDropTheme.colors.surfaceVariant))
         .overlay(
             RoundedRectangle(cornerRadius: 16)
-                .stroke(Color.accentColor.opacity(0.25))
+                .stroke(geoDropTheme.colors.outlineVariant.opacity(0.6))
         )
     }
 }
 
 struct BusinessTemplateBrowserView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.geoDropTheme) private var geoDropTheme
 
     let selectedCategories: Set<BusinessCategory>
     var onApply: ((BusinessDropTemplate) -> Void)?
@@ -770,23 +783,25 @@ struct BusinessTemplateBrowserView: View {
                     VStack(alignment: .leading, spacing: 16) {
                         Text(metadata.title)
                             .font(.title3.weight(.semibold))
+                            .foregroundColor(geoDropTheme.colors.onSurface)
                         Text(metadata.description)
                             .font(.footnote)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
 
                         ForEach(metadata.categories, id: \.id) { category in
                             let templates = BusinessDropTemplates.templates(for: category)
                             VStack(alignment: .leading, spacing: 12) {
                                 Text(category.displayName)
                                     .font(.headline)
+                                    .foregroundColor(geoDropTheme.colors.onSurface)
                                 Text(category.description)
                                     .font(.footnote)
-                                    .foregroundColor(.secondary)
+                                    .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
 
                                 if templates.isEmpty {
                                     Text("Templates coming soon for this category.")
                                         .font(.footnote)
-                                        .foregroundColor(.secondary)
+                                        .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
                                 } else {
                                     ForEach(templates, id: \.id) { template in
                                         BusinessTemplateCard(
@@ -806,7 +821,7 @@ struct BusinessTemplateBrowserView: View {
                             .padding(16)
                             .background(
                                 RoundedRectangle(cornerRadius: 16)
-                                    .fill(Color(uiColor: .secondarySystemBackground))
+                                    .fill(geoDropTheme.colors.surfaceVariant)
                             )
                         }
                     }
@@ -816,7 +831,7 @@ struct BusinessTemplateBrowserView: View {
             .padding(.horizontal, 20)
             .padding(.vertical, 24)
         }
-        .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
+        .background(geoDropTheme.colors.background.ignoresSafeArea())
         .navigationTitle("Drop template library")
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
@@ -829,14 +844,15 @@ struct BusinessTemplateBrowserView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Browse template ideas")
                 .font(.title2.weight(.semibold))
+                .foregroundColor(geoDropTheme.colors.onSurface)
             if let summary = selectedCategorySummary {
                 Text("Showing highlights for \(summary).")
                     .font(.callout)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
             } else {
                 Text("Explore playbooks for every category, or add business categories to tailor this list.")
                     .font(.callout)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
             }
         }
     }
@@ -849,9 +865,10 @@ struct BusinessTemplateBrowserView: View {
             VStack(alignment: .leading, spacing: 16) {
                 Text(title)
                     .font(.title3.weight(.semibold))
+                    .foregroundColor(geoDropTheme.colors.onSurface)
                 Text(subtitle)
                     .font(.footnote)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
 
                 ForEach(templates, id: \.id) { template in
                     BusinessTemplateCard(
@@ -1138,6 +1155,7 @@ private struct AudioRecorderSheet: View {
     let onError: (String) -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.geoDropTheme) private var geoDropTheme
     @State private var recorder: AVAudioRecorder?
     @State private var recordedURL: URL?
     @State private var isRecording = false
@@ -1149,6 +1167,7 @@ private struct AudioRecorderSheet: View {
             VStack(spacing: 24) {
                 Text(formatDuration(elapsed))
                     .font(.system(size: 36, weight: .semibold, design: .rounded))
+                    .foregroundColor(geoDropTheme.colors.onSurface)
                     .padding(.top, 40)
 
                 Button {
@@ -1158,20 +1177,21 @@ private struct AudioRecorderSheet: View {
                         .font(.headline)
                         .frame(maxWidth: .infinity)
                         .padding()
-                        .background(isRecording ? Color.red : Color.accentColor)
-                        .foregroundColor(.white)
+                        .background(isRecording ? Color.red : geoDropTheme.colors.primary)
+                        .foregroundColor(isRecording ? Color.white : geoDropTheme.colors.onPrimary)
                         .cornerRadius(12)
                 }
 
                 if recordedURL != nil && !isRecording {
                     Text("Recording ready. Tap Done to attach it to your drop.")
                         .font(.footnote)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
                 }
 
                 Spacer()
             }
             .padding()
+            .background(geoDropTheme.colors.background)
             .navigationTitle("Record audio")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -1193,6 +1213,7 @@ private struct AudioRecorderSheet: View {
                         dismiss()
                     }
                     .disabled(recordedURL == nil || isRecording)
+                    .tint(geoDropTheme.colors.primary)
                 }
             }
         }

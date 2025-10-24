@@ -6,6 +6,7 @@ import UIKit
 
 struct DropDetailView: View {
     @EnvironmentObject private var viewModel: AppViewModel
+    @Environment(\.geoDropTheme) private var geoDropTheme
     let drop: Drop
     @State private var detailCameraState: GoogleMapCameraState
     @State private var detailShouldAnimate = false
@@ -54,7 +55,7 @@ struct DropDetailView: View {
             trailing: {
                 Button("Close", action: dismiss.callAsFunction)
                     .font(.callout.weight(.semibold))
-                    .foregroundColor(.accentColor)
+                    .foregroundColor(geoDropTheme.colors.primary)
             }
         ) {
             ScrollView {
@@ -169,7 +170,7 @@ struct DropDetailView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 16))
                     .overlay(
                         RoundedRectangle(cornerRadius: 16)
-                            .stroke(Color.secondary.opacity(0.2))
+                            .stroke(geoDropTheme.colors.outlineVariant.opacity(0.5))
                     )
             } else {
                 fallbackMediaPlaceholder(label: "Video unavailable")
@@ -183,7 +184,7 @@ struct DropDetailView: View {
 
     private func fallbackMediaPlaceholder(label: String) -> some View {
         RoundedRectangle(cornerRadius: 16)
-            .fill(Color(uiColor: .tertiarySystemBackground))
+            .fill(geoDropTheme.colors.surfaceVariant)
             .frame(height: 220)
             .overlay {
                 VStack(spacing: 8) {
@@ -323,7 +324,7 @@ struct DropDetailView: View {
         .padding()
         .background(
             RoundedRectangle(cornerRadius: 16)
-                .fill(Color(uiColor: .tertiarySystemBackground))
+                .fill(geoDropTheme.colors.surfaceVariant)
         )
     }
 
@@ -382,7 +383,7 @@ struct DropDetailView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: 16)
-                    .fill(Color.accentColor.opacity(0.12))
+                    .fill(geoDropTheme.colors.primary.opacity(0.12))
             )
     }
 
@@ -402,7 +403,7 @@ struct DropDetailView: View {
         .padding()
         .background(
             RoundedRectangle(cornerRadius: 16)
-                .fill(Color(uiColor: .tertiarySystemBackground))
+                .fill(geoDropTheme.colors.surfaceVariant)
         )
     }
 
@@ -621,6 +622,7 @@ private struct DropAudioPlayerView: View {
     @State private var isPlaying = false
     @State private var errorMessage: String?
     @State private var playbackObserver: NSObjectProtocol?
+    @Environment(\.geoDropTheme) private var geoDropTheme
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -628,7 +630,7 @@ private struct DropAudioPlayerView: View {
                 Button(action: togglePlayback) {
                     Image(systemName: isPlaying ? "pause.circle.fill" : "play.circle.fill")
                         .font(.system(size: 36))
-                        .foregroundColor(.accentColor)
+                        .foregroundColor(geoDropTheme.colors.primary)
                 }
                 .disabled(isPreparing || (player == nil && errorMessage != nil))
 
@@ -660,7 +662,7 @@ private struct DropAudioPlayerView: View {
         .padding()
         .background(
             RoundedRectangle(cornerRadius: 16)
-                .fill(Color(uiColor: .tertiarySystemBackground))
+                .fill(geoDropTheme.colors.surfaceVariant)
         )
         .onDisappear {
             stopPlayback()

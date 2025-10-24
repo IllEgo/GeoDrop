@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ProfileView: View {
     @EnvironmentObject private var viewModel: AppViewModel
+    @Environment(\.geoDropTheme) private var geoDropTheme
     @State private var username: String = ""
     @State private var businessName: String = ""
     @State private var selectedCategories: Set<BusinessCategory> = []
@@ -41,9 +42,10 @@ struct ProfileView: View {
                                 VStack(alignment: .leading, spacing: 12) {
                                     Text(metadata.title)
                                         .font(.subheadline.weight(.semibold))
+                                        .foregroundColor(geoDropTheme.colors.onSurface)
                                     Text(metadata.description)
                                         .font(.footnote)
-                                        .foregroundColor(.secondary)
+                                        .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
 
                                     LazyVGrid(columns: categoryGridColumns, spacing: 12) {
                                         ForEach(metadata.categories, id: \.id) { category in
@@ -58,22 +60,22 @@ struct ProfileView: View {
                                                 VStack(alignment: .leading, spacing: 6) {
                                                     Text(category.displayName)
                                                         .font(.subheadline.weight(.semibold))
-                                                        .foregroundColor(isSelected ? .accentColor : .primary)
+                                                        .foregroundColor(isSelected ? geoDropTheme.colors.primary : geoDropTheme.colors.onSurface)
                                                     Text(category.description)
                                                         .font(.caption)
-                                                        .foregroundColor(isSelected ? Color.accentColor.opacity(0.8) : .secondary)
+                                                        .foregroundColor(isSelected ? geoDropTheme.colors.primary.opacity(0.8) : geoDropTheme.colors.onSurfaceVariant)
                                                 }
                                                 .padding(12)
                                                 .frame(maxWidth: .infinity, alignment: .leading)
                                                 .background(
                                                     RoundedRectangle(cornerRadius: 12)
-                                                        .fill(isSelected ? Color.accentColor.opacity(0.15) : Color(uiColor: .secondarySystemBackground))
+                                                        .fill(isSelected ? geoDropTheme.colors.primary.opacity(0.15) : geoDropTheme.colors.surfaceVariant)
                                                 )
                                                 .overlay(
                                                     RoundedRectangle(cornerRadius: 12)
-                                                        .stroke(isSelected ? Color.accentColor : Color.clear, lineWidth: 1.5)
+                                                        .stroke(isSelected ? geoDropTheme.colors.primary : geoDropTheme.colors.outlineVariant.opacity(0.6), lineWidth: 1.5)
                                                 )
-                                            }
+                                                }
                                             .buttonStyle(.plain)
                                         }
                                     }
@@ -90,18 +92,20 @@ struct ProfileView: View {
                         if selectedCategories.isEmpty {
                             Text("Pick at least one category to unlock tailored templates and analytics.")
                                 .font(.footnote)
-                                .foregroundColor(.secondary)
+                                .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
                         } else {
                             Button {
                                 isShowingTemplateBrowser = true
                             } label: {
                                 Label("Browse drop templates", systemImage: "sparkles")
+                                    .foregroundColor(geoDropTheme.colors.primary)
                             }
 
                             Button {
                                 isShowingDashboard = true
                             } label: {
                                 Label("View business dashboard", systemImage: "chart.bar.doc.horizontal")
+                                    .foregroundColor(geoDropTheme.colors.primary)
                             }
                         }
                     }
@@ -120,9 +124,10 @@ struct ProfileView: View {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("You're exploring as a guest.")
                                 .font(.headline)
+                                .foregroundColor(geoDropTheme.colors.onSurface)
                             Text("Sign in to personalize your profile, join groups, and participate in drops.")
                                 .font(.subheadline)
-                                .foregroundColor(.secondary)
+                                .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
                         }
                         .padding(.vertical, 4)
                     }
@@ -142,6 +147,9 @@ struct ProfileView: View {
                     }
                 }
             }
+            .tint(geoDropTheme.colors.primary)
+            .scrollContentBackground(.hidden)
+            .background(geoDropTheme.colors.background)
         }
         .sheet(isPresented: $isShowingTemplateBrowser) {
             BusinessTemplateBrowserView(selectedCategories: selectedCategories)
@@ -160,6 +168,7 @@ struct ProfileView: View {
 struct BusinessDashboardView: View {
     @EnvironmentObject private var viewModel: AppViewModel
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.geoDropTheme) private var geoDropTheme
 
     @State private var drops: [Drop] = []
     @State private var isLoading = false
@@ -212,22 +221,25 @@ struct BusinessDashboardView: View {
             if isLoading && drops.isEmpty {
                 VStack(spacing: 16) {
                     ProgressView()
+                        .tint(geoDropTheme.colors.primary)
                     Text("Loading your business analytics…")
                         .font(.callout)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if let message = errorMessage {
                 VStack(spacing: 16) {
                     Image(systemName: "exclamationmark.triangle")
                         .font(.largeTitle)
-                        .foregroundColor(.orange)
+                        .foregroundColor(geoDropTheme.colors.tertiary)
                     Text(message)
                         .multilineTextAlignment(.center)
+                        .foregroundColor(geoDropTheme.colors.onSurface)
                     Button("Retry") {
                         Task { await reload() }
                     }
                     .buttonStyle(.borderedProminent)
+                    .tint(geoDropTheme.colors.primary)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
@@ -239,7 +251,7 @@ struct BusinessDashboardView: View {
                     }
                     .padding(24)
                 }
-                .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
+                .background(geoDropTheme.colors.background.ignoresSafeArea())
             }
         }
         .navigationTitle("Business dashboard")
@@ -259,10 +271,11 @@ struct BusinessDashboardView: View {
             if let name = profile?.businessName, !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 Text(name)
                     .font(.title2.weight(.semibold))
+                    .foregroundColor(geoDropTheme.colors.onSurface)
             }
             Text("A snapshot of how your drops are performing.")
                 .font(.callout)
-                .foregroundColor(.secondary)
+                .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
         }
     }
 
@@ -290,15 +303,17 @@ struct BusinessDashboardView: View {
             VStack(alignment: .leading, spacing: 12) {
                 Text("No drops yet")
                     .font(.headline)
+                    .foregroundColor(geoDropTheme.colors.onSurface)
                 Text("Create a drop from the composer to see analytics here.")
                     .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         } else {
             VStack(alignment: .leading, spacing: 16) {
                 Text("Recent drops")
                     .font(.headline)
+                    .foregroundColor(geoDropTheme.colors.onSurface)
                 LazyVStack(alignment: .leading, spacing: 16) {
                     ForEach(sortedDrops) { drop in
                         BusinessDropDashboardCard(drop: drop)
@@ -313,15 +328,16 @@ struct BusinessDashboardView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("\(value)")
                 .font(.title.weight(.semibold))
+                .foregroundColor(geoDropTheme.colors.onSurface)
             Text(label)
                 .font(.footnote)
-                .foregroundColor(.secondary)
+                .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 16)
-                .fill(Color(uiColor: .secondarySystemBackground))
+                .fill(geoDropTheme.colors.surfaceVariant)
         )
     }
 
@@ -346,13 +362,14 @@ struct BusinessDashboardView: View {
 
 private struct BusinessDropDashboardCard: View {
     let drop: Drop
+    @Environment(\.geoDropTheme) private var geoDropTheme
 
     private var statusText: String {
         drop.isExpired ? "Expired" : "Live"
     }
 
     private var statusColor: Color {
-        drop.isExpired ? .secondary : .green
+        drop.isExpired ? geoDropTheme.colors.onSurfaceVariant : geoDropTheme.colors.primary
     }
 
     private var dropTypeLabel: String {
@@ -401,6 +418,7 @@ private struct BusinessDropDashboardCard: View {
             HStack {
                 Text(headline)
                     .font(.headline)
+                    .foregroundColor(geoDropTheme.colors.onSurface)
                 Spacer()
                 Text(statusText)
                     .font(.caption.weight(.semibold))
@@ -414,7 +432,7 @@ private struct BusinessDropDashboardCard: View {
             if let description = drop.description?.trimmingCharacters(in: .whitespacesAndNewlines), !description.isEmpty {
                 Text(description)
                     .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
             }
 
             HStack(spacing: 16) {
@@ -424,7 +442,7 @@ private struct BusinessDropDashboardCard: View {
                 }
             }
             .font(.caption)
-            .foregroundColor(.secondary)
+            .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
 
             if drop.dropType == .restaurantCoupon {
                 let summary = redemptionSummary
@@ -433,31 +451,33 @@ private struct BusinessDropDashboardCard: View {
                     Label("\(summary.unique) unique", systemImage: "person.crop.circle.badge.checkmark")
                 }
                 .font(.footnote)
+                .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
 
                 if let code = drop.redemptionCode, !code.isEmpty {
                     Text("Code: \(code)")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
                 }
                 if let limit = drop.redemptionLimit {
                     Text("Limit: \(limit)")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
                 }
             } else {
                 Label("\(collectCount) collects", systemImage: "map")
                     .font(.footnote)
+                    .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
             }
 
             HStack {
                 Text("Dropped \(createdDateString)")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
                 Spacer()
                 if drop.likeCount > 0 {
                     Label("\(drop.likeCount) likes", systemImage: "heart")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
                 }
             }
         }
@@ -465,11 +485,11 @@ private struct BusinessDropDashboardCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 16)
-                .fill(Color(uiColor: .secondarySystemBackground))
+                .fill(geoDropTheme.colors.surfaceVariant)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 16)
-                .stroke(Color.accentColor.opacity(0.15))
+                .stroke(geoDropTheme.colors.outlineVariant.opacity(0.6))
         )
     }
 }

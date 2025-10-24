@@ -2,11 +2,12 @@ import SwiftUI
 
 struct RootView: View {
     @EnvironmentObject private var viewModel: AppViewModel
+    @Environment(\.geoDropTheme) private var geoDropTheme
 
     var body: some View {
         content
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color(uiColor: .systemBackground))
+            .background(geoDropTheme.colors.background)
             .alert(item: Binding(
                 get: { viewModel.errorMessage.map(IdentifiableError.init(message:)) },
                 set: { _ in viewModel.errorMessage = nil }

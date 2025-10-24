@@ -3,6 +3,7 @@ import UIKit
 
 struct AuthView: View {
     @EnvironmentObject private var viewModel: AppViewModel
+    @Environment(\.geoDropTheme) private var geoDropTheme
     let accountRole: UserRole
     let onDismiss: () -> Void
     
@@ -41,10 +42,11 @@ struct AuthView: View {
                     VStack(spacing: 12) {
                         Text("GeoDrop")
                             .font(.largeTitle.weight(.bold))
+                            .foregroundColor(geoDropTheme.colors.onSurface)
                         Text(accountDescription)
                             .font(.subheadline)
                             .multilineTextAlignment(.center)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
                     }
                     .padding(.top, 24)
 
@@ -53,6 +55,7 @@ struct AuthView: View {
                         Text("Sign up").tag(true)
                     }
                     .pickerStyle(.segmented)
+                    .tint(geoDropTheme.colors.primary)
                     .onChange(of: isSignUp) { _ in viewModel.resetAuthFlowMessages() }
 
                     VStack(spacing: 16) {
@@ -62,23 +65,23 @@ struct AuthView: View {
                             .textContentType(.emailAddress)
                             .keyboardType(.emailAddress)
                             .padding()
-                            .background(Color(uiColor: .secondarySystemBackground))
+                            .background(geoDropTheme.colors.surfaceVariant)
                             .cornerRadius(12)
 
                         SecureField("Password", text: $password)
                             .textContentType(.password)
                             .padding()
-                            .background(Color(uiColor: .secondarySystemBackground))
+                            .background(geoDropTheme.colors.surfaceVariant)
                             .cornerRadius(12)
                     }
 
                     Button(action: submit) {
                         Text(buttonTitle)
                             .font(.headline)
-                            .foregroundColor(.white)
+                            .foregroundColor(geoDropTheme.colors.onPrimary)
                             .frame(maxWidth: .infinity)
                             .padding()
-                            .background(canSubmit ? Color.accentColor : Color.accentColor.opacity(0.4))
+                            .background(canSubmit ? geoDropTheme.colors.primary : geoDropTheme.colors.primary.opacity(0.4))
                             .cornerRadius(12)
                     }
                     .disabled(!canSubmit || isProcessing)
@@ -93,10 +96,10 @@ struct AuthView: View {
                             Text("Continue with Google")
                                 .font(.headline)
                         }
-                        .foregroundColor(.primary)
+                        .foregroundColor(geoDropTheme.colors.onSurface)
                         .frame(maxWidth: .infinity)
                         .padding()
-                        .background(Color(uiColor: .secondarySystemBackground))
+                        .background(geoDropTheme.colors.surfaceVariant)
                         .cornerRadius(12)
                     }
                     .disabled(isProcessing)
@@ -104,11 +107,12 @@ struct AuthView: View {
                     if isProcessing {
                         ProgressView()
                             .progressViewStyle(.circular)
+                        .tint(geoDropTheme.colors.primary)
                     }
 
                     if let status = viewModel.authFlowStatus {
                         Label(status, systemImage: "checkmark.circle.fill")
-                            .foregroundColor(.accentColor)
+                        .foregroundColor(geoDropTheme.colors.primary)
                     }
 
                     if let error = viewModel.authFlowError {
@@ -130,6 +134,7 @@ struct AuthView: View {
             .navigationBarTitleDisplayMode(.inline)
         }
         .onAppear { viewModel.resetAuthFlowMessages() }
+        .background(geoDropTheme.colors.background)
     }
 
     private var canSubmit: Bool {

@@ -4,6 +4,7 @@ import AVKit
 
 struct DropFeedView: View {
     @EnvironmentObject private var viewModel: AppViewModel
+    @Environment(\.geoDropTheme) private var geoDropTheme
     @State private var showingGroupJoin = false
     @State private var mapCameraState = GoogleMapCameraState(
         latitude: Self.defaultCoordinate.latitude,
@@ -82,9 +83,9 @@ struct DropFeedView: View {
                                 .clipped()
 
                                 ZStack {
-                                    Color(uiColor: .systemBackground)
+                                    geoDropTheme.colors.surface
                                     Capsule()
-                                        .fill(Color.secondary.opacity(0.4))
+                                        .fill(geoDropTheme.colors.onSurfaceVariant.opacity(0.4))
                                         .frame(width: 48, height: 6)
                                 }
                                 .frame(height: dividerHeight)
@@ -111,7 +112,7 @@ struct DropFeedView: View {
                                     }
                                 }
                                 .frame(height: listHeight)
-                                .background(Color(uiColor: .systemGroupedBackground))
+                                .background(geoDropTheme.colors.surface)
                             }
                         }
                     }
@@ -151,8 +152,8 @@ struct DropFeedView: View {
         Image(systemName: systemName)
             .font(.title3.weight(.semibold))
             .frame(width: 36, height: 36)
-            .foregroundColor(.accentColor)
-            .background(Color.accentColor.opacity(0.12))
+            .foregroundColor(geoDropTheme.colors.primary)
+            .background(geoDropTheme.colors.primary.opacity(0.12))
             .clipShape(Circle())
     }
     
@@ -187,9 +188,9 @@ struct DropFeedView: View {
             .padding(.horizontal, 12)
             .background(
                 Capsule()
-                    .fill(isSelected ? Color.accentColor : Color.clear)
+                    .fill(isSelected ? geoDropTheme.colors.primary : Color.clear)
             )
-            .foregroundColor(isSelected ? .white : .primary)
+            .foregroundColor(isSelected ? geoDropTheme.colors.onPrimary : geoDropTheme.colors.onSurface)
         }
         .buttonStyle(.plain)
         .frame(maxWidth: .infinity)
@@ -209,8 +210,8 @@ struct DropFeedView: View {
                             .fontWeight(.semibold)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 8)
-                            .background(isSelected ? Color.accentColor : Color(uiColor: .secondarySystemBackground))
-                            .foregroundColor(isSelected ? .white : .primary)
+                            .background(isSelected ? geoDropTheme.colors.primary : geoDropTheme.colors.surfaceVariant)
+                            .foregroundColor(isSelected ? geoDropTheme.colors.onPrimary : geoDropTheme.colors.onSurface)
                             .cornerRadius(12)
                     }
                 }
@@ -222,6 +223,7 @@ struct DropFeedView: View {
 
 struct DropRowView: View {
     @EnvironmentObject private var viewModel: AppViewModel
+    @Environment(\.geoDropTheme) private var geoDropTheme
     let drop: Drop
     let isSelected: Bool
     let onSelect: () -> Void
@@ -245,23 +247,24 @@ struct DropRowView: View {
                     HStack(alignment: .center, spacing: 8) {
                         Text(drop.displayTitle)
                             .font(.headline)
+                            .foregroundColor(geoDropTheme.colors.onSurface)
                             .multilineTextAlignment(.leading)
                         Spacer(minLength: 12)
                         if drop.requiresRedemption() {
                             Label("Redeem", systemImage: "tag")
                                 .font(.caption)
-                                .foregroundColor(.orange)
+                                .foregroundColor(geoDropTheme.colors.tertiary)
                                 .labelStyle(.titleAndIcon)
                         }
                         Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
                             .font(.subheadline.weight(.semibold))
-                            .foregroundColor(.secondary)
+                            .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
                     }
 
                     if let description = drop.description, !description.isEmpty {
                         Text(description)
                             .font(.subheadline)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
                             .lineLimit(isExpanded ? nil : 2)
                             .multilineTextAlignment(.leading)
                     }
@@ -283,7 +286,7 @@ struct DropRowView: View {
                         if let description = expandedDescriptionText, description != headerDescriptionText {
                             Text(description)
                                 .font(.body)
-                                .foregroundColor(.primary)
+                                .foregroundColor(geoDropTheme.colors.onSurface)
                         }
                     }
 
@@ -309,7 +312,7 @@ struct DropRowView: View {
                     if !likePermission.allowed, let message = likePermission.message {
                         Text(message)
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
                     }
                 }
                 .transition(.opacity)
@@ -319,11 +322,11 @@ struct DropRowView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 16)
-                .fill(isSelected ? Color.accentColor.opacity(0.15) : Color(uiColor: .secondarySystemBackground))
+                .fill(isSelected ? geoDropTheme.colors.primary.opacity(0.15) : geoDropTheme.colors.surfaceVariant)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 16)
-                .stroke(isSelected ? Color.accentColor : Color.clear, lineWidth: 1)
+                .stroke(isSelected ? geoDropTheme.colors.primary : geoDropTheme.colors.outlineVariant.opacity(0.6), lineWidth: 1)
         )
         .contentShape(RoundedRectangle(cornerRadius: 16))
         .onTapGesture { onSelect() }
@@ -385,15 +388,15 @@ struct DropRowView: View {
         VStack(alignment: .leading, spacing: 8) {
             Label("Adult content hidden", systemImage: "eye.slash")
                 .font(.subheadline.weight(.semibold))
-                .foregroundColor(.secondary)
+                .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
             Text("Enable adult content in Profile settings to view this drop.")
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
         }
         .padding()
         .background(
             RoundedRectangle(cornerRadius: 12)
-                .fill(Color(uiColor: .tertiarySystemBackground))
+                .fill(geoDropTheme.colors.surfaceVariant)
         )
     }
 
@@ -426,7 +429,7 @@ struct DropRowView: View {
                     case .failure:
                         Image(systemName: "photo")
                             .font(.largeTitle)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     @unknown default:
                         EmptyView()
@@ -436,7 +439,7 @@ struct DropRowView: View {
                 .frame(height: 220)
                 .background(
                     RoundedRectangle(cornerRadius: 12)
-                        .fill(Color(uiColor: .tertiarySystemFill))
+                        .fill(geoDropTheme.colors.surfaceVariant)
                 )
                 .clipShape(RoundedRectangle(cornerRadius: 12))
             }
@@ -448,7 +451,7 @@ struct DropRowView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                     .overlay(
                         RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.secondary.opacity(0.2))
+                            .stroke(geoDropTheme.colors.outlineVariant.opacity(0.5))
                     )
             }
         default:
@@ -533,13 +536,14 @@ extension DropFeedView {
         VStack(spacing: 12) {
             Image(systemName: selectedFilter.emptyStateIcon)
                 .font(.largeTitle.weight(.semibold))
-                .foregroundColor(.secondary)
+                .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
             Text(selectedFilter.emptyStateTitle)
                 .font(.headline)
+                .foregroundColor(geoDropTheme.colors.onSurface)
             Text(selectedFilter.emptyStateMessage)
                 .font(.subheadline)
                 .multilineTextAlignment(.center)
-                .foregroundColor(.secondary)
+                .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
                 .padding(.horizontal)
         }
         .padding()

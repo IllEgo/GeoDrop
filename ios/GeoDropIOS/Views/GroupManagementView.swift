@@ -3,6 +3,7 @@ import SwiftUI
 struct GroupManagementView: View {
     @EnvironmentObject private var viewModel: AppViewModel
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.geoDropTheme) private var geoDropTheme
     @State private var groupCode: String = ""
     @State private var allowCreate: Bool = false
     private let showsCloseButton: Bool
@@ -18,7 +19,7 @@ struct GroupManagementView: View {
                 if showsCloseButton {
                     Button("Close", action: dismiss.callAsFunction)
                         .font(.callout.weight(.semibold))
-                        .foregroundColor(.accentColor)
+                        .foregroundColor(geoDropTheme.colors.primary)
                 }
             }
         ) {
@@ -43,7 +44,7 @@ struct GroupManagementView: View {
                                 Spacer()
                                 if group.code == viewModel.selectedGroupCode {
                                     Image(systemName: "checkmark")
-                                        .foregroundColor(.accentColor)
+                                        .foregroundColor(geoDropTheme.colors.primary)
                                 }
                             }
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
@@ -57,6 +58,9 @@ struct GroupManagementView: View {
                     }
                 }
             }
+            .tint(geoDropTheme.colors.primary)
+            .scrollContentBackground(.hidden)
+            .background(geoDropTheme.colors.background)
         }
     }
 }

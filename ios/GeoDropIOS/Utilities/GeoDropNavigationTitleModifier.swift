@@ -4,7 +4,8 @@ struct GeoDropTopNavigationBar: View {
     private let subtitle: String?
     private let leading: AnyView
     private let trailing: AnyView
-
+    @Environment(\.geoDropTheme) private var geoDropTheme
+    
     init(subtitle: String? = nil,
          leading: AnyView = AnyView(EmptyView()),
          trailing: AnyView = AnyView(EmptyView())) {
@@ -21,17 +22,18 @@ struct GeoDropTopNavigationBar: View {
                     Text("GeoDrop")
                         .font(.title3.weight(.bold))
                         .tracking(1.2)
+                        .foregroundColor(geoDropTheme.colors.onSurface)
                     if let subtitle, !subtitle.isEmpty {
                         Text(subtitle)
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
                     }
                 }
                 .accessibilityElement(children: .combine)
                 Spacer(minLength: 12)
                 trailing
             }
-            .foregroundColor(.primary)
+            .foregroundColor(geoDropTheme.colors.onSurface)
             .frame(minHeight: 48)
             .padding(.horizontal, 20)
             .padding(.bottom, 12)
@@ -41,8 +43,8 @@ struct GeoDropTopNavigationBar: View {
         .background(
             LinearGradient(
                 gradient: Gradient(colors: [
-                    Color(uiColor: .systemBackground).opacity(0.95),
-                    Color(uiColor: .systemBackground).opacity(0)
+                    geoDropTheme.colors.surface.opacity(0.95),
+                    geoDropTheme.colors.surface.opacity(0)
                 ]),
                 startPoint: .top,
                 endPoint: .bottom
@@ -50,8 +52,9 @@ struct GeoDropTopNavigationBar: View {
             .ignoresSafeArea(edges: .top)
         )
         .overlay(alignment: .bottom) {
-            Divider()
-                .opacity(0.15)
+            Rectangle()
+                .fill(geoDropTheme.colors.outlineVariant.opacity(0.6))
+                .frame(height: 0.5)
         }
     }
 }
@@ -61,7 +64,8 @@ struct GeoDropNavigationContainer<Content: View>: View {
     private let leading: AnyView
     private let trailing: AnyView
     private let content: Content
-
+    @Environment(\.geoDropTheme) private var geoDropTheme
+    
     init(subtitle: String? = nil,
          @ViewBuilder leading: () -> some View = { EmptyView() },
          @ViewBuilder trailing: () -> some View = { EmptyView() },
@@ -83,6 +87,6 @@ struct GeoDropNavigationContainer<Content: View>: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(Color(uiColor: .systemBackground))
+        .background(geoDropTheme.colors.background)
     }
 }

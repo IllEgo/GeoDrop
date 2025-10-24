@@ -13,6 +13,7 @@ struct GeoDropIOSApp: App {
         WindowGroup {
             RootView()
                 .environmentObject(appViewModel)
+                .geoDropTheme()
                 .onAppear {
                     appViewModel.bootstrap()
                 }
