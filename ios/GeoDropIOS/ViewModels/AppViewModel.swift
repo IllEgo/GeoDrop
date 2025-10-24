@@ -64,6 +64,7 @@ final class AppViewModel: ObservableObject {
     @Published var selectedGroupCode: String?
     @Published var drops: [Drop] = []
     @Published private(set) var blockedCreatorIDs: Set<String> = []
+    @Published private(set) var inventory: NoteInventoryService.Inventory
     @Published var allowNsfw: Bool = false
     @Published var errorMessage: String?
     @Published var isPerformingAction: Bool = false
@@ -78,11 +79,12 @@ final class AppViewModel: ObservableObject {
     private let messagingService = MessagingService.shared
     private let locationService = LocationService.shared
     private lazy var safeSearch = SafeSearchService(apiKey: AppConfiguration.shared.visionApiKey)
+    private let inventoryService = NoteInventoryService.shared
     private var groupListener: ListenerRegistration?
     private var dropsListener: ListenerRegistration?
     private var cancellables: Set<AnyCancellable> = []
     private let defaults: UserDefaults
-    private var localCollectedDropIDs: Set<String> = []
+    private var inventoryUserId: String?
 
     private enum DefaultsKeys {
         static let acceptedTerms = "geodrop.termsAccepted"
@@ -92,6 +94,9 @@ final class AppViewModel: ObservableObject {
 
     init(userDefaults: UserDefaults = .standard) {
         self.defaults = userDefaults
+        let initialUserId = authService.currentUser?.uid
+        self.inventoryUserId = initialUserId
+        self.inventory = inventoryService.inventory(for: initialUserId)
         let accepted = userDefaults.bool(forKey: DefaultsKeys.acceptedTerms)
         self.hasAcceptedTerms = accepted
         let onboarding = userDefaults.bool(forKey: DefaultsKeys.completedOnboarding)
@@ -106,6 +111,17 @@ final class AppViewModel: ObservableObject {
         } else {
             self.userMode = nil
         }
+        
+        NotificationCenter.default.publisher(for: NoteInventoryService.inventoryDidChangeNotification)
+            .compactMap { $0.userInfo?[NoteInventoryService.NotificationKeys.userIdentifier] as? String }
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] identifier in
+                guard let self else { return }
+                if identifier == self.inventoryService.storageIdentifier(for: self.inventoryUserId) {
+                    self.inventory = self.inventoryService.inventory(for: self.inventoryUserId)
+                }
+            }
+            .store(in: &cancellables)
     }
     
     var currentUserID: String? {
@@ -269,6 +285,8 @@ final class AppViewModel: ObservableObject {
                     let creator = drop.createdBy.trimmingCharacters(in: .whitespacesAndNewlines)
                     return creator.isEmpty || !self.blockedCreatorIDs.contains(creator)
                 }
+                self.inventoryService.merge(remoteDrops: filtered, for: self.inventoryUserId)
+                self.reloadInventorySnapshot()
                 self.drops = filtered
             }
         }
@@ -393,6 +411,23 @@ final class AppViewModel: ObservableObject {
         Task {
             do {
                 try await firestore.setDropLike(dropId: drop.id, userId: userId, status: status)
+                await MainActor.run {
+                    self.inventoryService.setLikeStatus(status, dropId: drop.id, drop: drop, for: userId)
+                    self.reloadInventorySnapshot()
+                    self.mutateDrop(withId: drop.id) { value in
+                        let wasLiked = value.isLiked(by: userId) == .liked
+                        if status == .liked && !wasLiked {
+                            value.likeCount += 1
+                        } else if status == .none && wasLiked {
+                            value.likeCount = max(value.likeCount - 1, 0)
+                        }
+                        if status == .liked {
+                            value.likedBy[userId] = true
+                        } else {
+                            value.likedBy.removeValue(forKey: userId)
+                        }
+                    }
+                }
             } catch {
                 await MainActor.run {
                     self.errorMessage = error.localizedDescription
@@ -407,7 +442,10 @@ final class AppViewModel: ObservableObject {
             do {
                 try await firestore.markDropCollected(dropId: drop.id, userId: session.user.uid)
                 await MainActor.run {
-                    self.localCollectedDropIDs.insert(drop.id)
+                    var storedDrop = drop
+                    storedDrop.collectedBy[session.user.uid] = true
+                    self.inventoryService.storeCollected(drop: storedDrop, for: session.user.uid)
+                    self.reloadInventorySnapshot()
                     self.mutateDrop(withId: drop.id) { value in
                         value.collectedBy[session.user.uid] = true
                     }
@@ -459,9 +497,25 @@ final class AppViewModel: ObservableObject {
         guard !trimmed.isEmpty else { return .invalidCode }
         do {
             let result = try await firestore.redeemDrop(dropId: drop.id, userId: userId, providedCode: trimmed)
-            if case let .success(count, _, redeemedAt) = result {
+            if case let .success(count, limit, redeemedAt) = result {
+                let redemptionDate = Date(timeIntervalSince1970: redeemedAt)
+                var updatedDrop = drop
+                updatedDrop.redemptionCount = count
+                updatedDrop.redemptionLimit = limit
+                updatedDrop.redeemedBy[userId] = redeemedAt
+                inventoryService.setRedeemed(
+                    dropId: drop.id,
+                    count: count,
+                    limit: limit,
+                    code: trimmed,
+                    redeemedAt: redemptionDate,
+                    drop: updatedDrop,
+                    for: userId
+                )
+                reloadInventorySnapshot()
                 mutateDrop(withId: drop.id) { value in
                     value.redemptionCount = count
+                    value.redemptionLimit = limit
                     value.redeemedBy[userId] = redeemedAt
                 }
             }
@@ -498,10 +552,13 @@ final class AppViewModel: ObservableObject {
     // MARK: - Drop Helpers
 
     func hasCollected(drop: Drop) -> Bool {
+        if inventory.collectedDrops[drop.id] != nil { return true }
         guard let userId = currentUserID else { return false }
-        if localCollectedDropIDs.contains(drop.id) { return true }
         if drop.collectedBy[userId] == true {
-            localCollectedDropIDs.insert(drop.id)
+            var storedDrop = drop
+            storedDrop.collectedBy[userId] = true
+            inventoryService.storeCollected(drop: storedDrop, for: userId)
+            reloadInventorySnapshot()
             return true
         }
         return false
@@ -545,7 +602,16 @@ final class AppViewModel: ObservableObject {
         apply(&updated)
         drops[index] = updated
     }
+    
+    private func reloadInventorySnapshot() {
+        inventory = inventoryService.inventory(for: inventoryUserId)
+    }
 
+    private func switchInventory(to userId: String?) {
+        inventoryUserId = userId
+        reloadInventorySnapshot()
+    }
+    
     // MARK: - Groups
 
     func joinGroup(code: String, allowCreate: Bool) {
@@ -677,7 +743,7 @@ final class AppViewModel: ObservableObject {
             drops = []
             selectedGroupCode = nil
             blockedCreatorIDs = []
-            localCollectedDropIDs = []
+            switchInventory(to: nil)
             authState = .signedOut
             isAuthenticating = false
             isGoogleSigningIn = false
@@ -703,7 +769,7 @@ final class AppViewModel: ObservableObject {
             groups = memberships
             selectedGroupCode = memberships.first?.code
             blockedCreatorIDs = blocked
-            localCollectedDropIDs = []
+            switchInventory(to: session.user.uid)
             authState = .signedIn(session)
             pendingAccountRole = nil
             resetAuthFlowMessages()

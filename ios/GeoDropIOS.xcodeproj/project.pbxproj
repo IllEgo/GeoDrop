@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		2C80A525C06DDAB0419B0AD1 /* Pods_GeoDropIOS.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 99FB8E99D0F98B0D7555E1CF /* Pods_GeoDropIOS.framework */; };
 		7505D8D12EA83D740039BFE9 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 7505D8D02EA83D740039BFE9 /* GoogleService-Info.plist */; };
+		75175E082EAB370C00CAB223 /* NoteInventoryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75175E072EAB370400CAB223 /* NoteInventoryService.swift */; };
 		754971482EA9CA840079D5BF /* GoogleMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 754971472EA9CA7D0079D5BF /* GoogleMapView.swift */; };
 		7549714A2EA9F84E0079D5BF /* OnboardingViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 754971492EA9F8410079D5BF /* OnboardingViews.swift */; };
 		7549714C2EAA064F0079D5BF /* BusinessDropTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7549714B2EAA06420079D5BF /* BusinessDropTemplate.swift */; };
@@ -40,6 +41,7 @@
 
 /* Begin PBXFileReference section */
 		7505D8D02EA83D740039BFE9 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
+		75175E072EAB370400CAB223 /* NoteInventoryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteInventoryService.swift; sourceTree = "<group>"; };
 		754971472EA9CA7D0079D5BF /* GoogleMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleMapView.swift; sourceTree = "<group>"; };
 		754971492EA9F8410079D5BF /* OnboardingViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingViews.swift; sourceTree = "<group>"; };
 		7549714B2EAA06420079D5BF /* BusinessDropTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BusinessDropTemplate.swift; sourceTree = "<group>"; };
@@ -168,6 +170,7 @@
 		AA0000400000000000000007 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				75175E072EAB370400CAB223 /* NoteInventoryService.swift */,
 				AA0000200000000000000006 /* AuthService.swift */,
 				AA0000200000000000000007 /* FirestoreService.swift */,
 				AA0000200000000000000008 /* LocationService.swift */,
@@ -380,6 +383,7 @@
 				AA0000100000000000000008 /* LocationService.swift in Sources */,
 				AA0000100000000000000007 /* FirestoreService.swift in Sources */,
 				AA0000100000000000000006 /* AuthService.swift in Sources */,
+				75175E082EAB370C00CAB223 /* NoteInventoryService.swift in Sources */,
 				AA0000100000000000000005 /* UserProfile.swift in Sources */,
 				AA0000100000000000000004 /* GroupMembership.swift in Sources */,
 				AA0000100000000000000003 /* Drop.swift in Sources */,

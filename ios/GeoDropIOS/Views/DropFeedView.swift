@@ -488,18 +488,45 @@ extension DropFeedView {
     }
 
     private func filteredDrops(for filter: DropFeedFilter, from drops: [Drop]) -> [Drop] {
+        let ignored = viewModel.inventory.ignoredDropIDs
         switch filter {
         case .browseMap:
-            return drops
+            return drops.filter { !ignored.contains($0.id) }
         case .myDrops:
             guard let userID = currentUserID else { return [] }
-            return drops.filter { $0.createdBy == userID }
+            return drops.filter { $0.createdBy == userID && !ignored.contains($0.id) }
         case .savedDrops:
-            guard let userID = currentUserID else { return [] }
-            return drops.filter { drop in
-                drop.collectedBy[userID] == true
+            return savedDrops(from: drops).filter { !ignored.contains($0.id) }
+        }
+    }
+
+    private func savedDrops(from drops: [Drop]) -> [Drop] {
+        let stored = viewModel.inventory.collectedDrops
+        var results: [Drop] = []
+        var seen: Set<String> = []
+
+        if let userID = currentUserID {
+            for drop in drops {
+                if drop.collectedBy[userID] == true || stored[drop.id] != nil {
+                    let candidate = stored[drop.id] ?? drop
+                    results.append(candidate)
+                    seen.insert(candidate.id)
+                }
+            }
+        } else {
+            for drop in drops {
+                if let storedDrop = stored[drop.id] {
+                    results.append(storedDrop)
+                    seen.insert(storedDrop.id)
+                }
             }
         }
+        
+        for (id, storedDrop) in stored where !seen.contains(id) {
+            results.append(storedDrop)
+        }
+
+        return results
     }
 
     private var emptyStateView: some View {

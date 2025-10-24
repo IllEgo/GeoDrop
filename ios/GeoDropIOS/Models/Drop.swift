@@ -1,7 +1,7 @@
 import Foundation
 import FirebaseFirestore
 
-struct Drop: Identifiable, Equatable {
+struct Drop: Identifiable, Equatable, Codable {
     var id: String
     var text: String
     var description: String?
@@ -261,7 +261,7 @@ enum DropContentType: String, CaseIterable, Codable {
     case video = "VIDEO"
 }
 
-enum DropLikeStatus: String {
+enum DropLikeStatus: String, Codable {
     case none
     case liked
 
