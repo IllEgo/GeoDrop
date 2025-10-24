@@ -52,83 +52,7 @@ struct DropFeedView: View {
                         }
 
                         GeometryReader { geometry in
-                            let totalHeight = geometry.size.height
-                            let minFraction: CGFloat = 0.25
-                            let maxFraction: CGFloat = 0.8
-                            let dividerHeight: CGFloat = 16
-                            let clampedFraction = min(max(mapHeightFraction, minFraction), maxFraction)
-                            let mapHeight = totalHeight * clampedFraction
-                            let listHeight = max(totalHeight - mapHeight - dividerHeight, 0)
-
-                            let drag = DragGesture(minimumDistance: 0)
-                                .onChanged { value in
-                                    if dragStartFraction == nil {
-                                        dragStartFraction = clampedFraction
-                                    }
-                                    let start = dragStartFraction ?? clampedFraction
-                                    let translationFraction = value.translation.height / totalHeight
-                                    let proposed = start + translationFraction
-                                    mapHeightFraction = min(max(proposed, minFraction), maxFraction)
-                                }
-                                .onEnded { _ in
-                                    dragStartFraction = nil
-                                }
-
-                            VStack(spacing: 0) {
-                                ZStack(alignment: .top) {
-                                    GoogleMapView(
-                                        drops: displayedDrops,
-                                        selectedDropID: $selectedDropID,
-                                        cameraState: $mapCameraState,
-                                        shouldAnimateCamera: $shouldAnimateCamera,
-                                        onSelectDrop: { drop in focus(on: drop) }
-                                    )
-                                    VStack {
-                                        destinationTabs
-                                            .padding(.horizontal, 20)
-                                            .padding(.top, 12)
-                                        Spacer()
-                                    }
-                                }
-                                .frame(height: mapHeight)
-                                .clipped()
-
-                                ZStack {
-                                    geoDropTheme.colors.surface
-                                    Capsule()
-                                        .fill(geoDropTheme.colors.onSurfaceVariant.opacity(0.4))
-                                        .frame(width: 48, height: 6)
-                                }
-                                .frame(height: dividerHeight)
-                                .contentShape(Rectangle())
-                                .gesture(drag)
-
-                                Group {
-                                    if viewModel.authState == .loading && viewModel.drops.isEmpty {
-                                        loadingStateView
-                                    } else if let message = viewModel.errorMessage {
-                                        errorStateView(message: message)
-                                    } else if displayedDrops.isEmpty {
-                                        emptyStateView
-                                    } else {
-                                        ScrollView {
-                                            LazyVStack(spacing: 12) {
-                                                ForEach(displayedDrops) { drop in
-                                                    DropRowView(
-                                                        drop: drop,
-                                                        isSelected: drop.id == selectedDropID,
-                                                        onSelect: { focus(on: drop) }
-                                                    )
-                                                    .padding(.horizontal)
-                                                }
-                                            }
-                                            .padding(.vertical, 12)
-                                        }
-                                    }
-                                }
-                                .frame(height: listHeight)
-                                .background(geoDropTheme.colors.surface)
-                            }
+                            resizableLayout(for: geometry)
                         }
                     }
                     .listStyle(.insetGrouped)
@@ -161,6 +85,102 @@ struct DropFeedView: View {
         } message: {
             Text(viewModel.explorerRestrictionMessage ?? "Sign in to continue.")
         }
+    }
+    
+    @ViewBuilder
+    private func resizableLayout(for geometry: GeometryProxy) -> some View {
+        let totalHeight = geometry.size.height
+        let minFraction: CGFloat = 0.25
+        let maxFraction: CGFloat = 0.8
+        let dividerHeight: CGFloat = 16
+        let clampedFraction = min(max(mapHeightFraction, minFraction), maxFraction)
+        let mapHeight = totalHeight * clampedFraction
+        let listHeight = max(totalHeight - mapHeight - dividerHeight, 0)
+
+        let drag = DragGesture(minimumDistance: 0)
+            .onChanged { value in
+                if dragStartFraction == nil {
+                    dragStartFraction = clampedFraction
+                }
+                let start = dragStartFraction ?? clampedFraction
+                let translationFraction = value.translation.height / totalHeight
+                let proposed = start + translationFraction
+                mapHeightFraction = min(max(proposed, minFraction), maxFraction)
+            }
+            .onEnded { _ in
+                dragStartFraction = nil
+            }
+
+        VStack(spacing: 0) {
+            mapSection(height: mapHeight)
+
+            dividerSection(height: dividerHeight)
+                .gesture(drag)
+
+            listSection(height: listHeight)
+        }
+    }
+
+    @ViewBuilder
+    private func mapSection(height: CGFloat) -> some View {
+        ZStack(alignment: .top) {
+            GoogleMapView(
+                drops: displayedDrops,
+                selectedDropID: $selectedDropID,
+                cameraState: $mapCameraState,
+                shouldAnimateCamera: $shouldAnimateCamera,
+                onSelectDrop: { drop in focus(on: drop) }
+            )
+            VStack {
+                destinationTabs
+                    .padding(.horizontal, 20)
+                    .padding(.top, 12)
+                Spacer()
+            }
+        }
+        .frame(height: height)
+        .clipped()
+    }
+
+    @ViewBuilder
+    private func dividerSection(height: CGFloat) -> some View {
+        ZStack {
+            geoDropTheme.colors.surface
+            Capsule()
+                .fill(geoDropTheme.colors.onSurfaceVariant.opacity(0.4))
+                .frame(width: 48, height: 6)
+        }
+        .frame(height: height)
+        .contentShape(Rectangle())
+    }
+
+    @ViewBuilder
+    private func listSection(height: CGFloat) -> some View {
+        Group {
+            if viewModel.authState == .loading && viewModel.drops.isEmpty {
+                loadingStateView
+            } else if let message = viewModel.errorMessage {
+                errorStateView(message: message)
+            } else if displayedDrops.isEmpty {
+                emptyStateView
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 12) {
+                        ForEach(displayedDrops) { drop in
+                            DropRowView(
+                                drop: drop,
+                                isSelected: drop.id == selectedDropID,
+                                onSelect: { focus(on: drop) }
+                            )
+                            .padding(.horizontal)
+                        }
+                    }
+                    .padding(.vertical, 12)
+                }
+            }
+        }
+        .frame(height: height)
+        .background(geoDropTheme.colors.surface)
     }
     
     private var topBarActions: some View {
