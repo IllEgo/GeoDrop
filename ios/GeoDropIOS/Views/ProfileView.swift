@@ -148,7 +148,7 @@ struct ProfileView: View {
                 }
             }
             .tint(geoDropTheme.colors.primary)
-            .scrollContentBackground(.hidden)
+            .scrollContentBackgroundHiddenIfAvailable()
             .background(geoDropTheme.colors.background)
         }
         .sheet(isPresented: $isShowingTemplateBrowser) {
@@ -162,6 +162,17 @@ struct ProfileView: View {
 
     private var categoryGridColumns: [GridItem] {
         [GridItem(.adaptive(minimum: 160), spacing: 12)]
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func scrollContentBackgroundHiddenIfAvailable() -> some View {
+        if #available(iOS 16.0, *) {
+            self.scrollContentBackground(.hidden)
+        } else {
+            self
+        }
     }
 }
 
