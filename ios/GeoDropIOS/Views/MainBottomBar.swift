@@ -47,8 +47,12 @@ struct MainBottomBar<AccountMenuContent: View>: View {
             return AnyView(
                 button
                     .popover(isPresented: $isAccountMenuPresented, arrowEdge: .top) {
-                        accountMenu
-                            .presentationCompactAdaptation(.none)
+                        if #available(iOS 16.4, *) {
+                            accountMenu
+                                .presentationCompactAdaptation(.none)
+                        } else {
+                            accountMenu
+                        }
                     }
             )
         } else {
