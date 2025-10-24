@@ -23,44 +23,55 @@ struct GroupManagementView: View {
                 }
             }
         ) {
-            Form {
-                Section(header: Text("Join a group")) {
-                    TextField("Group code", text: $groupCode)
-                        .textInputAutocapitalization(.characters)
-                        .disableAutocorrection(true)
-                    Toggle("Create group if missing", isOn: $allowCreate)
-                    Button("Join") {
-                        viewModel.joinGroup(code: groupCode, allowCreate: allowCreate)
-                        groupCode = ""
-                    }
-                    .disabled(groupCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                }
+            if #available(iOS 16.0, *) {
+                formContent
+                    .scrollContentBackground(.hidden)
+            } else {
+                formContent
+            }
+        }
+    }
+}
 
-                if !viewModel.groups.isEmpty {
-                    Section(header: Text("Your groups")) {
-                        ForEach(viewModel.groups) { group in
-                            HStack {
-                                Text(group.code)
-                                Spacer()
-                                if group.code == viewModel.selectedGroupCode {
-                                    Image(systemName: "checkmark")
-                                        .foregroundColor(geoDropTheme.colors.primary)
-                                }
+extension GroupManagementView {
+    @ViewBuilder
+    private var formContent: some View {
+        Form {
+            Section(header: Text("Join a group")) {
+                TextField("Group code", text: $groupCode)
+                    .textInputAutocapitalization(.characters)
+                    .disableAutocorrection(true)
+                Toggle("Create group if missing", isOn: $allowCreate)
+                Button("Join") {
+                    viewModel.joinGroup(code: groupCode, allowCreate: allowCreate)
+                    groupCode = ""
+                }
+                .disabled(groupCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+
+            if !viewModel.groups.isEmpty {
+                Section(header: Text("Your groups")) {
+                    ForEach(viewModel.groups) { group in
+                        HStack {
+                            Text(group.code)
+                            Spacer()
+                            if group.code == viewModel.selectedGroupCode {
+                                Image(systemName: "checkmark")
+                                    .foregroundColor(geoDropTheme.colors.primary)
                             }
-                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                Button(role: .destructive) {
-                                    viewModel.leaveGroup(code: group.code)
-                                } label: {
-                                    Label("Leave", systemImage: "trash")
-                                }
+                        }
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button(role: .destructive) {
+                                viewModel.leaveGroup(code: group.code)
+                            } label: {
+                                Label("Leave", systemImage: "trash")
                             }
                         }
                     }
                 }
             }
-            .tint(geoDropTheme.colors.primary)
-            .scrollContentBackground(.hidden)
-            .background(geoDropTheme.colors.background)
         }
+        .tint(geoDropTheme.colors.primary)
+        .background(geoDropTheme.colors.background)
     }
 }
