@@ -740,76 +740,87 @@ struct BusinessTemplateBrowserView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    header
+        if #available(iOS 16.0, *) {
+            NavigationStack {
+                navigationContent
+            }
+        } else {
+            NavigationView {
+                navigationContent
+            }
+            .navigationViewStyle(StackNavigationViewStyle())
+        }
+    }
+    
+    @ViewBuilder
+    private var navigationContent: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                header
 
-                    if !BusinessDropTemplates.generalTemplates.isEmpty {
-                        templateSection(
-                            title: "Starter ideas",
-                            subtitle: "Quick prompts any business can remix.",
-                            templates: BusinessDropTemplates.generalTemplates
-                        )
-                    }
+                if !BusinessDropTemplates.generalTemplates.isEmpty {
+                    templateSection(
+                        title: "Starter ideas",
+                        subtitle: "Quick prompts any business can remix.",
+                        templates: BusinessDropTemplates.generalTemplates
+                    )
+                }
 
-                    ForEach(filteredGroups, id: \.id) { metadata in
-                        VStack(alignment: .leading, spacing: 16) {
-                            Text(metadata.title)
-                                .font(.title3.weight(.semibold))
-                            Text(metadata.description)
-                                .font(.footnote)
-                                .foregroundColor(.secondary)
+                ForEach(filteredGroups, id: \.id) { metadata in
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text(metadata.title)
+                            .font(.title3.weight(.semibold))
+                        Text(metadata.description)
+                            .font(.footnote)
+                            .foregroundColor(.secondary)
 
-                            ForEach(metadata.categories, id: \.id) { category in
-                                let templates = BusinessDropTemplates.templates(for: category)
-                                VStack(alignment: .leading, spacing: 12) {
-                                    Text(category.displayName)
-                                        .font(.headline)
-                                    Text(category.description)
+                        ForEach(metadata.categories, id: \.id) { category in
+                            let templates = BusinessDropTemplates.templates(for: category)
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text(category.displayName)
+                                    .font(.headline)
+                                Text(category.description)
+                                    .font(.footnote)
+                                    .foregroundColor(.secondary)
+
+                                if templates.isEmpty {
+                                    Text("Templates coming soon for this category.")
                                         .font(.footnote)
                                         .foregroundColor(.secondary)
-
-                                    if templates.isEmpty {
-                                        Text("Templates coming soon for this category.")
-                                            .font(.footnote)
-                                            .foregroundColor(.secondary)
-                                    } else {
-                                        ForEach(templates, id: \.id) { template in
-                                            BusinessTemplateCard(
-                                                template: template,
-                                                actionTitle: onApply == nil ? "" : "Use this idea",
-                                                onApply: onApply.map { handler in
-                                                    { template in
-                                                        handler(template)
-                                                        dismiss()
-                                                    }
+                                } else {
+                                    ForEach(templates, id: \.id) { template in
+                                        BusinessTemplateCard(
+                                            template: template,
+                                            actionTitle: onApply == nil ? "" : "Use this idea",
+                                            onApply: onApply.map { handler in
+                                                { template in
+                                                    handler(template)
+                                                    dismiss()
                                                 }
-                                            )
-                                            .padding(.vertical, 4)
-                                        }
+                                            }
+                                        )
+                                        .padding(.vertical, 4)
                                     }
                                 }
-                                .padding(16)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 16)
-                                        .fill(Color(uiColor: .secondarySystemBackground))
-                                )
                             }
+                            .padding(16)
+                            .background(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .fill(Color(uiColor: .secondarySystemBackground))
+                            )
                         }
-                        .padding(.vertical, 4)
                     }
-                }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 24)
-            }
-            .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
-            .navigationTitle("Drop template library")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { dismiss() }
+                    .padding(.vertical, 4)
                 }
             }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 24)
+        }
+        .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
+        .navigationTitle("Drop template library")
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Close") { dismiss() }            }
         }
     }
 
