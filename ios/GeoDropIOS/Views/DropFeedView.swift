@@ -35,10 +35,6 @@ struct DropFeedView: View {
                     .padding()
                 } else {
                     VStack(spacing: 0) {
-                        groupSelector
-                            .padding(.horizontal)
-                            .padding(.top, 8)
-                        
                         if viewModel.userMode?.isReadOnly == true {
                             ReadOnlyModeCard(
                                 title: "Exploring as guest",
@@ -275,29 +271,6 @@ struct DropFeedView: View {
         viewModel.setExplorerDestination(destination)
         if previous == viewModel.selectedExplorerDestination, previous != destination {
             isRestrictionAlertPresented = viewModel.explorerRestrictionMessage != nil
-        }
-    }
-
-    private var groupSelector: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 12) {
-                ForEach(viewModel.groups) { group in
-                    let isSelected = group.code == viewModel.selectedGroupCode
-                    Button(action: {
-                        viewModel.selectedGroupCode = group.code
-                        Task { await viewModel.refreshDrops() }
-                    }) {
-                        Text(group.code)
-                            .fontWeight(.semibold)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(isSelected ? geoDropTheme.colors.primary : geoDropTheme.colors.surfaceVariant)
-                            .foregroundColor(isSelected ? geoDropTheme.colors.onPrimary : geoDropTheme.colors.onSurface)
-                            .cornerRadius(12)
-                    }
-                }
-            }
-            .padding(.vertical, 8)
         }
     }
 }
