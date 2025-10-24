@@ -231,7 +231,7 @@ struct BusinessDashboardView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 24) {
+                    LazyVStack(alignment: .leading, spacing: 24) {
                         header
                         metricsGrid
                         dropList
@@ -273,20 +273,12 @@ struct BusinessDashboardView: View {
             (value: activeOfferCount, label: "Active offers")
         ]
 
-        let rows = metrics.chunked(into: 2)
+        let columns = Array(repeating: GridItem(.flexible(), spacing: 16), count: 2)
 
-        return VStack(spacing: 16) {
-            ForEach(Array(rows.enumerated()), id: \.offset) { _, rowItems in
-                HStack(spacing: 16) {
-                    ForEach(rowItems, id: \.label) { item in
-                        metricTile(value: item.value, label: item.label)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-
-                    if rowItems.count == 1 {
-                        Spacer(minLength: 0)
-                    }
-                }
+        return LazyVGrid(columns: columns, alignment: .leading, spacing: 16) {
+            ForEach(metrics, id: \.label) { item in
+                metricTile(value: item.value, label: item.label)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
     }
@@ -306,7 +298,7 @@ struct BusinessDashboardView: View {
             VStack(alignment: .leading, spacing: 16) {
                 Text("Recent drops")
                     .font(.headline)
-                VStack(alignment: .leading, spacing: 16) {
+                LazyVStack(alignment: .leading, spacing: 16) {
                     ForEach(sortedDrops) { drop in
                         BusinessDropDashboardCard(drop: drop)
                     }
@@ -478,22 +470,5 @@ private struct BusinessDropDashboardCard: View {
             RoundedRectangle(cornerRadius: 16)
                 .stroke(Color.accentColor.opacity(0.15))
         )
-    }
-}
-
-private extension Array {
-    func chunked(into size: Int) -> [[Element]] {
-        guard size > 0 else { return [self] }
-
-        var chunks: [[Element]] = []
-        var index = startIndex
-
-        while index < endIndex {
-            let end = self.index(index, offsetBy: size, limitedBy: endIndex) ?? endIndex
-            chunks.append(Array(self[index..<end]))
-            index = end
-        }
-
-        return chunks
     }
 }
