@@ -148,6 +148,7 @@ struct ProfileView: View {
         }
         .sheet(isPresented: $isShowingDashboard) {
             BusinessDashboardView()
+            .modifier(BusinessDashboardSheetPresentation())
         }
     }
 
@@ -470,5 +471,18 @@ private struct BusinessDropDashboardCard: View {
             RoundedRectangle(cornerRadius: 16)
                 .stroke(Color.accentColor.opacity(0.15))
         )
+    }
+}
+
+private struct BusinessDashboardSheetPresentation: ViewModifier {
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 16.0, *) {
+            content
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+        } else {
+            content
+        }
     }
 }
