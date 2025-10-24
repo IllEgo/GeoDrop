@@ -20,7 +20,7 @@ struct TermsAcceptanceView: View {
                         .padding(.top, 40)
 
                     Text("Before you explore GeoDrop, please review and accept our Terms of Service and Privacy Policy.")
-                        .font(.title2.weight(.semibold))
+                        .font(.title3.weight(.semibold))
                         .foregroundColor(geoDropTheme.colors.onSurface)
                         .multilineTextAlignment(.center)
 
@@ -48,11 +48,11 @@ struct TermsAcceptanceView: View {
                             }
                         }
                     }
-                    .font(.headline)
+                    .font(.subheadline)
 
                     Button(action: onAccept) {
                         Text("Accept and Continue")
-                            .font(.headline)
+                            .font(.subheadline.weight(.semibold))
                             .frame(maxWidth: .infinity)
                             .padding()
                             .background(geoDropTheme.colors.primary)
@@ -64,7 +64,7 @@ struct TermsAcceptanceView: View {
                     if let onDecline {
                         Button(action: onDecline) {
                             Text("Maybe later")
-                                .font(.subheadline)
+                                .font(.footnote)
                                 .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
                         }
                         .padding(.bottom, 32)
@@ -96,7 +96,7 @@ struct OnboardingChecklistView: View {
             ScrollView {
                 VStack(spacing: 24) {
                     Text("You're almost ready!")
-                        .font(.largeTitle.weight(.bold))
+                        .font(.title.weight(.bold))
                         .foregroundColor(geoDropTheme.colors.onSurface)
                         .multilineTextAlignment(.center)
                         .padding(.top, 32)
@@ -105,15 +105,15 @@ struct OnboardingChecklistView: View {
                         ForEach(checklist) { item in
                             HStack(alignment: .top, spacing: 16) {
                                 Image(systemName: item.icon)
-                                    .font(.title2)
+                                    .font(.title3)
                                     .foregroundColor(geoDropTheme.colors.primary)
                                     .frame(width: 32, height: 32)
                                 VStack(alignment: .leading, spacing: 6) {
                                     Text(item.title)
-                                        .font(.headline)
+                                        .font(.subheadline.weight(.semibold))
                                         .foregroundColor(geoDropTheme.colors.onSurface)
                                     Text(item.description)
-                                        .font(.subheadline)
+                                        .font(.footnote)
                                         .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
                                 }
                             }
@@ -126,7 +126,7 @@ struct OnboardingChecklistView: View {
 
                     Button(action: onContinue) {
                         Text("Start exploring")
-                            .font(.headline)
+                            .font(.subheadline.weight(.semibold))
                             .frame(maxWidth: .infinity)
                             .padding()
                             .background(geoDropTheme.colors.primary)
@@ -162,7 +162,7 @@ struct UserModeSelectionView: View {
             ScrollView {
                 VStack(spacing: 24) {
                     Text("How would you like to use GeoDrop?")
-                        .font(.title.weight(.bold))
+                        .font(.title2.weight(.bold))
                         .foregroundColor(geoDropTheme.colors.onSurface)
                         .multilineTextAlignment(.center)
                         .padding(.top, 32)
@@ -212,20 +212,20 @@ struct UserModeSelectionView: View {
             VStack(alignment: .leading, spacing: 16) {
                 HStack(spacing: 12) {
                     Image(systemName: icon)
-                        .font(.title2)
+                        .font(.title3)
                         .foregroundColor(geoDropTheme.colors.primary)
                     Text(title)
-                        .font(.headline)
+                        .font(.subheadline.weight(.semibold))
                         .foregroundColor(geoDropTheme.colors.onSurface)
                 }
 
                 Text(description)
-                    .font(.subheadline)
+                    .font(.footnote)
                     .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
 
                 Button(action: action) {
                     Text(actionTitle)
-                        .font(.subheadline.weight(.semibold))
+                        .font(.footnote.weight(.semibold))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 8)
                         .background(geoDropTheme.colors.primary)

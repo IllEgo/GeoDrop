@@ -116,11 +116,11 @@ struct DropDetailView: View {
     private func headerSection(for drop: Drop) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(drop.displayTitle)
-                .font(.title)
+                .font(.title2)
                 .fontWeight(.bold)
             if let businessName = drop.businessName, !businessName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 Text(businessName)
-                    .font(.headline)
+                    .font(.subheadline)
                     .foregroundColor(.secondary)
             }
             Text(drop.createdAt, style: .date)
@@ -133,7 +133,7 @@ struct DropDetailView: View {
     private func descriptionSection(for drop: Drop) -> some View {
         if let description = drop.description?.trimmingCharacters(in: .whitespacesAndNewlines), !description.isEmpty {
             Text(description)
-                .font(.body)
+                .font(.callout)
                 .foregroundColor(.primary)
         }
     }
@@ -189,7 +189,7 @@ struct DropDetailView: View {
             .overlay {
                 VStack(spacing: 8) {
                     Image(systemName: "exclamationmark.triangle")
-                        .font(.title2)
+                        .font(.title3)
                         .foregroundColor(.secondary)
                     Text(label)
                         .font(.caption)
@@ -271,18 +271,18 @@ struct DropDetailView: View {
     private func redemptionSection(for drop: Drop, alreadyRedeemed: Bool, canParticipate: Bool) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Business redemption")
-                .font(.headline)
+                .font(.subheadline.weight(.semibold))
 
             if let limit = drop.redemptionLimit {
                 let remaining = max(limit - drop.redemptionCount, 0)
                 Text("Redemptions left: \(remaining)")
-                    .font(.subheadline)
+                    .font(.footnote)
                     .foregroundColor(.secondary)
             }
 
             if alreadyRedeemed {
                 Text("You've already redeemed this offer.")
-                    .font(.subheadline)
+                    .font(.footnote)
                     .foregroundColor(.secondary)
             } else {
                 TextField("Enter redemption code", text: $redemptionCodeInput)
@@ -305,13 +305,13 @@ struct DropDetailView: View {
 
             if let redemptionStatusMessage {
                 Text(redemptionStatusMessage)
-                    .font(.subheadline)
+                    .font(.footnote)
                     .foregroundColor(.green)
             }
 
             if let redemptionErrorMessage {
                 Text(redemptionErrorMessage)
-                    .font(.subheadline)
+                    .font(.footnote)
                     .foregroundColor(.red)
             }
 
@@ -331,7 +331,7 @@ struct DropDetailView: View {
     private func moderationSection(for drop: Drop, alreadyReported: Bool, isOwner: Bool, canParticipate: Bool) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Keep GeoDrop welcoming")
-                .font(.headline)
+                .font(.subheadline.weight(.semibold))
 
             HStack(spacing: 12) {
                 Button {
@@ -378,7 +378,7 @@ struct DropDetailView: View {
 
     private func statusBanner(_ message: String) -> some View {
         Text(message)
-            .font(.subheadline)
+            .font(.footnote)
             .padding()
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
@@ -390,9 +390,9 @@ struct DropDetailView: View {
     private func nsfwNotice(labels: [String]) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Label("Adult content hidden", systemImage: "eye.slash")
-                .font(.headline)
+                .font(.subheadline.weight(.semibold))
             Text("Enable adult content in Profile settings to view this drop.")
-                .font(.body)
+                .font(.callout)
                 .foregroundColor(.primary)
             if !labels.isEmpty {
                 Text("Flagged because: \(labels.joined(separator: ", "))")

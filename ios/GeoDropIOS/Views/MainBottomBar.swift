@@ -85,11 +85,11 @@ struct MainBottomBar<AccountMenuContent: View>: View {
         }()
 
         return Button(action: onDropTapped) {
-            VStack(spacing: 6) {
+            VStack(spacing: 4) {
                 Image(systemName: "mappin.and.ellipse")
-                    .font(.system(size: 22, weight: .semibold))
+                    .font(.system(size: 18, weight: .semibold))
                 Text(dropLabel)
-                    .font(.footnote.weight(.semibold))
+                    .font(.caption.weight(.semibold))
             }
             .foregroundColor(geoDropTheme.colors.onPrimary)
             .padding(.vertical, 10)
@@ -113,14 +113,14 @@ private struct BarItemLabel: View {
     let theme: GeoDropTheme
 
     var body: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 4) {
             Image(systemName: iconName)
-                .font(.system(size: 22, weight: .semibold))
+                .font(.system(size: 18, weight: .semibold))
             Text(title)
-                .font(.footnote.weight(.semibold))
+                .font(.caption.weight(.semibold))
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 10)
+        .padding(.vertical, 8)
         .foregroundColor(isSelected ? theme.colors.primary : theme.colors.onSurface)
         .background(
             RoundedRectangle(cornerRadius: 14)

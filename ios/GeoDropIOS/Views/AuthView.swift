@@ -41,7 +41,7 @@ struct AuthView: View {
                 VStack(spacing: 24) {
                     VStack(spacing: 12) {
                         Text("GeoDrop")
-                            .font(.largeTitle.weight(.bold))
+                            .font(.title.weight(.bold))
                             .foregroundColor(geoDropTheme.colors.onSurface)
                         Text(accountDescription)
                             .font(.subheadline)
@@ -77,7 +77,7 @@ struct AuthView: View {
 
                     Button(action: submit) {
                         Text(buttonTitle)
-                            .font(.headline)
+                            .font(.subheadline.weight(.semibold))
                             .foregroundColor(geoDropTheme.colors.onPrimary)
                             .frame(maxWidth: .infinity)
                             .padding()
@@ -92,9 +92,9 @@ struct AuthView: View {
                     Button(action: startGoogleSignIn) {
                         HStack(spacing: 12) {
                             Image(systemName: "g.circle")
-                                .font(.title3)
-                            Text("Continue with Google")
                                 .font(.headline)
+                            Text("Continue with Google")
+                                .font(.subheadline.weight(.semibold))
                         }
                         .foregroundColor(geoDropTheme.colors.onSurface)
                         .frame(maxWidth: .infinity)

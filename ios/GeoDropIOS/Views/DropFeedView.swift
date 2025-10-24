@@ -579,7 +579,7 @@ struct DropRowView: View {
                             .clipped()
                     case .failure:
                         Image(systemName: "photo")
-                            .font(.largeTitle)
+                            .font(.title2)
                             .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     @unknown default:
@@ -638,13 +638,13 @@ extension DropFeedView {
         let destination = viewModel.selectedExplorerDestination
         return VStack(spacing: 12) {
             Image(systemName: destination.emptyStateIcon)
-                .font(.largeTitle.weight(.semibold))
+                .font(.title2.weight(.semibold))
                 .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
             Text(destination.emptyStateTitle)
-                .font(.headline)
+                .font(.subheadline.weight(.semibold))
                 .foregroundColor(geoDropTheme.colors.onSurface)
             Text(destination.emptyStateMessage)
-                .font(.subheadline)
+                .font(.footnote)
                 .multilineTextAlignment(.center)
                 .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
                 .padding(.horizontal)
@@ -658,7 +658,7 @@ extension DropFeedView {
             ProgressView()
                 .progressViewStyle(.circular)
             Text("Loading drops")
-                .font(.headline)
+                .font(.subheadline.weight(.semibold))
                 .foregroundColor(geoDropTheme.colors.onSurface)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -667,13 +667,13 @@ extension DropFeedView {
     private func errorStateView(message: String) -> some View {
         VStack(spacing: 12) {
             Image(systemName: "exclamationmark.triangle")
-                .font(.largeTitle)
+                .font(.title2)
                 .foregroundColor(geoDropTheme.colors.tertiary)
             Text("Couldn't load drops")
-                .font(.headline)
+                .font(.subheadline.weight(.semibold))
                 .foregroundColor(geoDropTheme.colors.onSurface)
             Text(message)
-                .font(.subheadline)
+                .font(.footnote)
                 .multilineTextAlignment(.center)
                 .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
                 .padding(.horizontal)

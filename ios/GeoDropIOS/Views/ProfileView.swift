@@ -241,7 +241,7 @@ struct BusinessDashboardView: View {
             } else if let message = errorMessage {
                 VStack(spacing: 16) {
                     Image(systemName: "exclamationmark.triangle")
-                        .font(.largeTitle)
+                        .font(.title2)
                         .foregroundColor(geoDropTheme.colors.tertiary)
                     Text(message)
                         .multilineTextAlignment(.center)
@@ -313,10 +313,10 @@ struct BusinessDashboardView: View {
         if sortedDrops.isEmpty {
             VStack(alignment: .leading, spacing: 12) {
                 Text("No drops yet")
-                    .font(.headline)
+                    .font(.subheadline.weight(.semibold))
                     .foregroundColor(geoDropTheme.colors.onSurface)
                 Text("Create a drop from the composer to see analytics here.")
-                    .font(.subheadline)
+                    .font(.footnote)
                     .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
             }
             .frame(maxWidth: .infinity, alignment: .leading)

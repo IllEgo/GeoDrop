@@ -1191,7 +1191,7 @@ private struct AudioRecorderSheet: View {
         NavigationView {
             VStack(spacing: 24) {
                 Text(formatDuration(elapsed))
-                    .font(.system(size: 36, weight: .semibold, design: .rounded))
+                    .font(.system(size: 28, weight: .semibold, design: .rounded))
                     .foregroundColor(geoDropTheme.colors.onSurface)
                     .padding(.top, 40)
 
@@ -1199,7 +1199,7 @@ private struct AudioRecorderSheet: View {
                     toggleRecording()
                 } label: {
                     Text(isRecording ? "Stop recording" : "Start recording")
-                        .font(.headline)
+                        .font(.subheadline.weight(.semibold))
                         .frame(maxWidth: .infinity)
                         .padding()
                         .background(isRecording ? Color.red : geoDropTheme.colors.primary)
