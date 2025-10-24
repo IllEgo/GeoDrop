@@ -15,7 +15,7 @@ struct DropFeedView: View {
     @State private var mapHeightFraction: CGFloat = 0.45
     @State private var dragStartFraction: CGFloat?
     @State private var shouldAnimateCamera = false
-    @State private var selectedFilter: DropFeedFilter = .browseMap
+    @State private var isRestrictionAlertPresented = false
     
     private static let defaultCoordinate = CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194)
     private static let defaultZoom: Float = GoogleMapCameraState.defaultZoom
@@ -39,6 +39,17 @@ struct DropFeedView: View {
                         groupSelector
                             .padding(.horizontal)
                             .padding(.top, 8)
+                        
+                        if viewModel.userMode?.isReadOnly == true {
+                            ReadOnlyModeCard(
+                                title: "Exploring as guest",
+                                message: "Sign in to access My Drops and Collected destinations.",
+                                actionTitle: "Sign In",
+                                action: { viewModel.beginAuthentication(for: .explorer) }
+                            )
+                            .padding(.horizontal)
+                            .padding(.top, 12)
+                        }
 
                         GeometryReader { geometry in
                             let totalHeight = geometry.size.height
@@ -73,7 +84,7 @@ struct DropFeedView: View {
                                         onSelectDrop: { drop in focus(on: drop) }
                                     )
                                     VStack {
-                                        filterBar
+                                        destinationTabs
                                             .padding(.horizontal, 20)
                                             .padding(.top, 12)
                                         Spacer()
@@ -93,7 +104,11 @@ struct DropFeedView: View {
                                 .gesture(drag)
 
                                 Group {
-                                    if displayedDrops.isEmpty {
+                                    if viewModel.authState == .loading && viewModel.drops.isEmpty {
+                                        loadingStateView
+                                    } else if let message = viewModel.errorMessage {
+                                        errorStateView(message: message)
+                                    } else if displayedDrops.isEmpty {
                                         emptyStateView
                                     } else {
                                         ScrollView {
@@ -125,8 +140,27 @@ struct DropFeedView: View {
                 .environmentObject(viewModel)
         }
         .onAppear { updateSelection(for: displayedDrops) }
-        .onChange(of: viewModel.drops) { updateSelection(for: filteredDrops(for: selectedFilter, from: $0)) }
-        .onChange(of: selectedFilter) { updateSelection(for: filteredDrops(for: $0, from: viewModel.drops)) }
+        .onChange(of: viewModel.drops) { _ in updateSelection(for: displayedDrops) }
+        .onChange(of: viewModel.inventory) { _ in updateSelection(for: displayedDrops) }
+        .onChange(of: viewModel.selectedExplorerDestination) { destination in
+            updateSelection(for: viewModel.explorerDrops(for: destination))
+        }
+        .onChange(of: viewModel.explorerRestrictionMessage) { message in
+            isRestrictionAlertPresented = message != nil
+        }
+        .alert("Limited Access", isPresented: Binding(
+            get: { isRestrictionAlertPresented },
+            set: { newValue in
+                isRestrictionAlertPresented = newValue
+                if !newValue {
+                    viewModel.explorerRestrictionMessage = nil
+                }
+            }
+        )) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(viewModel.explorerRestrictionMessage ?? "Sign in to continue.")
+        }
     }
     
     private var topBarActions: some View {
@@ -157,10 +191,10 @@ struct DropFeedView: View {
             .clipShape(Circle())
     }
     
-    private var filterBar: some View {
+    private var destinationTabs: some View {
         HStack(spacing: 8) {
-            ForEach(DropFeedFilter.allCases) { filter in
-                filterButton(for: filter)
+            ForEach(ExplorerDestination.allCases) { destination in
+                destinationButton(for: destination)
             }
         }
         .padding(.horizontal, 8)
@@ -169,19 +203,40 @@ struct DropFeedView: View {
         .shadow(color: Color.black.opacity(0.08), radius: 12, x: 0, y: 6)
     }
 
-    private func filterButton(for filter: DropFeedFilter) -> some View {
-        let isSelected = filter == selectedFilter
+    private func destinationButton(for destination: ExplorerDestination) -> some View {
+        let isSelected = viewModel.selectedExplorerDestination == destination
+        let count = viewModel.explorerCount(for: destination)
+        let isRestricted = destination.requiresAuthentication && !(viewModel.userMode?.canParticipate ?? false)
         return Button {
-            guard selectedFilter != filter else { return }
+            guard viewModel.selectedExplorerDestination != destination else { return }
             withAnimation(.easeInOut(duration: 0.2)) {
-                selectedFilter = filter
+                attemptSelection(of: destination)
             }
         } label: {
-            HStack(spacing: 6) {
-                Image(systemName: filter.systemImageName)
-                    .font(.subheadline.weight(.semibold))
-                Text(filter.title)
-                    .font(.subheadline.weight(.semibold))
+            VStack(spacing: 4) {
+                HStack(spacing: 6) {
+                    Image(systemName: destination.systemImageName)
+                        .font(.subheadline.weight(.semibold))
+                    Text(destination.title)
+                        .font(.subheadline.weight(.semibold))
+                    if isRestricted {
+                        Image(systemName: "lock.fill")
+                            .font(.caption.weight(.bold))
+                    }
+                }
+                .frame(maxWidth: .infinity)
+
+                if count > 0 {
+                    Text("\(count)")
+                        .font(.caption2.weight(.semibold))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 2)
+                        .background(
+                            Capsule()
+                                .fill(isSelected ? geoDropTheme.colors.onPrimary.opacity(0.2) : geoDropTheme.colors.surfaceVariant.opacity(0.6))
+                        )
+                        .foregroundColor(isSelected ? geoDropTheme.colors.onPrimary : geoDropTheme.colors.onSurface)
+                }
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 8)
@@ -190,11 +245,22 @@ struct DropFeedView: View {
                 Capsule()
                     .fill(isSelected ? geoDropTheme.colors.primary : Color.clear)
             )
-            .foregroundColor(isSelected ? geoDropTheme.colors.onPrimary : geoDropTheme.colors.onSurface)
+            .foregroundColor(
+                isSelected ? geoDropTheme.colors.onPrimary : (isRestricted ? geoDropTheme.colors.onSurface.opacity(0.6) : geoDropTheme.colors.onSurface)
+            )
         }
         .buttonStyle(.plain)
         .frame(maxWidth: .infinity)
-        .accessibilityLabel(filter.title)
+        .accessibilityLabel(destination.title)
+        .accessibilityHint(destination.requiresAuthentication ? "Requires sign in" : "")
+    }
+
+    private func attemptSelection(of destination: ExplorerDestination) {
+        let previous = viewModel.selectedExplorerDestination
+        viewModel.setExplorerDestination(destination)
+        if previous == viewModel.selectedExplorerDestination, previous != destination {
+            isRestrictionAlertPresented = viewModel.explorerRestrictionMessage != nil
+        }
     }
 
     private var groupSelector: some View {
@@ -230,6 +296,10 @@ struct DropRowView: View {
     @State private var showingDetail = false
     @State private var isExpanded = false
     @State private var infoAlertMessage: String?
+    @State private var showingReport = false
+    @State private var isSubmittingReport = false
+    @State private var reportErrorMessage: String?
+    @State private var selectedReportReasons: Set<String> = []
     
     var body: some View {
         let likePermission = viewModel.likePermission(for: drop)
@@ -293,13 +363,24 @@ struct DropRowView: View {
                     HStack(spacing: 16) {
                         Button(action: toggleLike) {
                             Label("Like", systemImage: drop.isLiked(by: currentUserId) == .liked ? "hand.thumbsup.fill" : "hand.thumbsup")
+                                .font(.subheadline.weight(.semibold))
+                        }
+                        .buttonStyle(.borderless)
+                        .help(viewModel.likePermission(for: drop).message ?? "")
+
+                        Button(action: markCollected) {
+                            Label(hasCollected ? "Collected" : "Collect", systemImage: hasCollected ? "checkmark.circle.fill" : "tray.and.arrow.down")
+                                .font(.subheadline.weight(.semibold))
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(hasCollected)
+
+                        Button(action: startReport) {
+                            Label("Report", systemImage: "exclamationmark.bubble")
+                                .font(.subheadline.weight(.semibold))
                         }
                         .buttonStyle(.borderless)
 
-                        Button(hasCollected ? "Collected" : "Collect", action: markCollected)
-                            .buttonStyle(.bordered)
-                            .disabled(hasCollected)
-                
                         Spacer()
 
                         Button("Details") {
@@ -335,6 +416,10 @@ struct DropRowView: View {
             DropDetailView(drop: drop)
                 .environmentObject(viewModel)
         }
+        .sheet(isPresented: $showingReport) {
+            reportSheet()
+                .environmentObject(viewModel)
+        }
         .alert("Notice", isPresented: Binding(
             get: { infoAlertMessage != nil },
             set: { if !$0 { infoAlertMessage = nil } }
@@ -365,8 +450,86 @@ struct DropRowView: View {
     }
 
     private func markCollected() {
+        guard let userId = currentUserId else {
+            infoAlertMessage = "Sign in to collect drops."
+            return
+        }
+        guard viewModel.userMode?.canParticipate == true else {
+            infoAlertMessage = "Upgrade to a full account to collect drops."
+            return
+        }
+        guard drop.createdBy != userId else {
+            infoAlertMessage = "You created this drop."
+            return
+        }
         guard !viewModel.hasCollected(drop: drop) else { return }
         viewModel.markCollected(drop: drop)
+    }
+    
+    private func startReport() {
+        guard let userId = currentUserId else {
+            infoAlertMessage = "Sign in to report drops."
+            return
+        }
+        guard viewModel.userMode?.canParticipate == true else {
+            infoAlertMessage = "Upgrade to a full account to report drops."
+            return
+        }
+        guard drop.createdBy != userId else {
+            infoAlertMessage = "You created this drop."
+            return
+        }
+        guard drop.reportedBy[userId] == nil else {
+            infoAlertMessage = "Thanks for your report. We'll review it soon."
+            return
+        }
+        selectedReportReasons = []
+        reportErrorMessage = nil
+        showingReport = true
+    }
+
+    private func submitReport() {
+        if selectedReportReasons.isEmpty {
+            reportErrorMessage = "Select at least one reason."
+            return
+        }
+        reportErrorMessage = nil
+        isSubmittingReport = true
+        Task { @MainActor in
+            let result = await viewModel.report(drop: drop, reasonCodes: selectedReportReasons)
+            isSubmittingReport = false
+            switch result {
+            case .success:
+                showingReport = false
+                selectedReportReasons = []
+                infoAlertMessage = "Thanks for your report. We'll review it soon."
+            case .failure(let error):
+                let message = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+                reportErrorMessage = message.isEmpty ? "Couldn't submit report. Try again." : message
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func reportSheet() -> some View {
+        let sheet = ReportDropSheet(
+            reasons: defaultReportReasons,
+            selectedReasonCodes: $selectedReportReasons,
+            isSubmitting: isSubmittingReport,
+            errorMessage: reportErrorMessage,
+            onDismiss: {
+                if !isSubmittingReport {
+                    showingReport = false
+                }
+            },
+            onSubmit: submitReport
+        )
+
+        if #available(iOS 16.0, *) {
+            sheet.presentationDetents([.medium, .large])
+        } else {
+            sheet
+        }
     }
     
     private var expandedDescriptionText: String? {
@@ -480,71 +643,57 @@ private struct DropVideoPlayerView: View {
 
 extension DropFeedView {
     private var displayedDrops: [Drop] {
-        filteredDrops(for: selectedFilter, from: viewModel.drops)
-    }
-
-    private var currentUserID: String? {
-        if case let .signedIn(session) = viewModel.authState {
-            return session.user.uid
-        }
-        return nil
-    }
-
-    private func filteredDrops(for filter: DropFeedFilter, from drops: [Drop]) -> [Drop] {
-        let ignored = viewModel.inventory.ignoredDropIDs
-        switch filter {
-        case .browseMap:
-            return drops.filter { !ignored.contains($0.id) }
-        case .myDrops:
-            guard let userID = currentUserID else { return [] }
-            return drops.filter { $0.createdBy == userID && !ignored.contains($0.id) }
-        case .savedDrops:
-            return savedDrops(from: drops).filter { !ignored.contains($0.id) }
-        }
-    }
-
-    private func savedDrops(from drops: [Drop]) -> [Drop] {
-        let stored = viewModel.inventory.collectedDrops
-        var results: [Drop] = []
-        var seen: Set<String> = []
-
-        if let userID = currentUserID {
-            for drop in drops {
-                if drop.collectedBy[userID] == true || stored[drop.id] != nil {
-                    let candidate = stored[drop.id] ?? drop
-                    results.append(candidate)
-                    seen.insert(candidate.id)
-                }
-            }
-        } else {
-            for drop in drops {
-                if let storedDrop = stored[drop.id] {
-                    results.append(storedDrop)
-                    seen.insert(storedDrop.id)
-                }
-            }
-        }
-        
-        for (id, storedDrop) in stored where !seen.contains(id) {
-            results.append(storedDrop)
-        }
-
-        return results
+        viewModel.explorerDrops(for: viewModel.selectedExplorerDestination)
     }
 
     private var emptyStateView: some View {
-        VStack(spacing: 12) {
-            Image(systemName: selectedFilter.emptyStateIcon)
+        let destination = viewModel.selectedExplorerDestination
+        return VStack(spacing: 12) {
+            Image(systemName: destination.emptyStateIcon)
                 .font(.largeTitle.weight(.semibold))
                 .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
-            Text(selectedFilter.emptyStateTitle)
+            Text(destination.emptyStateTitle)
                 .font(.headline)
                 .foregroundColor(geoDropTheme.colors.onSurface)
-            Text(selectedFilter.emptyStateMessage)
+            Text(destination.emptyStateMessage)
                 .font(.subheadline)
                 .multilineTextAlignment(.center)
                 .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
                 .padding(.horizontal)
+        }
+        .padding()
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var loadingStateView: some View {
+        VStack(spacing: 12) {
+            ProgressView()
+                .progressViewStyle(.circular)
+            Text("Loading drops")
+                .font(.headline)
+                .foregroundColor(geoDropTheme.colors.onSurface)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func errorStateView(message: String) -> some View {
+        VStack(spacing: 12) {
+            Image(systemName: "exclamationmark.triangle")
+                .font(.largeTitle)
+                .foregroundColor(geoDropTheme.colors.tertiary)
+            Text("Couldn't load drops")
+                .font(.headline)
+                .foregroundColor(geoDropTheme.colors.onSurface)
+            Text(message)
+                .font(.subheadline)
+                .multilineTextAlignment(.center)
+                .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
+                .padding(.horizontal)
+            Button("Try again") {
+                Task { await viewModel.refreshDrops() }
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(geoDropTheme.colors.primary)
         }
         .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -589,65 +738,37 @@ extension DropFeedView {
     }
 }
 
-private enum DropFeedFilter: CaseIterable, Identifiable {
-    case browseMap
-    case myDrops
-    case savedDrops
+private struct ReadOnlyModeCard: View {
+    let title: String
+    let message: String
+    let actionTitle: String?
+    let action: (() -> Void)?
 
-    var id: Self { self }
+    @Environment(\.geoDropTheme) private var geoDropTheme
 
-    var title: String {
-        switch self {
-        case .browseMap:
-            return "Browse Map"
-        case .myDrops:
-            return "My Drops"
-        case .savedDrops:
-            return "Saved Drops"
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.headline)
+                .foregroundColor(geoDropTheme.colors.onSurface)
+            Text(message)
+                .font(.subheadline)
+                .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
+            if let actionTitle, let action {
+                Button(actionTitle, action: action)
+                    .buttonStyle(.borderedProminent)
+                    .tint(geoDropTheme.colors.primary)
+            }
         }
-    }
-
-    var systemImageName: String {
-        switch self {
-        case .browseMap:
-            return "map"
-        case .myDrops:
-            return "tray.full"
-        case .savedDrops:
-            return "bookmark"
-        }
-    }
-
-    var emptyStateIcon: String {
-        switch self {
-        case .browseMap:
-            return "mappin.and.ellipse"
-        case .myDrops:
-            return "tray"
-        case .savedDrops:
-            return "bookmark.slash"
-        }
-    }
-
-    var emptyStateTitle: String {
-        switch self {
-        case .browseMap:
-            return "No drops nearby"
-        case .myDrops:
-            return "No drops yet"
-        case .savedDrops:
-            return "No saved drops"
-        }
-    }
-
-    var emptyStateMessage: String {
-        switch self {
-        case .browseMap:
-            return "Try refreshing or explore another group to discover more drops."
-        case .myDrops:
-            return "Drops you create will appear here for easy access."
-        case .savedDrops:
-            return "Collect drops to save them for later."
-        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(geoDropTheme.colors.surfaceVariant)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(geoDropTheme.colors.outlineVariant.opacity(0.6), lineWidth: 1)
+        )
     }
 }

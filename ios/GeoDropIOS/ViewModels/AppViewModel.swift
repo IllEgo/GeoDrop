@@ -62,9 +62,15 @@ final class AppViewModel: ObservableObject {
     @Published private(set) var hasCompletedOnboarding: Bool
     @Published var groups: [GroupMembership] = []
     @Published var selectedGroupCode: String?
-    @Published var drops: [Drop] = []
+    @Published var drops: [Drop] = [] {
+        didSet { rebuildExplorerCollections() }
+    }
     @Published private(set) var blockedCreatorIDs: Set<String> = []
     @Published private(set) var inventory: NoteInventoryService.Inventory
+    @Published private(set) var explorerMyDrops: [Drop] = []
+    @Published private(set) var explorerCollectedDrops: [Drop] = []
+    @Published var selectedExplorerDestination: ExplorerDestination = .nearby
+    @Published var explorerRestrictionMessage: String?
     @Published var allowNsfw: Bool = false
     @Published var errorMessage: String?
     @Published var isPerformingAction: Bool = false
@@ -119,9 +125,12 @@ final class AppViewModel: ObservableObject {
                 guard let self else { return }
                 if identifier == self.inventoryService.storageIdentifier(for: self.inventoryUserId) {
                     self.inventory = self.inventoryService.inventory(for: self.inventoryUserId)
+                    self.rebuildExplorerCollections()
                 }
             }
             .store(in: &cancellables)
+        
+        rebuildExplorerCollections()
     }
     
     var currentUserID: String? {
@@ -146,6 +155,37 @@ final class AppViewModel: ObservableObject {
         authService.observeAuthChanges { [weak self] user in
             Task { await self?.handleAuthChange(user: user) }
         }
+    }
+    
+    func setExplorerDestination(_ destination: ExplorerDestination) {
+        guard canAccess(destination: destination) else {
+            explorerRestrictionMessage = destination.restrictionMessage(for: userMode)
+            return
+        }
+
+        explorerRestrictionMessage = nil
+        selectedExplorerDestination = destination
+    }
+
+    func explorerDrops(for destination: ExplorerDestination) -> [Drop] {
+        switch destination {
+        case .nearby:
+            return drops.filter { !inventory.ignoredDropIDs.contains($0.id) }
+        case .myDrops:
+            return explorerMyDrops
+        case .collected:
+            return explorerCollectedDrops
+        }
+    }
+
+    func explorerCount(for destination: ExplorerDestination) -> Int {
+        explorerDrops(for: destination).count
+    }
+
+    private func canAccess(destination: ExplorerDestination) -> Bool {
+        guard destination.requiresAuthentication else { return true }
+        guard let mode = userMode else { return false }
+        return mode.canParticipate
     }
     
     // MARK: - Onboarding & Mode Selection
@@ -605,11 +645,42 @@ final class AppViewModel: ObservableObject {
     
     private func reloadInventorySnapshot() {
         inventory = inventoryService.inventory(for: inventoryUserId)
+        rebuildExplorerCollections()
     }
 
     private func switchInventory(to userId: String?) {
         inventoryUserId = userId
         reloadInventorySnapshot()
+    }
+    
+    private func rebuildExplorerCollections() {
+        let ignored = inventory.ignoredDropIDs
+        if let userId = currentUserID {
+            explorerMyDrops = drops.filter { $0.createdBy == userId && !ignored.contains($0.id) }
+        } else {
+            explorerMyDrops = []
+        }
+
+        var collected: [Drop] = []
+        var seen: Set<String> = []
+        let stored = inventory.collectedDrops
+        if let userId = currentUserID {
+            for drop in drops {
+                if ignored.contains(drop.id) { continue }
+                if drop.collectedBy[userId] == true {
+                    collected.append(drop)
+                    seen.insert(drop.id)
+                }
+            }
+        }
+
+        for (dropId, storedDrop) in stored.sorted(by: { $0.value.displayTitle < $1.value.displayTitle }) {
+            guard !ignored.contains(dropId) else { continue }
+            if seen.contains(dropId) { continue }
+            collected.append(storedDrop)
+        }
+
+        explorerCollectedDrops = collected
     }
     
     // MARK: - Groups
@@ -804,6 +875,12 @@ final class AppViewModel: ObservableObject {
 
     private func setUserMode(_ mode: UserMode?, persist: Bool = true) {
         userMode = mode
+        if !canAccess(destination: selectedExplorerDestination) {
+            selectedExplorerDestination = .nearby
+        }
+        if mode?.canParticipate == true {
+            explorerRestrictionMessage = nil
+        }
         guard persist else { return }
         if let mode {
             defaults.set(mode.rawValue, forKey: DefaultsKeys.userMode)
