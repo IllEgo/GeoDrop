@@ -306,11 +306,12 @@ struct BusinessDashboardView: View {
             VStack(alignment: .leading, spacing: 16) {
                 Text("Recent drops")
                     .font(.headline)
-                LazyVStack(spacing: 16) {
+                VStack(alignment: .leading, spacing: 16) {
                     ForEach(sortedDrops) { drop in
                         BusinessDropDashboardCard(drop: drop)
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
     }
