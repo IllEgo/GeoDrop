@@ -54,7 +54,7 @@ struct CreateDropView: View {
                 timingSection
             }
             .tint(geoDropTheme.colors.primary)
-            .scrollContentBackground(.hidden)
+            .scrollContentBackgroundHiddenIfAvailable()
             .background(geoDropTheme.colors.background)
             .onAppear {
                 updateVisibilitySelection()
@@ -611,6 +611,17 @@ struct CreateDropView: View {
         activeTemplate = nil
         updateVisibilitySelection()
         ensureAnonymousState()
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func scrollContentBackgroundHiddenIfAvailable() -> some View {
+        if #available(iOS 16.0, *) {
+            scrollContentBackground(.hidden)
+        } else {
+            self
+        }
     }
 }
 
