@@ -657,7 +657,13 @@ final class AppViewModel: ObservableObject {
             }
         }
     }
-
+    
+    func fetchBusinessDrops() async throws -> [Drop] {
+        guard case let .signedIn(session) = authState else { return [] }
+        guard session.profile.role == .business else { return [] }
+        return try await firestore.getBusinessDrops(businessId: session.user.uid)
+    }
+    
     // MARK: - Private
 
     private func handleAuthChange(user: FirebaseAuth.User?) async {

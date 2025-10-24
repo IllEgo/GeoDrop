@@ -30,7 +30,7 @@ enum BusinessDropTemplates {
             }
         }
 
-        for template in generalTemplates {
+        for template in starterTemplates {
             append(template)
         }
 
@@ -48,7 +48,29 @@ enum BusinessDropTemplates {
         BusinessCategory.from(id: id) ?? BusinessCategory.all.first!
     }
     
-    private static let generalTemplates: [BusinessDropTemplate] = [
+    
+    static var generalTemplates: [BusinessDropTemplate] {
+        starterTemplates
+    }
+
+    static func templates(for category: BusinessCategory) -> [BusinessDropTemplate] {
+        categoryTemplates[category.id] ?? []
+    }
+
+    static func templates(for categories: [BusinessCategory]) -> [BusinessDropTemplate] {
+        var ordered = [BusinessDropTemplate]()
+        var seen = Set<String>()
+        for category in categories {
+            for template in templates(for: category) {
+                if seen.insert(template.id).inserted {
+                    ordered.append(template)
+                }
+            }
+        }
+        return ordered
+    }
+
+    private static let starterTemplates: [BusinessDropTemplate] = [
         BusinessDropTemplate(
             id: "general_welcome_note",
             category: category("FOOD_RESTAURANTS_CAFES"),

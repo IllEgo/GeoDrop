@@ -23,6 +23,7 @@ struct CreateDropView: View {
     @State private var isShowingVideoCapture = false
     @State private var isShowingAudioRecorder = false
     @State private var activeTemplate: BusinessDropTemplate?
+    @State private var isShowingTemplateBrowser = false
 
     private let maxDecayDays = 365
     private let maxTemplateSuggestions = 6
@@ -35,7 +36,7 @@ struct CreateDropView: View {
             Form {
                 messageSection
 
-                if isBusinessUser, !templateSuggestions.isEmpty {
+                if isBusinessUser {
                     templateSection
                 }
 
@@ -103,6 +104,16 @@ struct CreateDropView: View {
                     isShowingAudioRecorder = false
                 }
             }
+            .sheet(isPresented: $isShowingTemplateBrowser) {
+                let categories = currentProfile?.businessCategories ?? []
+                BusinessTemplateBrowserView(
+                    selectedCategories: Set(categories),
+                    onApply: { template in
+                        apply(template: template)
+                        isShowingTemplateBrowser = false
+                    }
+                )
+            }
         }
     }
     private var currentProfile: UserProfile? {
@@ -124,6 +135,11 @@ struct CreateDropView: View {
         guard let profile = currentProfile, profile.role == .business else { return [] }
         let suggestions = BusinessDropTemplates.suggestions(for: profile.businessCategories)
         return Array(suggestions.prefix(maxTemplateSuggestions))
+    }
+    
+    private var hasBusinessCategories: Bool {
+        guard let profile = currentProfile, profile.role == .business else { return false }
+        return !profile.businessCategories.isEmpty
     }
 
     private var visibilityOptions: [DropVisibilityOption] {
@@ -151,16 +167,32 @@ struct CreateDropView: View {
 
     private var templateSection: some View {
         Section(header: Text("Drop ideas for your business")) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 16) {
-                    ForEach(templateSuggestions, id: \.id) { template in
-                        BusinessTemplateCard(template: template) {
-                            apply(template: template)
+            if !templateSuggestions.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 16) {
+                        ForEach(templateSuggestions, id: \.id) { template in
+                            BusinessTemplateCard(template: template) { template in
+                                apply(template: template)
+                            }
+                            .frame(width: 280)
                         }
                     }
+                    .padding(.vertical, 4)
                 }
-                .padding(.vertical, 4)
             }
+            
+            if !hasBusinessCategories {
+                Text("Add business categories in Profile to unlock tailored suggestions.")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+            }
+
+            Button {
+                isShowingTemplateBrowser = true
+            } label: {
+                Label("Browse all templates", systemImage: "sparkles")
+            }
+
             if let callToAction = activeTemplate?.callToAction, !callToAction.isEmpty {
                 Text(callToAction)
                     .font(.footnote)
@@ -600,9 +632,10 @@ private enum DropVisibilityOption: Hashable {
     }
 }
 
-private struct BusinessTemplateCard: View {
+struct BusinessTemplateCard: View {
     let template: BusinessDropTemplate
-    let onApply: () -> Void
+    var actionTitle: String = "Use this idea"
+    var onApply: ((BusinessDropTemplate) -> Void)? = nil
 
     private var dropTypeIconName: String {
         switch template.dropType {
@@ -658,16 +691,172 @@ private struct BusinessTemplateCard: View {
                 }
             }
             
-            Button("Use this idea", action: onApply)
+            if let onApply {
+                Button(actionTitle) {
+                    onApply(template)
+                }
                 .buttonStyle(.borderedProminent)
+            }
         }
         .padding()
-        .frame(width: 280, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 16).fill(Color(uiColor: .secondarySystemBackground)))
         .overlay(
             RoundedRectangle(cornerRadius: 16)
                 .stroke(Color.accentColor.opacity(0.25))
         )
+    }
+}
+
+struct BusinessTemplateBrowserView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let selectedCategories: Set<BusinessCategory>
+    var onApply: ((BusinessDropTemplate) -> Void)?
+
+    private var focusCategoryIds: Set<String> {
+        Set(selectedCategories.map(\.id))
+    }
+
+    private var filteredGroups: [BusinessCategory.GroupMetadata] {
+        BusinessCategory.grouped.compactMap { metadata in
+            let categories = metadata.categories.filter { category in
+                focusCategoryIds.isEmpty || focusCategoryIds.contains(category.id)
+            }
+            guard !categories.isEmpty else { return nil }
+            return BusinessCategory.GroupMetadata(
+                group: metadata.group,
+                title: metadata.title,
+                description: metadata.description,
+                categories: categories
+            )
+        }
+    }
+
+    private var selectedCategorySummary: String? {
+        guard !selectedCategories.isEmpty else { return nil }
+        let formatter = ListFormatter()
+        return formatter.string(from: selectedCategories.map(\.displayName).sorted())
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    header
+
+                    if !BusinessDropTemplates.generalTemplates.isEmpty {
+                        templateSection(
+                            title: "Starter ideas",
+                            subtitle: "Quick prompts any business can remix.",
+                            templates: BusinessDropTemplates.generalTemplates
+                        )
+                    }
+
+                    ForEach(filteredGroups, id: \.id) { metadata in
+                        VStack(alignment: .leading, spacing: 16) {
+                            Text(metadata.title)
+                                .font(.title3.weight(.semibold))
+                            Text(metadata.description)
+                                .font(.footnote)
+                                .foregroundColor(.secondary)
+
+                            ForEach(metadata.categories, id: \.id) { category in
+                                let templates = BusinessDropTemplates.templates(for: category)
+                                VStack(alignment: .leading, spacing: 12) {
+                                    Text(category.displayName)
+                                        .font(.headline)
+                                    Text(category.description)
+                                        .font(.footnote)
+                                        .foregroundColor(.secondary)
+
+                                    if templates.isEmpty {
+                                        Text("Templates coming soon for this category.")
+                                            .font(.footnote)
+                                            .foregroundColor(.secondary)
+                                    } else {
+                                        ForEach(templates, id: \.id) { template in
+                                            BusinessTemplateCard(
+                                                template: template,
+                                                actionTitle: onApply == nil ? "" : "Use this idea",
+                                                onApply: onApply.map { handler in
+                                                    { template in
+                                                        handler(template)
+                                                        dismiss()
+                                                    }
+                                                }
+                                            )
+                                            .padding(.vertical, 4)
+                                        }
+                                    }
+                                }
+                                .padding(16)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 16)
+                                        .fill(Color(uiColor: .secondarySystemBackground))
+                                )
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 24)
+            }
+            .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
+            .navigationTitle("Drop template library")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") { dismiss() }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Browse template ideas")
+                .font(.title2.weight(.semibold))
+            if let summary = selectedCategorySummary {
+                Text("Showing highlights for \(summary).")
+                    .font(.callout)
+                    .foregroundColor(.secondary)
+            } else {
+                Text("Explore playbooks for every category, or add business categories to tailor this list.")
+                    .font(.callout)
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func templateSection(title: String, subtitle: String, templates: [BusinessDropTemplate]) -> some View {
+        if templates.isEmpty {
+            EmptyView()
+        } else {
+            VStack(alignment: .leading, spacing: 16) {
+                Text(title)
+                    .font(.title3.weight(.semibold))
+                Text(subtitle)
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+
+                ForEach(templates, id: \.id) { template in
+                    BusinessTemplateCard(
+                        template: template,
+                        actionTitle: onApply == nil ? "" : "Use this idea",
+                        onApply: onApply.map { handler in
+                            { template in
+                                handler(template)
+                                dismiss()
+                            }
+                        }
+                    )
+                    .padding(.vertical, 4)
+                }
+            }
+        }
     }
 }
 private struct PhotoCaptureView: UIViewControllerRepresentable {
