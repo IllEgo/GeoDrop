@@ -266,12 +266,28 @@ struct BusinessDashboardView: View {
     }
 
     private var metricsGrid: some View {
-        let columns = [GridItem(.flexible()), GridItem(.flexible())]
-        return LazyVGrid(columns: columns, spacing: 16) {
-            metricTile(value: liveDropsCount, label: "Live drops")
-            metricTile(value: totalRedemptions, label: "Total redemptions")
-            metricTile(value: uniqueRedemptions, label: "Unique redeemers")
-            metricTile(value: activeOfferCount, label: "Active offers")
+        let metrics = [
+            (value: liveDropsCount, label: "Live drops"),
+            (value: totalRedemptions, label: "Total redemptions"),
+            (value: uniqueRedemptions, label: "Unique redeemers"),
+            (value: activeOfferCount, label: "Active offers")
+        ]
+
+        let rows = metrics.chunked(into: 2)
+
+        return VStack(spacing: 16) {
+            ForEach(Array(rows.enumerated()), id: \.offset) { _, rowItems in
+                HStack(spacing: 16) {
+                    ForEach(rowItems, id: \.label) { item in
+                        metricTile(value: item.value, label: item.label)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    if rowItems.count == 1 {
+                        Spacer(minLength: 0)
+                    }
+                }
+            }
         }
     }
 
@@ -461,5 +477,22 @@ private struct BusinessDropDashboardCard: View {
             RoundedRectangle(cornerRadius: 16)
                 .stroke(Color.accentColor.opacity(0.15))
         )
+    }
+}
+
+private extension Array {
+    func chunked(into size: Int) -> [[Element]] {
+        guard size > 0 else { return [self] }
+
+        var chunks: [[Element]] = []
+        var index = startIndex
+
+        while index < endIndex {
+            let end = self.index(index, offsetBy: size, limitedBy: endIndex) ?? endIndex
+            chunks.append(Array(self[index..<end]))
+            index = end
+        }
+
+        return chunks
     }
 }
