@@ -195,50 +195,60 @@ struct BusinessDashboardView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if isLoading && drops.isEmpty {
-                    VStack(spacing: 16) {
-                        ProgressView()
-                        Text("Loading your business analytics…")
-                            .font(.callout)
-                            .foregroundColor(.secondary)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if let message = errorMessage {
-                    VStack(spacing: 16) {
-                        Image(systemName: "exclamationmark.triangle")
-                            .font(.largeTitle)
-                            .foregroundColor(.orange)
-                        Text(message)
-                            .multilineTextAlignment(.center)
-                        Button("Retry") {
-                            Task { await reload() }
-                        }
-                        .buttonStyle(.borderedProminent)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else {
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 24) {
-                            header
-                            metricsGrid
-                            dropList
-                        }
-                        .padding(24)
-                    }
-                    .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
+        Group {
+            if #available(iOS 16.0, *) {
+                NavigationStack { dashboardContent }
+            } else {
+                NavigationView { dashboardContent }
+                    .navigationViewStyle(StackNavigationViewStyle())
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var dashboardContent: some View {
+        Group {
+            if isLoading && drops.isEmpty {
+                VStack(spacing: 16) {
+                    ProgressView()
+                    Text("Loading your business analytics…")
+                        .font(.callout)
+                        .foregroundColor(.secondary)
                 }
-            }
-            .navigationTitle("Business dashboard")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { dismiss() }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let message = errorMessage {
+                VStack(spacing: 16) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.largeTitle)
+                        .foregroundColor(.orange)
+                    Text(message)
+                        .multilineTextAlignment(.center)
+                    Button("Retry") {
+                        Task { await reload() }
+                    }
+                    .buttonStyle(.borderedProminent)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 24) {
+                        header
+                        metricsGrid
+                        dropList
+                    }
+                    .padding(24)
+                }
+                .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
             }
-            .task {
-                await loadIfNeeded()
+        }
+        .navigationTitle("Business dashboard")
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Close") { dismiss() }
             }
+        }
+        .task {
+            await loadIfNeeded()
         }
     }
 
