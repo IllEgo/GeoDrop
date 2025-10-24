@@ -5,6 +5,7 @@ import UIKit
 struct CreateDropView: View {
     @EnvironmentObject private var viewModel: AppViewModel
     @Environment(\.geoDropTheme) private var geoDropTheme
+    private let onDismiss: (() -> Void)?
     @State private var text = ""
     @State private var description = ""
     @State private var isAnonymous = false
@@ -28,10 +29,23 @@ struct CreateDropView: View {
 
     private let maxDecayDays = 365
     private let maxTemplateSuggestions = 6
+    
+    init(onDismiss: (() -> Void)? = nil) {
+        self.onDismiss = onDismiss
+    }
 
     var body: some View {
         GeoDropNavigationContainer(
             subtitle: "New drop",
+            leading: {
+                if let onDismiss {
+                    Button("Close") {
+                        onDismiss()
+                    }
+                    .font(.callout.weight(.semibold))
+                    .foregroundColor(geoDropTheme.colors.primary)
+                }
+            },
             trailing: { submitAction }
         ) {
             Form {

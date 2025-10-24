@@ -5,7 +5,6 @@ import AVKit
 struct DropFeedView: View {
     @EnvironmentObject private var viewModel: AppViewModel
     @Environment(\.geoDropTheme) private var geoDropTheme
-    @State private var showingGroupJoin = false
     @State private var mapCameraState = GoogleMapCameraState(
         latitude: Self.defaultCoordinate.latitude,
         longitude: Self.defaultCoordinate.longitude,
@@ -30,7 +29,7 @@ struct DropFeedView: View {
                     VStack(spacing: 16) {
                         Text("Join a group to start discovering drops.")
                             .multilineTextAlignment(.center)
-                        Button("Join group") { showingGroupJoin = true }
+                        Button("Join group") { viewModel.openGroupManagement() }
                             .buttonStyle(.borderedProminent)
                     }
                     .padding()
@@ -58,10 +57,6 @@ struct DropFeedView: View {
                     .listStyle(.insetGrouped)
                 }
             }
-        }
-        .sheet(isPresented: $showingGroupJoin) {
-            GroupManagementView()
-                .environmentObject(viewModel)
         }
         .onAppear { updateSelection(for: displayedDrops) }
         .onChange(of: viewModel.drops) { _ in updateSelection(for: displayedDrops) }

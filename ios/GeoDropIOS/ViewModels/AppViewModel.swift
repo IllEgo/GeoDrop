@@ -72,6 +72,7 @@ final class AppViewModel: ObservableObject {
     @Published var selectedExplorerDestination: ExplorerDestination = .nearby
     @Published var explorerRestrictionMessage: String?
     @Published var allowNsfw: Bool = false
+    @Published var notificationRadiusMeters: Double
     @Published var errorMessage: String?
     @Published var isPerformingAction: Bool = false
     @Published var pendingAccountRole: UserRole?
@@ -79,6 +80,11 @@ final class AppViewModel: ObservableObject {
     @Published var isGoogleSigningIn: Bool = false
     @Published var authFlowError: String?
     @Published var authFlowStatus: String?
+    @Published var isShowingAccountMenu: Bool = false
+    @Published var isShowingDropComposer: Bool = false
+    @Published var isShowingGroupMenu: Bool = false
+    @Published var isShowingGroupManagement: Bool = false
+    @Published var isShowingNotificationRadius: Bool = false
 
     private let authService = AuthService.shared
     private let firestore = FirestoreService.shared
@@ -86,6 +92,7 @@ final class AppViewModel: ObservableObject {
     private let locationService = LocationService.shared
     private lazy var safeSearch = SafeSearchService(apiKey: AppConfiguration.shared.visionApiKey)
     private let inventoryService = NoteInventoryService.shared
+    private let notificationPreferences: NotificationPreferences
     private var groupListener: ListenerRegistration?
     private var dropsListener: ListenerRegistration?
     private var cancellables: Set<AnyCancellable> = []
@@ -103,6 +110,8 @@ final class AppViewModel: ObservableObject {
         let initialUserId = authService.currentUser?.uid
         self.inventoryUserId = initialUserId
         self.inventory = inventoryService.inventory(for: initialUserId)
+        self.notificationPreferences = NotificationPreferences(userDefaults: userDefaults)
+        self.notificationRadiusMeters = notificationPreferences.radiusMeters()
         let accepted = userDefaults.bool(forKey: DefaultsKeys.acceptedTerms)
         self.hasAcceptedTerms = accepted
         let onboarding = userDefaults.bool(forKey: DefaultsKeys.completedOnboarding)
@@ -208,12 +217,14 @@ final class AppViewModel: ObservableObject {
     }
 
     func selectGuestMode() {
+        hideTransientOverlays()
         pendingAccountRole = nil
         resetAuthFlowMessages()
         setUserMode(.guest)
     }
 
     func beginAuthentication(for role: UserRole) {
+        hideTransientOverlays()
         pendingAccountRole = role
         resetAuthFlowMessages()
     }
@@ -279,6 +290,7 @@ final class AppViewModel: ObservableObject {
     func signOut() {
         do {
             try authService.signOut()
+            hideTransientOverlays()
             setUserMode(nil)
             pendingAccountRole = nil
             isAuthenticating = false
@@ -825,6 +837,7 @@ final class AppViewModel: ObservableObject {
             authState = .signedOut
             isAuthenticating = false
             isGoogleSigningIn = false
+            hideTransientOverlays()
             let persistedMode = persistedUserMode()
             if persistedMode == .guest {
                 setUserMode(.guest, persist: false)
@@ -887,12 +900,128 @@ final class AppViewModel: ObservableObject {
         }
         if mode?.canParticipate == true {
             explorerRestrictionMessage = nil
+        } else {
+            hideParticipationDependentOverlays()
         }
         guard persist else { return }
         if let mode {
             defaults.set(mode.rawValue, forKey: DefaultsKeys.userMode)
         } else {
             defaults.removeObject(forKey: DefaultsKeys.userMode)
+        }
+    }
+    
+    // MARK: - Navigation & Preferences
+
+    func toggleAccountMenu() {
+        if isShowingAccountMenu {
+            isShowingAccountMenu = false
+        } else {
+            isShowingAccountMenu = true
+            isShowingGroupMenu = false
+        }
+    }
+
+    func presentDropComposer() {
+        guard canParticipate else {
+            errorMessage = participationRestrictionMessage(action: "share drops")
+            return
+        }
+
+        guard case .signedIn = authState else {
+            beginAuthentication(for: .explorer)
+            return
+        }
+
+        isShowingDropComposer = true
+        isShowingAccountMenu = false
+        isShowingGroupMenu = false
+    }
+
+    func dismissDropComposer() {
+        isShowingDropComposer = false
+    }
+
+    func toggleGroupMenu() {
+        guard canParticipate else {
+            errorMessage = participationRestrictionMessage(action: "manage groups")
+            return
+        }
+
+        if isShowingGroupMenu {
+            isShowingGroupMenu = false
+        } else {
+            isShowingGroupMenu = true
+            isShowingAccountMenu = false
+        }
+    }
+
+    func openGroupManagement() {
+        guard canParticipate else {
+            errorMessage = participationRestrictionMessage(action: "manage groups")
+            return
+        }
+
+        isShowingGroupMenu = false
+        isShowingGroupManagement = true
+    }
+
+    func dismissGroupManagement() {
+        isShowingGroupManagement = false
+    }
+
+    func openNotificationRadiusSettings() {
+        guard canParticipate else {
+            errorMessage = participationRestrictionMessage(action: "manage notifications")
+            return
+        }
+
+        isShowingNotificationRadius = true
+        isShowingAccountMenu = false
+    }
+
+    func dismissNotificationRadiusSettings() {
+        isShowingNotificationRadius = false
+    }
+
+    func setNotificationRadius(_ meters: Double) {
+        notificationPreferences.setRadiusMeters(meters)
+        notificationRadiusMeters = notificationPreferences.radiusMeters()
+    }
+
+    func toggleAllowNsfw() {
+        setAllowNsfw(!allowNsfw)
+    }
+
+    func participationRestrictionMessage(action: String) -> String {
+        switch userMode {
+        case .guest:
+            return "Create an account to \(action)."
+        case .signedIn:
+            return "Sign in to \(action)."
+        case .none:
+            return "Sign in to \(action)."
+        }
+    }
+
+    private var canParticipate: Bool {
+        userMode?.canParticipate == true
+    }
+
+    private func hideTransientOverlays() {
+        isShowingAccountMenu = false
+        isShowingDropComposer = false
+        isShowingGroupMenu = false
+        isShowingGroupManagement = false
+        isShowingNotificationRadius = false
+    }
+
+    private func hideParticipationDependentOverlays() {
+        if !canParticipate {
+            isShowingDropComposer = false
+            isShowingGroupMenu = false
+            isShowingGroupManagement = false
+            isShowingNotificationRadius = false
         }
     }
 }
