@@ -181,7 +181,7 @@ struct DropFeedView: View {
     private var topBarActions: some View {
         HStack(spacing: 12) {
             Button {
-                showingGroupJoin = true
+                viewModel.openGroupManagement()
             } label: {
                 topBarIcon(systemName: "person.3")
                     .accessibilityLabel("Manage groups")
