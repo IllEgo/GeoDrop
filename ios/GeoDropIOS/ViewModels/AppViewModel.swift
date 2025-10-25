@@ -3,9 +3,11 @@ import Combine
 import FirebaseAuth
 import FirebaseFirestore
 import UIKit
+import CoreLocation
 
 @MainActor
 final class AppViewModel: ObservableObject {
+    private static let dropPreviewRadiusMeters: CLLocationDistance = 30
     enum AuthState {
         case loading
         case signedOut
@@ -147,6 +149,30 @@ final class AppViewModel: ObservableObject {
             return session.user.uid
         }
         return nil
+    }
+    
+    func distanceToDrop(_ drop: Drop) -> CLLocationDistance? {
+        guard let location = locationService.currentLocation else { return nil }
+        let dropLocation = CLLocation(latitude: drop.latitude, longitude: drop.longitude)
+        return location.distance(from: dropLocation)
+    }
+
+    func canPreview(drop: Drop, distance: CLLocationDistance? = nil) -> Bool {
+        if userMode?.canParticipate == true { return true }
+        let resolvedDistance = distance ?? distanceToDrop(drop)
+        guard let resolvedDistance else { return false }
+        return resolvedDistance <= Self.dropPreviewRadiusMeters
+    }
+
+    func previewRestrictionMessage(for drop: Drop, distance: CLLocationDistance? = nil) -> String? {
+        guard userMode?.canParticipate != true else { return nil }
+        let resolvedDistance = distance ?? distanceToDrop(drop)
+        if let resolvedDistance {
+            guard resolvedDistance > Self.dropPreviewRadiusMeters else { return nil }
+            let radius = Int(Self.dropPreviewRadiusMeters.rounded())
+            return "Move within \(radius) meters to preview this drop."
+        }
+        return "Enable location services to preview this drop."
     }
 
     func bootstrap() {

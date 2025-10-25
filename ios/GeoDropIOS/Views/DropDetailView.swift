@@ -49,6 +49,10 @@ struct DropDetailView: View {
         let alreadyRedeemed = resolvedDrop.isRedeemed(by: userId)
         let canParticipate = viewModel.userMode?.canParticipate ?? false
         let isOwner = viewModel.isOwner(of: resolvedDrop)
+        let previewDistance = viewModel.distanceToDrop(resolvedDrop)
+        let canPreviewContent = viewModel.canPreview(drop: resolvedDrop, distance: previewDistance)
+        let previewRestrictionMessage = viewModel.previewRestrictionMessage(for: resolvedDrop, distance: previewDistance)
+        let previewMessage = previewRestrictionMessage ?? "Move closer to preview this drop."
 
         return GeoDropNavigationContainer(
             trailing: {
@@ -63,9 +67,11 @@ struct DropDetailView: View {
 
                     if shouldHideContent {
                         nsfwNotice(labels: resolvedDrop.nsfwLabels)
-                    } else {
+                    } else if canPreviewContent {
                         descriptionSection(for: resolvedDrop)
                         mediaSection(for: resolvedDrop)
+                    } else {
+                        previewRestrictionNotice(previewMessage)
                     }
 
                     mapSection(for: resolvedDrop)
@@ -405,6 +411,13 @@ struct DropDetailView: View {
                 .fill(geoDropTheme.colors.surfaceVariant)
         )
     }
+    
+    private func previewRestrictionNotice(_ message: String) -> some View {
+        Text(message)
+            .font(.callout)
+            .foregroundColor(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
 
     private func shareText(for drop: Drop) -> String? {
         let trimmedDescription = drop.description?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -452,6 +465,18 @@ struct DropDetailView: View {
 
     private func handleCollect(_ drop: Drop) {
         guard !viewModel.hasCollected(drop: drop) else { return }
+        guard let userId = viewModel.currentUserID else {
+            infoAlertMessage = "Sign in to collect drops."
+            return
+        }
+        guard viewModel.userMode?.canParticipate == true else {
+            infoAlertMessage = "Upgrade to a full account to collect drops."
+            return
+        }
+        guard drop.createdBy != userId else {
+            infoAlertMessage = "You created this drop."
+            return
+        }
         viewModel.markCollected(drop: drop)
     }
 

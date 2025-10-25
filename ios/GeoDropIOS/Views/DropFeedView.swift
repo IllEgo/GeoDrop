@@ -276,6 +276,10 @@ struct DropRowView: View {
         let likePermission = viewModel.likePermission(for: drop)
         let hasCollected = viewModel.hasCollected(drop: drop)
         let shouldHideContent = viewModel.shouldHideContent(for: drop)
+        let previewDistance = viewModel.distanceToDrop(drop)
+        let canPreviewContent = viewModel.canPreview(drop: drop, distance: previewDistance)
+        let previewRestrictionMessage = viewModel.previewRestrictionMessage(for: drop, distance: previewDistance)
+        let previewMessage = previewRestrictionMessage ?? "Move closer to preview this drop."
         
         let titleFont = Font.system(size: 14, weight: .semibold)
         let descriptionFont = Font.system(size: 12)
@@ -306,8 +310,14 @@ struct DropRowView: View {
                             .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
                     }
 
-                    if let description = drop.description, !description.isEmpty {
+                    if canPreviewContent, let description = drop.description, !description.isEmpty {
                         Text(description)
+                            .font(descriptionFont)
+                            .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
+                            .lineLimit(isExpanded ? nil : 2)
+                            .multilineTextAlignment(.leading)
+                    } else if !canPreviewContent {
+                        Text(previewMessage)
                             .font(descriptionFont)
                             .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
                             .lineLimit(isExpanded ? nil : 2)
@@ -322,7 +332,7 @@ struct DropRowView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     if shouldHideContent {
                         nsfwNotice
-                    } else {
+                    } else if canPreviewContent {
                         if hasMediaPreview {
                             mediaPreview
                                 .transition(.opacity.combined(with: .move(edge: .top)))
@@ -333,6 +343,11 @@ struct DropRowView: View {
                                 .font(descriptionFont)
                                 .foregroundColor(geoDropTheme.colors.onSurface)
                         }
+                    } else {
+                        Text(previewMessage)
+                            .font(descriptionFont)
+                            .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
 
                     HStack(spacing: 16) {
@@ -360,7 +375,11 @@ struct DropRowView: View {
 
                         Button("Details") {
                             onSelect()
-                            showingDetail = true
+                            if canPreviewContent {
+                                showingDetail = true
+                            } else {
+                                infoAlertMessage = previewMessage
+                            }
                         }
                         .font(actionFont)
                     }
