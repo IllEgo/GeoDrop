@@ -1,5 +1,7 @@
 import Foundation
+#if canImport(FirebaseFirestore)
 import FirebaseFirestore
+#endif
 
 struct Drop: Identifiable, Equatable, Codable {
     var id: String
@@ -160,6 +162,7 @@ struct Drop: Identifiable, Equatable, Codable {
     }
 }
 
+#if canImport(FirebaseFirestore)
 extension Drop {
     init?(document: DocumentSnapshot) {
         guard let data = document.data() else { return nil }
@@ -172,6 +175,9 @@ extension Drop {
         } else {
             inlineData = nil
         }
+        let createdAtDate = Drop.date(fromFirestoreValue: data["createdAt"]) ?? Date(timeIntervalSince1970: 0)
+        let deletedAtDate = Drop.date(fromFirestoreValue: data["deletedAt"])
+        
         self.init(
             id: document.documentID,
             text: data["text"] as? String ?? "",
@@ -179,11 +185,11 @@ extension Drop {
             latitude: data["lat"] as? Double ?? 0,
             longitude: data["lng"] as? Double ?? 0,
             createdBy: data["createdBy"] as? String ?? "",
-            createdAt: (data["createdAt"] as? Timestamp)?.dateValue() ?? Date(timeIntervalSince1970: 0),
+            createdAt: createdAtDate,
             dropperUsername: data["dropperUsername"] as? String ?? data["createdByUsername"] as? String,
             isAnonymous: data["isAnonymous"] as? Bool ?? false,
             isDeleted: data["isDeleted"] as? Bool ?? false,
-            deletedAt: (data["deletedAt"] as? Timestamp)?.dateValue(),
+            deletedAt: deletedAtDate,
             decayDays: data["decayDays"] as? Int ?? (data["decayDays"] as? NSNumber)?.intValue,
             groupCode: (data["groupCode"] as? String).flatMap { value in
                 let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -248,6 +254,33 @@ extension Drop {
         if let redemptionCode { data["redemptionCode"] = redemptionCode }
         if let redemptionLimit { data["redemptionLimit"] = redemptionLimit }
         return data
+    }
+}
+#endif
+
+extension Drop {
+    private static func millisecondsToDate(_ milliseconds: Double) -> Date {
+        Date(timeIntervalSince1970: milliseconds / 1000.0)
+    }
+
+    static func date(fromFirestoreValue value: Any?) -> Date? {
+#if canImport(FirebaseFirestore)
+        if let timestamp = value as? Timestamp {
+            return timestamp.dateValue()
+        }
+#endif
+        switch value {
+        case let number as NSNumber:
+            return millisecondsToDate(number.doubleValue)
+        case let double as Double:
+            return millisecondsToDate(double)
+        case let float as Float:
+            return millisecondsToDate(Double(float))
+        case let int as Int:
+            return millisecondsToDate(Double(int))
+        default:
+            return nil
+        }
     }
 }
 
