@@ -24,8 +24,8 @@ struct MainBottomBar<AccountMenuContent: View>: View {
                 groupButton
             }
             .padding(.horizontal, 16)
-            .padding(.top, 6)
-            .padding(.bottom, 12)
+            .padding(.top, 4)
+            .padding(.bottom, 8)
         }
         .background(geoDropTheme.colors.surface.ignoresSafeArea(edges: .bottom))
     }
@@ -85,14 +85,14 @@ struct MainBottomBar<AccountMenuContent: View>: View {
         }()
 
         return Button(action: onDropTapped) {
-            VStack(spacing: 3) {
+            VStack(spacing: 2) {
                 Image(systemName: "mappin.and.ellipse")
                     .font(.system(size: 15, weight: .semibold))
                 Text(dropLabel)
                     .font(.caption2.weight(.semibold))
             }
             .foregroundColor(geoDropTheme.colors.onPrimary)
-            .padding(.vertical, 8)
+            .padding(.vertical, 6)
             .frame(maxWidth: .infinity)
             .background(
                 Capsule()
@@ -115,12 +115,12 @@ private struct BarItemLabel: View {
     var body: some View {
         VStack(spacing: 3) {
             Image(systemName: iconName)
-                .font(.system(size: 16, weight: .semibold))
+                .font(.system(size: 15, weight: .semibold))
             Text(title)
                 .font(.caption.weight(.semibold))
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 6)
+        .padding(.vertical, 4)
         .foregroundColor(isSelected ? theme.colors.primary : theme.colors.onSurface)
         .background(
             RoundedRectangle(cornerRadius: 14)
