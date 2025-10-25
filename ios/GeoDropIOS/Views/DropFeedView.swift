@@ -184,13 +184,13 @@ struct DropFeedView: View {
     }
     
     private var destinationTabs: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
             ForEach(ExplorerDestination.allCases) { destination in
                 destinationButton(for: destination)
             }
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 4)
         .background(.ultraThinMaterial, in: Capsule())
         .shadow(color: Color.black.opacity(0.08), radius: 12, x: 0, y: 6)
     }
@@ -205,12 +205,14 @@ struct DropFeedView: View {
                 attemptSelection(of: destination)
             }
         } label: {
-            VStack(spacing: 4) {
-                HStack(spacing: 6) {
+            VStack(spacing: 3) {
+                HStack(spacing: 4) {
                     Image(systemName: destination.systemImageName)
-                        .font(.subheadline.weight(.semibold))
+                        .font(.system(size: 13, weight: .semibold))
                     Text(destination.title)
-                        .font(.subheadline.weight(.semibold))
+                        .font(.footnote.weight(.semibold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
                     if isRestricted {
                         Image(systemName: "lock.fill")
                             .font(.caption.weight(.bold))
@@ -231,8 +233,8 @@ struct DropFeedView: View {
                 }
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 8)
-            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .padding(.horizontal, 10)
             .background(
                 Capsule()
                     .fill(isSelected ? geoDropTheme.colors.primary : Color.clear)
