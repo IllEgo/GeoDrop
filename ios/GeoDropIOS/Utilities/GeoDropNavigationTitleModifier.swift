@@ -27,10 +27,10 @@ struct GeoDropTopNavigationBar: View {
                 trailing
             }
             .foregroundColor(geoDropTheme.colors.onSurface)
-            .frame(minHeight: 44)
+            .frame(minHeight: 22)
             .padding(.horizontal, 18)
-            .padding(.bottom, 10)
-            .padding(.top, 10)
+            .padding(.bottom, 6)
+            .padding(.top, 6)
         }
         .frame(maxWidth: .infinity)
         .background(
