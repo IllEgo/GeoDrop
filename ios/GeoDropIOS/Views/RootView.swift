@@ -6,6 +6,7 @@ struct RootView: View {
 
     var body: some View {
         content
+            .geoDropCompactStyle()
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(geoDropTheme.colors.background)
             .alert(item: Binding(
