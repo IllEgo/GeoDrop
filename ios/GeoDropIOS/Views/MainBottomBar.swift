@@ -18,14 +18,14 @@ struct MainBottomBar<AccountMenuContent: View>: View {
         VStack(spacing: 0) {
             Divider()
                 .overlay(geoDropTheme.colors.outlineVariant.opacity(0.4))
-            HStack(spacing: 16) {
+            HStack(spacing: 12) {
                 accountButton
                 dropButton
                 groupButton
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 10)
-            .padding(.bottom, 20)
+            .padding(.horizontal, 16)
+            .padding(.top, 6)
+            .padding(.bottom, 12)
         }
         .background(geoDropTheme.colors.surface.ignoresSafeArea(edges: .bottom))
     }
@@ -85,14 +85,14 @@ struct MainBottomBar<AccountMenuContent: View>: View {
         }()
 
         return Button(action: onDropTapped) {
-            VStack(spacing: 4) {
+            VStack(spacing: 3) {
                 Image(systemName: "mappin.and.ellipse")
-                    .font(.system(size: 18, weight: .semibold))
+                    .font(.system(size: 15, weight: .semibold))
                 Text(dropLabel)
-                    .font(.caption.weight(.semibold))
+                    .font(.caption2.weight(.semibold))
             }
             .foregroundColor(geoDropTheme.colors.onPrimary)
-            .padding(.vertical, 10)
+            .padding(.vertical, 8)
             .frame(maxWidth: .infinity)
             .background(
                 Capsule()
@@ -113,14 +113,14 @@ private struct BarItemLabel: View {
     let theme: GeoDropTheme
 
     var body: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 3) {
             Image(systemName: iconName)
-                .font(.system(size: 18, weight: .semibold))
+                .font(.system(size: 16, weight: .semibold))
             Text(title)
                 .font(.caption.weight(.semibold))
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
+        .padding(.vertical, 6)
         .foregroundColor(isSelected ? theme.colors.primary : theme.colors.onSurface)
         .background(
             RoundedRectangle(cornerRadius: 14)
