@@ -87,6 +87,8 @@ struct DropFeedView: View {
         let clampedFraction = min(max(mapHeightFraction, minFraction), maxFraction)
         let mapHeight = totalHeight * clampedFraction
         let listHeight = max(totalHeight - mapHeight - dividerHeight, 0)
+        
+        let resizingAnimation = Animation.interactiveSpring(response: 0.25, dampingFraction: 0.85, blendDuration: 0.2)
 
         let drag = DragGesture(minimumDistance: 0)
             .onChanged { value in
@@ -96,10 +98,20 @@ struct DropFeedView: View {
                 let start = dragStartFraction ?? clampedFraction
                 let translationFraction = value.translation.height / totalHeight
                 let proposed = start + translationFraction
-                mapHeightFraction = min(max(proposed, minFraction), maxFraction)
+                let updatedFraction = min(max(proposed, minFraction), maxFraction)
+                withAnimation(resizingAnimation) {
+                    mapHeightFraction = updatedFraction
+                }
             }
-            .onEnded { _ in
+            .onEnded { value in
+                let finalStart = dragStartFraction ?? clampedFraction
                 dragStartFraction = nil
+                let translationFraction = value.predictedEndTranslation.height / totalHeight
+                let proposed = finalStart + translationFraction
+                let finalFraction = min(max(proposed, minFraction), maxFraction)
+                withAnimation(resizingAnimation) {
+                    mapHeightFraction = finalFraction
+                }
             }
 
         VStack(spacing: 0) {
