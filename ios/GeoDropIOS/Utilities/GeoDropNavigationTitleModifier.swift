@@ -12,7 +12,7 @@ struct GeoDropTopNavigationBar: View {
         self.trailing = trailing
     }
     
-    private let titleFont = Font.system(size: 14, weight: .semibold, design: .default)
+    private let titleFont = Font.system(size: 12, weight: .semibold, design: .default)
     private let contentFont = Font.system(size: 12, weight: .semibold, design: .default)
 
     var body: some View {

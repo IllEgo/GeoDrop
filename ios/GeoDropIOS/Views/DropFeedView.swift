@@ -208,9 +208,9 @@ struct DropFeedView: View {
             VStack(spacing: 3) {
                 HStack(spacing: 4) {
                     Image(systemName: destination.systemImageName)
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.system(size: 10, weight: .semibold))
                     Text(destination.title)
-                        .font(.footnote.weight(.semibold))
+                        .font(.caption.weight(.semibold))
                         .lineLimit(1)
                         .minimumScaleFactor(0.85)
                     if isRestricted {
