@@ -222,8 +222,8 @@ struct DropFeedView: View {
 
                 if count > 0 {
                     Text("\(count)")
-                        .font(.caption2.weight(.semibold))
-                        .padding(.horizontal, 8)
+                        .font(.system(size: 10, weight: .semibold))
+                        .padding(.horizontal, 2)
                         .padding(.vertical, 2)
                         .background(
                             Capsule()
