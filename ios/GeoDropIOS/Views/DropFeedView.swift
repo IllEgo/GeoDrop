@@ -339,7 +339,7 @@ struct DropRowView: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
 
-                    HStack(spacing: 16) {
+                    VStack(alignment: .leading, spacing: 12) {
                         Button(action: toggleLike) {
                             Label("Like", systemImage: drop.isLiked(by: currentUserId) == .liked ? "hand.thumbsup.fill" : "hand.thumbsup")
                                 .font(actionFont)
@@ -360,8 +360,6 @@ struct DropRowView: View {
                         }
                         .buttonStyle(.borderless)
 
-                        Spacer()
-
                         Button("Details") {
                             onSelect()
                             if canPreviewContent {
@@ -371,6 +369,7 @@ struct DropRowView: View {
                             }
                         }
                         .font(actionFont)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     
                     if !likePermission.allowed, let message = likePermission.message {
