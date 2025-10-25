@@ -2596,6 +2596,8 @@ fun DropHereScreen(
             val headerHeightPx = (topBarHeightPx - explorerNavigationHeightPx).coerceAtLeast(0)
             val navAwareTopPaddingPx = max(topPaddingPx, headerHeightPx.toFloat())
             val navAwareTopPadding = with(density) { navAwareTopPaddingPx.toDp() }
+            val mapAwareTopPaddingPx = navAwareTopPaddingPx + explorerNavigationHeightPx / 2f
+            val mapAwareTopPadding = with(density) { mapAwareTopPaddingPx.toDp() }
 
             if (isBusinessUser && currentHomeDestination == HomeDestination.Business) {
                 BusinessHomeScreen(
@@ -2657,7 +2659,7 @@ fun DropHereScreen(
                                 ) {
                                     OtherDropsExplorerSection(
                                         modifier = Modifier.fillMaxSize(),
-                                        topContentPadding = navAwareTopPadding,
+                                        topContentPadding = mapAwareTopPadding,
                                         loading = otherDropsLoading,
                                         drops = filteredOtherDrops,
                                         currentLocation = otherDropsCurrentLocation,
