@@ -133,8 +133,8 @@ struct DropFeedView: View {
             )
             VStack {
                 destinationTabs
-                    .padding(.horizontal, 24)
-                    .padding(.top, 6)
+                    .padding(.horizontal, 12)
+                    .padding(.top, 12)
                 Spacer()
             }
         }
@@ -189,8 +189,8 @@ struct DropFeedView: View {
                 destinationButton(for: destination)
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 4)
         .background(.ultraThinMaterial, in: Capsule())
         .shadow(color: Color.black.opacity(0.08), radius: 12, x: 0, y: 6)
     }
@@ -234,7 +234,7 @@ struct DropFeedView: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 6)
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 10)
             .background(
                 Capsule()
                     .fill(isSelected ? geoDropTheme.colors.primary : Color.clear)
