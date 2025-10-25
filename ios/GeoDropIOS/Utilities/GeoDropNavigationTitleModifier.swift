@@ -1,15 +1,13 @@
 import SwiftUI
 
 struct GeoDropTopNavigationBar: View {
-    private let subtitle: String?
     private let leading: AnyView
     private let trailing: AnyView
     @Environment(\.geoDropTheme) private var geoDropTheme
     
-    init(subtitle: String? = nil,
-         leading: AnyView = AnyView(EmptyView()),
+    
+    init(leading: AnyView = AnyView(EmptyView()),
          trailing: AnyView = AnyView(EmptyView())) {
-        self.subtitle = subtitle
         self.leading = leading
         self.trailing = trailing
     }
@@ -23,11 +21,6 @@ struct GeoDropTopNavigationBar: View {
                         .font(.headline.weight(.bold))
                         .tracking(1.2)
                         .foregroundColor(geoDropTheme.colors.onSurface)
-                    if let subtitle, !subtitle.isEmpty {
-                        Text(subtitle)
-                            .font(.caption2)
-                            .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
-                    }
                 }
                 .accessibilityElement(children: .combine)
                 Spacer(minLength: 12)
@@ -60,17 +53,14 @@ struct GeoDropTopNavigationBar: View {
 }
 
 struct GeoDropNavigationContainer<Content: View>: View {
-    private let subtitle: String?
     private let leading: AnyView
     private let trailing: AnyView
     private let content: Content
     @Environment(\.geoDropTheme) private var geoDropTheme
     
-    init(subtitle: String? = nil,
-         @ViewBuilder leading: () -> some View = { EmptyView() },
+    init(@ViewBuilder leading: () -> some View = { EmptyView() },
          @ViewBuilder trailing: () -> some View = { EmptyView() },
          @ViewBuilder content: () -> Content) {
-        self.subtitle = subtitle
         self.leading = AnyView(leading())
         self.trailing = AnyView(trailing())
         self.content = content()
@@ -79,7 +69,6 @@ struct GeoDropNavigationContainer<Content: View>: View {
     var body: some View {
         VStack(spacing: 0) {
             GeoDropTopNavigationBar(
-                subtitle: subtitle,
                 leading: leading,
                 trailing: trailing
             )

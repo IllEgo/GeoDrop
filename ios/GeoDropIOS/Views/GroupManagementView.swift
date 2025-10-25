@@ -14,7 +14,6 @@ struct GroupManagementView: View {
     
     var body: some View {
         GeoDropNavigationContainer(
-            subtitle: "Groups",
             trailing: {
                 if showsCloseButton {
                     Button("Close", action: dismiss.callAsFunction)

@@ -36,7 +36,6 @@ struct CreateDropView: View {
 
     var body: some View {
         GeoDropNavigationContainer(
-            subtitle: "New drop",
             leading: {
                 if let onDismiss {
                     Button("Close") {

@@ -10,7 +10,7 @@ struct ProfileView: View {
     @State private var isShowingDashboard = false
     
     var body: some View {
-        GeoDropNavigationContainer(subtitle: "Profile") {
+        GeoDropNavigationContainer {
             Form {
                 if case let .signedIn(session) = viewModel.authState {
                     Section(header: Text("Account")) {

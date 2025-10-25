@@ -51,7 +51,6 @@ struct DropDetailView: View {
         let isOwner = viewModel.isOwner(of: resolvedDrop)
 
         return GeoDropNavigationContainer(
-            subtitle: "Drop",
             trailing: {
                 Button("Close", action: dismiss.callAsFunction)
                     .font(.callout.weight(.semibold))

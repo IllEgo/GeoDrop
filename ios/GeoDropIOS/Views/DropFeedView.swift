@@ -20,9 +20,7 @@ struct DropFeedView: View {
     private static let defaultZoom: Float = GoogleMapCameraState.defaultZoom
 
     var body: some View {
-        GeoDropNavigationContainer(
-            subtitle: "Discover"
-        ) {
+        GeoDropNavigationContainer {
             VStack(spacing: 0) {
                 if viewModel.groups.isEmpty {
                     VStack(spacing: 16) {
