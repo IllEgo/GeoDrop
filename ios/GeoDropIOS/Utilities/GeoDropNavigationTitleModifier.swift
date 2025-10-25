@@ -16,16 +16,16 @@ struct GeoDropTopNavigationBar: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(alignment: .center, spacing: 16) {
+            HStack(alignment: .center, spacing: 14) {
                 leading
                 VStack(alignment: .leading, spacing: 2) {
                     Text("GeoDrop")
-                        .font(.title3.weight(.bold))
+                        .font(.headline.weight(.bold))
                         .tracking(1.2)
                         .foregroundColor(geoDropTheme.colors.onSurface)
                     if let subtitle, !subtitle.isEmpty {
                         Text(subtitle)
-                            .font(.caption)
+                            .font(.caption2)
                             .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
                     }
                 }
@@ -34,10 +34,10 @@ struct GeoDropTopNavigationBar: View {
                 trailing
             }
             .foregroundColor(geoDropTheme.colors.onSurface)
-            .frame(minHeight: 48)
-            .padding(.horizontal, 20)
-            .padding(.bottom, 12)
-            .padding(.top, 12)
+            .frame(minHeight: 44)
+            .padding(.horizontal, 18)
+            .padding(.bottom, 10)
+            .padding(.top, 10)
         }
         .frame(maxWidth: .infinity)
         .background(

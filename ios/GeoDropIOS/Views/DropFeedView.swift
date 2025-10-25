@@ -195,8 +195,8 @@ struct DropFeedView: View {
 
     private func topBarIcon(systemName: String) -> some View {
         Image(systemName: systemName)
-            .font(.title3.weight(.semibold))
-            .frame(width: 36, height: 36)
+            .font(.headline.weight(.semibold))
+            .frame(width: 32, height: 32)
             .foregroundColor(geoDropTheme.colors.primary)
             .background(geoDropTheme.colors.primary.opacity(0.12))
             .clipShape(Circle())
