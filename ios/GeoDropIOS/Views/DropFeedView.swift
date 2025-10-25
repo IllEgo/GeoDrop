@@ -276,6 +276,10 @@ struct DropRowView: View {
         let likePermission = viewModel.likePermission(for: drop)
         let hasCollected = viewModel.hasCollected(drop: drop)
         let shouldHideContent = viewModel.shouldHideContent(for: drop)
+        
+        let titleFont = Font.system(size: 14, weight: .semibold)
+        let descriptionFont = Font.system(size: 12)
+        let actionFont = Font.system(size: 12, weight: .semibold)
 
         return VStack(alignment: .leading, spacing: 12) {
             Button {
@@ -287,24 +291,24 @@ struct DropRowView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(alignment: .center, spacing: 8) {
                         Text(drop.displayTitle)
-                            .font(.headline)
+                            .font(titleFont)
                             .foregroundColor(geoDropTheme.colors.onSurface)
                             .multilineTextAlignment(.leading)
                         Spacer(minLength: 12)
                         if drop.requiresRedemption() {
                             Label("Redeem", systemImage: "tag")
-                                .font(.caption)
+                                .font(actionFont)
                                 .foregroundColor(geoDropTheme.colors.tertiary)
                                 .labelStyle(.titleAndIcon)
                         }
                         Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                            .font(.subheadline.weight(.semibold))
+                            .font(actionFont)
                             .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
                     }
 
                     if let description = drop.description, !description.isEmpty {
                         Text(description)
-                            .font(.subheadline)
+                            .font(descriptionFont)
                             .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
                             .lineLimit(isExpanded ? nil : 2)
                             .multilineTextAlignment(.leading)
@@ -326,7 +330,7 @@ struct DropRowView: View {
 
                         if let description = expandedDescriptionText, description != headerDescriptionText {
                             Text(description)
-                                .font(.body)
+                                .font(descriptionFont)
                                 .foregroundColor(geoDropTheme.colors.onSurface)
                         }
                     }
@@ -334,21 +338,21 @@ struct DropRowView: View {
                     HStack(spacing: 16) {
                         Button(action: toggleLike) {
                             Label("Like", systemImage: drop.isLiked(by: currentUserId) == .liked ? "hand.thumbsup.fill" : "hand.thumbsup")
-                                .font(.subheadline.weight(.semibold))
+                                .font(actionFont)
                         }
                         .buttonStyle(.borderless)
                         .help(viewModel.likePermission(for: drop).message ?? "")
 
                         Button(action: markCollected) {
                             Label(hasCollected ? "Collected" : "Collect", systemImage: hasCollected ? "checkmark.circle.fill" : "tray.and.arrow.down")
-                                .font(.subheadline.weight(.semibold))
+                                .font(actionFont)
                         }
                         .buttonStyle(.bordered)
                         .disabled(hasCollected)
 
                         Button(action: startReport) {
                             Label("Report", systemImage: "exclamationmark.bubble")
-                                .font(.subheadline.weight(.semibold))
+                                .font(actionFont)
                         }
                         .buttonStyle(.borderless)
 
@@ -358,12 +362,12 @@ struct DropRowView: View {
                             onSelect()
                             showingDetail = true
                         }
-                        .font(.subheadline)
+                        .font(actionFont)
                     }
                     
                     if !likePermission.allowed, let message = likePermission.message {
                         Text(message)
-                            .font(.caption)
+                            .font(descriptionFont)
                             .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
                     }
                 }
