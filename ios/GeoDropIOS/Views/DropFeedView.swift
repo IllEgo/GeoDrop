@@ -269,6 +269,7 @@ struct DropRowView: View {
         let canPreviewContent = viewModel.canPreview(drop: drop, distance: previewDistance)
         let previewRestrictionMessage = viewModel.previewRestrictionMessage(for: drop, distance: previewDistance)
         let previewMessage = previewRestrictionMessage ?? "Move closer to preview this drop."
+        let isOutsidePreviewRadius = !canPreviewContent && previewDistance != nil
         
         let titleFont = Font.system(size: 14, weight: .semibold)
         let descriptionFont = Font.system(size: 12)
@@ -359,6 +360,14 @@ struct DropRowView: View {
                                 .font(actionFont)
                         }
                         .buttonStyle(.borderless)
+                        
+                        if isOutsidePreviewRadius {
+                            Button(action: ignoreDrop) {
+                                Label("Ignore for now", systemImage: "eye.slash")
+                                    .font(actionFont)
+                            }
+                            .buttonStyle(.borderless)
+                        }
 
                         Button("Details") {
                             onSelect()
@@ -490,6 +499,11 @@ struct DropRowView: View {
                 reportErrorMessage = message.isEmpty ? "Couldn't submit report. Try again." : message
             }
         }
+    }
+    
+    private func ignoreDrop() {
+        viewModel.setIgnored(drop: drop, isIgnored: true)
+        infoAlertMessage = "We'll hide this drop for now."
     }
 
     @ViewBuilder

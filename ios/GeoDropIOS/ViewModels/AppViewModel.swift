@@ -574,6 +574,11 @@ final class AppViewModel: ObservableObject {
             }
         }
     }
+    
+    func setIgnored(drop: Drop, isIgnored: Bool) {
+        inventoryService.setIgnored(dropId: drop.id, isIgnored: isIgnored, for: inventoryUserId)
+        reloadInventorySnapshot()
+    }
 
     func report(drop: Drop, reasonCodes: Set<String>, additionalContext: [String: Any] = [:]) async -> Result<Void, Error> {
         guard let userId = currentUserID else {
