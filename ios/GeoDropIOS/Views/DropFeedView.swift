@@ -32,17 +32,6 @@ struct DropFeedView: View {
                     .padding()
                 } else {
                     VStack(spacing: 0) {
-                        if viewModel.userMode?.isReadOnly == true {
-                            ReadOnlyModeCard(
-                                title: "Exploring as guest",
-                                message: "Sign in to access My Drops and Collected destinations.",
-                                actionTitle: "Sign In",
-                                action: { viewModel.beginAuthentication(for: .explorer) }
-                            )
-                            .padding(.horizontal)
-                            .padding(.top, 12)
-                        }
-
                         GeometryReader { geometry in
                             resizableLayout(for: geometry)
                         }
