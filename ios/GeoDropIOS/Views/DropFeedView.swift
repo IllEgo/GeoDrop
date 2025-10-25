@@ -22,7 +22,7 @@ struct DropFeedView: View {
     var body: some View {
         GeoDropNavigationContainer {
             VStack(spacing: 0) {
-                if viewModel.groups.isEmpty {
+                if shouldShowGroupPrompt {
                     VStack(spacing: 16) {
                         Text("Join a group to start discovering drops.")
                             .multilineTextAlignment(.center)
@@ -636,6 +636,10 @@ private struct DropVideoPlayerView: View {
 }
 
 extension DropFeedView {
+    private var shouldShowGroupPrompt: Bool {
+        viewModel.userMode?.canParticipate == true && viewModel.groups.isEmpty
+    }
+    
     private var displayedDrops: [Drop] {
         viewModel.explorerDrops(for: viewModel.selectedExplorerDestination)
     }
