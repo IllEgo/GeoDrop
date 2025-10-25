@@ -502,7 +502,11 @@ class FirestoreRepo(
         return snapshot.documents.mapNotNull { doc ->
             val drop = doc.toDrop()
 
-            if (drop.isDeleted) null else drop
+            when {
+                drop.isDeleted -> null
+                drop.isBusinessDrop() && drop.isExpired() -> null
+                else -> drop
+            }
         }
     }
 
@@ -518,7 +522,11 @@ class FirestoreRepo(
         return snapshot.documents.mapNotNull { doc ->
             val drop = doc.toDrop()
 
-            if (drop.isDeleted) null else drop
+            when {
+                drop.isDeleted -> null
+                drop.isBusinessDrop() && drop.isExpired() -> null
+                else -> drop
+            }
         }
     }
 
