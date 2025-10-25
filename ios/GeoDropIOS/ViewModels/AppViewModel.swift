@@ -63,7 +63,14 @@ final class AppViewModel: ObservableObject {
     @Published private(set) var hasAcceptedTerms: Bool
     @Published private(set) var hasCompletedOnboarding: Bool
     @Published var groups: [GroupMembership] = []
-    @Published var selectedGroupCode: String?
+    @Published var selectedGroupCode: String? {
+        didSet {
+            guard selectedGroupCode != oldValue else { return }
+            Task { [weak self] in
+                await self?.refreshDrops()
+            }
+        }
+    }
     @Published var drops: [Drop] = [] {
         didSet { rebuildExplorerCollections() }
     }
@@ -211,10 +218,20 @@ final class AppViewModel: ObservableObject {
         switch destination {
         case .nearby:
             let ignoredIDs = inventory.ignoredDropIDs
+            let collectedIDs = Set(inventory.collectedDrops.keys)
             let userID = currentUserID
+            let radius = notificationRadiusMeters
+
+            guard let currentLocation = locationService.currentLocation else {
+                return []
+            }
 
             return drops.filter { drop in
                 guard !ignoredIDs.contains(drop.id) else { return false }
+                guard !collectedIDs.contains(drop.id) else { return false }
+
+                let dropLocation = CLLocation(latitude: drop.latitude, longitude: drop.longitude)
+                guard currentLocation.distance(from: dropLocation) <= radius else { return false }
 
                 // Keep `drops` as the authoritative source of truth so that the
                 // explorer collections can still build the "My Drops" and
