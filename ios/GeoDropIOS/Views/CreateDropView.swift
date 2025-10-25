@@ -168,22 +168,41 @@ struct CreateDropView: View {
         return options
     }
     private var messageSection: some View {
-        Section(header: Text("Message")) {
+        Section {
             TextField("Headline", text: $text)
+                .textContentType(.nickname)
             TextField("Description", text: $description)
                 .lineLimit(3)
             Toggle("Post anonymously", isOn: $isAnonymous)
                 .disabled(!canPostAnonymously)
-            if !canPostAnonymously {
-                Text("Business drops always display your profile.")
+        } header: {
+            FormSectionHeader(
+                title: "Message",
+                subtitle: "Introduce your drop with a memorable headline and optional supporting details.",
+                systemImage: "text.bubble"
+            )
+        } footer: {
+            VStack(alignment: .leading, spacing: 6) {
+                if !canPostAnonymously {
+                    Text("Business drops always display your profile so explorers know who is behind the offer.")
+                        .font(.footnote)
+                        .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
+                } else {
+                    Text("Anonymous drops hide your explorer identity, but group moderators can still see your activity if required.")
+                        .font(.footnote)
+                        .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
+                }
+
+                Text("Headlines are required and appear in the feed. Use the description to provide context or next steps.")
                     .font(.footnote)
                     .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
             }
         }
+        .headerProminence(.increased)
     }
 
     private var templateSection: some View {
-        Section(header: Text("Drop ideas for your business")) {
+        Section {
             if !templateSuggestions.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 16) {
@@ -216,11 +235,17 @@ struct CreateDropView: View {
                     .font(.footnote)
                     .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
             }
+        } header: {
+            FormSectionHeader(
+                title: "Drop ideas for your business",
+                subtitle: "Start from a curated template to publish polished drops faster.",
+                systemImage: "sparkles"
+            )
         }
     }
 
     private var dropConfigurationSection: some View {
-        Section(header: Text("Drop configuration")) {
+        Section {
             Picker("Type", selection: $dropType) {
                 Text("Community").tag(DropType.community)
                 Text("Restaurant coupon").tag(DropType.restaurantCoupon)
@@ -235,10 +260,20 @@ struct CreateDropView: View {
                 Text("Video").tag(DropContentType.video)
             }
             .pickerStyle(.segmented)
+        } header: {
+            FormSectionHeader(
+                title: "Drop configuration",
+                subtitle: "Choose how explorers will experience this drop and where it appears.",
+                systemImage: "slider.horizontal.3"
+            )
+        } footer: {
+            Text("Switching content types clears any captured media so you only publish what you intend.")
+                .font(.footnote)
+                .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
         }
     }
     private var mediaSection: some View {
-        Section(header: Text("Media")) {
+        Section {
             switch contentType {
             case .text:
                 Label("Text-only drop", systemImage: "text.alignleft")
@@ -295,35 +330,65 @@ struct CreateDropView: View {
                     Button("Remove video", role: .destructive) { resetMedia() }
                 }
             }
+        } header: {
+            FormSectionHeader(
+                title: "Media",
+                subtitle: "Capture or upload rich media to bring your drop to life.",
+                systemImage: contentType == .photo ? "camera" : contentType == .audio ? "mic" : contentType == .video ? "video" : "text.alignleft"
+            )
+        } footer: {
+            Text("Media is stored securely and optimized for quick playback in the GeoDrop app.")
+                .font(.footnote)
+                .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
         }
     }
 
     private var redemptionSection: some View {
-        Section(header: Text("Offer security"), footer: Text("Set a code so each guest redeems only once.")) {
+        Section {
             TextField("Redemption code", text: $redemptionCode)
                 .textInputAutocapitalization(.characters)
             TextField("Redemption limit", text: $redemptionLimit)
                 .keyboardType(.numberPad)
-            Text("Leave the limit blank for unlimited redemptions.")
-                .font(.footnote)
-                .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
+        } header: {
+            FormSectionHeader(
+                title: "Offer security",
+                subtitle: "Protect your promotion by requiring a unique code at checkout.",
+                systemImage: "lock.shield"
+            )
+        } footer: {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Set a code so each guest redeems only once. Share this code with your staff or signage.")
+                Text("Leave the limit blank for unlimited redemptions or enter a number to cap the offer.")
+            }
+            .font(.footnote)
+            .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
         }
     }
 
     private var timingSection: some View {
-        Section(header: Text("Timing & visibility")) {
+        Section {
             TextField("Decay days", text: $decayDays)
                 .keyboardType(.numberPad)
-            Text("Leave blank to keep this drop forever (max \(maxDecayDays) days).")
-                .font(.footnote)
-                .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
-
+            
             Picker("Visible to", selection: $selectedVisibility) {
                 ForEach(visibilityOptions, id: \.self) { option in
                     Text(option.displayName).tag(option)
                 }
             }
             .pickerStyle(.menu)
+        } header: {
+            FormSectionHeader(
+                title: "Timing & visibility",
+                subtitle: "Control how long the drop lives and who can discover it.",
+                systemImage: "clock.badge.checkmark"
+            )
+        } footer: {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Leave decay days blank to keep this drop forever, or set a number up to \(maxDecayDays) days.")
+                Text("Choose a group to limit visibility to select explorers, or share with everyone nearby.")
+            }
+            .font(.footnote)
+            .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
         }
     }
     private var submitAction: some View {

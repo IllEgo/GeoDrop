@@ -36,28 +36,53 @@ extension GroupManagementView {
     @ViewBuilder
     private var formContent: some View {
         Form {
-            Section(header: Text("Join a group")) {
+            Section {
                 TextField("Group code", text: $groupCode)
                     .textInputAutocapitalization(.characters)
                     .disableAutocorrection(true)
                 Toggle("Create group if missing", isOn: $allowCreate)
-                Button("Join") {
+                Button {
                     viewModel.joinGroup(code: groupCode, allowCreate: allowCreate)
                     groupCode = ""
+                } label: {
+                    Label("Join group", systemImage: "person.crop.circle.badge.plus")
+                        .font(.body.weight(.semibold))
                 }
                 .disabled(groupCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            } header: {
+                FormSectionHeader(
+                    title: "Join a group",
+                    subtitle: "Enter a code from an organizer to collaborate with nearby explorers.",
+                    systemImage: "person.3.sequence"
+                )
+            } footer: {
+                Text("Enable \"Create group\" if you're the first to use a new code and want to host your own community.")
+                    .font(.footnote)
+                    .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
             }
 
             if !viewModel.groups.isEmpty {
-                Section(header: Text("Your groups")) {
+                Section {
                     ForEach(viewModel.groups) { group in
                         HStack {
-                            Text(group.code)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(group.code)
+                                    .font(.body.weight(.semibold))
+                                if group.code == viewModel.selectedGroupCode {
+                                    Text("Currently active")
+                                        .font(.caption)
+                                        .foregroundColor(geoDropTheme.colors.primary)
+                                }
+                            }
                             Spacer()
                             if group.code == viewModel.selectedGroupCode {
                                 Image(systemName: "checkmark")
                                     .foregroundColor(geoDropTheme.colors.primary)
                             }
+                        }
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            viewModel.selectedGroupCode = group.code
                         }
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                             Button(role: .destructive) {
@@ -67,6 +92,16 @@ extension GroupManagementView {
                             }
                         }
                     }
+                } header: {
+                    FormSectionHeader(
+                        title: "Your groups",
+                        subtitle: "Switch between joined groups to tailor drops to each community.",
+                        systemImage: "person.2.badge.gearshape"
+                    )
+                } footer: {
+                    Text("Tap a group to make it active. Leaving removes it from your device immediately.")
+                        .font(.footnote)
+                        .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
                 }
             }
         }

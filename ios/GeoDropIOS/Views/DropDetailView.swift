@@ -782,13 +782,23 @@ struct ReportDropSheet: View {
     @ViewBuilder
     private var reportForm: some View {
         Form {
-            Section(footer: Text("Select one or more reasons so our team can review this drop.")) {
+            Section {
                 ForEach(reasons) { reason in
                     Toggle(isOn: binding(for: reason)) {
                         Text(reason.label)
                     }
                     .disabled(isSubmitting)
                 }
+            } header: {
+                FormSectionHeader(
+                    title: "Report details",
+                    subtitle: "Help us understand what's wrong so we can investigate quickly.",
+                    systemImage: "exclamationmark.bubble"
+                )
+            } footer: {
+                Text("Select one or more reasons so our team can review this drop.")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
             }
 
             if let errorMessage {

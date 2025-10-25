@@ -13,15 +13,25 @@ struct ProfileView: View {
         GeoDropNavigationContainer {
             Form {
                 if case let .signedIn(session) = viewModel.authState {
-                    Section(header: Text("Account")) {
+                    Section {
                         Text(session.user.email ?? "")
                         Toggle("Allow NSFW drops", isOn: Binding(
                             get: { viewModel.allowNsfw },
                             set: { viewModel.setAllowNsfw($0) }
                         ))
+                    } header: {
+                        FormSectionHeader(
+                            title: "Account",
+                            subtitle: "Manage sign-in details and personalize the content you see in GeoDrop.",
+                            systemImage: "envelope"
+                        )
+                    } footer: {
+                        Text("Toggle mature content if you are comfortable viewing NSFW drops in the feed.")
+                            .font(.footnote)
+                            .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
                     }
 
-                    Section(header: Text("Username")) {
+                    Section {
                         TextField("Explorer username", text: $username)
                             .textInputAutocapitalization(.never)
                             .disableAutocorrection(true)
@@ -29,12 +39,22 @@ struct ProfileView: View {
                             viewModel.updateExplorerUsername(to: username)
                         }
                         .disabled(username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    } header: {
+                        FormSectionHeader(
+                            title: "Explorer identity",
+                            subtitle: "Choose a recognizable handle that other explorers can @mention.",
+                            systemImage: "person.crop.circle"
+                        )
+                    } footer: {
+                        Text("Usernames are unique across GeoDrop. Your changes go live immediately after saving.")
+                            .font(.footnote)
+                            .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
                     }
                     .onAppear {
                         username = session.profile.username ?? ""
                     }
 
-                    Section(header: Text("Business profile")) {
+                    Section {
                         TextField("Business name", text: $businessName)
                         
                         VStack(alignment: .leading, spacing: 16) {
@@ -108,6 +128,16 @@ struct ProfileView: View {
                                     .foregroundColor(geoDropTheme.colors.primary)
                             }
                         }
+                    } header: {
+                        FormSectionHeader(
+                            title: "Business profile",
+                            subtitle: "Tell explorers what makes your brand unique and unlock business-only tools.",
+                            systemImage: "briefcase"
+                        )
+                    } footer: {
+                        Text("Select categories that match your offerings. GeoDrop suggests templates and insights tailored to your choices.")
+                            .font(.footnote)
+                            .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
                     }
                     .onAppear {
                         businessName = session.profile.businessName ?? ""
@@ -132,7 +162,7 @@ struct ProfileView: View {
                         .padding(.vertical, 4)
                     }
 
-                    Section(header: Text("Upgrade your account")) {
+                    Section {
                         Button {
                             viewModel.beginAuthentication(for: .explorer)
                         } label: {
@@ -144,6 +174,12 @@ struct ProfileView: View {
                         } label: {
                             Label("Sign in as Business", systemImage: "briefcase.fill")
                         }
+                    } header: {
+                        FormSectionHeader(
+                            title: "Upgrade your account",
+                            subtitle: "Sign in or create an account to save progress and publish drops.",
+                            systemImage: "star.circle"
+                        )
                     }
                 }
             }
