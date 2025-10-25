@@ -87,6 +87,7 @@ import androidx.compose.material.icons.rounded.Flag
 import androidx.compose.material.icons.rounded.Report
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Sort
 import androidx.compose.material.icons.rounded.ThumbUp
 import androidx.compose.material.icons.rounded.Lightbulb
 import androidx.compose.material.icons.rounded.Star
@@ -2112,6 +2113,15 @@ fun DropHereScreen(
             otherDrops.filter { drop -> drop.groupCode == code }
         } ?: otherDrops
     }
+    var otherDropsSortKey by rememberSaveable { mutableStateOf(DropSortOption.NEAREST.name) }
+    val otherDropsSortOption = remember(otherDropsSortKey) {
+        runCatching { DropSortOption.valueOf(otherDropsSortKey) }
+            .getOrDefault(DropSortOption.NEAREST)
+    }
+    val dropSortOptions = remember { DropSortOption.entries }
+    val sortedOtherDrops = remember(filteredOtherDrops, otherDropsSortOption, otherDropsCurrentLocation) {
+        sortDrops(filteredOtherDrops, otherDropsSortOption, otherDropsCurrentLocation)
+    }
     val filteredMyDrops = remember(selectedExplorerGroupCode, myDrops, explorerGroups) {
         selectedExplorerGroupCode?.takeIf { code -> explorerGroups.any { it.code == code } }?.let { code ->
             myDrops.filter { drop -> drop.groupCode == code }
@@ -2131,10 +2141,10 @@ fun DropHereScreen(
     val hiddenNsfwCollectedCount = filteredCollected.size - visibleCollectedNotes.size
     val collectedCount = visibleCollectedNotes.size
 
-    LaunchedEffect(selectedExplorerGroupCode, filteredOtherDrops) {
+    LaunchedEffect(selectedExplorerGroupCode, sortedOtherDrops) {
         val current = otherDropsSelectedId
-        if (current != null && filteredOtherDrops.none { drop -> drop.id == current }) {
-            otherDropsSelectedId = filteredOtherDrops.firstOrNull()?.id
+        if (current != null && sortedOtherDrops.none { drop -> drop.id == current }) {
+            otherDropsSelectedId = sortedOtherDrops.firstOrNull()?.id
         }
     }
 
@@ -2658,7 +2668,7 @@ fun DropHereScreen(
                                         modifier = Modifier.fillMaxSize(),
                                         topContentPadding = mapAwareTopPadding,
                                         loading = otherDropsLoading,
-                                        drops = filteredOtherDrops,
+                                        drops = sortedOtherDrops,
                                         currentLocation = otherDropsCurrentLocation,
                                         notificationRadiusMeters = notificationRadius,
                                         error = otherDropsError,
@@ -2682,7 +2692,11 @@ fun DropHereScreen(
                                             UserMode.GUEST -> "Preview drops nearby, then create an account to pick them up when you're ready."
                                             UserMode.SIGNED_IN -> null
                                         },
-                                        showHeaderDescription = userMode != UserMode.GUEST,
+                                        sortOption = otherDropsSortOption,
+                                        sortOptions = dropSortOptions,
+                                        onSortOptionChange = { option ->
+                                            otherDropsSortKey = option.name
+                                        },
                                         canLikeDrops = canParticipate,
                                         likeRestrictionMessage = if (canParticipate) null else participationRestriction("like drops"),
                                         onLike = { drop, status -> submitLike(drop, status) },
@@ -6784,7 +6798,9 @@ private fun OtherDropsExplorerSection(
     collectedDropIds: Set<String>,
     canCollectDrops: Boolean,
     collectRestrictionMessage: String?,
-    showHeaderDescription: Boolean,
+    sortOption: DropSortOption,
+    sortOptions: List<DropSortOption>,
+    onSortOptionChange: (DropSortOption) -> Unit,
     canLikeDrops: Boolean,
     likeRestrictionMessage: String?,
     onLike: (Drop, DropLikeStatus) -> Unit,
@@ -6947,25 +6963,21 @@ private fun OtherDropsExplorerSection(
                                 .weight(listWeight)
                         ) {
                             val isSignedIn = !currentUserId.isNullOrBlank()
-                            val browseMessage = if (canCollectDrops) {
-                                "Select a drop to focus on the map. If you're close enough, pick it up here."
-                            } else {
-                                "Select a drop to focus on the map and preview what's nearby. Create an account to collect drops when you're ready."
-                            }
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(horizontal = 20.dp, vertical = 12.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(
-                                    text = browseMessage,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.weight(1f)
+                                DropSortMenu(
+                                        modifier = Modifier.weight(1f),
+                                        current = sortOption,
+                                        options = sortOptions,
+                                        onSelect = onSortOptionChange
                                 )
 
                                 if (drops.isNotEmpty()) {
+                                    Spacer(Modifier.width(12.dp))
                                     CountBadge(count = drops.size)
                                 }
                             }
@@ -7043,6 +7055,96 @@ private fun OtherDropsExplorerSection(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+private enum class DropSortOption(val displayName: String) {
+    NEAREST("Nearest"),
+    MOST_POPULAR("Most popular"),
+    NEWEST("Newest"),
+    ENDING_SOON("Ending soon")
+}
+
+private fun sortDrops(
+    drops: List<Drop>,
+    option: DropSortOption,
+    currentLocation: LatLng?
+): List<Drop> {
+    return when (option) {
+        DropSortOption.NEAREST -> {
+            val location = currentLocation ?: return drops
+            drops.sortedBy { drop ->
+                distanceBetweenMeters(
+                    location.latitude,
+                    location.longitude,
+                    drop.lat,
+                    drop.lng
+                )
+            }
+        }
+
+        DropSortOption.MOST_POPULAR -> drops.sortedWith(
+            compareByDescending<Drop> { it.likeCount }
+                .thenByDescending { it.createdAt }
+        )
+
+        DropSortOption.NEWEST -> drops.sortedByDescending { it.createdAt }
+
+        DropSortOption.ENDING_SOON -> drops.sortedWith(
+            compareBy<Drop> { drop -> drop.decayAtMillis() ?: Long.MAX_VALUE }
+                .thenByDescending { it.createdAt }
+        )
+    }
+}
+
+@Composable
+private fun DropSortMenu(
+    modifier: Modifier = Modifier,
+    current: DropSortOption,
+    options: List<DropSortOption>,
+    onSelect: (DropSortOption) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Box(
+        modifier = modifier,
+        contentAlignment = Alignment.CenterStart
+    ) {
+        AssistChip(
+            onClick = { expanded = true },
+            label = { Text("Sort: ${current.displayName}") },
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Rounded.Sort,
+                    contentDescription = null
+                )
+            }
+        )
+
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(option.displayName) },
+                    onClick = {
+                        expanded = false
+                        onSelect(option)
+                    },
+                    trailingIcon = if (option == current) {
+                        {
+                            Icon(
+                                imageVector = Icons.Rounded.Check,
+                                contentDescription = null
+                            )
+                        }
+                    } else {
+                        null
+                    }
+                )
             }
         }
     }
