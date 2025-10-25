@@ -210,7 +210,24 @@ final class AppViewModel: ObservableObject {
     func explorerDrops(for destination: ExplorerDestination) -> [Drop] {
         switch destination {
         case .nearby:
-            return drops.filter { !inventory.ignoredDropIDs.contains($0.id) }
+            let ignoredIDs = inventory.ignoredDropIDs
+            let userID = currentUserID
+
+            return drops.filter { drop in
+                guard !ignoredIDs.contains(drop.id) else { return false }
+
+                // Keep `drops` as the authoritative source of truth so that the
+                // explorer collections can still build the "My Drops" and
+                // "Collected" tabs. The Nearby view applies additional
+                // filtering to hide the signed-in user's drops as well as drops
+                // they have reported.
+                if let userID, !userID.isEmpty {
+                    if drop.createdBy == userID { return false }
+                    if drop.reportedBy[userID] != nil { return false }
+                }
+
+                return true
+            }
         case .myDrops:
             return explorerMyDrops
         case .collected:
