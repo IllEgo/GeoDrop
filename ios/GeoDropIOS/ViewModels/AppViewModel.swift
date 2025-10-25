@@ -231,8 +231,8 @@ final class AppViewModel: ObservableObject {
                 guard !collectedIDs.contains(drop.id) else { return false }
                 guard !drop.hasBeenCollected else { return false }
 
-                let dropLocation = CLLocation(latitude: drop.latitude, longitude: drop.longitude)
-                guard currentLocation.distance(from: dropLocation) <= radius else { return false }
+                //let dropLocation = CLLocation(latitude: drop.latitude, longitude: drop.longitude)
+                //guard currentLocation.distance(from: dropLocation) <= radius else { return false }
 
                 // Keep `drops` as the authoritative source of truth so that the
                 // explorer collections can still build the "My Drops" and
