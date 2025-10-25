@@ -61,10 +61,12 @@ class MainActivity : ComponentActivity() {
         authListener = AuthStateListener { firebaseAuth ->
             val currentUser = firebaseAuth.currentUser
             if (currentUser == null) {
+                notificationPrefs.setActiveUser(null)
                 messagingTokenStore.clearSynced()
                 return@AuthStateListener
             }
 
+            notificationPrefs.setActiveUser(currentUser.uid)
             lifecycleScope.launch {
                 ensureMessagingTokenRegistered(currentUser.uid)
             }

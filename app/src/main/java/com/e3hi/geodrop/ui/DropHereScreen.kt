@@ -950,6 +950,11 @@ fun DropHereScreen(
 
     val currentUserId = currentUser?.uid
 
+    LaunchedEffect(currentUserId) {
+        notificationPrefs.setActiveUser(currentUserId)
+        notificationRadius = notificationPrefs.getNotificationRadiusMeters()
+    }
+
     LaunchedEffect(pendingExplorerUsername, currentUserId) {
         val desired = pendingExplorerUsername
         val userId = currentUserId
