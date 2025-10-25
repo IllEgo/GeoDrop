@@ -181,7 +181,11 @@ extension Drop {
             isDeleted: data["isDeleted"] as? Bool ?? false,
             deletedAt: (data["deletedAt"] as? Timestamp)?.dateValue(),
             decayDays: data["decayDays"] as? Int ?? (data["decayDays"] as? NSNumber)?.intValue,
-            groupCode: data["groupCode"] as? String,
+            groupCode: (data["groupCode"] as? String).flatMap { value in
+                let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty else { return nil }
+                return trimmed.caseInsensitiveCompare("PUBLIC") == .orderedSame ? nil : trimmed.uppercased()
+            },
             dropType: DropType(rawValue: (data["dropType"] as? String ?? "").uppercased()) ?? .community,
             businessId: data["businessId"] as? String,
             businessName: data["businessName"] as? String,

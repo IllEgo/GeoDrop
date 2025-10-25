@@ -422,7 +422,7 @@ final class AppViewModel: ObservableObject {
         let groupCode: String?
         switch request.visibility {
         case .public:
-            groupCode = "PUBLIC"
+            groupCode = nil
         case .group(let code):
             groupCode = code
         }
