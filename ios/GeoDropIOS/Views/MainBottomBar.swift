@@ -74,29 +74,12 @@ struct MainBottomBar<AccountMenuContent: View>: View {
     }
 
     private var dropButton: some View {
-        let backgroundColor: Color = {
-            if isDropInFlight {
-                return geoDropTheme.colors.primary.opacity(0.6)
-            }
-            if isDropEnabled {
-                return isDropActive ? geoDropTheme.colors.primary.opacity(0.9) : geoDropTheme.colors.primary
-            }
-            return geoDropTheme.colors.primary.opacity(0.45)
-        }()
-
-        return Button(action: onDropTapped) {
-            VStack(spacing: 2) {
-                Image(systemName: "mappin.and.ellipse")
-                    .font(.system(size: 15, weight: .semibold))
-                Text(dropLabel)
-                    .font(.caption2.weight(.semibold))
-            }
-            .foregroundColor(geoDropTheme.colors.onPrimary)
-            .padding(.vertical, 6)
-            .frame(maxWidth: .infinity)
-            .background(
-                Capsule()
-                    .fill(backgroundColor)
+        Button(action: onDropTapped) {
+            BarItemLabel(
+                iconName: "mappin.and.ellipse",
+                title: dropLabel,
+                isSelected: isDropActive || isDropInFlight,
+                theme: geoDropTheme
             )
         }
         .buttonStyle(.plain)
