@@ -2765,7 +2765,7 @@ fun DropHereScreen(
                             ) {
                                 MyDropsContent(
                                     modifier = Modifier.fillMaxSize(),
-                                    topContentPadding = navAwareTopPadding,
+                                    topContentPadding = mapAwareTopPadding,
                                     contentPadding = PaddingValues(bottom = 0.dp),
                                     loading = myDropsLoading,
                                     drops = filteredMyDrops,
@@ -2859,7 +2859,7 @@ fun DropHereScreen(
                             ) {
                                 CollectedDropsContent(
                                     modifier = Modifier.fillMaxSize(),
-                                    topContentPadding = navAwareTopPadding,
+                                    topContentPadding = mapAwareTopPadding,
                                     contentPadding = PaddingValues(bottom = 0.dp),
                                     notes = visibleCollectedNotes,
                                     hiddenNsfwCount = hiddenNsfwCollectedCount,
