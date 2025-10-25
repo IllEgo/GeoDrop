@@ -154,6 +154,10 @@ struct Drop: Identifiable, Equatable, Codable {
         guard let uid = userId, !uid.isEmpty else { return .none }
         return DropLikeStatus.from(raw: likedBy[uid])
     }
+    
+    var hasBeenCollected: Bool {
+        collectedBy.values.contains(true)
+    }
 }
 
 extension Drop {

@@ -229,6 +229,7 @@ final class AppViewModel: ObservableObject {
             return drops.filter { drop in
                 guard !ignoredIDs.contains(drop.id) else { return false }
                 guard !collectedIDs.contains(drop.id) else { return false }
+                guard !drop.hasBeenCollected else { return false }
 
                 let dropLocation = CLLocation(latitude: drop.latitude, longitude: drop.longitude)
                 guard currentLocation.distance(from: dropLocation) <= radius else { return false }

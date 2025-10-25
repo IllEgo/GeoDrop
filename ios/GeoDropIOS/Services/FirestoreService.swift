@@ -382,6 +382,7 @@ final class FirestoreService {
                 if drop.isDeleted { return false }
                 if let group = drop.groupCode, !normalized.contains(group), group != "PUBLIC" { return false }
                 if drop.isNsfw && !allowNsfw && drop.createdBy != userId { return false }
+                if drop.hasBeenCollected { return false }
                 if drop.isExpired { return false }
                 return true
             }
