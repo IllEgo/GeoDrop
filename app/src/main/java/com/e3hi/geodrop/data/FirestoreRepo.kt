@@ -2,6 +2,7 @@ package com.e3hi.geodrop.data
 
 import android.util.Log
 import com.e3hi.geodrop.BuildConfig
+import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldPath
@@ -15,6 +16,7 @@ import com.google.firebase.functions.FirebaseFunctionsException
 import com.google.firebase.functions.ktx.functions
 import com.google.firebase.ktx.Firebase
 import com.e3hi.geodrop.util.GroupPreferences
+import java.util.Date
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.tasks.await
@@ -369,7 +371,8 @@ class FirestoreRepo(
         val storedDisplayName = snapshot.getString("displayName")?.takeIf { it.isNotBlank() }
         val storedUsername = snapshot.getString("username")?.takeIf { it.isNotBlank() }
         val storedNsfwEnabled = snapshot.getBoolean("nsfwEnabled") == true
-        val storedNsfwEnabledAt = snapshot.getLong("nsfwEnabledAt")?.takeIf { it > 0L }
+        val storedNsfwEnabledAtRaw = snapshot.get("nsfwEnabledAt")
+        val storedNsfwEnabledAt = storedNsfwEnabledAtRaw.toMillisOrNull()
         val resolvedDisplayName = storedDisplayName ?: displayName?.takeIf { it.isNotBlank() }
 
         val updates = hashMapOf<String, Any?>()
@@ -380,7 +383,7 @@ class FirestoreRepo(
             updates["displayName"] = resolvedDisplayName
             storedUsername?.let { updates["username"] = it }
             updates["nsfwEnabled"] = storedNsfwEnabled
-            updates["nsfwEnabledAt"] = storedNsfwEnabledAt
+            storedNsfwEnabledAtRaw?.let { updates["nsfwEnabledAt"] = it }
         } else {
             if (snapshot.getString("role").isNullOrBlank()) {
                 updates["role"] = existingRole.name
@@ -395,7 +398,7 @@ class FirestoreRepo(
                 updates["nsfwEnabled"] = storedNsfwEnabled
             }
             if (!snapshot.contains("nsfwEnabledAt")) {
-                updates["nsfwEnabledAt"] = storedNsfwEnabledAt
+                storedNsfwEnabledAtRaw?.let { updates["nsfwEnabledAt"] = it }
             }
         }
 
@@ -419,16 +422,31 @@ class FirestoreRepo(
         val profile = ensureUserProfile(userId)
         if (userId.isBlank()) return profile
 
-        val timestamp = if (enabled) System.currentTimeMillis() else null
         val updates = hashMapOf<String, Any?>(
-            "nsfwEnabled" to enabled,
-            "nsfwEnabledAt" to timestamp
+            "nsfwEnabled" to enabled
         )
+
+        val timestamp = if (enabled) {
+            Timestamp.now().also { updates["nsfwEnabledAt"] = it }
+        } else {
+            updates["nsfwEnabledAt"] = FieldValue.delete()
+            null
+        }
 
         users.document(userId).set(updates, SetOptions.merge()).await()
 
-        return profile.copy(nsfwEnabled = enabled, nsfwEnabledAt = timestamp)
+        return profile.copy(
+            nsfwEnabled = enabled,
+            nsfwEnabledAt = timestamp?.toDate()?.time
+        )
     }
+
+    private fun Any?.toMillisOrNull(): Long? = when (this) {
+        is Number -> this.toLong()
+        is Timestamp -> this.toDate().time
+        is Date -> this.time
+        else -> null
+    }?.takeIf { it > 0L }
 
     suspend fun updateBusinessProfile(
         userId: String,

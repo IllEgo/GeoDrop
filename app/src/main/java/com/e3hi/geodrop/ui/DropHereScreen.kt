@@ -2241,12 +2241,11 @@ fun DropHereScreen(
                                 .fillMaxWidth()
                                 .onSizeChanged { size -> explorerNavigationHeightPx = size.height }
                         ) {
-                            Spacer(modifier = Modifier.height(8.dp))
                             ExplorerDestinationTabs(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(horizontal = 20.dp)
-                                    .padding(bottom = 12.dp),
+                                    .padding(bottom = 4.dp),
                                 current = effectiveExplorerDestination,
                                 onSelect = { destination -> openExplorerDestination(destination) },
                                 showMyDrops = hasExplorerAccount,
@@ -2596,7 +2595,7 @@ fun DropHereScreen(
             val headerHeightPx = (topBarHeightPx - explorerNavigationHeightPx).coerceAtLeast(0)
             val navAwareTopPaddingPx = max(topPaddingPx, headerHeightPx.toFloat())
             val navAwareTopPadding = with(density) { navAwareTopPaddingPx.toDp() }
-            val mapAwareTopPaddingPx = navAwareTopPaddingPx + explorerNavigationHeightPx / 2f
+            val mapAwareTopPaddingPx = max(navAwareTopPaddingPx, topBarHeightPx.toFloat())
             val mapAwareTopPadding = with(density) { mapAwareTopPaddingPx.toDp() }
 
             if (isBusinessUser && currentHomeDestination == HomeDestination.Business) {
