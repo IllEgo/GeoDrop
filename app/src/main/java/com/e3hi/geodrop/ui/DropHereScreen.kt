@@ -2219,14 +2219,7 @@ fun DropHereScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(
-                                MaterialTheme.colorScheme.background.copy(alpha = 0.85f),
-                                MaterialTheme.colorScheme.background.copy(alpha = 0f)
-                            )
-                        )
-                    )
+                    .background(MaterialTheme.colorScheme.surface)
             ) {
                 Column(modifier = Modifier.fillMaxWidth()) {
                     TopAppBar(
