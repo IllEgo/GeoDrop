@@ -553,8 +553,14 @@ final class AppViewModel: ObservableObject {
         }
     }
 
-    func markCollected(drop: Drop) {
-        guard case let .signedIn(session) = authState else { return }
+    @discardableResult
+    func markCollected(drop: Drop) -> DropActionError? {
+        guard case let .signedIn(session) = authState else { return .notSignedIn }
+        if let distance = distanceToDrop(drop), distance > Self.dropPreviewRadiusMeters {
+            let radius = Int(Self.dropPreviewRadiusMeters.rounded())
+            return .invalidInput("Move within \(radius) meters to pick up this drop.")
+        }
+        
         Task {
             do {
                 try await firestore.markDropCollected(dropId: drop.id, userId: session.user.uid)
@@ -573,6 +579,8 @@ final class AppViewModel: ObservableObject {
                 }
             }
         }
+        
+        return nil
     }
     
     func setIgnored(drop: Drop, isIgnored: Bool) {

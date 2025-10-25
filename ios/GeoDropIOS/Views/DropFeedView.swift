@@ -353,7 +353,7 @@ struct DropRowView: View {
                                 .font(actionFont)
                         }
                         .buttonStyle(.bordered)
-                        .disabled(hasCollected)
+                        .disabled(hasCollected || !canPreviewContent)
 
                         Button(action: startReport) {
                             Label("Report", systemImage: "exclamationmark.bubble")
@@ -454,7 +454,9 @@ struct DropRowView: View {
             return
         }
         guard !viewModel.hasCollected(drop: drop) else { return }
-        viewModel.markCollected(drop: drop)
+        if let error = viewModel.markCollected(drop: drop) {
+            infoAlertMessage = error.localizedDescription
+        }
     }
     
     private func startReport() {

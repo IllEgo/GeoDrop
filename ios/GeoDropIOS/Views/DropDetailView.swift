@@ -477,7 +477,9 @@ struct DropDetailView: View {
             infoAlertMessage = "You created this drop."
             return
         }
-        viewModel.markCollected(drop: drop)
+        if let error = viewModel.markCollected(drop: drop) {
+            infoAlertMessage = error.localizedDescription
+        }
     }
 
     private func startReport(for drop: Drop, alreadyReported: Bool, isOwner: Bool, canParticipate: Bool) {
