@@ -205,7 +205,7 @@ struct DropFeedView: View {
                 attemptSelection(of: destination)
             }
         } label: {
-            VStack(spacing: 3) {
+            HStack(spacing: 8) {
                 HStack(spacing: 4) {
                     Image(systemName: destination.systemImageName)
                         .font(.system(size: 10, weight: .semibold))
@@ -218,7 +218,7 @@ struct DropFeedView: View {
                             .font(.caption.weight(.bold))
                     }
                 }
-                .frame(maxWidth: .infinity)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
                 if count > 0 {
                     Text("\(count)")
