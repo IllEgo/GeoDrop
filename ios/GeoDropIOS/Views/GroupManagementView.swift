@@ -17,7 +17,7 @@ struct GroupManagementView: View {
             trailing: {
                 if showsCloseButton {
                     Button("Close", action: dismiss.callAsFunction)
-                        .font(.callout.weight(.semibold))
+                        .font(.footnote.weight(.semibold))
                         .foregroundColor(geoDropTheme.colors.primary)
                 }
             }

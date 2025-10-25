@@ -53,7 +53,7 @@ struct DropDetailView: View {
         return GeoDropNavigationContainer(
             trailing: {
                 Button("Close", action: dismiss.callAsFunction)
-                    .font(.callout.weight(.semibold))
+                    .font(.footnote.weight(.semibold))
                     .foregroundColor(geoDropTheme.colors.primary)
             }
         ) {

@@ -41,7 +41,7 @@ struct CreateDropView: View {
                     Button("Close") {
                         onDismiss()
                     }
-                    .font(.callout.weight(.semibold))
+                    .font(.footnote.weight(.semibold))
                     .foregroundColor(geoDropTheme.colors.primary)
                 }
             },
@@ -331,9 +331,9 @@ struct CreateDropView: View {
             Task { await submit() }
         } label: {
             Text("Drop")
-                .font(.callout.weight(.semibold))
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
+                .font(.footnote.weight(.semibold))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
                 .background(canSubmit ? geoDropTheme.colors.primary : geoDropTheme.colors.primary.opacity(0.35))
                 .foregroundColor(geoDropTheme.colors.onPrimary)
                 .clipShape(Capsule())

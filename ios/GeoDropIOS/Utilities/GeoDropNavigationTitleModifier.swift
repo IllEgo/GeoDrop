@@ -11,26 +11,35 @@ struct GeoDropTopNavigationBar: View {
         self.leading = leading
         self.trailing = trailing
     }
+    
+    private let titleFont = Font.system(size: 14, weight: .semibold, design: .default)
+    private let contentFont = Font.system(size: 12, weight: .semibold, design: .default)
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(alignment: .center, spacing: 14) {
+            HStack(alignment: .center, spacing: 10) {
                 leading
+                    .font(contentFont)
+                    .imageScale(.small)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("GeoDrop")
-                        .font(.headline.weight(.bold))
-                        .tracking(1.2)
+                        .font(titleFont)
+                        .tracking(0.8)
                         .foregroundColor(geoDropTheme.colors.onSurface)
                 }
                 .accessibilityElement(children: .combine)
                 Spacer(minLength: 12)
                 trailing
+                    .font(contentFont)
+                    .imageScale(.small)
             }
             .foregroundColor(geoDropTheme.colors.onSurface)
-            .frame(minHeight: 10)
-            .padding(.horizontal, 18)
-            .padding(.bottom, 6)
-            .padding(.top, 6)
+            .font(contentFont)
+            .imageScale(.small)
+            .frame(minHeight: 0)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 4)
+
         }
         .frame(maxWidth: .infinity)
         .background(
