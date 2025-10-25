@@ -159,3 +159,16 @@ data class CollectedNote(
         }
     }
 }
+
+private const val MILLIS_PER_DAY = 86_400_000L
+
+fun CollectedNote.decayAtMillis(): Long? {
+    val days = decayDays?.takeIf { it > 0 } ?: return null
+    val created = dropCreatedAt?.takeIf { it > 0L } ?: return null
+    return created + days * MILLIS_PER_DAY
+}
+
+fun CollectedNote.isExpired(nowMillis: Long = System.currentTimeMillis()): Boolean {
+    val expireAt = decayAtMillis() ?: return false
+    return expireAt <= nowMillis
+}

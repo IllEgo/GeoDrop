@@ -41,12 +41,24 @@ class NoteInventory(context: Context) {
         val raw = prefs.getString(collectedKey(), null) ?: return emptyList()
         return try {
             val array = JSONArray(raw)
-            buildList {
+            val notes = buildList {
                 for (i in 0 until array.length()) {
                     val obj = array.optJSONObject(i) ?: continue
                     add(CollectedNote.fromJson(obj))
                 }
             }.sortedByDescending { it.collectedAt }
+
+            val now = System.currentTimeMillis()
+            val (active, expired) = notes.partition { note -> !note.isExpired(now) }
+            if (expired.isNotEmpty()) {
+                persistCollected(active)
+                expired.forEach { note ->
+                    broadcastChange(changeType = CHANGE_REMOVED, dropId = note.id)
+                }
+                notifyListeners(ChangeOrigin.LOCAL)
+            }
+
+            active
         } catch (_: JSONException) {
             emptyList()
         }
