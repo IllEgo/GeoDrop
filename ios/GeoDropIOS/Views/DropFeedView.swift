@@ -21,8 +21,7 @@ struct DropFeedView: View {
 
     var body: some View {
         GeoDropNavigationContainer(
-            subtitle: "Discover",
-            trailing: { topBarActions }
+            subtitle: "Discover"
         ) {
             VStack(spacing: 0) {
                 if viewModel.groups.isEmpty {
@@ -184,34 +183,6 @@ struct DropFeedView: View {
         }
         .frame(height: height)
         .background(geoDropTheme.colors.surface)
-    }
-    
-    private var topBarActions: some View {
-        HStack(spacing: 12) {
-            Button {
-                viewModel.openGroupManagement()
-            } label: {
-                topBarIcon(systemName: "person.3")
-                    .accessibilityLabel("Manage groups")
-            }
-
-            Button {
-                Task { await viewModel.refreshDrops() }
-            } label: {
-                topBarIcon(systemName: "arrow.clockwise")
-                    .accessibilityLabel("Refresh drops")
-            }
-        }
-        .buttonStyle(.plain)
-    }
-
-    private func topBarIcon(systemName: String) -> some View {
-        Image(systemName: systemName)
-            .font(.headline.weight(.semibold))
-            .frame(width: 32, height: 32)
-            .foregroundColor(geoDropTheme.colors.primary)
-            .background(geoDropTheme.colors.primary.opacity(0.12))
-            .clipShape(Circle())
     }
     
     private var destinationTabs: some View {
