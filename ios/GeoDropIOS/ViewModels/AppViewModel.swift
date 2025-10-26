@@ -395,7 +395,8 @@ final class AppViewModel: ObservableObject {
         dropsListener = firestore.listenForDrops(
             userId: session.user.uid,
             allowedGroups: groupCodes,
-            allowNsfw: allowNsfw
+            allowNsfw: allowNsfw,
+            restrictToGroups: selectedGroupCode != nil
         ) { [weak self] drops in
             DispatchQueue.main.async {
                 guard let self = self else { return }
@@ -734,6 +735,16 @@ final class AppViewModel: ObservableObject {
         drops[index] = updated
     }
     
+    private func matchesSelectedGroup(_ drop: Drop) -> Bool {
+        guard let selected = selectedGroupCode?.trimmingCharacters(in: .whitespacesAndNewlines), !selected.isEmpty else {
+            return true
+        }
+        guard let group = drop.groupCode?.trimmingCharacters(in: .whitespacesAndNewlines), !group.isEmpty else {
+            return false
+        }
+        return group.caseInsensitiveCompare(selected) == .orderedSame
+    }
+    
     private func reloadInventorySnapshot() {
         inventory = inventoryService.inventory(for: inventoryUserId)
         rebuildExplorerCollections()
@@ -746,8 +757,9 @@ final class AppViewModel: ObservableObject {
     
     private func rebuildExplorerCollections() {
         let ignored = inventory.ignoredDropIDs
+        let visibleDrops = drops.filter { matchesSelectedGroup($0) }
         if let userId = currentUserID {
-            explorerMyDrops = drops.filter { $0.createdBy == userId && !ignored.contains($0.id) }
+            explorerMyDrops = visibleDrops.filter { $0.createdBy == userId && !ignored.contains($0.id) }
         } else {
             explorerMyDrops = []
         }
@@ -756,7 +768,7 @@ final class AppViewModel: ObservableObject {
         var seen: Set<String> = []
         let stored = inventory.collectedDrops
         if let userId = currentUserID {
-            for drop in drops {
+            for drop in visibleDrops {
                 if ignored.contains(drop.id) { continue }
                 if drop.collectedBy[userId] == true {
                     collected.append(drop)
@@ -768,6 +780,7 @@ final class AppViewModel: ObservableObject {
         for (dropId, storedDrop) in stored.sorted(by: { $0.value.displayTitle < $1.value.displayTitle }) {
             guard !ignored.contains(dropId) else { continue }
             if seen.contains(dropId) { continue }
+            if !matchesSelectedGroup(storedDrop) { continue }
             collected.append(storedDrop)
         }
 

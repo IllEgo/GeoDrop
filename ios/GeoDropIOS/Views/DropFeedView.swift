@@ -189,7 +189,7 @@ struct DropFeedView: View {
 
     private func destinationButton(for destination: ExplorerDestination) -> some View {
         let isSelected = viewModel.selectedExplorerDestination == destination
-        let count = viewModel.explorerCount(for: destination)
+//        let count = viewModel.explorerCount(for: destination)
         let isRestricted = destination.requiresAuthentication && !(viewModel.userMode?.canParticipate ?? false)
         return Button {
             guard viewModel.selectedExplorerDestination != destination else { return }
@@ -212,17 +212,17 @@ struct DropFeedView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-                if count > 0 {
-                    Text("\(count)")
-                        .font(.system(size: 10, weight: .semibold))
-                        .padding(.horizontal, 2)
-                        .padding(.vertical, 2)
-                        .background(
-                            Capsule()
-                                .fill(isSelected ? geoDropTheme.colors.onPrimary.opacity(0.2) : geoDropTheme.colors.surfaceVariant.opacity(0.6))
-                        )
-                        .foregroundColor(isSelected ? geoDropTheme.colors.onPrimary : geoDropTheme.colors.onSurface)
-                }
+//                if count > 0 {
+//                    Text("\(count)")
+//                        .font(.system(size: 10, weight: .semibold))
+//                        .padding(.horizontal, 2)
+//                        .padding(.vertical, 2)
+//                        .background(
+//                            Capsule()
+//                                .fill(isSelected ? geoDropTheme.colors.onPrimary.opacity(0.2) : geoDropTheme.colors.surfaceVariant.opacity(0.6))
+//                        )
+//                        .foregroundColor(isSelected ? geoDropTheme.colors.onPrimary : geoDropTheme.colors.onSurface)
+//                }
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 6)
