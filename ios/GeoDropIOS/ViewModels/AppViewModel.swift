@@ -165,12 +165,18 @@ final class AppViewModel: ObservableObject {
     }
 
     func canPreview(drop: Drop, distance: CLLocationDistance? = nil) -> Bool {
+        if isOwner(of: drop) { return true }
+        if hasCollected(drop: drop) { return true }
+        
         let resolvedDistance = distance ?? distanceToDrop(drop)
         guard let resolvedDistance else { return false }
         return resolvedDistance <= Self.dropPreviewRadiusMeters
     }
 
     func previewRestrictionMessage(for drop: Drop, distance: CLLocationDistance? = nil) -> String? {
+        if isOwner(of: drop) { return nil }
+        if hasCollected(drop: drop) { return nil }
+
         let resolvedDistance = distance ?? distanceToDrop(drop)
         if let resolvedDistance {
             guard resolvedDistance > Self.dropPreviewRadiusMeters else { return nil }
