@@ -7483,24 +7483,43 @@ private fun CollectedNoteCard(
             AnimatedVisibility(visible = expanded) {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     val mediaUrl = note.mediaUrl?.takeIf { it.isNotBlank() }
-                    if (note.contentType == DropContentType.PHOTO && mediaUrl != null) {
-                        val context = LocalContext.current
-                        val imageRequest = remember(mediaUrl) {
-                            ImageRequest.Builder(context)
-                                .data(mediaUrl)
-                                .crossfade(true)
-                                .build()
+                    when {
+                        note.contentType == DropContentType.PHOTO && mediaUrl != null -> {
+                            val context = LocalContext.current
+                            val imageRequest = remember(mediaUrl) {
+                                ImageRequest.Builder(context)
+                                    .data(mediaUrl)
+                                    .crossfade(true)
+                                    .build()
+                            }
+
+                            AsyncImage(
+                                model = imageRequest,
+                                contentDescription = preview,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(min = 160.dp, max = 280.dp)
+                                    .clip(RoundedCornerShape(12.dp)),
+                                contentScale = ContentScale.Crop
+                            )
                         }
 
-                        AsyncImage(
-                            model = imageRequest,
-                            contentDescription = preview,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(min = 160.dp, max = 280.dp)
-                                .clip(RoundedCornerShape(12.dp)),
-                            contentScale = ContentScale.Crop
-                        )
+                        note.contentType == DropContentType.VIDEO && mediaUrl != null -> {
+                            val videoUri = remember(mediaUrl) { Uri.parse(mediaUrl) }
+
+                            DropVideoPlayer(
+                                videoUri = videoUri,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+
+                            Spacer(Modifier.height(8.dp))
+
+                            Text(
+                                text = "Tap play to watch this clip.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = supportingColor
+                            )
+                        }
                     }
 
                     Text(
