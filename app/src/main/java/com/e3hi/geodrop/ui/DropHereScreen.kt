@@ -823,6 +823,7 @@ fun DropHereScreen(
     var myDropsCurrentLocation by remember { mutableStateOf<LatLng?>(null) }
     var myDropsDeletingId by remember { mutableStateOf<String?>(null) }
     var myDropsSelectedId by remember { mutableStateOf<String?>(null) }
+    var myDropsSortKey by rememberSaveable { mutableStateOf(DropSortOption.NEWEST.name) }
     var myDropCountHint by remember { mutableStateOf<Int?>(null) }
     var myDropPendingReviewHint by remember { mutableStateOf<Int?>(null) }
     var showManageGroups by remember { mutableStateOf(false) }
@@ -2122,11 +2123,24 @@ fun DropHereScreen(
     val sortedOtherDrops = remember(filteredOtherDrops, otherDropsSortOption, otherDropsCurrentLocation) {
         sortDrops(filteredOtherDrops, otherDropsSortOption, otherDropsCurrentLocation)
     }
+    val myDropsSortOption = remember(myDropsSortKey) {
+        runCatching { DropSortOption.valueOf(myDropsSortKey) }
+            .getOrDefault(DropSortOption.NEWEST)
+    }
     val filteredMyDrops = remember(selectedExplorerGroupCode, myDrops, explorerGroups) {
         selectedExplorerGroupCode?.takeIf { code -> explorerGroups.any { it.code == code } }?.let { code ->
             myDrops.filter { drop -> drop.groupCode == code }
         } ?: myDrops
     }
+    val sortedMyDrops = remember(filteredMyDrops, myDropsSortOption, myDropsCurrentLocation) {
+        sortDrops(filteredMyDrops, myDropsSortOption, myDropsCurrentLocation)
+    }
+    var collectedSortKey by rememberSaveable { mutableStateOf(DropSortOption.NEWEST.name) }
+    val collectedSortOption = remember(collectedSortKey) {
+        runCatching { DropSortOption.valueOf(collectedSortKey) }
+            .getOrDefault(DropSortOption.NEWEST)
+    }
+    var collectedCurrentLocation by remember { mutableStateOf<LatLng?>(null) }
     val filteredCollected = remember(selectedExplorerGroupCode, collectedNotes, explorerGroups) {
         selectedExplorerGroupCode?.takeIf { code -> explorerGroups.any { it.code == code } }?.let { code ->
             collectedNotes.filter { note -> note.groupCode == code }
@@ -2139,7 +2153,9 @@ fun DropHereScreen(
         filteredCollected.filterNot { note -> note.isNsfw || note.nsfwLabels.isNotEmpty() }
     }
     val hiddenNsfwCollectedCount = filteredCollected.size - visibleCollectedNotes.size
-    val collectedCount = visibleCollectedNotes.size
+    val sortedCollectedNotes = remember(visibleCollectedNotes, collectedSortOption, collectedCurrentLocation) {
+        sortCollectedNotes(visibleCollectedNotes, collectedSortOption, collectedCurrentLocation)
+    }
 
     LaunchedEffect(selectedExplorerGroupCode, sortedOtherDrops) {
         val current = otherDropsSelectedId
@@ -2148,10 +2164,20 @@ fun DropHereScreen(
         }
     }
 
-    LaunchedEffect(selectedExplorerGroupCode, filteredMyDrops) {
+    LaunchedEffect(selectedExplorerGroupCode, sortedMyDrops) {
         val current = myDropsSelectedId
-        if (current != null && filteredMyDrops.none { drop -> drop.id == current }) {
-            myDropsSelectedId = filteredMyDrops.firstOrNull()?.id
+        if (current != null && sortedMyDrops.none { drop -> drop.id == current }) {
+            myDropsSelectedId = sortedMyDrops.firstOrNull()?.id
+        }
+    }
+
+    LaunchedEffect(currentHomeDestination, currentExplorerDestination) {
+        val shouldUpdateLocation = currentHomeDestination == HomeDestination.Explorer &&
+                currentExplorerDestination == ExplorerDestination.Collected
+        collectedCurrentLocation = if (shouldUpdateLocation) {
+            getLatestLocation()?.let { (lat, lng) -> LatLng(lat, lng) }
+        } else {
+            null
         }
     }
 
@@ -2780,7 +2806,7 @@ fun DropHereScreen(
                                     topContentPadding = mapAwareTopPadding,
                                     contentPadding = PaddingValues(bottom = 0.dp),
                                     loading = myDropsLoading,
-                                    drops = filteredMyDrops,
+                                    drops = sortedMyDrops,
                                     currentLocation = myDropsCurrentLocation,
                                     deletingId = myDropsDeletingId,
                                     error = myDropsError,
@@ -2788,6 +2814,11 @@ fun DropHereScreen(
                                         "You haven't dropped anything for $code yet."
                                     },
                                     selectedId = myDropsSelectedId,
+                                    sortOption = myDropsSortOption,
+                                    sortOptions = dropSortOptions,
+                                    onSortOptionChange = { option ->
+                                        myDropsSortKey = option.name
+                                    },
                                     onSelect = { drop ->
                                         myDropsSelectedId = if (myDropsSelectedId == drop.id) {
                                             null
@@ -2873,7 +2904,7 @@ fun DropHereScreen(
                                     modifier = Modifier.fillMaxSize(),
                                     topContentPadding = mapAwareTopPadding,
                                     contentPadding = PaddingValues(bottom = 0.dp),
-                                    notes = visibleCollectedNotes,
+                                    notes = sortedCollectedNotes,
                                     hiddenNsfwCount = hiddenNsfwCollectedCount,
                                     canReportDrops = !currentUserId.isNullOrBlank(),
                                     reportedDropIds = reportedCollectedDropIds.toSet(),
@@ -2881,6 +2912,11 @@ fun DropHereScreen(
                                     isReportProcessing = browseReportProcessing,
                                     emptyMessage = selectedExplorerGroupCode?.let { code ->
                                         "You haven't collected any drops for $code yet."
+                                    },
+                                    sortOption = collectedSortOption,
+                                    sortOptions = dropSortOptions,
+                                    onSortOptionChange = { option ->
+                                        collectedSortKey = option.name
                                     },
                                     onReport = report@{ note ->
                                         if (browseReportProcessing) return@report
@@ -5571,6 +5607,9 @@ private fun CollectedDropsContent(
     reportedDropIds: Set<String>,
     reportingDropId: String?,
     isReportProcessing: Boolean,
+    sortOption: DropSortOption,
+    sortOptions: List<DropSortOption>,
+    onSortOptionChange: (DropSortOption) -> Unit,
     onReport: (CollectedNote) -> Unit,
     onView: (CollectedNote) -> Unit,
     onRemove: (CollectedNote) -> Unit,
@@ -5726,6 +5765,23 @@ private fun CollectedDropsContent(
                 .fillMaxWidth()
                 .weight(listWeight)
         ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                DropSortMenu(
+                    modifier = Modifier.weight(1f),
+                    current = sortOption,
+                    options = sortOptions,
+                    onSelect = onSortOptionChange
+                )
+
+                Spacer(Modifier.width(12.dp))
+                CountBadge(count = notes.size)
+            }
+
             Text(
                 text = "Select a drop to focus on the map.",
                 style = MaterialTheme.typography.bodyMedium,
@@ -7099,6 +7155,48 @@ private fun sortDrops(
     }
 }
 
+private fun sortCollectedNotes(
+    notes: List<CollectedNote>,
+    option: DropSortOption,
+    currentLocation: LatLng?
+): List<CollectedNote> {
+    return when (option) {
+        DropSortOption.NEAREST -> {
+            val location = currentLocation ?: return notes
+            notes.sortedWith(
+                compareBy<CollectedNote> { note ->
+                    val lat = note.lat
+                    val lng = note.lng
+                    if (lat == null || lng == null) {
+                        Double.MAX_VALUE
+                    } else {
+                        distanceBetweenMeters(
+                            location.latitude,
+                            location.longitude,
+                            lat,
+                            lng
+                        )
+                    }
+                }.thenByDescending { it.collectedAt }
+            )
+        }
+
+        DropSortOption.MOST_POPULAR -> notes.sortedWith(
+            compareByDescending<CollectedNote> { it.likeCount }
+                .thenByDescending { it.collectedAt }
+        )
+
+        DropSortOption.NEWEST -> notes.sortedByDescending { note ->
+            note.dropCreatedAt ?: note.collectedAt
+        }
+
+        DropSortOption.ENDING_SOON -> notes.sortedWith(
+            compareBy<CollectedNote> { note -> note.decayAtMillis() ?: Long.MAX_VALUE }
+                .thenByDescending { note -> note.dropCreatedAt ?: note.collectedAt }
+        )
+    }
+}
+
 @Composable
 private fun DropSortMenu(
     modifier: Modifier = Modifier,
@@ -7665,6 +7763,9 @@ private fun MyDropsContent(
     error: String?,
     emptyMessage: String? = null,
     selectedId: String?,
+    sortOption: DropSortOption,
+    sortOptions: List<DropSortOption>,
+    onSortOptionChange: (DropSortOption) -> Unit,
     onSelect: (Drop) -> Unit,
     onRetry: () -> Unit,
     onView: (Drop) -> Unit,
@@ -7803,6 +7904,23 @@ private fun MyDropsContent(
                             .fillMaxWidth()
                             .weight(listWeight)
                     ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            DropSortMenu(
+                                modifier = Modifier.weight(1f),
+                                current = sortOption,
+                                options = sortOptions,
+                                onSelect = onSortOptionChange
+                            )
+
+                            Spacer(Modifier.width(12.dp))
+                            CountBadge(count = drops.size)
+                        }
+
                         Text(
                             text = "Select a drop to focus on the map.",
                             style = MaterialTheme.typography.bodyMedium,
