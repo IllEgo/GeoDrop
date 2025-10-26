@@ -5782,15 +5782,6 @@ private fun CollectedDropsContent(
                 CountBadge(count = notes.size)
             }
 
-            Text(
-                text = "Select a drop to focus on the map.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp)
-            )
-
             LazyColumn(
                 state = listState,
                 modifier = Modifier
@@ -7920,15 +7911,6 @@ private fun MyDropsContent(
                             Spacer(Modifier.width(12.dp))
                             CountBadge(count = drops.size)
                         }
-
-                        Text(
-                            text = "Select a drop to focus on the map.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 12.dp)
-                        )
 
                         LazyColumn(
                             state = listState,
