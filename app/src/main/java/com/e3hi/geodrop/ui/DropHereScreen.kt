@@ -2758,15 +2758,15 @@ fun DropHereScreen(
                                                     drop.lng
                                                 ) <= DROP_PICKUP_RADIUS_METERS
                                             } ?: false
-                                            if (!hasCollected && !withinPickupRange) {
-                                                val radiusMeters = DROP_PICKUP_RADIUS_METERS.roundToInt()
-                                                Toast.makeText(
-                                                    ctx,
-                                                    "Move within ${'$'}radiusMeters meters to report this drop, or collect it first.",
-                                                    Toast.LENGTH_SHORT
-                                                ).show()
-                                                return@report
-                                            }
+//                                            if (!hasCollected && !withinPickupRange) {
+//                                                val radiusMeters = DROP_PICKUP_RADIUS_METERS.roundToInt()
+//                                                Toast.makeText(
+//                                                    ctx,
+//                                                    "Move within ${'$'}radiusMeters meters to report this drop, or collect it first.",
+//                                                    Toast.LENGTH_SHORT
+//                                                ).show()
+//                                                return@report
+//                                            }
                                             if (drop.reportedBy.containsKey(userId)) {
                                                 Toast.makeText(ctx, "You've already reported this drop.", Toast.LENGTH_SHORT).show()
                                                 return@report
@@ -7110,8 +7110,8 @@ private fun OtherDropsExplorerSection(
                                         isOwnDrop -> "You created this drop."
                                         !isSignedIn -> "Sign in to report drops."
                                         alreadyReported -> "Thanks for your report. We'll review it soon."
-                                        !hasCollected && !withinPickupRange ->
-                                            "Move within ${DROP_PICKUP_RADIUS_METERS.roundToInt()} meters to report this drop, or collect it first."
+//                                        !hasCollected && !withinPickupRange ->
+//                                            "Move within ${DROP_PICKUP_RADIUS_METERS.roundToInt()} meters to report this drop, or collect it first."
                                         else -> null
                                     }
                                     val showReportButton = !isOwnDrop
@@ -7182,7 +7182,7 @@ private fun sortDrops(
         }
 
         DropSortOption.MOST_POPULAR -> drops.sortedWith(
-            compareByDescending<Drop> { it.likeCount }
+            compareByDescending<Drop> { it.likeCount - it.dislikeCount }
                 .thenByDescending { it.createdAt }
         )
 
@@ -7222,7 +7222,7 @@ private fun sortCollectedNotes(
         }
 
         DropSortOption.MOST_POPULAR -> notes.sortedWith(
-            compareByDescending<CollectedNote> { it.likeCount }
+            compareByDescending<CollectedNote> { it.likeCount - it.dislikeCount }
                 .thenByDescending { it.collectedAt }
         )
 
@@ -8637,14 +8637,14 @@ private fun OtherDropRow(
                             }
                         }
                     }
-                    if (!canLike) {
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            text = likeRestrictionMessage ?: "Collect this drop to react to it.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = supportingColor
-                        )
-                    }
+//                    if (!canLike) {
+//                        Spacer(Modifier.height(4.dp))
+//                        Text(
+//                            text = likeRestrictionMessage ?: "Collect this drop to react to it.",
+//                            style = MaterialTheme.typography.bodySmall,
+//                            color = supportingColor
+//                        )
+//                    }
                     if (showReport) {
                         reportRestrictionMessage?.let { message ->
                             Spacer(Modifier.height(4.dp))
