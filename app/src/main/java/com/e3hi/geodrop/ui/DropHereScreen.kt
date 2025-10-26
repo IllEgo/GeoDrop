@@ -126,7 +126,12 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -165,6 +170,7 @@ import com.e3hi.geodrop.data.GroupAlreadyExistsException
 import com.e3hi.geodrop.data.GroupNotFoundException
 import com.e3hi.geodrop.data.GroupRole
 import com.e3hi.geodrop.data.displayTitle
+import com.e3hi.geodrop.data.displayTitleParts
 import com.e3hi.geodrop.data.mediaLabel
 import com.e3hi.geodrop.data.FirestoreRepo
 import com.e3hi.geodrop.data.DropLikeStatus
@@ -6755,11 +6761,12 @@ private fun BusinessDropAnalyticsCard(drop: Drop) {
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = drop.displayTitle(),
+                DropTitleText(
+                    drop = drop,
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
 
                 if (drop.isNsfw) {
@@ -8238,6 +8245,38 @@ private fun DropNsfwBadge(
 }
 
 @Composable
+private fun DropTitleText(
+    drop: Drop,
+    modifier: Modifier = Modifier,
+    style: TextStyle = MaterialTheme.typography.bodyLarge,
+    maxLines: Int = Int.MAX_VALUE,
+    overflow: TextOverflow = TextOverflow.Clip
+) {
+    val (handle, baseTitle) = drop.displayTitleParts()
+    val annotatedTitle = remember(handle, baseTitle) {
+        if (handle != null) {
+            buildAnnotatedString {
+                withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
+                    append(handle)
+                }
+                append(" dropped ")
+                append(baseTitle)
+            }
+        } else {
+            AnnotatedString(baseTitle)
+        }
+    }
+
+    Text(
+        text = annotatedTitle,
+        style = style,
+        modifier = modifier,
+        maxLines = maxLines,
+        overflow = overflow
+    )
+}
+
+@Composable
 private fun OtherDropRow(
     drop: Drop,
     isSelected: Boolean,
@@ -8319,10 +8358,9 @@ private fun OtherDropRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = drop.displayTitle(),
+                DropTitleText(
+                    drop = drop,
                     style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.weight(1f),
                     maxLines = if (isSelected) Int.MAX_VALUE else 2,
                     overflow = TextOverflow.Ellipsis
@@ -9106,10 +9144,9 @@ private fun ManageDropRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = drop.displayTitle(),
+                DropTitleText(
+                    drop = drop,
                     style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.weight(1f)
                 )
 

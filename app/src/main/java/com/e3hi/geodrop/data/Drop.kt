@@ -122,7 +122,7 @@ enum class DropContentType {
     }
 }
 
-fun Drop.displayTitle(): String {
+fun Drop.displayTitleParts(): Pair<String?, String> {
     val descriptionText = description.orEmpty()
     val baseTitle = when (dropType) {
         DropType.RESTAURANT_COUPON -> text.ifBlank { descriptionText.ifBlank { "Special offer" } }
@@ -136,8 +136,18 @@ fun Drop.displayTitle(): String {
     }
 
     val username = dropperUsername?.trim()?.takeIf { it.isNotEmpty() }
-    return if (!isAnonymous && !username.isNullOrEmpty()) {
-        val handle = if (username.startsWith("@")) username else "@$username"
+    val handle = if (!isAnonymous && !username.isNullOrEmpty()) {
+        if (username.startsWith("@")) username else "@$username"
+    } else {
+        null
+    }
+
+    return handle to baseTitle
+}
+
+fun Drop.displayTitle(): String {
+    val (handle, baseTitle) = displayTitleParts()
+    return if (handle != null) {
         "$handle dropped $baseTitle"
     } else {
         baseTitle
