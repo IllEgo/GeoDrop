@@ -18,6 +18,7 @@
 		754971482EA9CA840079D5BF /* GoogleMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 754971472EA9CA7D0079D5BF /* GoogleMapView.swift */; };
 		7549714A2EA9F84E0079D5BF /* OnboardingViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 754971492EA9F8410079D5BF /* OnboardingViews.swift */; };
 		7549714C2EAA064F0079D5BF /* BusinessDropTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7549714B2EAA06420079D5BF /* BusinessDropTemplate.swift */; };
+		755B7F2B2EAE06C2009ED802 /* InlineMediaDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 755B7F2A2EAE06B6009ED802 /* InlineMediaDecoder.swift */; };
 		75A8F4B82EAC75AD00E3C6EA /* GeoDropCompactStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75A8F4B72EAC75A500E3C6EA /* GeoDropCompactStyle.swift */; };
 		75C66D762EA8C4E200BBC3FE /* GeoDropNavigationTitleModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75C66D752EA8C4C600BBC3FE /* GeoDropNavigationTitleModifier.swift */; };
 		AA0000100000000000000001 /* GeoDropIOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000200000000000000001 /* GeoDropIOSApp.swift */; };
@@ -42,7 +43,7 @@
 		AA0000100000000000000014 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000200000000000000014 /* MainTabView.swift */; };
 		AA0000100000000000000015 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000200000000000000015 /* ProfileView.swift */; };
 		AA0000100000000000000016 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000200000000000000016 /* RootView.swift */; };
-		AA0000100000000000000017 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA0000200000000000000018 /* Assets.xcassets */; };
+		AA0000100000000000000017 /* Resources/Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA0000200000000000000018 /* Resources/Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -56,6 +57,7 @@
 		754971472EA9CA7D0079D5BF /* GoogleMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleMapView.swift; sourceTree = "<group>"; };
 		754971492EA9F8410079D5BF /* OnboardingViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingViews.swift; sourceTree = "<group>"; };
 		7549714B2EAA06420079D5BF /* BusinessDropTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BusinessDropTemplate.swift; sourceTree = "<group>"; };
+		755B7F2A2EAE06B6009ED802 /* InlineMediaDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InlineMediaDecoder.swift; sourceTree = "<group>"; };
 		75A8F4B72EAC75A500E3C6EA /* GeoDropCompactStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeoDropCompactStyle.swift; sourceTree = "<group>"; };
 		75C66D752EA8C4C600BBC3FE /* GeoDropNavigationTitleModifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeoDropNavigationTitleModifier.swift; sourceTree = "<group>"; };
 		99FB8E99D0F98B0D7555E1CF /* Pods_GeoDropIOS.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_GeoDropIOS.framework; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -83,7 +85,7 @@
 		AA0000200000000000000015 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
 		AA0000200000000000000016 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		AA0000200000000000000017 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		AA0000200000000000000018 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Resources/Assets.xcassets; sourceTree = "<group>"; };
+		AA0000200000000000000018 /* Resources/Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Resources/Assets.xcassets; sourceTree = "<group>"; };
 		B0D1EE3ABB4BAECCCEC24F88 /* Pods-GeoDropIOS.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-GeoDropIOS.release.xcconfig"; path = "Target Support Files/Pods-GeoDropIOS/Pods-GeoDropIOS.release.xcconfig"; sourceTree = "<group>"; };
 		BE9A9DFE18B2E2BA8B0BADD6 /* Pods-GeoDropIOS.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-GeoDropIOS.debug.xcconfig"; path = "Target Support Files/Pods-GeoDropIOS/Pods-GeoDropIOS.debug.xcconfig"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -131,7 +133,7 @@
 			isa = PBXGroup;
 			children = (
 				AA0000400000000000000003 /* Sources */,
-				AA0000200000000000000018 /* Assets.xcassets */,
+				AA0000200000000000000018 /* Resources/Assets.xcassets */,
 				AA0000200000000000000017 /* Info.plist */,
 				7505D8D02EA83D740039BFE9 /* GoogleService-Info.plist */,
 			);
@@ -198,6 +200,7 @@
 		AA0000400000000000000008 /* Utilities */ = {
 			isa = PBXGroup;
 			children = (
+				755B7F2A2EAE06B6009ED802 /* InlineMediaDecoder.swift */,
 				75A8F4B72EAC75A500E3C6EA /* GeoDropCompactStyle.swift */,
 				75175E0D2EAB726100CAB223 /* NotificationPreferences.swift */,
 				75C66D752EA8C4C600BBC3FE /* GeoDropNavigationTitleModifier.swift */,
@@ -301,7 +304,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				AA0000100000000000000017 /* Assets.xcassets in Resources */,
+				AA0000100000000000000017 /* Resources/Assets.xcassets in Resources */,
 				7505D8D12EA83D740039BFE9 /* GoogleService-Info.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -339,9 +342,13 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-GeoDropIOS/Pods-GeoDropIOS-resources-${CONFIGURATION}-input-files.xcfilelist",
 			);
+			inputPaths = (
+			);
 			name = "[CP] Copy Pods Resources";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-GeoDropIOS/Pods-GeoDropIOS-resources-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -356,9 +363,13 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-GeoDropIOS/Pods-GeoDropIOS-frameworks-${CONFIGURATION}-input-files.xcfilelist",
 			);
+			inputPaths = (
+			);
 			name = "[CP] Embed Pods Frameworks";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-GeoDropIOS/Pods-GeoDropIOS-frameworks-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -402,6 +413,7 @@
 				AA0000100000000000000005 /* UserProfile.swift in Sources */,
 				AA0000100000000000000004 /* GroupMembership.swift in Sources */,
 				75A8F4B82EAC75AD00E3C6EA /* GeoDropCompactStyle.swift in Sources */,
+				755B7F2B2EAE06C2009ED802 /* InlineMediaDecoder.swift in Sources */,
 				AA0000100000000000000003 /* Drop.swift in Sources */,
 				AA0000100000000000000002 /* AppConfiguration.swift in Sources */,
 				AA0000100000000000000001 /* GeoDropIOSApp.swift in Sources */,

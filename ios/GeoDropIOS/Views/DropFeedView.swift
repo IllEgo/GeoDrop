@@ -1,6 +1,7 @@
 import SwiftUI
 import CoreLocation
 import AVKit
+import UIKit
 
 struct DropFeedView: View {
     @EnvironmentObject private var viewModel: AppViewModel
@@ -565,10 +566,11 @@ struct DropRowView: View {
     }
 
     private var hasMediaPreview: Bool {
-        guard drop.mediaURL != nil else { return false }
         switch drop.contentType {
-        case .photo, .video:
-            return true
+        case .photo:
+            return drop.mediaURL != nil || inlinePhoto != nil
+        case .video:
+            return drop.mediaURL != nil
         default:
             return false
         }
@@ -586,26 +588,33 @@ struct DropRowView: View {
                             .progressViewStyle(.circular)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     case .success(let image):
-                        image
-                            .resizable()
-                            .scaledToFill()
-                            .clipped()
+                        photoContent(for: image)
                     case .failure:
-                        Image(systemName: "photo")
-                            .font(.title2)
-                            .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        if let inlinePhoto {
+                            photoContent(for: inlinePhoto)
+                        } else {
+                            photoPlaceholder
+                        }
                     @unknown default:
-                        EmptyView()
+                        photoPlaceholder
                     }
                 }
                 .frame(maxWidth: .infinity)
                 .frame(height: 220)
-                .background(
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(geoDropTheme.colors.surfaceVariant)
-                )
+                .background(photoBackground)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
+            } else if let inlinePhoto {
+                photoContent(for: inlinePhoto)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 220)
+                    .background(photoBackground)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+            } else {
+                photoPlaceholder
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 220)
+                    .background(photoBackground)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
             }
         case .video:
             if let url = drop.mediaURL {
@@ -621,6 +630,32 @@ struct DropRowView: View {
         default:
             EmptyView()
         }
+    }
+    
+    private var inlinePhoto: Image? {
+        guard let image = InlineMediaDecoder.image(from: drop.mediaData) else { return nil }
+        return Image(uiImage: image)
+    }
+
+    @ViewBuilder
+    private func photoContent(for image: Image) -> some View {
+        image
+            .resizable()
+            .scaledToFill()
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .clipped()
+    }
+
+    private var photoPlaceholder: some View {
+        Image(systemName: "photo")
+            .font(.title2)
+            .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var photoBackground: some View {
+        RoundedRectangle(cornerRadius: 12)
+            .fill(geoDropTheme.colors.surfaceVariant)
     }
 }
 
