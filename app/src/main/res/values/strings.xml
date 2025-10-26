@@ -4,6 +4,8 @@
     <string name="notif_channel_desc">Alerts when you enter a drop area</string>
     <string name="google_maps_key">AIzaSyDD9c_0xHim_ITvXZlHY67b_m_SR-9DUJs</string>
     <string name="drag_to_resize">Drag to resize</string>
+    <string name="content_description_expand_video">Expand video to full screen</string>
+    <string name="content_description_collapse_video">Exit full screen video</string>
     <string name="content_description_account_options">Account options</string>
     <string name="bottom_nav_profile">Profile</string>
     <string name="menu_sign_in_full_participation">Sign in for full participation</string>
