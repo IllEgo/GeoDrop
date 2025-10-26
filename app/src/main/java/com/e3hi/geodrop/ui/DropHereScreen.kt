@@ -8535,11 +8535,11 @@ private fun OtherDropRow(
                         ) {
                             Row(
                                 modifier = Modifier.weight(1f),
-                                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(18.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Row(
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(5.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     LikeToggleButton(
@@ -8568,7 +8568,7 @@ private fun OtherDropRow(
                                 }
 
                                 Row(
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(5.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     LikeToggleButton(
@@ -8595,6 +8595,38 @@ private fun OtherDropRow(
                                         style = MaterialTheme.typography.bodyMedium
                                     )
                                 }
+
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    if (showReport) {
+                                        OutlinedButton(
+                                            onClick = onReport,
+                                            enabled = canReport && !alreadyReported && !isReporting
+                                        ) {
+                                            if (isReporting) {
+                                                CircularProgressIndicator(
+                                                    modifier = Modifier.size(16.dp),
+                                                    strokeWidth = 2.dp
+                                                )
+                                            } else {
+                                                Icon(
+                                                    Icons.Rounded.Report,
+                                                    contentDescription = null
+                                                )
+                                            }
+                                            Spacer(Modifier.width(8.dp))
+                                            Text(
+                                                text = when {
+                                                    isReporting -> "Reporting..."
+                                                    alreadyReported -> "Reported"
+                                                    else -> "Report"
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
                             }
 
                             if (isVoting) {
@@ -8614,29 +8646,6 @@ private fun OtherDropRow(
                         )
                     }
                     if (showReport) {
-                        Spacer(Modifier.height(12.dp))
-                        OutlinedButton(
-                            onClick = onReport,
-                            enabled = canReport && !alreadyReported && !isReporting,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            if (isReporting) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(16.dp),
-                                    strokeWidth = 2.dp
-                                )
-                            } else {
-                                Icon(Icons.Rounded.Report, contentDescription = null)
-                            }
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                text = when {
-                                    isReporting -> "Reporting..."
-                                    alreadyReported -> "Reported"
-                                    else -> "Report drop"
-                                }
-                            )
-                        }
                         reportRestrictionMessage?.let { message ->
                             Spacer(Modifier.height(4.dp))
                             Text(
