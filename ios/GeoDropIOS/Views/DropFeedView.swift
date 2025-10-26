@@ -644,11 +644,11 @@ private struct DropVideoPlayerView: View {
 
 extension DropFeedView {
     private var sortHeader: some View {
-        HStack {
+        HStack(spacing: 12) {
             Label("Sort", systemImage: "arrow.up.arrow.down")
                 .font(.footnote.weight(.semibold))
                 .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
-            Spacer()
+            
             Menu {
                 Picker("Sort by", selection: $selectedSortOption) {
                     ForEach(DropSortOption.allCases) { option in
@@ -671,8 +671,25 @@ extension DropFeedView {
                 .foregroundColor(geoDropTheme.colors.onSurface)
             }
             .accessibilityLabel("Sort drops")
+            
+            Spacer()
+
+            dropCounter
         }
         .padding(.horizontal)
+    }
+    
+    private var dropCounter: some View {
+        Text(dropCountText)
+            .font(.footnote.weight(.semibold))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(
+                Capsule()
+                    .fill(geoDropTheme.colors.surfaceVariant)
+            )
+            .foregroundColor(geoDropTheme.colors.onSurface)
+            .accessibilityLabel(dropCountAccessibilityLabel)
     }
 
     private var shouldShowGroupPrompt: Bool {
@@ -681,6 +698,16 @@ extension DropFeedView {
     
     private var displayedDrops: [Drop] {
         sortDrops(viewModel.explorerDrops(for: viewModel.selectedExplorerDestination))
+    }
+    
+    private var dropCount: Int { displayedDrops.count }
+
+    private var dropCountText: String {
+        dropCount == 1 ? "1 drop" : "\(dropCount) drops"
+    }
+
+    private var dropCountAccessibilityLabel: String {
+        dropCount == 1 ? "1 drop available" : "\(dropCount) drops available"
     }
 
     private var emptyStateView: some View {
