@@ -11,6 +11,7 @@ struct DropFeedView: View {
         zoom: Self.defaultZoom
     )
     @State private var selectedDropID: Drop.ID?
+    @State private var selectedSortOption: DropSortOption = .newest
     @State private var mapHeightFraction: CGFloat = 0.45
     @State private var dragStartFraction: CGFloat?
     @State private var shouldAnimateCamera = false
@@ -46,6 +47,7 @@ struct DropFeedView: View {
         .onChange(of: viewModel.selectedExplorerDestination) { destination in
             updateSelection(for: viewModel.explorerDrops(for: destination))
         }
+        .onChange(of: selectedSortOption) { _ in updateSelection(for: displayedDrops) }
         .onChange(of: viewModel.explorerRestrictionMessage) { message in
             isRestrictionAlertPresented = message != nil
         }
@@ -155,6 +157,7 @@ struct DropFeedView: View {
             } else {
                 ScrollView {
                     LazyVStack(spacing: 12) {
+                        sortHeader
                         ForEach(displayedDrops) { drop in
                             DropRowView(
                                 drop: drop,
@@ -640,12 +643,44 @@ private struct DropVideoPlayerView: View {
 }
 
 extension DropFeedView {
+    private var sortHeader: some View {
+        HStack {
+            Label("Sort", systemImage: "arrow.up.arrow.down")
+                .font(.footnote.weight(.semibold))
+                .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
+            Spacer()
+            Menu {
+                Picker("Sort by", selection: $selectedSortOption) {
+                    ForEach(DropSortOption.allCases) { option in
+                        Text(option.title).tag(option)
+                    }
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Text(selectedSortOption.title)
+                        .font(.footnote.weight(.semibold))
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.footnote.weight(.semibold))
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(
+                    Capsule()
+                        .fill(geoDropTheme.colors.surfaceVariant)
+                )
+                .foregroundColor(geoDropTheme.colors.onSurface)
+            }
+            .accessibilityLabel("Sort drops")
+        }
+        .padding(.horizontal)
+    }
+
     private var shouldShowGroupPrompt: Bool {
         viewModel.userMode?.canParticipate == true && viewModel.groups.isEmpty
     }
     
     private var displayedDrops: [Drop] {
-        viewModel.explorerDrops(for: viewModel.selectedExplorerDestination)
+        sortDrops(viewModel.explorerDrops(for: viewModel.selectedExplorerDestination))
     }
 
     private var emptyStateView: some View {
@@ -737,6 +772,87 @@ extension DropFeedView {
             return Self.defaultZoom
         }
         return zoom
+    }
+}
+
+extension DropFeedView {
+    enum DropSortOption: String, CaseIterable, Identifiable {
+        case newest
+        case nearest
+        case popular
+        case endingSoon
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .newest: return "Newest"
+            case .nearest: return "Nearest"
+            case .popular: return "Popular"
+            case .endingSoon: return "Ending Soon"
+            }
+        }
+    }
+}
+
+private extension DropFeedView {
+    func sortDrops(_ drops: [Drop]) -> [Drop] {
+        switch selectedSortOption {
+        case .newest:
+            return drops.sorted { lhs, rhs in
+                if lhs.createdAt == rhs.createdAt {
+                    return lhs.id < rhs.id
+                }
+                return lhs.createdAt > rhs.createdAt
+            }
+        case .nearest:
+            return drops.sorted { lhs, rhs in
+                let lhsDistance = viewModel.distanceToDrop(lhs)
+                let rhsDistance = viewModel.distanceToDrop(rhs)
+                switch (lhsDistance, rhsDistance) {
+                case let (l?, r?):
+                    if l == r { return lhs.createdAt > rhs.createdAt }
+                    return l < r
+                case (.some, .none):
+                    return true
+                case (.none, .some):
+                    return false
+                case (nil, nil):
+                    return lhs.createdAt > rhs.createdAt
+                }
+            }
+        case .popular:
+            return drops.sorted { lhs, rhs in
+                if lhs.likeCount == rhs.likeCount {
+                    return lhs.createdAt > rhs.createdAt
+                }
+                return lhs.likeCount > rhs.likeCount
+            }
+        case .endingSoon:
+            return drops.sorted { lhs, rhs in
+                let lhsTime = timeUntilExpiration(for: lhs)
+                let rhsTime = timeUntilExpiration(for: rhs)
+                switch (lhsTime, rhsTime) {
+                case let (l?, r?):
+                    if l == r { return lhs.createdAt > rhs.createdAt }
+                    return l < r
+                case (.some, .none):
+                    return true
+                case (.none, .some):
+                    return false
+                case (nil, nil):
+                    return lhs.createdAt > rhs.createdAt
+                }
+            }
+        }
+    }
+
+    func timeUntilExpiration(for drop: Drop) -> TimeInterval? {
+        guard let days = drop.decayDays, days > 0 else {
+            return nil
+        }
+        let expiration = drop.createdAt.addingTimeInterval(TimeInterval(days) * 86_400)
+        return expiration.timeIntervalSinceNow
     }
 }
 
