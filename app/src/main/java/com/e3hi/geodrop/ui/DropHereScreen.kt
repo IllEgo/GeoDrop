@@ -298,7 +298,24 @@ fun DropHereScreen(
     var showNsfwDialog by remember { mutableStateOf(false) }
     var nsfwUpdating by remember { mutableStateOf(false) }
     var nsfwUpdateError by remember { mutableStateOf<String?>(null) }
-    val defaultWebClientId = remember { BuildConfig.GOOGLE_WEB_CLIENT_ID }
+    val defaultWebClientId = remember(ctx) {
+        val resourceId = ctx.resources.getIdentifier(
+            "default_web_client_id",
+            "string",
+            ctx.packageName
+        )
+
+        val resourceClientId = resourceId
+            .takeIf { it != 0 }
+            ?.let { ctx.getString(it).trim() }
+            .orEmpty()
+
+        when {
+            resourceClientId.isNotBlank() -> resourceClientId
+            BuildConfig.GOOGLE_WEB_CLIENT_ID.isNotBlank() -> BuildConfig.GOOGLE_WEB_CLIENT_ID
+            else -> ""
+        }
+    }
     val googleSignInClient = remember(defaultWebClientId, ctx) {
         GoogleSignIn.getClient(
             ctx,
@@ -526,7 +543,7 @@ fun DropHereScreen(
     fun startAccountGoogleSignIn() {
         if (accountAuthSubmitting || accountGoogleSigningIn) return
         if (defaultWebClientId.isBlank()) {
-            accountAuthError = "Google sign-in isn't configured. Set GOOGLE_WEB_CLIENT_ID in your Gradle properties or environment."
+            accountAuthError = "Google sign-in isn't configured. Provide a valid web client ID via google-services.json or the GOOGLE_WEB_CLIENT_ID property."
             return
         }
 
@@ -4540,6 +4557,7 @@ private fun DropComposerDialog(
             tonalElevation = 6.dp,
             modifier = Modifier
                 .fillMaxWidth()
+//                .widthIn(min = 360.dp, max = 520.dp)
                 .padding(16.dp)
         ) {
             val scrollState = rememberScrollState()
