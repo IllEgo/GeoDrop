@@ -8519,21 +8519,35 @@ private fun OtherDropRow(
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            LikeToggleButton(
-                                icon = Icons.Rounded.ThumbUp,
-                                label = drop.likeCount.toString(),
-                                selected = userLike == DropLikeStatus.LIKED,
-                                enabled = canLike && !isVoting,
-                                onClick = {
-                                    val nextStatus = if (userLike == DropLikeStatus.LIKED) {
-                                        DropLikeStatus.NONE
+                            Row(
+                                modifier = Modifier.weight(1f),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                LikeToggleButton(
+                                    icon = Icons.Rounded.ThumbUp,
+                                    selected = userLike == DropLikeStatus.LIKED,
+                                    enabled = canLike && !isVoting,
+                                    onClick = {
+                                        val nextStatus = if (userLike == DropLikeStatus.LIKED) {
+                                            DropLikeStatus.NONE
+                                        } else {
+                                            DropLikeStatus.LIKED
+                                        }
+                                        onLike(nextStatus)
+                                    },
+                                    contentDescription = if (userLike == DropLikeStatus.LIKED) {
+                                        "Unlike drop"
                                     } else {
-                                        DropLikeStatus.LIKED
+                                        "Like drop"
                                     }
-                                    onLike(nextStatus)
-                                },
-                                modifier = Modifier.weight(1f)
-                            )
+                                )
+
+                                Text(
+                                    text = drop.likeCount.toString(),
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            }
 
                             if (isVoting) {
                                 CircularProgressIndicator(
@@ -8542,11 +8556,6 @@ private fun OtherDropRow(
                                 )
                             }
                         }
-                        Text(
-                            text = formatLikeSummary(drop.likeCount),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = supportingColor
-                        )
                     }
                     if (!canLike) {
                         Spacer(Modifier.height(4.dp))
@@ -9115,31 +9124,28 @@ private fun DropMediaAttachment.asUriOrNull(): Uri? = when (this) {
 @Composable
 private fun LikeToggleButton(
     icon: ImageVector,
-    label: String,
     selected: Boolean,
     enabled: Boolean,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    contentDescription: String? = null
 ) {
+    val buttonModifier = modifier.heightIn(min = 40.dp)
     if (selected) {
         FilledTonalButton(
             onClick = onClick,
             enabled = enabled,
-            modifier = modifier.heightIn(min = 40.dp)
+            modifier = buttonModifier
         ) {
-            Icon(icon, contentDescription = null)
-            Spacer(Modifier.width(6.dp))
-            Text(label)
+            Icon(icon, contentDescription = contentDescription)
         }
     } else {
         OutlinedButton(
             onClick = onClick,
             enabled = enabled,
-            modifier = modifier.heightIn(min = 40.dp)
+            modifier = buttonModifier
         ) {
-            Icon(icon, contentDescription = null)
-            Spacer(Modifier.width(6.dp))
-            Text(label)
+            Icon(icon, contentDescription = contentDescription)
         }
     }
 }

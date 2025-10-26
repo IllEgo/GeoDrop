@@ -1598,21 +1598,35 @@ private fun DropLikeSection(
         ) {
             val userStatus = state.userLikeStatus(currentUserId)
 
-            LikeToggleButton(
-                icon = Icons.Rounded.ThumbUp,
-                label = state.likeCount.toString(),
-                selected = userStatus == DropLikeStatus.LIKED,
-                enabled = canLike && !isUpdating,
-                onClick = {
-                    val nextStatus = if (userStatus == DropLikeStatus.LIKED) {
-                        DropLikeStatus.NONE
+            Row(
+                modifier = Modifier.weight(1f),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                LikeToggleButton(
+                    icon = Icons.Rounded.ThumbUp,
+                    selected = userStatus == DropLikeStatus.LIKED,
+                    enabled = canLike && !isUpdating,
+                    onClick = {
+                        val nextStatus = if (userStatus == DropLikeStatus.LIKED) {
+                            DropLikeStatus.NONE
+                        } else {
+                            DropLikeStatus.LIKED
+                        }
+                        onLikeChange(nextStatus)
+                    },
+                    contentDescription = if (userStatus == DropLikeStatus.LIKED) {
+                        "Unlike drop"
                     } else {
-                        DropLikeStatus.LIKED
+                        "Like drop"
                     }
-                    onLikeChange(nextStatus)
-                },
-                modifier = Modifier.weight(1f)
-            )
+                )
+
+                Text(
+                    text = state.likeCount.toString(),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
 
             if (isUpdating) {
                 CircularProgressIndicator(
@@ -1621,12 +1635,6 @@ private fun DropLikeSection(
                 )
             }
         }
-
-        Text(
-            text = formatLikeSummary(state.likeCount),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
 
         restrictionMessage?.let { message ->
             Text(
@@ -1641,31 +1649,28 @@ private fun DropLikeSection(
 @Composable
 private fun LikeToggleButton(
     icon: ImageVector,
-    label: String,
     selected: Boolean,
     enabled: Boolean,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    contentDescription: String? = null
 ) {
+    val buttonModifier = modifier.heightIn(min = 40.dp)
     if (selected) {
         FilledTonalButton(
             onClick = onClick,
             enabled = enabled,
-            modifier = modifier.heightIn(min = 40.dp)
+            modifier = buttonModifier
         ) {
-            Icon(icon, contentDescription = null)
-            Spacer(Modifier.width(6.dp))
-            Text(label)
+            Icon(icon, contentDescription = contentDescription)
         }
     } else {
         OutlinedButton(
             onClick = onClick,
             enabled = enabled,
-            modifier = modifier.heightIn(min = 40.dp)
+            modifier = buttonModifier
         ) {
-            Icon(icon, contentDescription = null)
-            Spacer(Modifier.width(6.dp))
-            Text(label)
+            Icon(icon, contentDescription = contentDescription)
         }
     }
 }
@@ -1718,14 +1723,6 @@ private fun DropDetailUiState.Loaded.toDropForLikes(): Drop {
 private fun DropDetailUiState.Loaded.remainingRedemptions(): Int? {
     val limit = redemptionLimit ?: return null
     return (limit - redemptionCount).coerceAtLeast(0)
-}
-
-private fun formatLikeSummary(count: Long): String {
-    return if (count == 1L) {
-        "1 like"
-    } else {
-        "$count likes"
-    }
 }
 
 private fun parseLikedBy(raw: Any?): Map<String, Boolean>? {
