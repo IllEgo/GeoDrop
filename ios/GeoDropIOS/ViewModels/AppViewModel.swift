@@ -798,7 +798,6 @@ final class AppViewModel: ObservableObject {
                     if !self.groups.contains(where: { $0.code == membership.code }) {
                         self.groups.append(membership)
                     }
-                    self.selectedGroupCode = membership.code
                 }
             } catch {
                 await MainActor.run {
@@ -816,7 +815,7 @@ final class AppViewModel: ObservableObject {
                 await MainActor.run {
                     self.groups.removeAll { $0.code == code }
                     if self.selectedGroupCode == code {
-                        self.selectedGroupCode = self.groups.first?.code
+                        self.selectedGroupCode = nil
                     }
                 }
             } catch {
@@ -943,7 +942,7 @@ final class AppViewModel: ObservableObject {
             )
             allowNsfw = profile.nsfwEnabled
             groups = memberships
-            selectedGroupCode = memberships.first?.code
+            selectedGroupCode = nil
             blockedCreatorIDs = blocked
             switchInventory(to: session.user.uid)
             authState = .signedIn(session)
@@ -955,8 +954,9 @@ final class AppViewModel: ObservableObject {
             groupListener = firestore.listenForGroupMemberships(userId: user.uid) { [weak self] memberships in
                 DispatchQueue.main.async {
                     self?.groups = memberships
-                    if self?.selectedGroupCode == nil {
-                        self?.selectedGroupCode = memberships.first?.code
+                    if let selected = self?.selectedGroupCode,
+                       !memberships.contains(where: { $0.code == selected }) {
+                        self?.selectedGroupCode = nil
                     }
                     Task { await self?.refreshDrops() }
                 }
