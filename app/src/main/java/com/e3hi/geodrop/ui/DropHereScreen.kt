@@ -5655,8 +5655,22 @@ private fun CollectedDropsContent(
     val highlightedNote = notes.firstOrNull { it.id == highlightedId }
 
     val listState = rememberLazyListState()
+    var lastSortOption by remember { mutableStateOf(sortOption) }
+    var skipScrollForSortChange by remember { mutableStateOf(false) }
+
+    LaunchedEffect(sortOption) {
+        if (lastSortOption != sortOption) {
+            skipScrollForSortChange = true
+            listState.scrollToItem(0)
+            lastSortOption = sortOption
+        }
+    }
 
     LaunchedEffect(highlightedId, notes) {
+        if (skipScrollForSortChange) {
+            skipScrollForSortChange = false
+            return@LaunchedEffect
+        }
         val targetId = highlightedId ?: return@LaunchedEffect
         val index = notes.indexOfFirst { it.id == targetId }
         if (index >= 0) {
@@ -6974,7 +6988,22 @@ private fun OtherDropsExplorerSection(
                 }
 
                 else -> {
+                    var lastSortOption by remember { mutableStateOf(sortOption) }
+                    var skipSelectionScroll by remember { mutableStateOf(false) }
+
+                    LaunchedEffect(sortOption) {
+                        if (lastSortOption != sortOption) {
+                            skipSelectionScroll = true
+                            listState.scrollToItem(0)
+                            lastSortOption = sortOption
+                        }
+                    }
+
                     LaunchedEffect(selectedId, drops) {
+                        if (skipSelectionScroll) {
+                            skipSelectionScroll = false
+                            return@LaunchedEffect
+                        }
                         val targetId = selectedId ?: return@LaunchedEffect
                         val index = drops.indexOfFirst { it.id == targetId }
                         if (index >= 0) {
@@ -7820,8 +7849,22 @@ private fun MyDropsContent(
 
             else -> {
                 val listState = rememberLazyListState()
+                var lastSortOption by remember { mutableStateOf(sortOption) }
+                var skipSelectionScroll by remember { mutableStateOf(false) }
+
+                LaunchedEffect(sortOption) {
+                    if (lastSortOption != sortOption) {
+                        skipSelectionScroll = true
+                        listState.scrollToItem(0)
+                        lastSortOption = sortOption
+                    }
+                }
 
                 LaunchedEffect(selectedId, drops) {
+                    if (skipSelectionScroll) {
+                        skipSelectionScroll = false
+                        return@LaunchedEffect
+                    }
                     val targetId = selectedId ?: return@LaunchedEffect
                     val index = drops.indexOfFirst { it.id == targetId }
                     if (index >= 0) {
