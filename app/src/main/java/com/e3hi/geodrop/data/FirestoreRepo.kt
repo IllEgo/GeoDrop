@@ -734,39 +734,67 @@ class FirestoreRepo(
                 throw IllegalStateException("Drop $dropId does not exist")
             }
 
-            val currentCount = snapshot.getLong("likeCount") ?: 0L
+            val currentLikeCount = snapshot.getLong("likeCount") ?: 0L
+            val currentDislikeCount = snapshot.getLong("dislikeCount") ?: 0L
             @Suppress("UNCHECKED_CAST")
             val likedMap = snapshot.get("likedBy") as? Map<String, Any?> ?: emptyMap()
-            val currentlyLiked = likedMap[userId] == true
-            val shouldLike = status == DropLikeStatus.LIKED
+            @Suppress("UNCHECKED_CAST")
+            val dislikedMap = snapshot.get("dislikedBy") as? Map<String, Any?> ?: emptyMap()
+            val currentStatus = when {
+                likedMap[userId] == true -> DropLikeStatus.LIKED
+                dislikedMap[userId] == true -> DropLikeStatus.DISLIKED
+                else -> DropLikeStatus.NONE
+            }
 
-            if (currentlyLiked == shouldLike) {
+            if (currentStatus == status) {
                 return@runTransaction
             }
 
-            var updatedCount = currentCount
-            if (currentlyLiked) {
-                updatedCount = (updatedCount - 1).coerceAtLeast(0)
+            var updatedLikeCount = currentLikeCount
+            var updatedDislikeCount = currentDislikeCount
+
+            when (currentStatus) {
+                DropLikeStatus.LIKED ->
+                    updatedLikeCount = (updatedLikeCount - 1).coerceAtLeast(0)
+                DropLikeStatus.DISLIKED ->
+                    updatedDislikeCount = (updatedDislikeCount - 1).coerceAtLeast(0)
+                DropLikeStatus.NONE -> Unit
             }
-            if (shouldLike) {
-                updatedCount += 1
+
+            when (status) {
+                DropLikeStatus.LIKED -> updatedLikeCount += 1
+                DropLikeStatus.DISLIKED -> updatedDislikeCount += 1
+                DropLikeStatus.NONE -> Unit
             }
 
             val updates = mutableMapOf<String, Any>(
-                "likeCount" to updatedCount
+                "likeCount" to updatedLikeCount,
+                "dislikeCount" to updatedDislikeCount
             )
 
-            val likeFieldPath = "likedBy.$userId"
-            if (shouldLike) {
-                updates[likeFieldPath] = true
-            } else {
-                updates[likeFieldPath] = FieldValue.delete()
+            when (status) {
+                DropLikeStatus.LIKED -> {
+                    updates["likedBy.$userId"] = true
+                    updates["dislikedBy.$userId"] = FieldValue.delete()
+                }
+                DropLikeStatus.DISLIKED -> {
+                    updates["dislikedBy.$userId"] = true
+                    updates["likedBy.$userId"] = FieldValue.delete()
+                }
+                DropLikeStatus.NONE -> {
+                    updates["likedBy.$userId"] = FieldValue.delete()
+                    updates["dislikedBy.$userId"] = FieldValue.delete()
+                }
             }
 
             transaction.update(docRef, updates)
         }.await()
 
-        val action = if (status == DropLikeStatus.LIKED) "liked" else "unliked"
+        val action = when (status) {
+            DropLikeStatus.LIKED -> "liked"
+            DropLikeStatus.DISLIKED -> "disliked"
+            DropLikeStatus.NONE -> "cleared reaction on"
+        }
         Log.d("GeoDrop", "User $userId $action drop $dropId")
     }
 
@@ -1121,6 +1149,8 @@ class FirestoreRepo(
             "nsfwLabels" to sanitized.nsfwLabels,
             "likeCount" to sanitized.likeCount,
             "likedBy" to sanitized.likedBy,
+            "dislikeCount" to sanitized.dislikeCount,
+            "dislikedBy" to sanitized.dislikedBy,
             "reportCount" to sanitized.reportCount,
             "reportedBy" to sanitized.reportedBy,
             "redemptionCode" to sanitized.redemptionCode,
@@ -1149,6 +1179,17 @@ class FirestoreRepo(
             else -> 0L
         }
         val isLiked = when (val raw = get("isLiked")) {
+            is Boolean -> raw
+            is Number -> raw.toInt() != 0
+            is String -> raw.equals("true", ignoreCase = true) || raw == "1"
+            else -> false
+        }
+        val dislikeCount = when (val raw = get("dislikeCount")) {
+            is Number -> raw.toLong()
+            is String -> raw.toLongOrNull() ?: 0L
+            else -> 0L
+        }
+        val isDisliked = when (val raw = get("isDisliked")) {
             is Boolean -> raw
             is Number -> raw.toInt() != 0
             is String -> raw.equals("true", ignoreCase = true) || raw == "1"
@@ -1194,6 +1235,8 @@ class FirestoreRepo(
             redeemedAt = getLong("redeemedAt"),
             likeCount = likeCount,
             isLiked = isLiked,
+            dislikeCount = dislikeCount,
+            isDisliked = isDisliked,
             collectedAt = collectedAt,
             isNsfw = (getBoolean("isNsfw") == true) || nsfwLabels.isNotEmpty(),
             nsfwLabels = nsfwLabels
@@ -1212,6 +1255,8 @@ class FirestoreRepo(
             "isRedeemed" to isRedeemed,
             "likeCount" to likeCount,
             "isLiked" to isLiked,
+            "dislikeCount" to dislikeCount,
+            "isDisliked" to isDisliked,
             "isNsfw" to isNsfw,
             "nsfwLabels" to nsfwLabels
         )
@@ -1256,8 +1301,10 @@ class FirestoreRepo(
         data["isNsfw"] = isNsfw
         if (nsfwLabels.isNotEmpty()) data["nsfwLabels"] = nsfwLabels
         data["likeCount"] = likeCount
+        data["dislikeCount"] = dislikeCount
         if (decayDays != null) data["decayDays"] = decayDays
         if (likedBy.isNotEmpty()) data["likedBy"] = likedBy
+        if (dislikedBy.isNotEmpty()) data["dislikedBy"] = dislikedBy
         if (reportCount > 0) data["reportCount"] = reportCount
         if (reportedBy.isNotEmpty()) data["reportedBy"] = reportedBy.keys
         if (redemptionLimit != null) data["redemptionLimit"] = redemptionLimit

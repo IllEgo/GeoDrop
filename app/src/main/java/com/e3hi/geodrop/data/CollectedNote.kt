@@ -29,6 +29,8 @@ data class CollectedNote(
     val redeemedAt: Long? = null,
     val likeCount: Long = 0,
     val isLiked: Boolean = false,
+    val dislikeCount: Long = 0,
+    val isDisliked: Boolean = false,
     val collectedAt: Long,
     val isNsfw: Boolean = false,
     val nsfwLabels: List<String> = emptyList()
@@ -57,6 +59,8 @@ data class CollectedNote(
             putOpt(KEY_REDEEMED_AT, redeemedAt)
             putOpt(KEY_LIKE_COUNT, likeCount)
             put(KEY_IS_LIKED, isLiked)
+            putOpt(KEY_DISLIKE_COUNT, dislikeCount)
+            put(KEY_IS_DISLIKED, isDisliked)
             put(KEY_COLLECTED_AT, collectedAt)
             put(KEY_IS_NSFW, isNsfw)
             put(KEY_NSFW_LABELS, JSONArray().apply { nsfwLabels.forEach { put(it) } })
@@ -86,6 +90,8 @@ data class CollectedNote(
         private const val KEY_REDEEMED_AT = "redeemedAt"
         private const val KEY_LIKE_COUNT = "likeCount"
         private const val KEY_IS_LIKED = "isLiked"
+        private const val KEY_DISLIKE_COUNT = "dislikeCount"
+        private const val KEY_IS_DISLIKED = "isDisliked"
         private const val KEY_COLLECTED_AT = "collectedAt"
         private const val KEY_IS_NSFW = "isNsfw"
         private const val KEY_NSFW_LABELS = "nsfwLabels"
@@ -116,6 +122,11 @@ data class CollectedNote(
                 else -> 0L
             }
             val isLiked = json.optBoolean(KEY_IS_LIKED)
+            val dislikeCount = when {
+                json.has(KEY_DISLIKE_COUNT) -> json.optLong(KEY_DISLIKE_COUNT)
+                else -> 0L
+            }
+            val isDisliked = json.optBoolean(KEY_IS_DISLIKED)
             val collectedAt = json.optLong(KEY_COLLECTED_AT)
             val nsfwLabels = json.optJSONArray(KEY_NSFW_LABELS)
                 ?.let { array ->
@@ -152,11 +163,21 @@ data class CollectedNote(
                 redeemedAt = redeemedAt,
                 likeCount = likeCount,
                 isLiked = isLiked,
+                dislikeCount = dislikeCount,
+                isDisliked = isDisliked,
                 collectedAt = collectedAt,
                 isNsfw = isNsfw,
                 nsfwLabels = nsfwLabels
             )
         }
+    }
+}
+
+fun CollectedNote.likeStatus(): DropLikeStatus {
+    return when {
+        isLiked -> DropLikeStatus.LIKED
+        isDisliked -> DropLikeStatus.DISLIKED
+        else -> DropLikeStatus.NONE
     }
 }
 

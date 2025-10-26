@@ -14,6 +14,7 @@ internal fun DocumentSnapshot.toDrop(): Drop {
     val createdAt = getLongCompat("createdAt") ?: baseDrop.createdAt
     val deletedAt = getLongCompat("deletedAt") ?: baseDrop.deletedAt
     val likeCount = getLongCompat("likeCount") ?: baseDrop.likeCount
+    val dislikeCount = getLongCompat("dislikeCount") ?: baseDrop.dislikeCount
     val reportCount = getLongCompat("reportCount") ?: baseDrop.reportCount
     val redemptionLimit = getIntCompat("redemptionLimit") ?: baseDrop.redemptionLimit
     val redemptionCount = getIntCompat("redemptionCount") ?: baseDrop.redemptionCount
@@ -58,6 +59,7 @@ internal fun DocumentSnapshot.toDrop(): Drop {
     } ?: baseDrop.nsfwLabels
 
     val likedBy = getBooleanMap("likedBy").takeIf { it.isNotEmpty() } ?: baseDrop.likedBy
+    val dislikedBy = getBooleanMap("dislikedBy").takeIf { it.isNotEmpty() } ?: baseDrop.dislikedBy
     val reportedBy = getLongMap("reportedBy").takeIf { it.isNotEmpty() } ?: baseDrop.reportedBy
     val redeemedBy = getLongMap("redeemedBy").takeIf { it.isNotEmpty() } ?: baseDrop.redeemedBy
 
@@ -96,6 +98,8 @@ internal fun DocumentSnapshot.toDrop(): Drop {
         mediaStoragePath = mediaStoragePath,
         likeCount = likeCount,
         likedBy = likedBy,
+        dislikeCount = dislikeCount,
+        dislikedBy = dislikedBy,
         reportCount = reportCount,
         reportedBy = reportedBy,
         redemptionCode = redemptionCode,
