@@ -7522,19 +7522,19 @@ private fun CollectedNoteCard(
                         }
                     }
 
-                    Text(
-                        text = "Collected: ${formatTimestamp(note.collectedAt)}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = supportingColor
-                    )
-
-                    note.dropCreatedAt?.let {
-                        Text(
-                            text = "Dropped: ${formatTimestamp(it)}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = supportingColor
-                        )
-                    }
+//                    Text(
+//                        text = "Collected: ${formatTimestamp(note.collectedAt)}",
+//                        style = MaterialTheme.typography.bodyMedium,
+//                        color = supportingColor
+//                    )
+//
+//                    note.dropCreatedAt?.let {
+//                        Text(
+//                            text = "Dropped: ${formatTimestamp(it)}",
+//                            style = MaterialTheme.typography.bodyMedium,
+//                            color = supportingColor
+//                        )
+//                    }
 
                     note.dropperUsername?.takeIf { it.isNotBlank() }?.let { username ->
                         Text(
@@ -7552,19 +7552,19 @@ private fun CollectedNoteCard(
                         )
                     }
 
-                    if (note.lat != null && note.lng != null) {
-                        Text(
-                            text = "Location: ${formatCoordinate(note.lat)}, ${formatCoordinate(note.lng)}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = supportingColor
-                        )
-                    } else {
-                        Text(
-                            text = "Location: Unknown",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = supportingColor
-                        )
-                    }
+//                    if (note.lat != null && note.lng != null) {
+//                        Text(
+//                            text = "Location: ${formatCoordinate(note.lat)}, ${formatCoordinate(note.lng)}",
+//                            style = MaterialTheme.typography.bodyMedium,
+//                            color = supportingColor
+//                        )
+//                    } else {
+//                        Text(
+//                            text = "Location: Unknown",
+//                            style = MaterialTheme.typography.bodyMedium,
+//                            color = supportingColor
+//                        )
+//                    }
 
                     Spacer(Modifier.height(12.dp))
 
@@ -8815,13 +8815,13 @@ private fun AttachmentPreviewSection(
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                Spacer(Modifier.height(8.dp))
+//                Spacer(Modifier.height(8.dp))
 
-                Text(
-                    text = "Tap play to watch this clip.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+//                Text(
+//                    text = "Tap play to watch this clip.",
+//                    style = MaterialTheme.typography.bodySmall,
+//                    color = MaterialTheme.colorScheme.onSurfaceVariant
+//                )
 
                 Spacer(Modifier.height(8.dp))
             }
