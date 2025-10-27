@@ -153,6 +153,8 @@ service cloud.firestore {
           'dropperUsername',
           'likeCount',
           'likedBy',
+          'dislikeCount',
+          'dislikedBy',
           'reportCount',
           'reportedBy',
           'redemptionCode',
