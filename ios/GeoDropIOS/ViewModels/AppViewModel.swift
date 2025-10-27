@@ -165,12 +165,18 @@ final class AppViewModel: ObservableObject {
     }
 
     func canPreview(drop: Drop, distance: CLLocationDistance? = nil) -> Bool {
+        if isOwner(of: drop) { return true }
+        if hasCollected(drop: drop) { return true }
+        
         let resolvedDistance = distance ?? distanceToDrop(drop)
         guard let resolvedDistance else { return false }
         return resolvedDistance <= Self.dropPreviewRadiusMeters
     }
 
     func previewRestrictionMessage(for drop: Drop, distance: CLLocationDistance? = nil) -> String? {
+        if isOwner(of: drop) { return nil }
+        if hasCollected(drop: drop) { return nil }
+
         let resolvedDistance = distance ?? distanceToDrop(drop)
         if let resolvedDistance {
             guard resolvedDistance > Self.dropPreviewRadiusMeters else { return nil }
@@ -395,7 +401,8 @@ final class AppViewModel: ObservableObject {
         dropsListener = firestore.listenForDrops(
             userId: session.user.uid,
             allowedGroups: groupCodes,
-            allowNsfw: allowNsfw
+            allowNsfw: allowNsfw,
+            restrictToGroups: selectedGroupCode != nil
         ) { [weak self] drops in
             DispatchQueue.main.async {
                 guard let self = self else { return }
@@ -734,6 +741,16 @@ final class AppViewModel: ObservableObject {
         drops[index] = updated
     }
     
+    private func matchesSelectedGroup(_ drop: Drop) -> Bool {
+        guard let selected = selectedGroupCode?.trimmingCharacters(in: .whitespacesAndNewlines), !selected.isEmpty else {
+            return true
+        }
+        guard let group = drop.groupCode?.trimmingCharacters(in: .whitespacesAndNewlines), !group.isEmpty else {
+            return false
+        }
+        return group.caseInsensitiveCompare(selected) == .orderedSame
+    }
+    
     private func reloadInventorySnapshot() {
         inventory = inventoryService.inventory(for: inventoryUserId)
         rebuildExplorerCollections()
@@ -746,8 +763,9 @@ final class AppViewModel: ObservableObject {
     
     private func rebuildExplorerCollections() {
         let ignored = inventory.ignoredDropIDs
+        let visibleDrops = drops.filter { matchesSelectedGroup($0) }
         if let userId = currentUserID {
-            explorerMyDrops = drops.filter { $0.createdBy == userId && !ignored.contains($0.id) }
+            explorerMyDrops = visibleDrops.filter { $0.createdBy == userId && !ignored.contains($0.id) }
         } else {
             explorerMyDrops = []
         }
@@ -756,7 +774,7 @@ final class AppViewModel: ObservableObject {
         var seen: Set<String> = []
         let stored = inventory.collectedDrops
         if let userId = currentUserID {
-            for drop in drops {
+            for drop in visibleDrops {
                 if ignored.contains(drop.id) { continue }
                 if drop.collectedBy[userId] == true {
                     collected.append(drop)
@@ -768,6 +786,7 @@ final class AppViewModel: ObservableObject {
         for (dropId, storedDrop) in stored.sorted(by: { $0.value.displayTitle < $1.value.displayTitle }) {
             guard !ignored.contains(dropId) else { continue }
             if seen.contains(dropId) { continue }
+            if !matchesSelectedGroup(storedDrop) { continue }
             collected.append(storedDrop)
         }
 
@@ -785,7 +804,6 @@ final class AppViewModel: ObservableObject {
                     if !self.groups.contains(where: { $0.code == membership.code }) {
                         self.groups.append(membership)
                     }
-                    self.selectedGroupCode = membership.code
                 }
             } catch {
                 await MainActor.run {
@@ -803,7 +821,7 @@ final class AppViewModel: ObservableObject {
                 await MainActor.run {
                     self.groups.removeAll { $0.code == code }
                     if self.selectedGroupCode == code {
-                        self.selectedGroupCode = self.groups.first?.code
+                        self.selectedGroupCode = nil
                     }
                 }
             } catch {
@@ -930,7 +948,7 @@ final class AppViewModel: ObservableObject {
             )
             allowNsfw = profile.nsfwEnabled
             groups = memberships
-            selectedGroupCode = memberships.first?.code
+            selectedGroupCode = nil
             blockedCreatorIDs = blocked
             switchInventory(to: session.user.uid)
             authState = .signedIn(session)
@@ -942,8 +960,9 @@ final class AppViewModel: ObservableObject {
             groupListener = firestore.listenForGroupMemberships(userId: user.uid) { [weak self] memberships in
                 DispatchQueue.main.async {
                     self?.groups = memberships
-                    if self?.selectedGroupCode == nil {
-                        self?.selectedGroupCode = memberships.first?.code
+                    if let selected = self?.selectedGroupCode,
+                       !memberships.contains(where: { $0.code == selected }) {
+                        self?.selectedGroupCode = nil
                     }
                     Task { await self?.refreshDrops() }
                 }

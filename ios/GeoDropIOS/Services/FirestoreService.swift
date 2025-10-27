@@ -370,7 +370,13 @@ final class FirestoreService {
         }
     }
 
-    func listenForDrops(userId: String?, allowedGroups: Set<String>, allowNsfw: Bool, onChange: @escaping ([Drop]) -> Void) -> ListenerRegistration {
+    func listenForDrops(
+        userId: String?,
+        allowedGroups: Set<String>,
+        allowNsfw: Bool,
+        restrictToGroups: Bool,
+        onChange: @escaping ([Drop]) -> Void
+    ) -> ListenerRegistration {
         drops.whereField("isDeleted", isEqualTo: false).addSnapshotListener { snapshot, error in
             guard let documents = snapshot?.documents else {
                 print("GeoDrop: Failed to listen for drops: \(error?.localizedDescription ?? "unknown error")")
@@ -380,7 +386,11 @@ final class FirestoreService {
             let normalized = allowedGroups.compactMap(self.normalize)
             let filtered = documents.compactMap(Drop.init(document:)).filter { drop in
                 if drop.isDeleted { return false }
-                if let group = drop.groupCode, !normalized.contains(group), group != "PUBLIC" { return false }
+                if let group = drop.groupCode {
+                    if !normalized.isEmpty && !normalized.contains(group) { return false }
+                } else if restrictToGroups && !normalized.isEmpty {
+                    return false
+                }
                 if drop.isNsfw && !allowNsfw && drop.createdBy != userId { return false }
                 if drop.hasBeenCollected { return false }
                 if drop.isExpired { return false }

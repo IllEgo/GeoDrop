@@ -1,6 +1,7 @@
 import SwiftUI
 import CoreLocation
 import AVKit
+import UIKit
 
 struct DropFeedView: View {
     @EnvironmentObject private var viewModel: AppViewModel
@@ -11,6 +12,7 @@ struct DropFeedView: View {
         zoom: Self.defaultZoom
     )
     @State private var selectedDropID: Drop.ID?
+    @State private var selectedSortOption: DropSortOption = .newest
     @State private var mapHeightFraction: CGFloat = 0.45
     @State private var dragStartFraction: CGFloat?
     @State private var shouldAnimateCamera = false
@@ -46,6 +48,7 @@ struct DropFeedView: View {
         .onChange(of: viewModel.selectedExplorerDestination) { destination in
             updateSelection(for: viewModel.explorerDrops(for: destination))
         }
+        .onChange(of: selectedSortOption) { _ in updateSelection(for: displayedDrops) }
         .onChange(of: viewModel.explorerRestrictionMessage) { message in
             isRestrictionAlertPresented = message != nil
         }
@@ -155,6 +158,7 @@ struct DropFeedView: View {
             } else {
                 ScrollView {
                     LazyVStack(spacing: 12) {
+                        sortHeader
                         ForEach(displayedDrops) { drop in
                             DropRowView(
                                 drop: drop,
@@ -186,7 +190,7 @@ struct DropFeedView: View {
 
     private func destinationButton(for destination: ExplorerDestination) -> some View {
         let isSelected = viewModel.selectedExplorerDestination == destination
-        let count = viewModel.explorerCount(for: destination)
+//        let count = viewModel.explorerCount(for: destination)
         let isRestricted = destination.requiresAuthentication && !(viewModel.userMode?.canParticipate ?? false)
         return Button {
             guard viewModel.selectedExplorerDestination != destination else { return }
@@ -209,17 +213,17 @@ struct DropFeedView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-                if count > 0 {
-                    Text("\(count)")
-                        .font(.system(size: 10, weight: .semibold))
-                        .padding(.horizontal, 2)
-                        .padding(.vertical, 2)
-                        .background(
-                            Capsule()
-                                .fill(isSelected ? geoDropTheme.colors.onPrimary.opacity(0.2) : geoDropTheme.colors.surfaceVariant.opacity(0.6))
-                        )
-                        .foregroundColor(isSelected ? geoDropTheme.colors.onPrimary : geoDropTheme.colors.onSurface)
-                }
+//                if count > 0 {
+//                    Text("\(count)")
+//                        .font(.system(size: 10, weight: .semibold))
+//                        .padding(.horizontal, 2)
+//                        .padding(.vertical, 2)
+//                        .background(
+//                            Capsule()
+//                                .fill(isSelected ? geoDropTheme.colors.onPrimary.opacity(0.2) : geoDropTheme.colors.surfaceVariant.opacity(0.6))
+//                        )
+//                        .foregroundColor(isSelected ? geoDropTheme.colors.onPrimary : geoDropTheme.colors.onSurface)
+//                }
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 6)
@@ -562,10 +566,11 @@ struct DropRowView: View {
     }
 
     private var hasMediaPreview: Bool {
-        guard drop.mediaURL != nil else { return false }
         switch drop.contentType {
-        case .photo, .video:
-            return true
+        case .photo:
+            return drop.mediaURL != nil || inlinePhoto != nil
+        case .video:
+            return drop.mediaURL != nil
         default:
             return false
         }
@@ -583,26 +588,33 @@ struct DropRowView: View {
                             .progressViewStyle(.circular)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     case .success(let image):
-                        image
-                            .resizable()
-                            .scaledToFill()
-                            .clipped()
+                        photoContent(for: image)
                     case .failure:
-                        Image(systemName: "photo")
-                            .font(.title2)
-                            .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        if let inlinePhoto {
+                            photoContent(for: inlinePhoto)
+                        } else {
+                            photoPlaceholder
+                        }
                     @unknown default:
-                        EmptyView()
+                        photoPlaceholder
                     }
                 }
                 .frame(maxWidth: .infinity)
                 .frame(height: 220)
-                .background(
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(geoDropTheme.colors.surfaceVariant)
-                )
+                .background(photoBackground)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
+            } else if let inlinePhoto {
+                photoContent(for: inlinePhoto)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 220)
+                    .background(photoBackground)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+            } else {
+                photoPlaceholder
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 220)
+                    .background(photoBackground)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
             }
         case .video:
             if let url = drop.mediaURL {
@@ -618,6 +630,32 @@ struct DropRowView: View {
         default:
             EmptyView()
         }
+    }
+    
+    private var inlinePhoto: Image? {
+        guard let image = InlineMediaDecoder.image(from: drop.mediaData) else { return nil }
+        return Image(uiImage: image)
+    }
+
+    @ViewBuilder
+    private func photoContent(for image: Image) -> some View {
+        image
+            .resizable()
+            .scaledToFill()
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .clipped()
+    }
+
+    private var photoPlaceholder: some View {
+        Image(systemName: "photo")
+            .font(.title2)
+            .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var photoBackground: some View {
+        RoundedRectangle(cornerRadius: 12)
+            .fill(geoDropTheme.colors.surfaceVariant)
     }
 }
 
@@ -640,12 +678,71 @@ private struct DropVideoPlayerView: View {
 }
 
 extension DropFeedView {
+    private var sortHeader: some View {
+        HStack(spacing: 12) {
+            Label("Sort", systemImage: "arrow.up.arrow.down")
+                .font(.footnote.weight(.semibold))
+                .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
+            
+            Menu {
+                Picker("Sort by", selection: $selectedSortOption) {
+                    ForEach(DropSortOption.allCases) { option in
+                        Text(option.title).tag(option)
+                    }
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Text(selectedSortOption.title)
+                        .font(.footnote.weight(.semibold))
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.footnote.weight(.semibold))
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(
+                    Capsule()
+                        .fill(geoDropTheme.colors.surfaceVariant)
+                )
+                .foregroundColor(geoDropTheme.colors.onSurface)
+            }
+            .accessibilityLabel("Sort drops")
+            
+            Spacer()
+
+            dropCounter
+        }
+        .padding(.horizontal)
+    }
+    
+    private var dropCounter: some View {
+        Text(dropCountText)
+            .font(.footnote.weight(.semibold))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(
+                Capsule()
+                    .fill(geoDropTheme.colors.surfaceVariant)
+            )
+            .foregroundColor(geoDropTheme.colors.onSurface)
+            .accessibilityLabel(dropCountAccessibilityLabel)
+    }
+
     private var shouldShowGroupPrompt: Bool {
         viewModel.userMode?.canParticipate == true && viewModel.groups.isEmpty
     }
     
     private var displayedDrops: [Drop] {
-        viewModel.explorerDrops(for: viewModel.selectedExplorerDestination)
+        sortDrops(viewModel.explorerDrops(for: viewModel.selectedExplorerDestination))
+    }
+    
+    private var dropCount: Int { displayedDrops.count }
+
+    private var dropCountText: String {
+        dropCount == 1 ? "1 drop" : "\(dropCount) drops"
+    }
+
+    private var dropCountAccessibilityLabel: String {
+        dropCount == 1 ? "1 drop available" : "\(dropCount) drops available"
     }
 
     private var emptyStateView: some View {
@@ -737,6 +834,87 @@ extension DropFeedView {
             return Self.defaultZoom
         }
         return zoom
+    }
+}
+
+extension DropFeedView {
+    enum DropSortOption: String, CaseIterable, Identifiable {
+        case newest
+        case nearest
+        case popular
+        case endingSoon
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .newest: return "Newest"
+            case .nearest: return "Nearest"
+            case .popular: return "Popular"
+            case .endingSoon: return "Ending Soon"
+            }
+        }
+    }
+}
+
+private extension DropFeedView {
+    func sortDrops(_ drops: [Drop]) -> [Drop] {
+        switch selectedSortOption {
+        case .newest:
+            return drops.sorted { lhs, rhs in
+                if lhs.createdAt == rhs.createdAt {
+                    return lhs.id < rhs.id
+                }
+                return lhs.createdAt > rhs.createdAt
+            }
+        case .nearest:
+            return drops.sorted { lhs, rhs in
+                let lhsDistance = viewModel.distanceToDrop(lhs)
+                let rhsDistance = viewModel.distanceToDrop(rhs)
+                switch (lhsDistance, rhsDistance) {
+                case let (l?, r?):
+                    if l == r { return lhs.createdAt > rhs.createdAt }
+                    return l < r
+                case (.some, .none):
+                    return true
+                case (.none, .some):
+                    return false
+                case (nil, nil):
+                    return lhs.createdAt > rhs.createdAt
+                }
+            }
+        case .popular:
+            return drops.sorted { lhs, rhs in
+                if lhs.likeCount == rhs.likeCount {
+                    return lhs.createdAt > rhs.createdAt
+                }
+                return lhs.likeCount > rhs.likeCount
+            }
+        case .endingSoon:
+            return drops.sorted { lhs, rhs in
+                let lhsTime = timeUntilExpiration(for: lhs)
+                let rhsTime = timeUntilExpiration(for: rhs)
+                switch (lhsTime, rhsTime) {
+                case let (l?, r?):
+                    if l == r { return lhs.createdAt > rhs.createdAt }
+                    return l < r
+                case (.some, .none):
+                    return true
+                case (.none, .some):
+                    return false
+                case (nil, nil):
+                    return lhs.createdAt > rhs.createdAt
+                }
+            }
+        }
+    }
+
+    func timeUntilExpiration(for drop: Drop) -> TimeInterval? {
+        guard let days = drop.decayDays, days > 0 else {
+            return nil
+        }
+        let expiration = drop.createdAt.addingTimeInterval(TimeInterval(days) * 86_400)
+        return expiration.timeIntervalSinceNow
     }
 }
 

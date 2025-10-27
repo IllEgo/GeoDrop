@@ -154,19 +154,21 @@ struct DropDetailView: View {
                         ProgressView()
                             .frame(maxWidth: .infinity, minHeight: 220)
                     case .success(let image):
-                        image
-                            .resizable()
-                            .scaledToFill()
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 260)
-                            .clipped()
-                            .cornerRadius(16)
+                        photoContent(for: image)
                     case .failure:
-                        fallbackMediaPlaceholder(label: "Unable to load image")
+                        if let inlinePhoto = inlinePhoto(for: drop) {
+                            photoContent(for: inlinePhoto)
+                        } else {
+                            fallbackMediaPlaceholder(label: "Unable to load image")
+                        }
                     @unknown default:
                         fallbackMediaPlaceholder(label: "Unable to load image")
                     }
                 }
+            } else if let inlinePhoto = inlinePhoto(for: drop) {
+                photoContent(for: inlinePhoto)
+            } else {
+                fallbackMediaPlaceholder(label: "Unable to load image")
             }
         case .video:
             if let url = drop.mediaURL {
@@ -186,10 +188,26 @@ struct DropDetailView: View {
             EmptyView()
         }
     }
+    
+    private func inlinePhoto(for drop: Drop) -> Image? {
+        guard let image = InlineMediaDecoder.image(from: drop.mediaData) else { return nil }
+        return Image(uiImage: image)
+    }
+
+    private func photoContent(for image: Image) -> some View {
+        image
+            .resizable()
+            .scaledToFill()
+            .frame(maxWidth: .infinity)
+            .frame(height: 260)
+            .clipped()
+            .cornerRadius(16)
+    }
 
     private func fallbackMediaPlaceholder(label: String) -> some View {
         RoundedRectangle(cornerRadius: 16)
             .fill(geoDropTheme.colors.surfaceVariant)
+            .frame(maxWidth: .infinity)
             .frame(height: 220)
             .overlay {
                 VStack(spacing: 8) {
