@@ -2673,7 +2673,6 @@ fun DropHereScreen(
                         ),
                     businessName = userProfile?.businessName,
                     businessCategories = businessCategories,
-                    statusMessage = status,
                     metrics = businessHomeMetrics,
                     onViewDashboard = {
                         if (!userProfileLoading) {
@@ -2807,12 +2806,6 @@ fun DropHereScreen(
                                             }
                                         }
                                     )
-                                }
-                            }
-
-                            status?.let { message ->
-                                Box(Modifier.padding(horizontal = 20.dp)) {
-                                    StatusCard(message = message)
                                 }
                             }
                         }
@@ -3995,7 +3988,6 @@ private fun BusinessHomeScreen(
     modifier: Modifier = Modifier,
     businessName: String?,
     businessCategories: List<BusinessCategory>,
-    statusMessage: String?,
     metrics: BusinessHomeMetrics,
     onViewDashboard: () -> Unit,
     onUpdateBusinessProfile: () -> Unit,
@@ -4064,10 +4056,6 @@ private fun BusinessHomeScreen(
                     onClick = onUpdateBusinessProfile
                 )
             }
-        }
-
-        statusMessage?.let { message ->
-            item { StatusCard(message = message) }
         }
     }
 }
@@ -4458,39 +4446,6 @@ private fun BusinessActionSummary(
             StatusChip(
                 text = stringResource(R.string.metric_expiring_offers, expiringOfferCount),
                 tone = StatusChipTone.Warning
-            )
-        }
-    }
-}
-
-@Composable
-private fun StatusCard(message: String) {
-    ElevatedCard(
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(
-                width = 1.dp,
-                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
-                shape = RoundedCornerShape(20.dp)
-            ),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.elevatedCardColors(
-            containerColor = MaterialTheme.colorScheme.secondaryContainer
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Text(
-                text = "Latest status",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSecondaryContainer
-            )
-            Text(
-                text = message,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSecondaryContainer
             )
         }
     }
