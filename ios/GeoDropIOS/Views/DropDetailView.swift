@@ -148,7 +148,11 @@ struct DropDetailView: View {
         switch drop.contentType {
         case .photo:
             if let url = drop.mediaURL {
-                AsyncImage(url: url, transaction: Transaction(animation: .easeInOut)) { phase in
+                StorageAsyncImage(
+                    storagePath: drop.mediaStoragePath,
+                    url: url,
+                    transaction: Transaction(animation: .easeInOut)
+                ) { phase in
                     switch phase {
                     case .empty:
                         ProgressView()

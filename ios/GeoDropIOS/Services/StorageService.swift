@@ -45,6 +45,27 @@ final class StorageService {
             }
         }
     }
+    
+    func fetchData(at path: String, maxSize: Int64 = 15 * 1024 * 1024) async throws -> Data {
+        let ref = storage.reference(withPath: path)
+        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Data, Error>) in
+            ref.getData(maxSize: maxSize) { data, error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                } else if let data = data {
+                    continuation.resume(returning: data)
+                } else {
+                    continuation.resume(
+                        throwing: NSError(
+                            domain: "GeoDropStorage",
+                            code: -2,
+                            userInfo: [NSLocalizedDescriptionKey: "Missing storage data"]
+                        )
+                    )
+                }
+            }
+        }
+    }
 
     func delete(path: String) async {
         guard !path.isEmpty else { return }
