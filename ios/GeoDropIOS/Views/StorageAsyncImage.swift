@@ -47,7 +47,9 @@ struct StorageAsyncImage<Content: View>: View {
         let task = Task {
             await updatePhase(.empty)
             do {
-                if let image = try await loadFromStorage() ?? loadFromURL() {
+                if let image = try await loadFromStorage() {
+                    await updatePhase(.success(image))
+                } else if let image = try await loadFromURL() {
                     await updatePhase(.success(image))
                 } else {
                     throw StorageAsyncImageError.missingSource
