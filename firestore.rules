@@ -309,6 +309,30 @@ service cloud.firestore {
       allow delete: if isCurrentUser(userId);
     }
 
+    match /users/{userId}/blockedCreators/{blockedId} {
+      function hasOnlyAllowedBlockedCreatorFields() {
+        return request.resource.data.keys().hasOnly([
+          'creatorId',
+          'blockedAt'
+        ]);
+      }
+
+      function isValidBlockedCreatorFields() {
+        return (!request.resource.data.keys().hasAny(['creatorId'])
+            || request.resource.data.creatorId is string)
+          && (!request.resource.data.keys().hasAny(['blockedAt'])
+            || request.resource.data.blockedAt is number);
+      }
+
+      allow read: if isCurrentUser(userId);
+
+      allow create, update: if isCurrentUser(userId)
+        && hasOnlyAllowedBlockedCreatorFields()
+        && isValidBlockedCreatorFields();
+
+      allow delete: if isCurrentUser(userId);
+    }
+
     match /users/{userId}/inventory/{dropId} {
       function hasOnlyAllowedInventoryFields() {
         return request.resource.data.keys().hasOnly([
