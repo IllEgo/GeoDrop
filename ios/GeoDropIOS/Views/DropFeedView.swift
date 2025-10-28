@@ -465,6 +465,10 @@ struct DropRowView: View {
     private var isNearbyDestination: Bool {
         viewModel.selectedExplorerDestination == .nearby
     }
+    
+    private var isMyDropsDestination: Bool {
+        viewModel.selectedExplorerDestination == .myDrops
+    }
 
     private var reactionSummary: some View {
         HStack(spacing: 12) {
