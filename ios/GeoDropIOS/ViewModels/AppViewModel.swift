@@ -540,16 +540,32 @@ final class AppViewModel: ObservableObject {
                     self.inventoryService.setLikeStatus(status, dropId: drop.id, drop: drop, for: userId)
                     self.reloadInventorySnapshot()
                     self.mutateDrop(withId: drop.id) { value in
-                        let wasLiked = value.isLiked(by: userId) == .liked
-                        if status == .liked && !wasLiked {
-                            value.likeCount += 1
-                        } else if status == .none && wasLiked {
+                        let previousStatus = value.isLiked(by: userId)
+                        guard previousStatus != status else { return }
+
+                        switch previousStatus {
+                        case .liked:
                             value.likeCount = max(value.likeCount - 1, 0)
-                        }
-                        if status == .liked {
-                            value.likedBy[userId] = true
-                        } else {
                             value.likedBy.removeValue(forKey: userId)
+                        case .disliked:
+                            value.dislikeCount = max(value.dislikeCount - 1, 0)
+                            value.dislikedBy.removeValue(forKey: userId)
+                        case .none:
+                            break
+                        }
+                        
+                        switch status {
+                        case .liked:
+                            value.likeCount += 1
+                            value.likedBy[userId] = true
+                            value.dislikedBy.removeValue(forKey: userId)
+                        case .disliked:
+                            value.dislikeCount += 1
+                            value.dislikedBy[userId] = true
+                            value.likedBy.removeValue(forKey: userId)
+                        case .none:
+                            value.likedBy.removeValue(forKey: userId)
+                            value.dislikedBy.removeValue(forKey: userId)
                         }
                     }
                 }
@@ -712,19 +728,19 @@ final class AppViewModel: ObservableObject {
 
     func likePermission(for drop: Drop) -> LikePermission {
         guard let userId = currentUserID else {
-            return LikePermission(allowed: false, message: "Sign in to like drops.")
+            return LikePermission(allowed: false, message: "Sign in to react to drops.")
         }
         if let mode = userMode, !mode.canParticipate {
-            return LikePermission(allowed: false, message: "Upgrade to a full account to like drops.")
+            return LikePermission(allowed: false, message: "Upgrade to a full account to react to drops.")
         }
         if drop.createdBy == userId {
-            return LikePermission(allowed: false, message: "You can't like your own drop.")
+            return LikePermission(allowed: false, message: "You can't react to your own drop.")
         }
         if shouldHideContent(for: drop) {
             return LikePermission(allowed: false, message: "Enable adult content in Profile to interact with this drop.")
         }
         guard hasCollected(drop: drop) else {
-            return LikePermission(allowed: false, message: "Collect this drop to like it.")
+            return LikePermission(allowed: false, message: "Collect this drop to react to it.")
         }
         return LikePermission(allowed: true, message: nil)
     }

@@ -31,6 +31,8 @@ struct Drop: Identifiable, Equatable, Codable {
     var likedBy: [String: Bool]
     var reportCount: Int
     var reportedBy: [String: TimeInterval]
+    var dislikeCount: Int
+    var dislikedBy: [String: Bool]
     var redemptionCode: String?
     var redemptionLimit: Int?
     var redemptionCount: Int
@@ -65,6 +67,8 @@ struct Drop: Identifiable, Equatable, Codable {
         likedBy: [String: Bool] = [:],
         reportCount: Int = 0,
         reportedBy: [String: TimeInterval] = [:],
+        dislikeCount: Int = 0,
+        dislikedBy: [String: Bool] = [:],
         redemptionCode: String? = nil,
         redemptionLimit: Int? = nil,
         redemptionCount: Int = 0,
@@ -98,6 +102,8 @@ struct Drop: Identifiable, Equatable, Codable {
         self.likedBy = likedBy
         self.reportCount = reportCount
         self.reportedBy = reportedBy
+        self.dislikeCount = dislikeCount
+        self.dislikedBy = dislikedBy
         self.redemptionCode = redemptionCode
         self.redemptionLimit = redemptionLimit
         self.redemptionCount = redemptionCount
@@ -154,7 +160,9 @@ struct Drop: Identifiable, Equatable, Codable {
 
     func isLiked(by userId: String?) -> DropLikeStatus {
         guard let uid = userId, !uid.isEmpty else { return .none }
-        return DropLikeStatus.from(raw: likedBy[uid])
+        if likedBy[uid] == true { return .liked }
+        if dislikedBy[uid] == true { return .disliked }
+        return .none
     }
     
     var hasBeenCollected: Bool {
@@ -210,6 +218,8 @@ extension Drop {
             likedBy: data["likedBy"] as? [String: Bool] ?? [:],
             reportCount: (data["reportCount"] as? NSNumber)?.intValue ?? 0,
             reportedBy: data["reportedBy"] as? [String: TimeInterval] ?? [:],
+            dislikeCount: (data["dislikeCount"] as? NSNumber)?.intValue ?? 0,
+            dislikedBy: data["dislikedBy"] as? [String: Bool] ?? [:],
             redemptionCode: data["redemptionCode"] as? String,
             redemptionLimit: (data["redemptionLimit"] as? NSNumber)?.intValue,
             redemptionCount: (data["redemptionCount"] as? NSNumber)?.intValue ?? 0,
@@ -233,6 +243,8 @@ extension Drop {
             "nsfwLabels": nsfwLabels,
             "likeCount": likeCount,
             "likedBy": likedBy,
+            "dislikeCount": dislikeCount,
+            "dislikedBy": dislikedBy,
             "reportCount": reportCount,
             "reportedBy": reportedBy,
             "redemptionCount": redemptionCount,
@@ -305,18 +317,28 @@ enum DropContentType: String, CaseIterable, Codable {
 enum DropLikeStatus: String, Codable {
     case none
     case liked
+    case disliked
 
     static func from(raw: Any?) -> DropLikeStatus {
         switch raw {
         case let value as Bool:
             return value ? .liked : .none
         case let value as Int:
-            return value != 0 ? .liked : .none
+            if value > 0 { return .liked }
+            if value < 0 { return .disliked }
+            return .none
         case let value as NSNumber:
-            return value.intValue != 0 ? .liked : .none
+            let intValue = value.intValue
+            if intValue > 0 { return .liked }
+            if intValue < 0 { return .disliked }
+            return .none
         case let value as String:
             let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-            return ["liked", "like", "true", "1"].contains(normalized) ? .liked : .none
+            let likedStrings: Set<String> = ["liked", "like", "true", "1", "up", "thumbs_up"]
+            let dislikedStrings: Set<String> = ["disliked", "dislike", "down", "thumbs_down", "-1"]
+            if likedStrings.contains(normalized) { return .liked }
+            if dislikedStrings.contains(normalized) { return .disliked }
+            return .none
         default:
             return .none
         }

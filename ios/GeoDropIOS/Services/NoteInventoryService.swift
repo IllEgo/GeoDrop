@@ -62,8 +62,17 @@ final class NoteInventoryService {
         mutateInventory(for: userId) { inventory, resolvedUserId in
             var storedDrop = drop
             if let resolvedUserId {
-                if inventory.likedStatuses[drop.id] == .liked {
+                let status = inventory.likedStatuses[drop.id] ?? .none
+                switch status {
+                case .liked:
                     storedDrop.likedBy[resolvedUserId] = true
+                    storedDrop.dislikedBy.removeValue(forKey: resolvedUserId)
+                case .disliked:
+                    storedDrop.dislikedBy[resolvedUserId] = true
+                    storedDrop.likedBy.removeValue(forKey: resolvedUserId)
+                case .none:
+                    storedDrop.likedBy.removeValue(forKey: resolvedUserId)
+                    storedDrop.dislikedBy.removeValue(forKey: resolvedUserId)
                 }
                 if let record = inventory.redeemedDrops[drop.id] {
                     storedDrop.redemptionCount = record.count
@@ -95,25 +104,49 @@ final class NoteInventoryService {
 
     func setLikeStatus(_ status: DropLikeStatus, dropId: String, drop: Drop? = nil, for userId: String?) {
         mutateInventory(for: userId) { inventory, resolvedUserId in
+            let previousStatus = inventory.likedStatuses[dropId] ?? .none
+            guard previousStatus != status else { return }
+
             if status == .none {
                 inventory.likedStatuses.removeValue(forKey: dropId)
             } else {
                 inventory.likedStatuses[dropId] = status
             }
 
-            if var stored = inventory.collectedDrops[dropId] {
-                if let resolvedUserId {
-                    if status == .none {
-                        stored.likedBy.removeValue(forKey: resolvedUserId)
-                    } else {
-                        stored.likedBy[resolvedUserId] = true
-                    }
+            func applyStatus(to storedDrop: inout Drop, resolvedUserId: String?) {
+                guard let resolvedUserId else { return }
+
+                switch previousStatus {
+                case .liked:
+                    storedDrop.likeCount = max(storedDrop.likeCount - 1, 0)
+                    storedDrop.likedBy.removeValue(forKey: resolvedUserId)
+                case .disliked:
+                    storedDrop.dislikeCount = max(storedDrop.dislikeCount - 1, 0)
+                    storedDrop.dislikedBy.removeValue(forKey: resolvedUserId)
+                case .none:
+                    break
                 }
+
+                switch status {
+                case .liked:
+                    storedDrop.likeCount += 1
+                    storedDrop.likedBy[resolvedUserId] = true
+                    storedDrop.dislikedBy.removeValue(forKey: resolvedUserId)
+                case .disliked:
+                    storedDrop.dislikeCount += 1
+                    storedDrop.dislikedBy[resolvedUserId] = true
+                    storedDrop.likedBy.removeValue(forKey: resolvedUserId)
+                case .none:
+                    storedDrop.likedBy.removeValue(forKey: resolvedUserId)
+                    storedDrop.dislikedBy.removeValue(forKey: resolvedUserId)
+                }
+            }
+
+            if var stored = inventory.collectedDrops[dropId] {
+                applyStatus(to: &stored, resolvedUserId: resolvedUserId)
                 inventory.collectedDrops[dropId] = stored
             } else if var provided = drop {
-                if let resolvedUserId {
-                    provided.likedBy[resolvedUserId] = (status == .liked)
-                }
+                applyStatus(to: &provided, resolvedUserId: resolvedUserId)
                 inventory.collectedDrops[dropId] = provided
             }
         }
@@ -168,17 +201,23 @@ final class NoteInventoryService {
                 }
 
                 let likeStatus = drop.isLiked(by: resolvedUserId)
-                if likeStatus == .liked {
-                    inventory.likedStatuses[drop.id] = .liked
-                } else {
+                if likeStatus == .none {
                     inventory.likedStatuses.removeValue(forKey: drop.id)
+                } else {
+                    inventory.likedStatuses[drop.id] = likeStatus
                 }
 
                 if var stored = inventory.collectedDrops[drop.id] {
-                    if inventory.likedStatuses[drop.id] == .liked {
+                    switch likeStatus {
+                    case .liked:
                         stored.likedBy[resolvedUserId] = true
-                    } else {
+                        stored.dislikedBy.removeValue(forKey: resolvedUserId)
+                    case .disliked:
+                        stored.dislikedBy[resolvedUserId] = true
                         stored.likedBy.removeValue(forKey: resolvedUserId)
+                    case .none:
+                        stored.likedBy.removeValue(forKey: resolvedUserId)
+                        stored.dislikedBy.removeValue(forKey: resolvedUserId)
                     }
 
                     if let redeemedTimestamp = drop.redeemedBy[resolvedUserId] {

@@ -238,14 +238,15 @@ struct DropDetailView: View {
     }
 
     private func actionButtons(for drop: Drop, likePermission: AppViewModel.LikePermission, hasCollected: Bool) -> some View {
+        let reactionStatus = drop.isLiked(by: viewModel.currentUserID)
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 12) {
                 Button {
                     handleLike(drop)
                 } label: {
                     Label(
-                        drop.isLiked(by: viewModel.currentUserID) == .liked ? "Liked" : "Like",
-                        systemImage: drop.isLiked(by: viewModel.currentUserID) == .liked ? "hand.thumbsup.fill" : "hand.thumbsup"
+                        reactionStatus == .liked ? "Liked" : "Like",
+                        systemImage: reactionStatus == .liked ? "hand.thumbsup.fill" : "hand.thumbsup"
                     )
                 }
                 .buttonStyle(.borderedProminent)
@@ -481,8 +482,9 @@ struct DropDetailView: View {
             }
             return
         }
-        let isLiked = drop.isLiked(by: viewModel.currentUserID) == .liked
-        viewModel.like(drop: drop, status: isLiked ? .none : .liked)
+        let currentStatus = drop.isLiked(by: viewModel.currentUserID)
+        let desiredStatus: DropLikeStatus = currentStatus == .liked ? .none : .liked
+        viewModel.like(drop: drop, status: desiredStatus)
     }
 
     private func handleCollect(_ drop: Drop) {

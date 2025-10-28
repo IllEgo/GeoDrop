@@ -267,6 +267,7 @@ struct DropRowView: View {
     
     var body: some View {
         let likePermission = viewModel.likePermission(for: drop)
+        let reactionStatus = drop.isLiked(by: currentUserId)
         let hasCollected = viewModel.hasCollected(drop: drop)
         let shouldHideContent = viewModel.shouldHideContent(for: drop)
         let previewDistance = viewModel.distanceToDrop(drop)
@@ -274,6 +275,7 @@ struct DropRowView: View {
         let previewRestrictionMessage = viewModel.previewRestrictionMessage(for: drop, distance: previewDistance)
         let previewMessage = previewRestrictionMessage ?? "Move closer to preview this drop."
         let isOutsidePreviewRadius = !canPreviewContent && previewDistance != nil
+        let isCollectedDestination = viewModel.selectedExplorerDestination == .collected
         
         let titleFont = Font.system(size: 14, weight: .semibold)
         let descriptionFont = Font.system(size: 12)
@@ -346,11 +348,26 @@ struct DropRowView: View {
 
                     VStack(alignment: .leading, spacing: 12) {
                         Button(action: toggleLike) {
-                            Label("Like", systemImage: drop.isLiked(by: currentUserId) == .liked ? "hand.thumbsup.fill" : "hand.thumbsup")
+                            Label(
+                                reactionStatus == .liked ? "Liked" : "Like",
+                                systemImage: reactionStatus == .liked ? "hand.thumbsup.fill" : "hand.thumbsup"
+                            ) "hand.thumbsup")
                                 .font(actionFont)
                         }
                         .buttonStyle(.borderless)
-                        .help(viewModel.likePermission(for: drop).message ?? "")
+                        .help(likePermission.message ?? "")
+
+                        if isCollectedDestination {
+                            Button(action: toggleDislike) {
+                                Label(
+                                    reactionStatus == .disliked ? "Disliked" : "Dislike",
+                                    systemImage: reactionStatus == .disliked ? "hand.thumbsdown.fill" : "hand.thumbsdown"
+                                )
+                                    .font(actionFont)
+                            }
+                            .buttonStyle(.borderless)
+                            .help(likePermission.message ?? "")
+                        }
 
                         Button(action: markCollected) {
                             Label(hasCollected ? "Collected" : "Collect", systemImage: hasCollected ? "checkmark.circle.fill" : "tray.and.arrow.down")
@@ -440,7 +457,21 @@ struct DropRowView: View {
             }
             return
         }
-        let status = drop.isLiked(by: currentUserId) == .liked ? DropLikeStatus.none : .liked
+        let currentStatus = drop.isLiked(by: currentUserId)
+        let status: DropLikeStatus = currentStatus == .liked ? .none : .liked
+        viewModel.like(drop: drop, status: status)
+    }
+
+    private func toggleDislike() {
+        let permission = viewModel.likePermission(for: drop)
+        guard permission.allowed else {
+            if let message = permission.message {
+                infoAlertMessage = message
+            }
+            return
+        }
+        let currentStatus = drop.isLiked(by: currentUserId)
+        let status: DropLikeStatus = currentStatus == .disliked ? .none : .disliked
         viewModel.like(drop: drop, status: status)
     }
 
