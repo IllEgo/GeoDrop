@@ -763,7 +763,9 @@ extension DropFeedView {
     }
 
     private var shouldShowGroupPrompt: Bool {
-        viewModel.userMode?.canParticipate == true && viewModel.groups.isEmpty
+        viewModel.selectedExplorerDestination == .nearby &&
+        viewModel.userMode?.canParticipate == true &&
+        viewModel.groups.isEmpty
     }
     
     private var displayedDrops: [Drop] {
