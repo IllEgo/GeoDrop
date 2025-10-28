@@ -257,7 +257,6 @@ struct DropRowView: View {
     let drop: Drop
     let isSelected: Bool
     let onSelect: () -> Void
-    @State private var showingDetail = false
     @State private var isExpanded = false
     @State private var infoAlertMessage: String?
     @State private var showingReport = false
@@ -321,6 +320,10 @@ struct DropRowView: View {
                             .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
                             .lineLimit(isExpanded ? nil : 2)
                             .multilineTextAlignment(.leading)
+                    }
+
+                    if isNearbyDestination {
+                        reactionSummary
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -401,16 +404,6 @@ struct DropRowView: View {
                         }
 
                         HStack(alignment: .center, spacing: 12) {
-                            Button("Details") {
-                                onSelect()
-                                if canPreviewContent {
-                                    showingDetail = true
-                                } else {
-                                    infoAlertMessage = previewMessage
-                                }
-                            }
-                            .font(actionFont)
-
                             Spacer(minLength: 0)
 
                             if canDeleteDrop {
@@ -448,10 +441,6 @@ struct DropRowView: View {
         .contentShape(RoundedRectangle(cornerRadius: 16))
         .onTapGesture { onSelect() }
         .animation(.easeInOut, value: isSelected)
-        .sheet(isPresented: $showingDetail) {
-            DropDetailView(drop: drop)
-                .environmentObject(viewModel)
-        }
         .sheet(isPresented: $showingReport) {
             reportSheet()
                 .environmentObject(viewModel)
@@ -483,6 +472,24 @@ struct DropRowView: View {
             return session.user.uid
         }
         return nil
+    }
+    
+    private var isNearbyDestination: Bool {
+        viewModel.selectedExplorerDestination == .nearby
+    }
+
+    private var reactionSummary: some View {
+        HStack(spacing: 12) {
+            reactionCountLabel(systemImage: "hand.thumbsup.fill", count: drop.likeCount)
+            reactionCountLabel(systemImage: "hand.thumbsdown.fill", count: drop.dislikeCount)
+        }
+        .font(.system(size: 12, weight: .semibold))
+        .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
+    }
+
+    private func reactionCountLabel(systemImage: String, count: Int) -> some View {
+        Label("\(count)", systemImage: systemImage)
+            .labelStyle(.titleAndIcon)
     }
 
     private func toggleLike() {
