@@ -583,7 +583,6 @@ struct DropRowView: View {
     
     private func deleteDrop() {
         showingDeleteConfirmation = false
-        showingDetail = false
         viewModel.delete(drop: drop)
     }
     
