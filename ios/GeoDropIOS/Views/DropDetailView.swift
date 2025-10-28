@@ -239,7 +239,7 @@ struct DropDetailView: View {
 
     private func actionButtons(for drop: Drop, likePermission: AppViewModel.LikePermission, hasCollected: Bool) -> some View {
         let reactionStatus = drop.isLiked(by: viewModel.currentUserID)
-        VStack(alignment: .leading, spacing: 8) {
+        return VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 12) {
                 Button {
                     handleLike(drop)
