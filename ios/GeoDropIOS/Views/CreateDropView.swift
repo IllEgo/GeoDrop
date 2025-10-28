@@ -1128,6 +1128,7 @@ private struct VideoCaptureView: UIViewControllerRepresentable {
         private let recordButton = UIButton(type: .system)
         private let closeButton = UIButton(type: .system)
         private var isRecording = false
+        private var sessionStartObserver: NSObjectProtocol?
 
         override func viewDidLoad() {
             super.viewDidLoad()
@@ -1135,6 +1136,7 @@ private struct VideoCaptureView: UIViewControllerRepresentable {
             configureSession()
             configurePreview()
             configureControls()
+            observeSessionStart()
         }
 
         override func viewDidAppear(_ animated: Bool) {
@@ -1148,6 +1150,13 @@ private struct VideoCaptureView: UIViewControllerRepresentable {
             super.viewWillDisappear(animated)
             if session.isRunning {
                 session.stopRunning()
+            }
+            recordButton.isEnabled = false
+        }
+
+        deinit {
+            if let observer = sessionStartObserver {
+                NotificationCenter.default.removeObserver(observer)
             }
         }
 
@@ -1185,6 +1194,7 @@ private struct VideoCaptureView: UIViewControllerRepresentable {
             recordButton.backgroundColor = UIColor.red.withAlphaComponent(0.9)
             recordButton.layer.cornerRadius = 35
             recordButton.addTarget(self, action: #selector(toggleRecording), for: .touchUpInside)
+            recordButton.isEnabled = false
 
             closeButton.translatesAutoresizingMaskIntoConstraints = false
             closeButton.setTitle("Close", for: .normal)
@@ -1209,6 +1219,13 @@ private struct VideoCaptureView: UIViewControllerRepresentable {
             if isRecording {
                 movieOutput.stopRecording()
             } else {
+                guard session.isRunning,
+                      let connection = movieOutput.connection(with: .video),
+                      connection.isEnabled,
+                      connection.isActive else {
+                    onError?("Camera is still preparing. Please try again in a moment.")
+                    return
+                }
                 let url = FileManager.default.temporaryDirectory
                     .appendingPathComponent(UUID().uuidString)
                     .appendingPathExtension("mov")
@@ -1235,6 +1252,16 @@ private struct VideoCaptureView: UIViewControllerRepresentable {
             }
             let duration = CMTimeGetSeconds(output.recordedDuration)
             onCapture?(outputFileURL, duration, "video/quicktime")
+        }
+        
+        private func observeSessionStart() {
+            sessionStartObserver = NotificationCenter.default.addObserver(
+                forName: AVCaptureSession.didStartRunningNotification,
+                object: session,
+                queue: .main
+            ) { [weak self] _ in
+                self?.recordButton.isEnabled = true
+            }
         }
     }
 }
