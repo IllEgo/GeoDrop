@@ -276,6 +276,7 @@ struct DropRowView: View {
         let previewMessage = previewRestrictionMessage ?? "Move closer to preview this drop."
         let isOutsidePreviewRadius = !canPreviewContent && previewDistance != nil
         let isCollectedDestination = viewModel.selectedExplorerDestination == .collected
+        let isMyDropsDestination = viewModel.selectedExplorerDestination == .myDrops
         
         let titleFont = Font.system(size: 14, weight: .semibold)
         let descriptionFont = Font.system(size: 12)
@@ -347,15 +348,17 @@ struct DropRowView: View {
                     }
 
                     VStack(alignment: .leading, spacing: 12) {
-                        Button(action: toggleLike) {
-                            Label(
-                                reactionStatus == .liked ? "Liked" : "Like",
-                                systemImage: reactionStatus == .liked ? "hand.thumbsup.fill" : "hand.thumbsup"
-                            )
-                                .font(actionFont)
+                        if !isMyDropsDestination {
+                            Button(action: toggleLike) {
+                                Label(
+                                    reactionStatus == .liked ? "Liked" : "Like",
+                                    systemImage: reactionStatus == .liked ? "hand.thumbsup.fill" : "hand.thumbsup"
+                                )
+                                    .font(actionFont)
+                            }
+                            .buttonStyle(.borderless)
+                            .help(likePermission.message ?? "")
                         }
-                        .buttonStyle(.borderless)
-                        .help(likePermission.message ?? "")
 
                         if isCollectedDestination {
                             Button(action: toggleDislike) {
@@ -369,12 +372,14 @@ struct DropRowView: View {
                             .help(likePermission.message ?? "")
                         }
 
-                        Button(action: markCollected) {
-                            Label(hasCollected ? "Collected" : "Collect", systemImage: hasCollected ? "checkmark.circle.fill" : "tray.and.arrow.down")
-                                .font(actionFont)
+                        if !isMyDropsDestination {
+                            Button(action: markCollected) {
+                                Label(hasCollected ? "Collected" : "Collect", systemImage: hasCollected ? "checkmark.circle.fill" : "tray.and.arrow.down")
+                                    .font(actionFont)
+                            }
+                            .buttonStyle(.bordered)
+                            .disabled(hasCollected || !canPreviewContent)
                         }
-                        .buttonStyle(.bordered)
-                        .disabled(hasCollected || !canPreviewContent)
 
                         Button(action: startReport) {
                             Label("Report", systemImage: "exclamationmark.bubble")
@@ -402,7 +407,7 @@ struct DropRowView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     
-                    if !likePermission.allowed, let message = likePermission.message {
+                    if !isMyDropsDestination, !likePermission.allowed, let message = likePermission.message {
                         Text(message)
                             .font(descriptionFont)
                             .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
