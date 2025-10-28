@@ -351,7 +351,7 @@ struct DropRowView: View {
                             Label(
                                 reactionStatus == .liked ? "Liked" : "Like",
                                 systemImage: reactionStatus == .liked ? "hand.thumbsup.fill" : "hand.thumbsup"
-                            ) "hand.thumbsup")
+                            )
                                 .font(actionFont)
                         }
                         .buttonStyle(.borderless)
