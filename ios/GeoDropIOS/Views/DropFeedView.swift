@@ -273,7 +273,6 @@ struct DropRowView: View {
         let previewDistance = viewModel.distanceToDrop(drop)
         let canPreviewContent = viewModel.canPreview(drop: drop, distance: previewDistance)
         let previewRestrictionMessage = viewModel.previewRestrictionMessage(for: drop, distance: previewDistance)
-        let previewMessage = previewRestrictionMessage ?? "Move closer to preview this drop."
         let isOutsidePreviewRadius = !canPreviewContent && previewDistance != nil
         let isCollectedDestination = viewModel.selectedExplorerDestination == .collected
         let isMyDropsDestination = viewModel.selectedExplorerDestination == .myDrops
@@ -314,8 +313,8 @@ struct DropRowView: View {
                             .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
                             .lineLimit(isExpanded ? nil : 2)
                             .multilineTextAlignment(.leading)
-                    } else if !canPreviewContent {
-                        Text(previewMessage)
+                    } else if !canPreviewContent, let previewRestrictionMessage {
+                        Text(previewRestrictionMessage)
                             .font(descriptionFont)
                             .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
                             .lineLimit(isExpanded ? nil : 2)
@@ -345,8 +344,8 @@ struct DropRowView: View {
                                 .font(descriptionFont)
                                 .foregroundColor(geoDropTheme.colors.onSurface)
                         }
-                    } else {
-                        Text(previewMessage)
+                    } else if let previewRestrictionMessage {
+                        Text(previewRestrictionMessage)
                             .font(descriptionFont)
                             .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
                             .fixedSize(horizontal: false, vertical: true)
@@ -373,7 +372,7 @@ struct DropRowView: View {
                             .buttonStyle(.borderless)
                         }
                         
-                        if isOutsidePreviewRadius {
+                        if isOutsidePreviewRadius && !isNearbyDestination {
                             Button(action: ignoreDrop) {
                                 Label("Ignore for now", systemImage: "eye.slash")
                                     .font(actionFont)

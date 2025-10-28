@@ -180,8 +180,7 @@ final class AppViewModel: ObservableObject {
         let resolvedDistance = distance ?? distanceToDrop(drop)
         if let resolvedDistance {
             guard resolvedDistance > Self.dropPreviewRadiusMeters else { return nil }
-            let radius = Int(Self.dropPreviewRadiusMeters.rounded())
-            return "Move within \(radius) meters to preview this drop."
+            return nil
         }
         return "Enable location services to preview this drop."
     }

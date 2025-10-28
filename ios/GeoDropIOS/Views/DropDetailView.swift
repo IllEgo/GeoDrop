@@ -52,7 +52,6 @@ struct DropDetailView: View {
         let previewDistance = viewModel.distanceToDrop(resolvedDrop)
         let canPreviewContent = viewModel.canPreview(drop: resolvedDrop, distance: previewDistance)
         let previewRestrictionMessage = viewModel.previewRestrictionMessage(for: resolvedDrop, distance: previewDistance)
-        let previewMessage = previewRestrictionMessage ?? "Move closer to preview this drop."
 
         return GeoDropNavigationContainer(
             trailing: {
@@ -70,8 +69,8 @@ struct DropDetailView: View {
                     } else if canPreviewContent {
                         descriptionSection(for: resolvedDrop)
                         mediaSection(for: resolvedDrop)
-                    } else {
-                        previewRestrictionNotice(previewMessage)
+                    } else if let previewRestrictionMessage {
+                        previewRestrictionNotice(previewRestrictionMessage)
                     }
 
                     mapSection(for: resolvedDrop)
