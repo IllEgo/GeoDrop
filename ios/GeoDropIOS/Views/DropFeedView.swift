@@ -291,10 +291,12 @@ struct DropRowView: View {
             } label: {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(alignment: .center, spacing: 8) {
-                        Text(drop.displayTitle)
-                            .font(titleFont)
-                            .foregroundColor(geoDropTheme.colors.onSurface)
-                            .multilineTextAlignment(.leading)
+                        if !isNearbyDestination {
+                            Text(drop.displayTitle)
+                                .font(titleFont)
+                                .foregroundColor(geoDropTheme.colors.onSurface)
+                                .multilineTextAlignment(.leading)
+                        }
                         Spacer(minLength: 12)
                         if drop.requiresRedemption() {
                             Label("Redeem", systemImage: "tag")
@@ -328,6 +330,14 @@ struct DropRowView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .buttonStyle(.plain)
+            
+            if isNearbyDestination && !isMyDropsDestination {
+                collectButton(
+                    hasCollected: hasCollected,
+                    canPreviewContent: canPreviewContent,
+                    actionFont: actionFont
+                )
+            }
 
             if isExpanded {
                 VStack(alignment: .leading, spacing: 12) {
@@ -395,14 +405,12 @@ struct DropRowView: View {
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         
-                        if !isMyDropsDestination {
-                            Button(action: markCollected) {
-                                Label(hasCollected ? "Collected" : "Collect", systemImage: hasCollected ? "checkmark.circle.fill" : "tray.and.arrow.down")
-                                    .font(actionFont)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .buttonStyle(.bordered)
-                            .disabled(hasCollected || !canPreviewContent)
+                        if !isMyDropsDestination && !isNearbyDestination {
+                            collectButton(
+                                hasCollected: hasCollected,
+                                canPreviewContent: canPreviewContent,
+                                actionFont: actionFont
+                            )
                         }
                     }
                     
@@ -489,6 +497,20 @@ struct DropRowView: View {
     private func reactionCountLabel(systemImage: String, count: Int) -> some View {
         Label("\(count)", systemImage: systemImage)
             .labelStyle(.titleAndIcon)
+    }
+    
+    @ViewBuilder
+    private func collectButton(hasCollected: Bool, canPreviewContent: Bool, actionFont: Font) -> some View {
+        Button(action: markCollected) {
+            Label(
+                hasCollected ? "Collected" : "Collect",
+                systemImage: hasCollected ? "checkmark.circle.fill" : "tray.and.arrow.down"
+            )
+            .font(actionFont)
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.bordered)
+        .disabled(hasCollected || !canPreviewContent)
     }
 
     private func toggleDislike() {
