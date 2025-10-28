@@ -264,6 +264,7 @@ struct DropRowView: View {
     @State private var isSubmittingReport = false
     @State private var reportErrorMessage: String?
     @State private var selectedReportReasons: Set<String> = []
+    @State private var showingDeleteConfirmation = false
     
     var body: some View {
         let likePermission = viewModel.likePermission(for: drop)
@@ -277,6 +278,7 @@ struct DropRowView: View {
         let isOutsidePreviewRadius = !canPreviewContent && previewDistance != nil
         let isCollectedDestination = viewModel.selectedExplorerDestination == .collected
         let isMyDropsDestination = viewModel.selectedExplorerDestination == .myDrops
+        let canDeleteDrop = drop.createdBy == currentUserId
         
         let titleFont = Font.system(size: 14, weight: .semibold)
         let descriptionFont = Font.system(size: 12)
@@ -398,15 +400,29 @@ struct DropRowView: View {
                             .buttonStyle(.borderless)
                         }
 
-                        Button("Details") {
-                            onSelect()
-                            if canPreviewContent {
-                                showingDetail = true
-                            } else {
-                                infoAlertMessage = previewMessage
+                        HStack(alignment: .center, spacing: 12) {
+                            Button("Details") {
+                                onSelect()
+                                if canPreviewContent {
+                                    showingDetail = true
+                                } else {
+                                    infoAlertMessage = previewMessage
+                                }
+                            }
+                            .font(actionFont)
+
+                            Spacer(minLength: 0)
+
+                            if canDeleteDrop {
+                                Button(role: .destructive) {
+                                    showingDeleteConfirmation = true
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                        .font(actionFont)
+                                }
+                                .buttonStyle(.borderless)
                             }
                         }
-                        .font(actionFont)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     
@@ -439,6 +455,18 @@ struct DropRowView: View {
         .sheet(isPresented: $showingReport) {
             reportSheet()
                 .environmentObject(viewModel)
+        }
+        .confirmationDialog(
+            "Delete this drop?",
+            isPresented: $showingDeleteConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Delete Drop", role: .destructive) {
+                deleteDrop()
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("This action cannot be undone.")
         }
         .alert("Notice", isPresented: Binding(
             get: { infoAlertMessage != nil },
@@ -544,6 +572,12 @@ struct DropRowView: View {
                 reportErrorMessage = message.isEmpty ? "Couldn't submit report. Try again." : message
             }
         }
+    }
+    
+    private func deleteDrop() {
+        showingDeleteConfirmation = false
+        showingDetail = false
+        viewModel.delete(drop: drop)
     }
     
     private func ignoreDrop() {
