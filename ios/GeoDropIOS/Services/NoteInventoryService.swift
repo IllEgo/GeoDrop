@@ -191,8 +191,15 @@ final class NoteInventoryService {
             guard let resolvedUserId else { return }
 
             for drop in remoteDrops {
-                if drop.collectedBy[resolvedUserId] == true {
+                let isRemoteCollected = drop.collectedBy[resolvedUserId] == true
+                let wasPreviouslyCollected = inventory.collectedDrops[drop.id] != nil
+
+                if isRemoteCollected {
                     inventory.collectedDrops[drop.id] = drop
+                } else if wasPreviouslyCollected {
+                    var mergedDrop = drop
+                    mergedDrop.collectedBy[resolvedUserId] = true
+                    inventory.collectedDrops[drop.id] = mergedDrop
                 } else {
                     inventory.collectedDrops.removeValue(forKey: drop.id)
                     inventory.likedStatuses.removeValue(forKey: drop.id)
