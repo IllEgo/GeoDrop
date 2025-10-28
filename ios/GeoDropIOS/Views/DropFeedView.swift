@@ -353,18 +353,6 @@ struct DropRowView: View {
                     }
 
                     VStack(alignment: .leading, spacing: 12) {
-                        if !isMyDropsDestination {
-                            Button(action: toggleLike) {
-                                Label(
-                                    reactionStatus == .liked ? "Liked" : "Like",
-                                    systemImage: reactionStatus == .liked ? "hand.thumbsup.fill" : "hand.thumbsup"
-                                )
-                                    .font(actionFont)
-                            }
-                            .buttonStyle(.borderless)
-                            .help(likePermission.message ?? "")
-                        }
-
                         if isCollectedDestination {
                             Button(action: toggleDislike) {
                                 Label(
@@ -377,17 +365,7 @@ struct DropRowView: View {
                             .help(likePermission.message ?? "")
                         }
 
-                        if !isMyDropsDestination {
-                            Button(action: markCollected) {
-                                Label(hasCollected ? "Collected" : "Collect", systemImage: hasCollected ? "checkmark.circle.fill" : "tray.and.arrow.down")
-                                    .font(actionFont)
-                            }
-                            .buttonStyle(.bordered)
-                            .disabled(hasCollected || !canPreviewContent)
-                        }
-
-                       
-                        if !isMyDropsDestination {
+                        if !isMyDropsDestination, !isNearbyDestination {
                             Button(action: startReport) {
                                 Label("Report", systemImage: "exclamationmark.bubble")
                                     .font(actionFont)
@@ -417,6 +395,16 @@ struct DropRowView: View {
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
+                        
+                        if !isMyDropsDestination {
+                            Button(action: markCollected) {
+                                Label(hasCollected ? "Collected" : "Collect", systemImage: hasCollected ? "checkmark.circle.fill" : "tray.and.arrow.down")
+                                    .font(actionFont)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .buttonStyle(.bordered)
+                            .disabled(hasCollected || !canPreviewContent)
+                        }
                     }
                     
                     if !isMyDropsDestination, !likePermission.allowed, let message = likePermission.message {
@@ -482,6 +470,14 @@ struct DropRowView: View {
         HStack(spacing: 12) {
             reactionCountLabel(systemImage: "hand.thumbsup.fill", count: drop.likeCount)
             reactionCountLabel(systemImage: "hand.thumbsdown.fill", count: drop.dislikeCount)
+            Spacer(minLength: 0)
+            if !isMyDropsDestination {
+                Button(action: startReport) {
+                    Label("Report", systemImage: "exclamationmark.bubble")
+                        .labelStyle(.titleAndIcon)
+                }
+                .buttonStyle(.borderless)
+            }
         }
         .font(.system(size: 12, weight: .semibold))
         .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
@@ -490,19 +486,6 @@ struct DropRowView: View {
     private func reactionCountLabel(systemImage: String, count: Int) -> some View {
         Label("\(count)", systemImage: systemImage)
             .labelStyle(.titleAndIcon)
-    }
-
-    private func toggleLike() {
-        let permission = viewModel.likePermission(for: drop)
-        guard permission.allowed else {
-            if let message = permission.message {
-                infoAlertMessage = message
-            }
-            return
-        }
-        let currentStatus = drop.isLiked(by: currentUserId)
-        let status: DropLikeStatus = currentStatus == .liked ? .none : .liked
-        viewModel.like(drop: drop, status: status)
     }
 
     private func toggleDislike() {
