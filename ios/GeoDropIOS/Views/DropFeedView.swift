@@ -381,11 +381,14 @@ struct DropRowView: View {
                             .disabled(hasCollected || !canPreviewContent)
                         }
 
-                        Button(action: startReport) {
-                            Label("Report", systemImage: "exclamationmark.bubble")
-                                .font(actionFont)
+                       
+                        if !isMyDropsDestination {
+                            Button(action: startReport) {
+                                Label("Report", systemImage: "exclamationmark.bubble")
+                                    .font(actionFont)
+                            }
+                            .buttonStyle(.borderless)
                         }
-                        .buttonStyle(.borderless)
                         
                         if isOutsidePreviewRadius {
                             Button(action: ignoreDrop) {
