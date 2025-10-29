@@ -27,9 +27,7 @@ struct GeoDropTopNavigationBar: View {
                             .font(titleFont)
                             .tracking(0.8)
                             .foregroundColor(geoDropTheme.colors.onSurface)
-                        Image(systemName: "info.circle")
-                            .foregroundColor(geoDropTheme.colors.onSurface.opacity(0.8))
-                            .accessibilityHidden(true)
+                        InfoMenuButton()
                     }
                 }
                 .accessibilityElement(children: .combine)
@@ -90,5 +88,32 @@ struct GeoDropNavigationContainer<Content: View>: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(geoDropTheme.colors.background)
+    }
+}
+
+private struct InfoMenuButton: View {
+    @EnvironmentObject private var viewModel: AppViewModel
+    @Environment(\.geoDropTheme) private var geoDropTheme
+
+    var body: some View {
+        Menu {
+            Button(action: { viewModel.showTutorialSlides() }) {
+                Label("Tutorial slides", systemImage: "play.circle")
+            }
+            Button(action: { viewModel.showFaq() }) {
+                Label("FAQ", systemImage: "questionmark.circle")
+            }
+            Button(action: { viewModel.showTermsOfService() }) {
+                Label("Terms of Service", systemImage: "doc.text")
+            }
+            Button(action: { viewModel.showPrivacyPolicy() }) {
+                Label("Privacy Policy", systemImage: "hand.raised")
+            }
+        } label: {
+            Image(systemName: "info.circle")
+                .foregroundColor(geoDropTheme.colors.onSurface.opacity(0.8))
+                .imageScale(.medium)
+        }
+        .accessibilityLabel("Open GeoDrop info options")
     }
 }
