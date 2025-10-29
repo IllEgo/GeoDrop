@@ -27,7 +27,6 @@ struct GeoDropTopNavigationBar: View {
                             .font(titleFont)
                             .tracking(0.8)
                             .foregroundColor(geoDropTheme.colors.onSurface)
-                        InfoMenuButton()
                     }
                 }
                 .accessibilityElement(children: .combine)
@@ -35,6 +34,7 @@ struct GeoDropTopNavigationBar: View {
                 trailing
                     .font(contentFont)
                     .imageScale(.small)
+                InfoMenuButton()
             }
             .foregroundColor(geoDropTheme.colors.onSurface)
             .font(contentFont)
