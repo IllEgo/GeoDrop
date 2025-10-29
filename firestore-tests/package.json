@@ -2,7 +2,7 @@
   "name": "firestore-tests",
   "private": true,
   "scripts": {
-    "test": "node groupMembershipRules.test.js && node voteRules.test.js"
+    "test": "node groupMembershipRules.js && node voteRules.test.js && node inventoryRules.test.js"
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "^3.0.0"

@@ -349,6 +349,8 @@ service cloud.firestore {
           'redeemedAt',
           'likeCount',
           'isLiked',
+          'dislikeCount',
+          'isDisliked',
           'state',
           'updatedAt',
           'mediaUrl',
@@ -383,6 +385,10 @@ service cloud.firestore {
             || request.resource.data.likeCount is int)
           && (!request.resource.data.keys().hasAny(['isLiked'])
             || request.resource.data.isLiked is bool)
+          && (!request.resource.data.keys().hasAny(['dislikeCount'])
+            || request.resource.data.dislikeCount is int)
+          && (!request.resource.data.keys().hasAny(['isDisliked'])
+            || request.resource.data.isDisliked is bool)
           && (!request.resource.data.keys().hasAny(['updatedAt'])
             || request.resource.data.updatedAt is int)
           && (!request.resource.data.keys().hasAny(['lat'])
