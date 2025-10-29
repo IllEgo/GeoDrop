@@ -22,10 +22,15 @@ struct GeoDropTopNavigationBar: View {
                     .font(contentFont)
                     .imageScale(.small)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("GeoDrop")
-                        .font(titleFont)
-                        .tracking(0.8)
-                        .foregroundColor(geoDropTheme.colors.onSurface)
+                    HStack(spacing: 6) {
+                        Text("GeoDrop")
+                            .font(titleFont)
+                            .tracking(0.8)
+                            .foregroundColor(geoDropTheme.colors.onSurface)
+                        Image(systemName: "info.circle")
+                            .foregroundColor(geoDropTheme.colors.onSurface.opacity(0.8))
+                            .accessibilityHidden(true)
+                    }
                 }
                 .accessibilityElement(children: .combine)
                 Spacer(minLength: 12)
