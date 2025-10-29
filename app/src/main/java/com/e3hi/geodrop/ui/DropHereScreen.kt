@@ -291,6 +291,7 @@ fun DropHereScreen(
     var accountGoogleSigningIn by remember { mutableStateOf(false) }
     var showAccountMenu by remember { mutableStateOf(false) }
     var showFaqDialog by remember { mutableStateOf(false) }
+    var termsPrivacyDialogTab by remember { mutableStateOf<Int?>(null) }
     var showExplorerProfile by remember { mutableStateOf(false) }
     var explorerDestination by rememberSaveable { mutableStateOf(ExplorerDestination.Discover.name) }
     var explorerUsernameField by rememberSaveable(stateSaver = TextFieldValue.Saver) {
@@ -2377,7 +2378,10 @@ fun DropHereScreen(
                         modifier = Modifier.fillMaxWidth(),
                         title = {
                             GeoDropHeader(
-                                onInfoClick = { showOnboardingHelp = true }
+                                onShowTutorial = { showOnboardingHelp = true },
+                                onShowFaq = { showFaqDialog = true },
+                                onShowTerms = { termsPrivacyDialogTab = 0 },
+                                onShowPrivacy = { termsPrivacyDialogTab = 1 }
                             )
                         },
                         colors = TopAppBarDefaults.topAppBarColors(
@@ -3318,6 +3322,13 @@ fun DropHereScreen(
             onDismiss = { showNotificationRadiusDialog = false }
         )
     }
+
+        termsPrivacyDialogTab?.let { tab ->
+            TermsPrivacyDialog(
+                initialTab = tab,
+                onDismiss = { termsPrivacyDialogTab = null }
+            )
+        }
 
     if (showFaqDialog) {
         FaqDialog(onDismiss = { showFaqDialog = false })
@@ -5807,6 +5818,95 @@ private fun FaqEntryContent(
     }
 }
 
+@Composable
+private fun TermsPrivacyDialog(
+    initialTab: Int,
+    onDismiss: () -> Unit
+) {
+    val tabCount = TERMS_PRIVACY_TABS.size
+    var selectedTab by remember { mutableStateOf(initialTab.coerceIn(0, tabCount - 1)) }
+    val scrollState = rememberScrollState()
+    val agreementText = remember(selectedTab) {
+        if (selectedTab == 0) TERMS_OF_SERVICE_TEXT else PRIVACY_POLICY_TEXT
+    }
+
+    LaunchedEffect(initialTab) {
+        val clamped = initialTab.coerceIn(0, tabCount - 1)
+        selectedTab = clamped
+    }
+
+    LaunchedEffect(selectedTab) {
+        scrollState.scrollTo(0)
+    }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .widthIn(max = 560.dp),
+            shape = RoundedCornerShape(28.dp),
+            tonalElevation = 6.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = stringResource(R.string.terms_privacy_dialog_title),
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = TERMS_PRIVACY_SUMMARY,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Divider()
+                TabRow(
+                    selectedTabIndex = selectedTab,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    TERMS_PRIVACY_TABS.forEachIndexed { index, title ->
+                        Tab(
+                            selected = selectedTab == index,
+                            onClick = { selectedTab = index },
+                            text = { Text(title) }
+                        )
+                    }
+                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 200.dp, max = 360.dp)
+                        .verticalScroll(scrollState)
+                        .border(
+                            BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                            RoundedCornerShape(12.dp)
+                        )
+                        .padding(16.dp)
+                ) {
+                    Text(
+                        text = agreementText,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        lineHeight = MaterialTheme.typography.bodySmall.lineHeight
+                    )
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text(stringResource(R.string.terms_privacy_dialog_close))
+                    }
+                }
+            }
+        }
+    }
+}
+
 private const val NOTIFICATION_RADIUS_STEP_METERS = 50f
 private const val DROP_PICKUP_RADIUS_METERS = 30.0
 private const val MAX_BUSINESS_TEMPLATE_SUGGESTIONS = 6
@@ -6075,8 +6175,12 @@ private fun CollectedDropsContent(
 @Composable
 private fun GeoDropHeader(
     modifier: Modifier = Modifier,
-    onInfoClick: () -> Unit = {}
+    onShowTutorial: () -> Unit = {},
+    onShowFaq: () -> Unit = {},
+    onShowTerms: () -> Unit = {},
+    onShowPrivacy: () -> Unit = {},
 ) {
+    var infoMenuExpanded by remember { mutableStateOf(false) }
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -6092,14 +6196,53 @@ private fun GeoDropHeader(
             color = MaterialTheme.colorScheme.primary
         )
 
-        IconButton(
-            onClick = onInfoClick,
-            modifier = Modifier.align(Alignment.CenterEnd)
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.Info,
-                contentDescription = stringResource(R.string.content_description_open_onboarding)
-            )
+        Box(modifier = Modifier.align(Alignment.CenterEnd)) {
+            IconButton(
+                onClick = { infoMenuExpanded = true }
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Info,
+                    contentDescription = stringResource(R.string.content_description_open_info_menu)
+                )
+            }
+
+            DropdownMenu(
+                expanded = infoMenuExpanded,
+                onDismissRequest = { infoMenuExpanded = false }
+            ) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.info_menu_tutorial)) },
+                    leadingIcon = { Icon(Icons.Rounded.PlayArrow, contentDescription = null) },
+                    onClick = {
+                        infoMenuExpanded = false
+                        onShowTutorial()
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.info_menu_faq)) },
+                    leadingIcon = { Icon(Icons.Rounded.Help, contentDescription = null) },
+                    onClick = {
+                        infoMenuExpanded = false
+                        onShowFaq()
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.info_menu_terms)) },
+                    leadingIcon = { Icon(Icons.Rounded.Description, contentDescription = null) },
+                    onClick = {
+                        infoMenuExpanded = false
+                        onShowTerms()
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.info_menu_privacy)) },
+                    leadingIcon = { Icon(Icons.Rounded.Lock, contentDescription = null) },
+                    onClick = {
+                        infoMenuExpanded = false
+                        onShowPrivacy()
+                    }
+                )
+            }
         }
     }
 }

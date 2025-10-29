@@ -66,4 +66,11 @@
     <string name="audio_recorder_use_recording">Usar esta grabación</string>
     <string name="audio_recorder_discard_recording">Descartar grabación</string>
     <string name="audio_recorder_tip">Asegúrate de estar en un lugar silencioso para que otros puedan escuchar tu mensaje con claridad.</string>
+    <string name="content_description_open_info_menu">Abrir opciones de información</string>
+    <string name="info_menu_tutorial">Diapositivas del tutorial</string>
+    <string name="info_menu_faq">Preguntas frecuentes</string>
+    <string name="info_menu_terms">Términos del servicio</string>
+    <string name="info_menu_privacy">Política de privacidad</string>
+    <string name="terms_privacy_dialog_title">Términos y políticas de GeoDrop</string>
+    <string name="terms_privacy_dialog_close">Cerrar</string>
 </resources>

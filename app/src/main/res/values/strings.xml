@@ -106,6 +106,13 @@
     <string name="faq_answer_explorer_usage">Explorers follow the map or notifications to visit drops, open the content, react or collect it, and save favorites for later adventures.</string>
     <string name="faq_question_groups">How do GeoDrop groups work?</string>
     <string name="content_description_open_onboarding">Open GeoDrop tutorial</string>
+    <string name="content_description_open_info_menu">Open GeoDrop info options</string>
+    <string name="info_menu_tutorial">Tutorial slides</string>
+    <string name="info_menu_faq">FAQ</string>
+    <string name="info_menu_terms">Terms of Service</string>
+    <string name="info_menu_privacy">Privacy Policy</string>
+    <string name="terms_privacy_dialog_title">GeoDrop terms &amp; policies</string>
+    <string name="terms_privacy_dialog_close">Close</string>
     <string name="faq_answer_groups">Groups bring explorers together around shared interests, neighborhoods, or businesses. Join a group to see exclusive drops and stay in sync with the community.</string>
     <string name="faq_close">Close</string>
 </resources>
