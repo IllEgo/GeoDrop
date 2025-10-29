@@ -1310,6 +1310,75 @@ fun DropHereScreen(
         }
     }
 
+    fun submitCollectedLike(note: CollectedNote, desiredStatus: DropLikeStatus) {
+        if (!canParticipate) {
+            snackbar.showMessage(scope, participationRestriction("react to drops"))
+            return
+        }
+
+        val userId = currentUserId
+        if (userId.isNullOrBlank()) {
+            snackbar.showMessage(scope, "Sign in to react to drops.")
+            return
+        }
+
+        val dropId = note.id
+        if (dropId.isBlank()) return
+
+        val previousStatus = note.likeStatus()
+        if (previousStatus == desiredStatus) return
+
+        val previousLikeCount = note.likeCount
+        val previousDislikeCount = note.dislikeCount
+
+        var updatedLikeCount = previousLikeCount
+        var updatedDislikeCount = previousDislikeCount
+
+        when (previousStatus) {
+            DropLikeStatus.LIKED -> updatedLikeCount = (updatedLikeCount - 1).coerceAtLeast(0L)
+            DropLikeStatus.DISLIKED -> updatedDislikeCount = (updatedDislikeCount - 1).coerceAtLeast(0L)
+            DropLikeStatus.NONE -> Unit
+        }
+
+        when (desiredStatus) {
+            DropLikeStatus.LIKED -> updatedLikeCount += 1
+            DropLikeStatus.DISLIKED -> updatedDislikeCount += 1
+            DropLikeStatus.NONE -> Unit
+        }
+
+        noteInventory.updateLikeStatus(dropId, updatedLikeCount, updatedDislikeCount, desiredStatus)
+        collectedNotes = noteInventory.getCollectedNotes()
+
+        votingDropIds = votingDropIds + dropId
+
+        scope.launch {
+            try {
+                repo.setDropLike(dropId, userId, desiredStatus)
+            } catch (e: Exception) {
+                noteInventory.updateLikeStatus(dropId, previousLikeCount, previousDislikeCount, previousStatus)
+                collectedNotes = noteInventory.getCollectedNotes()
+                if (e is FirebaseFirestoreException &&
+                    e.code == FirebaseFirestoreException.Code.PERMISSION_DENIED
+                ) {
+                    Log.w(
+                        "DropHere",
+                        "Permission denied while updating reaction for collected drop $dropId for $userId",
+                        e
+                    )
+                } else {
+                    Log.e(
+                        "DropHere",
+                        "Failed to update reaction for collected drop $dropId for $userId",
+                        e
+                    )
+                }
+                snackbar.showMessage(scope, "Couldn't update your reaction. Try again.")
+            } finally {
+                votingDropIds = votingDropIds - dropId
+            }
+        }
+    }
+
     // Optional: also sync nearby on first open if already signed in
     LaunchedEffect(joinedGroups, notificationRadius) {
         if (FirebaseAuth.getInstance().currentUser != null) {
@@ -2954,6 +3023,12 @@ fun DropHereScreen(
                                     .weight(1f)
                                     .fillMaxWidth()
                             ) {
+                                val isSignedIn = !currentUserId.isNullOrBlank()
+                                val collectedLikeRestrictionMessage = when {
+                                    !isSignedIn -> "Sign in to react to drops."
+                                    !canParticipate -> participationRestriction("react to drops")
+                                    else -> null
+                                }
                                 CollectedDropsContent(
                                     modifier = Modifier.fillMaxSize(),
                                     topContentPadding = mapAwareTopPadding,
@@ -2971,6 +3046,13 @@ fun DropHereScreen(
                                     sortOptions = dropSortOptions,
                                     onSortOptionChange = { option ->
                                         collectedSortKey = option.name
+                                    },
+                                    canLikeDrops = canParticipate,
+                                    isSignedIn = isSignedIn,
+                                    likeRestrictionMessage = collectedLikeRestrictionMessage,
+                                    votingDropIds = votingDropIds,
+                                    onLike = { note, status ->
+                                        submitCollectedLike(note, status)
                                     },
                                     onReport = report@{ note ->
                                         if (browseReportProcessing) return@report
@@ -5736,6 +5818,11 @@ private fun CollectedDropsContent(
     sortOption: DropSortOption,
     sortOptions: List<DropSortOption>,
     onSortOptionChange: (DropSortOption) -> Unit,
+    canLikeDrops: Boolean,
+    isSignedIn: Boolean,
+    likeRestrictionMessage: String?,
+    votingDropIds: Set<String>,
+    onLike: (CollectedNote, DropLikeStatus) -> Unit,
     onReport: (CollectedNote) -> Unit,
     onView: (CollectedNote) -> Unit,
     onRemove: (CollectedNote) -> Unit,
@@ -5939,6 +6026,8 @@ private fun CollectedDropsContent(
                         else -> null
                     }
                     val isReporting = isReportProcessing && reportingDropId == note.id
+                    val canReact = canLikeDrops && isSignedIn
+                    val isVoting = votingDropIds.contains(note.id)
                     CollectedNoteCard(
                         note = note,
                         selected = isHighlighted,
@@ -5946,6 +6035,13 @@ private fun CollectedDropsContent(
                         onSelect = {
                             highlightedId = if (isHighlighted) null else note.id
                         },
+                        likeCount = note.likeCount,
+                        dislikeCount = note.dislikeCount,
+                        userLike = note.likeStatus(),
+                        canLike = canReact,
+                        likeRestrictionMessage = likeRestrictionMessage,
+                        isVoting = isVoting,
+                        onLike = { status -> onLike(note, status) },
                         canReport = canReportDrops,
                         alreadyReported = alreadyReported,
                         reportRestrictionMessage = restrictionMessage,
@@ -7513,6 +7609,13 @@ private fun CollectedNoteCard(
     selected: Boolean,
     expanded: Boolean,
     onSelect: () -> Unit,
+    likeCount: Long,
+    dislikeCount: Long,
+    userLike: DropLikeStatus,
+    canLike: Boolean,
+    likeRestrictionMessage: String?,
+    isVoting: Boolean,
+    onLike: (DropLikeStatus) -> Unit,
     canReport: Boolean,
     alreadyReported: Boolean,
     reportRestrictionMessage: String?,
@@ -7693,36 +7796,128 @@ private fun CollectedNoteCard(
 
                     Spacer(Modifier.height(12.dp))
 
-                    OutlinedButton(
-                        onClick = onReport,
-                        enabled = canReport && !alreadyReported && !isReporting,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        if (isReporting) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(16.dp),
-                                strokeWidth = 2.dp
-                            )
-                        } else {
-                            Icon(Icons.Rounded.Report, contentDescription = null)
-                        }
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            text = when {
-                                isReporting -> "Reporting..."
-                                alreadyReported -> "Reported"
-                                else -> "Report drop"
-                            }
-                        )
-                    }
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                modifier = Modifier.weight(1f),
+                                horizontalArrangement = Arrangement.spacedBy(18.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    LikeToggleButton(
+                                        icon = Icons.Rounded.ThumbUp,
+                                        selected = userLike == DropLikeStatus.LIKED,
+                                        enabled = canLike && !isVoting,
+                                        onClick = {
+                                            val nextStatus = if (userLike == DropLikeStatus.LIKED) {
+                                                DropLikeStatus.NONE
+                                            } else {
+                                                DropLikeStatus.LIKED
+                                            }
+                                            onLike(nextStatus)
+                                        },
+                                        contentDescription = if (userLike == DropLikeStatus.LIKED) {
+                                            "Unlike drop"
+                                        } else {
+                                            "Like drop"
+                                        }
+                                    )
 
-                    reportRestrictionMessage?.let { message ->
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            text = message,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = supportingColor
-                        )
+                                    Text(
+                                        text = likeCount.toString(),
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                }
+
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    LikeToggleButton(
+                                        icon = Icons.Rounded.ThumbDown,
+                                        selected = userLike == DropLikeStatus.DISLIKED,
+                                        enabled = canLike && !isVoting,
+                                        onClick = {
+                                            val nextStatus = if (userLike == DropLikeStatus.DISLIKED) {
+                                                DropLikeStatus.NONE
+                                            } else {
+                                                DropLikeStatus.DISLIKED
+                                            }
+                                            onLike(nextStatus)
+                                        },
+                                        contentDescription = if (userLike == DropLikeStatus.DISLIKED) {
+                                            "Remove dislike"
+                                        } else {
+                                            "Dislike drop"
+                                        }
+                                    )
+
+                                    Text(
+                                        text = dislikeCount.toString(),
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                }
+
+                                if (canReport) {
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(5.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        OutlinedButton(
+                                            onClick = onReport,
+                                            enabled = !alreadyReported && !isReporting
+                                        ) {
+                                            if (isReporting) {
+                                                CircularProgressIndicator(
+                                                    modifier = Modifier.size(16.dp),
+                                                    strokeWidth = 2.dp
+                                                )
+                                            } else {
+                                                Icon(Icons.Rounded.Report, contentDescription = null)
+                                            }
+                                            Spacer(Modifier.width(8.dp))
+                                            Text(
+                                                text = when {
+                                                    isReporting -> "Reporting..."
+                                                    alreadyReported -> "Reported"
+                                                    else -> "Report"
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            if (isVoting) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            }
+                        }
+
+                        if (likeRestrictionMessage != null) {
+                            Text(
+                                text = likeRestrictionMessage,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = supportingColor
+                            )
+                        }
+
+                        reportRestrictionMessage?.let { message ->
+                            Text(
+                                text = message,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = supportingColor
+                            )
+                        }
                     }
 
                     Row(
