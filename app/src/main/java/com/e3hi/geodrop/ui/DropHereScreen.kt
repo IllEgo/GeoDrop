@@ -68,6 +68,7 @@ import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.GraphicEq
+import androidx.compose.material.icons.rounded.Help
 import androidx.compose.material.icons.rounded.GroupAdd
 import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.Inbox
@@ -288,6 +289,7 @@ fun DropHereScreen(
     var showBusinessOnboarding by remember { mutableStateOf(false) }
     var accountGoogleSigningIn by remember { mutableStateOf(false) }
     var showAccountMenu by remember { mutableStateOf(false) }
+    var showFaqDialog by remember { mutableStateOf(false) }
     var showExplorerProfile by remember { mutableStateOf(false) }
     var explorerDestination by rememberSaveable { mutableStateOf(ExplorerDestination.Discover.name) }
     var explorerUsernameField by rememberSaveable(stateSaver = TextFieldValue.Saver) {
@@ -2450,6 +2452,14 @@ fun DropHereScreen(
                                     )
                                 }
                                 DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.menu_faq)) },
+                                    leadingIcon = { Icon(Icons.Rounded.Help, contentDescription = null) },
+                                    onClick = {
+                                        showAccountMenu = false
+                                        showFaqDialog = true
+                                    }
+                                )
+                                DropdownMenuItem(
                                     text = {
                                         Text(
                                             stringResource(
@@ -3211,6 +3221,10 @@ fun DropHereScreen(
             },
             onDismiss = { showNotificationRadiusDialog = false }
         )
+    }
+
+    if (showFaqDialog) {
+        FaqDialog(onDismiss = { showFaqDialog = false })
     }
 
     if (showNsfwDialog) {
@@ -5584,6 +5598,104 @@ private fun NotificationRadiusDialog(
             }
         }
     )
+}
+
+@Composable
+private fun FaqDialog(
+    onDismiss: () -> Unit
+) {
+    val scrollState = rememberScrollState()
+    val faqEntries = remember {
+        listOf(
+            FaqEntry(
+                question = R.string.faq_question_core_features,
+                answer = R.string.faq_answer_core_features
+            ),
+            FaqEntry(
+                question = R.string.faq_question_drop_contents,
+                answer = R.string.faq_answer_drop_contents
+            ),
+            FaqEntry(
+                question = R.string.faq_question_explorer_usage,
+                answer = R.string.faq_answer_explorer_usage
+            ),
+            FaqEntry(
+                question = R.string.faq_question_groups,
+                answer = R.string.faq_answer_groups
+            )
+        )
+    }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .widthIn(max = 480.dp),
+            shape = RoundedCornerShape(28.dp),
+            tonalElevation = 6.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp)
+                    .verticalScroll(scrollState),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = stringResource(R.string.faq_title),
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = stringResource(R.string.faq_intro),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                faqEntries.forEach { entry ->
+                    FaqEntryContent(
+                        question = stringResource(entry.question),
+                        answer = stringResource(entry.answer)
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text(stringResource(R.string.faq_close))
+                    }
+                }
+            }
+        }
+    }
+}
+
+private data class FaqEntry(
+    val question: Int,
+    val answer: Int
+)
+
+@Composable
+private fun FaqEntryContent(
+    question: String,
+    answer: String
+) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = question,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold
+        )
+        Text(
+            text = answer,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
 }
 
 private const val NOTIFICATION_RADIUS_STEP_METERS = 50f
