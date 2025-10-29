@@ -120,7 +120,7 @@ struct DropDetailView: View {
     private func headerSection(for drop: Drop) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(drop.displayTitle)
-                .font(.title2)
+                .font(geoDropTheme.typography.title)
                 .fontWeight(.bold)
             if let businessName = drop.businessName, !businessName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 Text(businessName)
@@ -215,7 +215,7 @@ struct DropDetailView: View {
             .overlay {
                 VStack(spacing: 8) {
                     Image(systemName: "exclamationmark.triangle")
-                        .font(.title3)
+                        .font(geoDropTheme.typography.title)
                         .foregroundColor(.secondary)
                     Text(label)
                         .font(.caption)

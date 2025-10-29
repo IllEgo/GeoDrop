@@ -5,15 +5,14 @@ struct GeoDropTopNavigationBar: View {
     private let trailing: AnyView
     @Environment(\.geoDropTheme) private var geoDropTheme
     
-    
     init(leading: AnyView = AnyView(EmptyView()),
          trailing: AnyView = AnyView(EmptyView())) {
         self.leading = leading
         self.trailing = trailing
     }
     
-    private let titleFont = Font.system(size: 12, weight: .semibold, design: .default)
-    private let contentFont = Font.system(size: 12, weight: .semibold, design: .default)
+    private var titleFont: Font { geoDropTheme.typography.title }
+    private var contentFont: Font { geoDropTheme.typography.body.weight(.semibold) }
 
     var body: some View {
         VStack(spacing: 0) {

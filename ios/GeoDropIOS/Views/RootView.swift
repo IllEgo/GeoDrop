@@ -138,7 +138,7 @@ struct TutorialSlidesView: View {
             VStack(spacing: 24) {
                 HStack {
                     Text("Welcome to GeoDrop")
-                        .font(.title2.weight(.bold))
+                        .font(geoDropTheme.typography.title.weight(.bold))
                         .foregroundColor(geoDropTheme.colors.onSurface)
                     Spacer()
                     Button("Skip") {
@@ -242,7 +242,7 @@ struct FaqSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     Text("GeoDrop is built around sharing location-based drops. Here's a quick overview of how everything fits together.")
-                        .font(.body)
+                        .font(geoDropTheme.typography.body)
                         .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
 
                     ForEach(entries) { entry in
@@ -251,7 +251,7 @@ struct FaqSheet: View {
                                 .font(.headline)
                                 .foregroundColor(geoDropTheme.colors.onSurface)
                             Text(entry.answer)
-                                .font(.body)
+                                .font(geoDropTheme.typography.body)
                                 .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
                         }
                     }

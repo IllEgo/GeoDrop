@@ -101,9 +101,16 @@ enum GeoDropThemeStyle {
 struct GeoDropTheme {
     let style: GeoDropThemeStyle
     let colors: GeoDropColors
+    let typography: GeoDropTypography
 
-    static let light = GeoDropTheme(style: .light, colors: .light)
-    static let dark = GeoDropTheme(style: .dark, colors: .dark)
+    static let light = GeoDropTheme(style: .light, colors: .light, typography: .default)
+    static let dark = GeoDropTheme(style: .dark, colors: .dark, typography: .default)
+
+    init(style: GeoDropThemeStyle, colors: GeoDropColors, typography: GeoDropTypography = .default) {
+        self.style = style
+        self.colors = colors
+        self.typography = typography
+    }
 
     static func preferred(for colorScheme: ColorScheme) -> GeoDropTheme {
         colorScheme == .dark ? .dark : .light

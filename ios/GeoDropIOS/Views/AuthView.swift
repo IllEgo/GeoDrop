@@ -41,7 +41,7 @@ struct AuthView: View {
                 VStack(spacing: 24) {
                     VStack(spacing: 12) {
                         Text("GeoDrop")
-                            .font(.title.weight(.bold))
+                            .font(geoDropTheme.typography.title.weight(.bold))
                             .foregroundColor(geoDropTheme.colors.onSurface)
                         Text(accountDescription)
                             .font(.subheadline)

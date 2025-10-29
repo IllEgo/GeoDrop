@@ -278,9 +278,9 @@ struct DropRowView: View {
         let isMyDropsDestination = viewModel.selectedExplorerDestination == .myDrops
         let canDeleteDrop = drop.createdBy == currentUserId
         
-        let titleFont = Font.system(size: 11, weight: .semibold)
-        let descriptionFont = Font.system(size: 9)
-        let actionFont = Font.system(size: 9, weight: .semibold)
+        let titleFont = geoDropTheme.typography.title
+        let descriptionFont = geoDropTheme.typography.body
+        let actionFont = geoDropTheme.typography.body.weight(.semibold)
 
         return VStack(alignment: .leading, spacing: 12) {
             Button {
@@ -717,7 +717,7 @@ struct DropRowView: View {
 
     private var photoPlaceholder: some View {
         Image(systemName: "photo")
-            .font(.title2)
+            .font(geoDropTheme.typography.title)
             .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -820,7 +820,7 @@ extension DropFeedView {
         let destination = viewModel.selectedExplorerDestination
         return VStack(spacing: 12) {
             Image(systemName: destination.emptyStateIcon)
-                .font(.title2.weight(.semibold))
+                .font(geoDropTheme.typography.title.weight(.semibold))
                 .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
             Text(destination.emptyStateTitle)
                 .font(.subheadline.weight(.semibold))
@@ -849,7 +849,7 @@ extension DropFeedView {
     private func errorStateView(message: String) -> some View {
         VStack(spacing: 12) {
             Image(systemName: "exclamationmark.triangle")
-                .font(.title2)
+                .font(geoDropTheme.typography.title)
                 .foregroundColor(geoDropTheme.colors.tertiary)
             Text("Couldn't load drops")
                 .font(.subheadline.weight(.semibold))
