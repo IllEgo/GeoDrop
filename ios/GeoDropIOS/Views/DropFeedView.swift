@@ -278,9 +278,9 @@ struct DropRowView: View {
         let isMyDropsDestination = viewModel.selectedExplorerDestination == .myDrops
         let canDeleteDrop = drop.createdBy == currentUserId
         
-        let titleFont = Font.system(size: 14, weight: .semibold)
-        let descriptionFont = Font.system(size: 12)
-        let actionFont = Font.system(size: 12, weight: .semibold)
+        let titleFont = Font.system(size: 11, weight: .semibold)
+        let descriptionFont = Font.system(size: 9)
+        let actionFont = Font.system(size: 9, weight: .semibold)
 
         return VStack(alignment: .leading, spacing: 12) {
             Button {
