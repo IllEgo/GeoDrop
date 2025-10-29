@@ -273,6 +273,7 @@ fun DropHereScreen(
     val termsPrefs = remember(ctx) { TermsPreferences(ctx) }
     var hasAcceptedTerms by remember { mutableStateOf(termsPrefs.hasAcceptedTerms()) }
     var hasViewedOnboarding by remember { mutableStateOf(termsPrefs.hasViewedFirstRunOnboarding()) }
+    var showOnboardingHelp by remember { mutableStateOf(false) }
     var guestModeEnabled by rememberSaveable { mutableStateOf(false) }
     var showAccountSignIn by remember { mutableStateOf(false) }
     var accountAuthMode by remember { mutableStateOf(AccountAuthMode.SIGN_IN) }
@@ -681,6 +682,15 @@ fun DropHereScreen(
             onExit = {
                 (ctx as? Activity)?.finish()
             }
+        )
+        return
+    }
+
+    if (showOnboardingHelp) {
+        FirstRunOnboardingScreen(
+            onContinue = { showOnboardingHelp = false },
+            onExit = { showOnboardingHelp = false },
+            showExitButton = false
         )
         return
     }
@@ -2296,7 +2306,11 @@ fun DropHereScreen(
                 Column(modifier = Modifier.fillMaxWidth()) {
                     TopAppBar(
                         modifier = Modifier.fillMaxWidth(),
-                        title = { GeoDropHeader() },
+                        title = {
+                            GeoDropHeader(
+                                onInfoClick = { showOnboardingHelp = true }
+                            )
+                        },
                         colors = TopAppBarDefaults.topAppBarColors(
                             containerColor = Color.Transparent,
                             scrolledContainerColor = Color.Transparent,
@@ -3559,7 +3573,8 @@ private fun TermsAcceptanceScreen(
 @Composable
 private fun FirstRunOnboardingScreen(
     onContinue: () -> Unit,
-    onExit: () -> Unit
+    onExit: () -> Unit,
+    showExitButton: Boolean = true
 ) {
     val slides = remember {
         listOf(
@@ -3700,11 +3715,13 @@ private fun FirstRunOnboardingScreen(
             }
         }
 
-        TextButton(
-            onClick = onExit,
-            modifier = Modifier.align(Alignment.BottomStart)
-        ) {
-            Text("Exit app")
+        if (showExitButton) {
+            TextButton(
+                onClick = onExit,
+                modifier = Modifier.align(Alignment.BottomStart)
+            ) {
+                Text("Exit app")
+            }
         }
     }
 }
@@ -5950,7 +5967,10 @@ private fun CollectedDropsContent(
 }
 
 @Composable
-private fun GeoDropHeader(modifier: Modifier = Modifier) {
+private fun GeoDropHeader(
+    modifier: Modifier = Modifier,
+    onInfoClick: () -> Unit = {}
+) {
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -5965,6 +5985,16 @@ private fun GeoDropHeader(modifier: Modifier = Modifier) {
             ),
             color = MaterialTheme.colorScheme.primary
         )
+
+        IconButton(
+            onClick = onInfoClick,
+            modifier = Modifier.align(Alignment.CenterEnd)
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Info,
+                contentDescription = stringResource(R.string.content_description_open_onboarding)
+            )
+        }
     }
 }
 
