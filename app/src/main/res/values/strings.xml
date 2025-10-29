@@ -24,7 +24,6 @@
     <string name="push_drop_label_video">your video drop</string>
     <string name="menu_disable_nsfw_drops">Disable NSFW drops</string>
     <string name="menu_enable_nsfw_drops">Enable NSFW drops</string>
-    <string name="menu_faq">GeoDrop FAQ</string>
     <string name="status_signing_out">Signing out…</string>
     <string name="menu_sign_out">Sign out</string>
     <string name="home_destination_explorer">Explorer</string>

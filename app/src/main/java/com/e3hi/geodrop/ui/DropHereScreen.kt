@@ -2539,14 +2539,6 @@ fun DropHereScreen(
                                     )
                                 }
                                 DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.menu_faq)) },
-                                    leadingIcon = { Icon(Icons.Rounded.Help, contentDescription = null) },
-                                    onClick = {
-                                        showAccountMenu = false
-                                        showFaqDialog = true
-                                    }
-                                )
-                                DropdownMenuItem(
                                     text = {
                                         Text(
                                             stringResource(
