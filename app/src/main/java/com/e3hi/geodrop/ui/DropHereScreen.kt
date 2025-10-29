@@ -120,6 +120,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -5940,6 +5941,10 @@ private fun AccountSignInDialog(
     val keyboardController = LocalSoftwareKeyboardController.current
 
     val scrollState = rememberScrollState()
+    val configuration = LocalConfiguration.current
+    val maxDialogHeight = remember(configuration) {
+        (configuration.screenHeightDp.dp * 0.9f).coerceAtLeast(0.dp)
+    }
 
     val hideKeyboardAndClearFocus = {
         keyboardController?.hide()
@@ -5983,6 +5988,7 @@ private fun AccountSignInDialog(
             Column(
                 modifier = Modifier
                     .padding(24.dp)
+                    .heightIn(max = maxDialogHeight)
                     .verticalScroll(scrollState),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
