@@ -16,6 +16,7 @@ import com.e3hi.geodrop.data.NoteInventory
 import com.e3hi.geodrop.geo.DropDecisionReceiver
 import com.e3hi.geodrop.ui.DropDetailActivity
 import com.e3hi.geodrop.util.EXTRA_SHOW_DECISION_OPTIONS
+import com.e3hi.geodrop.util.ExplorerAccountStore
 import com.e3hi.geodrop.util.CHANNEL_NEARBY
 import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofencingEvent
@@ -41,8 +42,9 @@ class GeofenceReceiver : BroadcastReceiver() {
         // There can be multiple. We'll notify for the first.
         val id = event.triggeringGeofences?.firstOrNull()?.requestId ?: return
 
+        val authUserId = FirebaseAuth.getInstance().currentUser?.uid
         val inventory = NoteInventory(context)
-        inventory.setActiveUser(FirebaseAuth.getInstance().currentUser?.uid)
+        inventory.setActiveUser(authUserId)
         if (inventory.isCollected(id) || inventory.isIgnored(id)) {
             Log.d("GeoDrop", "Skipping geofence $id because it was already processed locally.")
             return
@@ -122,10 +124,12 @@ class GeofenceReceiver : BroadcastReceiver() {
                     DropContentType.AUDIO -> "Audio drop nearby"
                     DropContentType.VIDEO -> "Video drop nearby"
                 }
+                val userIdForIntent = authUserId ?: ExplorerAccountStore(context).getLastExplorerUid()
                 val pickupIntent = Intent(context, DropDecisionReceiver::class.java).apply {
                     action = DropDecisionReceiver.ACTION_PICK_UP
                     putExtra(DropDecisionReceiver.EXTRA_DROP_ID, id)
                     dropText?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_TEXT, it) }
+                    userIdForIntent?.let { putExtra(DropDecisionReceiver.EXTRA_USER_ID, it) }
                     dropDescription?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_DESCRIPTION, it) }
                     dropLat?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_LAT, it) }
                     dropLng?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_LNG, it) }
@@ -148,6 +152,7 @@ class GeofenceReceiver : BroadcastReceiver() {
                 val ignoreIntent = Intent(context, DropDecisionReceiver::class.java).apply {
                     action = DropDecisionReceiver.ACTION_IGNORE
                     putExtra(DropDecisionReceiver.EXTRA_DROP_ID, id)
+                    userIdForIntent?.let { putExtra(DropDecisionReceiver.EXTRA_USER_ID, it) }
                 }
 
                 val ignorePending = PendingIntent.getBroadcast(

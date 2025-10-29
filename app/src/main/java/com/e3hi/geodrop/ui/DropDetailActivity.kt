@@ -1307,6 +1307,9 @@ class DropDetailActivity : ComponentActivity() {
                                                     val pickupIntent = Intent(appContext, DropDecisionReceiver::class.java).apply {
                                                         action = DropDecisionReceiver.ACTION_PICK_UP
                                                         putExtra(DropDecisionReceiver.EXTRA_DROP_ID, dropId)
+                                                        FirebaseAuth.getInstance().currentUser?.uid?.let {
+                                                            putExtra(DropDecisionReceiver.EXTRA_USER_ID, it)
+                                                        }
                                                         current.text?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_TEXT, it) }
                                                         current.description?.takeIf { it.isNotBlank() }?.let {
                                                             putExtra(DropDecisionReceiver.EXTRA_DROP_DESCRIPTION, it)
@@ -1346,6 +1349,9 @@ class DropDetailActivity : ComponentActivity() {
                                                     val ignoreIntent = Intent(appContext, DropDecisionReceiver::class.java).apply {
                                                         action = DropDecisionReceiver.ACTION_IGNORE
                                                         putExtra(DropDecisionReceiver.EXTRA_DROP_ID, dropId)
+                                                        FirebaseAuth.getInstance().currentUser?.uid?.let {
+                                                            putExtra(DropDecisionReceiver.EXTRA_USER_ID, it)
+                                                        }
                                                     }
                                                     val result = runCatching {
                                                         appContext.sendBroadcast(ignoreIntent)

@@ -13,6 +13,7 @@ import com.e3hi.geodrop.data.DropContentType
 import com.e3hi.geodrop.data.DropType
 import com.e3hi.geodrop.data.FirestoreRepo
 import com.e3hi.geodrop.data.NoteInventory
+import com.e3hi.geodrop.util.ExplorerAccountStore
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
@@ -39,7 +40,7 @@ class DropDecisionReceiver : BroadcastReceiver() {
             try {
                 when (action) {
                     ACTION_PICK_UP -> handlePickUp(context, intent, dropId)
-                    ACTION_IGNORE -> handleIgnore(context, dropId)
+                    ACTION_IGNORE -> handleIgnore(context, intent, dropId)
                 }
             } finally {
                 withContext(Dispatchers.Main) {
@@ -51,6 +52,9 @@ class DropDecisionReceiver : BroadcastReceiver() {
     }
 
     private suspend fun handlePickUp(context: Context, intent: Intent, dropId: String) {
+        val userId = intent.getStringExtra(EXTRA_USER_ID)?.takeIf { it.isNotBlank() }
+            ?: FirebaseAuth.getInstance().currentUser?.uid
+            ?: ExplorerAccountStore(context).getLastExplorerUid()
         val text = intent.getStringExtra(EXTRA_DROP_TEXT) ?: ""
         val description = intent.getStringExtra(EXTRA_DROP_DESCRIPTION)
         val contentType = DropContentType.fromRaw(intent.getStringExtra(EXTRA_DROP_CONTENT_TYPE))
@@ -97,7 +101,7 @@ class DropDecisionReceiver : BroadcastReceiver() {
 
         val dropperUsername = runCatching { repo.fetchDropperUsername(dropId) }.getOrNull()
         val inventory = NoteInventory(context)
-        inventory.setActiveUser(FirebaseAuth.getInstance().currentUser?.uid)
+        inventory.setActiveUser(userId)
         val note = CollectedNote(
             id = dropId,
             text = text,
@@ -123,7 +127,6 @@ class DropDecisionReceiver : BroadcastReceiver() {
         )
         inventory.saveCollected(note)
 
-        val userId = FirebaseAuth.getInstance().currentUser?.uid
         if (!userId.isNullOrBlank()) {
             try {
                 repo.markDropCollected(dropId, userId)
@@ -136,9 +139,12 @@ class DropDecisionReceiver : BroadcastReceiver() {
         Log.d(TAG, "Collected drop $dropId and added to inventory")
     }
 
-    private suspend fun handleIgnore(context: Context, dropId: String) {
+    private suspend fun handleIgnore(context: Context, intent: Intent, dropId: String) {
+        val userId = intent.getStringExtra(EXTRA_USER_ID)?.takeIf { it.isNotBlank() }
+            ?: FirebaseAuth.getInstance().currentUser?.uid
+            ?: ExplorerAccountStore(context).getLastExplorerUid()
         val inventory = NoteInventory(context)
-        inventory.setActiveUser(FirebaseAuth.getInstance().currentUser?.uid)
+        inventory.setActiveUser(userId)
         inventory.markIgnored(dropId)
         removeGeofence(context, dropId)
         Log.d(TAG, "Ignored drop $dropId")
@@ -209,6 +215,7 @@ class DropDecisionReceiver : BroadcastReceiver() {
         const val ACTION_IGNORE = "com.e3hi.geodrop.action.IGNORE_DROP"
 
         const val EXTRA_DROP_ID = "extra_drop_id"
+        const val EXTRA_USER_ID = "extra_user_id"
         const val EXTRA_DROP_TEXT = "extra_drop_text"
         const val EXTRA_DROP_DESCRIPTION = "extra_drop_description"
         const val EXTRA_DROP_CONTENT_TYPE = "extra_drop_content_type"

@@ -896,7 +896,10 @@ fun DropHereScreen(
 
     LaunchedEffect(currentUser?.uid) {
         val user = currentUser ?: return@LaunchedEffect
-        if (!user.isAnonymous) return@LaunchedEffect
+        if (!user.isAnonymous) {
+            explorerAccountStore.setLastExplorerUid(user.uid)
+            return@LaunchedEffect
+        }
 
         val storedExplorerId = explorerAccountStore.getLastExplorerUid()
         if (storedExplorerId.isNullOrBlank()) {
@@ -1142,6 +1145,7 @@ fun DropHereScreen(
         val intent = Intent(appContext, DropDecisionReceiver::class.java).apply {
             action = DropDecisionReceiver.ACTION_PICK_UP
             putExtra(DropDecisionReceiver.EXTRA_DROP_ID, drop.id)
+            currentUserId?.let { putExtra(DropDecisionReceiver.EXTRA_USER_ID, it) }
             if (drop.text.isNotBlank()) {
                 putExtra(DropDecisionReceiver.EXTRA_DROP_TEXT, drop.text)
             }
