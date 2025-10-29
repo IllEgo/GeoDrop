@@ -3674,6 +3674,16 @@ private fun FirstRunOnboardingScreen(
                 icon = Icons.Rounded.Storefront,
                 title = "Share your own moments",
                 description = "Create drops with photos, audio, or coupons so nearby explorers can discover your business or story."
+            ),
+            OnboardingSlide(
+                icon = Icons.Rounded.AccountCircle,
+                title = "Build your profile",
+                description = "Personalize your explorer profile to track progress and highlight the drops you're proud of."
+            ),
+            OnboardingSlide(
+                icon = Icons.Rounded.Groups,
+                title = "Join community groups",
+                description = "Follow local crews or start your own group to coordinate adventures and share exclusive drops."
             )
         )
     }
