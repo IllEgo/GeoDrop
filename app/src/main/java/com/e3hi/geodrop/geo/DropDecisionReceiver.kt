@@ -52,9 +52,11 @@ class DropDecisionReceiver : BroadcastReceiver() {
     }
 
     private suspend fun handlePickUp(context: Context, intent: Intent, dropId: String) {
+        val accountStore = ExplorerAccountStore(context)
+        val storedExplorerId = accountStore.getLastExplorerUid()
         val userId = intent.getStringExtra(EXTRA_USER_ID)?.takeIf { it.isNotBlank() }
             ?: FirebaseAuth.getInstance().currentUser?.uid
-            ?: ExplorerAccountStore(context).getLastExplorerUid()
+            ?: storedExplorerId
         val text = intent.getStringExtra(EXTRA_DROP_TEXT) ?: ""
         val description = intent.getStringExtra(EXTRA_DROP_DESCRIPTION)
         val contentType = DropContentType.fromRaw(intent.getStringExtra(EXTRA_DROP_CONTENT_TYPE))
@@ -126,6 +128,10 @@ class DropDecisionReceiver : BroadcastReceiver() {
             decayDays = decayDays
         )
         inventory.saveCollected(note)
+
+        if (!userId.isNullOrBlank()) {
+            accountStore.setLastExplorerUid(userId)
+        }
 
         if (!userId.isNullOrBlank()) {
             try {
