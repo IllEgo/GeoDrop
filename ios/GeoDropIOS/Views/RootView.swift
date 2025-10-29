@@ -161,12 +161,12 @@ struct TutorialSlidesView: View {
                             }
 
                             Text(slide.title)
-                                .font(.title3.weight(.semibold))
+                                .font(.headline.weight(.semibold))
                                 .multilineTextAlignment(.center)
                                 .foregroundColor(geoDropTheme.colors.onSurface)
 
                             Text(slide.description)
-                                .font(.body)
+                                .font(.system(size: 11))
                                 .multilineTextAlignment(.center)
                                 .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
                         }

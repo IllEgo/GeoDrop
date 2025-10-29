@@ -809,7 +809,7 @@ extension DropFeedView {
     private var dropCount: Int { displayedDrops.count }
 
     private var dropCountText: String {
-        dropCount == 1 ? "1 drop" : "\(dropCount) drops"
+        dropCount == 1 ? "1" : "\(dropCount)"
     }
 
     private var dropCountAccessibilityLabel: String {
