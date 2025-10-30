@@ -2455,6 +2455,7 @@ fun DropHereScreen(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .padding(horizontal = 24.dp)
+                .zIndex(2f)
                 .padding(top = celebrationTopPadding),
             visible = pickupCelebrationVisible && pickupCelebrationDrop != null,
             dropTitle = pickupCelebrationDrop?.displayTitle()
