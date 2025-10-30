@@ -647,6 +647,7 @@ fun DropHereScreen(
     var collectedNotes by remember { mutableStateOf(noteInventory.getCollectedNotes()) }
     var ignoredDropIds by remember { mutableStateOf(noteInventory.getIgnoredDropIds()) }
     val collectedDropIds = remember(collectedNotes) { collectedNotes.map { it.id }.toSet() }
+    var collectedPendingRemove by remember { mutableStateOf<CollectedNote?>(null) }
 
     LaunchedEffect(currentUser?.uid) {
         noteInventory.setActiveUser(currentUser?.uid)
@@ -3101,6 +3102,32 @@ fun DropHereScreen(
                                     !canParticipate -> participationRestriction("react to drops")
                                     else -> null
                                 }
+                                val pendingRemoval = collectedPendingRemove
+                                if (pendingRemoval != null) {
+                                    AlertDialog(
+                                        onDismissRequest = { collectedPendingRemove = null },
+                                        icon = { Icon(Icons.Filled.Delete, contentDescription = null) },
+                                        title = { Text("Delete saved drop?") },
+                                        text = { Text("Are you sure you want to delete this saved drop?") },
+                                        confirmButton = {
+                                            TextButton(
+                                                onClick = {
+                                                    noteInventory.removeCollected(pendingRemoval.id)
+                                                    collectedNotes = noteInventory.getCollectedNotes()
+                                                    collectedPendingRemove = null
+                                                }
+                                            ) {
+                                                Text("Delete")
+                                            }
+                                        },
+                                        dismissButton = {
+                                            TextButton(onClick = { collectedPendingRemove = null }) {
+                                                Text("Cancel")
+                                            }
+                                        }
+                                    )
+                                }
+
                                 CollectedDropsContent(
                                     modifier = Modifier.fillMaxSize(),
                                     topContentPadding = mapAwareTopPadding,
@@ -3182,8 +3209,7 @@ fun DropHereScreen(
                                         ctx.startActivity(intent)
                                     },
                                     onRemove = { note ->
-                                        noteInventory.removeCollected(note.id)
-                                        collectedNotes = noteInventory.getCollectedNotes()
+                                        collectedPendingRemove = note
                                     }
                                 )
                             }
