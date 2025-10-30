@@ -888,6 +888,7 @@ fun DropHereScreen(
     var myDropsRefreshToken by remember { mutableStateOf(0) }
     var myDropsCurrentLocation by remember { mutableStateOf<LatLng?>(null) }
     var myDropsDeletingId by remember { mutableStateOf<String?>(null) }
+    var myDropsPendingDelete by remember { mutableStateOf<Drop?>(null) }
     var myDropsSelectedId by remember { mutableStateOf<String?>(null) }
     var myDropsSortKey by rememberSaveable { mutableStateOf(DropSortOption.NEWEST.name) }
     var myDropCountHint by remember { mutableStateOf<Int?>(null) }
@@ -2948,6 +2949,57 @@ fun DropHereScreen(
                     }
 
                     ExplorerDestination.MyDrops -> {
+                        fun performDropDeletion(drop: Drop) {
+                            if (drop.id.isBlank()) {
+                                snackbar.showMessage(scope, "Unable to delete this drop.")
+                                return
+                            }
+
+                            myDropsDeletingId = drop.id
+                            scope.launch {
+                                try {
+                                    repo.deleteDrop(drop.id)
+                                    val updated = myDrops.filterNot { it.id == drop.id }
+                                    myDrops = updated
+                                    myDropCountHint = updated.size
+                                    myDropPendingReviewHint = updated.count { it.reportCount > 0 }
+                                    if (myDropsSelectedId == drop.id) {
+                                        myDropsSelectedId = updated.firstOrNull()?.id
+                                    }
+                                    snackbar.showMessage(scope, "Drop deleted.")
+                                } catch (e: Exception) {
+                                    snackbar.showMessage(scope, "Error: ${'$'}{e.message}")
+                                } finally {
+                                    myDropsDeletingId = null
+                                }
+                            }
+                        }
+
+                        val pendingDeletion = myDropsPendingDelete
+                        if (pendingDeletion != null) {
+                            AlertDialog(
+                                onDismissRequest = { myDropsPendingDelete = null },
+                                icon = { Icon(Icons.Filled.Delete, contentDescription = null) },
+                                title = { Text("Delete drop?") },
+                                text = { Text("Are you sure you want to delete this drop?") },
+                                confirmButton = {
+                                    TextButton(
+                                        onClick = {
+                                            myDropsPendingDelete = null
+                                            performDropDeletion(pendingDeletion)
+                                        }
+                                    ) {
+                                        Text("Delete")
+                                    }
+                                },
+                                dismissButton = {
+                                    TextButton(onClick = { myDropsPendingDelete = null }) {
+                                        Text("Cancel")
+                                    }
+                                }
+                            )
+                        }
+
                         Column(
                             modifier = Modifier
                                 .weight(1f)
@@ -3022,26 +3074,8 @@ fun DropHereScreen(
                                     onDelete = { drop ->
                                         if (drop.id.isBlank()) {
                                             snackbar.showMessage(scope, "Unable to delete this drop.")
-                                            return@MyDropsContent
-                                        }
-
-                                        myDropsDeletingId = drop.id
-                                        scope.launch {
-                                            try {
-                                                repo.deleteDrop(drop.id)
-                                                val updated = myDrops.filterNot { it.id == drop.id }
-                                                myDrops = updated
-                                                myDropCountHint = updated.size
-                                                myDropPendingReviewHint = updated.count { it.reportCount > 0 }
-                                                if (myDropsSelectedId == drop.id) {
-                                                    myDropsSelectedId = updated.firstOrNull()?.id
-                                                }
-                                                snackbar.showMessage(scope, "Drop deleted.")
-                                            } catch (e: Exception) {
-                                                snackbar.showMessage(scope, "Error: ${'$'}{e.message}")
-                                            } finally {
-                                                myDropsDeletingId = null
-                                            }
+                                        } else {
+                                            myDropsPendingDelete = drop
                                         }
                                     }
                                 )
