@@ -778,11 +778,11 @@ struct BusinessTemplateCard: View {
             VStack(alignment: .leading, spacing: 6) {
                 if !template.caption.isEmpty {
                     Text(template.caption)
-                        .font(.body.weight(.semibold))
+                        .font(geoDropTheme.typography.body.weight(.semibold))
                         .foregroundColor(geoDropTheme.colors.onSurface)
                 }
                 Text(template.note)
-                    .font(.body)
+                    .font(geoDropTheme.typography.body)
                     .foregroundColor(geoDropTheme.colors.onSurface)
                 if let callToAction = template.callToAction, !callToAction.isEmpty {
                     Text(callToAction)
@@ -871,7 +871,7 @@ struct BusinessTemplateBrowserView: View {
                 ForEach(filteredGroups, id: \.id) { metadata in
                     VStack(alignment: .leading, spacing: 16) {
                         Text(metadata.title)
-                            .font(.title3.weight(.semibold))
+                            .font(geoDropTheme.typography.title.weight(.semibold))
                             .foregroundColor(geoDropTheme.colors.onSurface)
                         Text(metadata.description)
                             .font(.footnote)
@@ -932,7 +932,7 @@ struct BusinessTemplateBrowserView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Browse template ideas")
-                .font(.title2.weight(.semibold))
+                .font(geoDropTheme.typography.title.weight(.semibold))
                 .foregroundColor(geoDropTheme.colors.onSurface)
             if let summary = selectedCategorySummary {
                 Text("Showing highlights for \(summary).")
@@ -953,7 +953,7 @@ struct BusinessTemplateBrowserView: View {
         } else {
             VStack(alignment: .leading, spacing: 16) {
                 Text(title)
-                    .font(.title3.weight(.semibold))
+                    .font(geoDropTheme.typography.title.weight(.semibold))
                     .foregroundColor(geoDropTheme.colors.onSurface)
                 Text(subtitle)
                     .font(.footnote)

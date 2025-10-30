@@ -277,7 +277,7 @@ struct BusinessDashboardView: View {
             } else if let message = errorMessage {
                 VStack(spacing: 16) {
                     Image(systemName: "exclamationmark.triangle")
-                        .font(.title2)
+                        .font(geoDropTheme.typography.title)
                         .foregroundColor(geoDropTheme.colors.tertiary)
                     Text(message)
                         .multilineTextAlignment(.center)
@@ -317,7 +317,7 @@ struct BusinessDashboardView: View {
         VStack(alignment: .leading, spacing: 4) {
             if let name = profile?.businessName, !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 Text(name)
-                    .font(.title2.weight(.semibold))
+                    .font(geoDropTheme.typography.title.weight(.semibold))
                     .foregroundColor(geoDropTheme.colors.onSurface)
             }
             Text("A snapshot of how your drops are performing.")
@@ -374,7 +374,7 @@ struct BusinessDashboardView: View {
     private func metricTile(value: Int, label: String) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("\(value)")
-                .font(.title.weight(.semibold))
+                .font(geoDropTheme.typography.title.weight(.semibold))
                 .foregroundColor(geoDropTheme.colors.onSurface)
             Text(label)
                 .font(.footnote)

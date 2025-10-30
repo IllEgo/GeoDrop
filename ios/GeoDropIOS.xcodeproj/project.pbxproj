@@ -16,6 +16,7 @@
 		75175E102EAB736000CAB223 /* MainBottomBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75175E0F2EAB735B00CAB223 /* MainBottomBar.swift */; };
 		7526DC7F2EACCA4000B971AF /* FormSectionHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7526DC7E2EACCA3600B971AF /* FormSectionHeader.swift */; };
 		7530B2102EAF55F9008A2082 /* StorageAsyncImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7530B20F2EAF55EC008A2082 /* StorageAsyncImage.swift */; };
+		753DDA0F2EB20EB10041FE95 /* GeoDropTypography.swift in Sources */ = {isa = PBXBuildFile; fileRef = 753DDA0E2EB20E960041FE95 /* GeoDropTypography.swift */; };
 		754971482EA9CA840079D5BF /* GoogleMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 754971472EA9CA7D0079D5BF /* GoogleMapView.swift */; };
 		7549714A2EA9F84E0079D5BF /* OnboardingViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 754971492EA9F8410079D5BF /* OnboardingViews.swift */; };
 		7549714C2EAA064F0079D5BF /* BusinessDropTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7549714B2EAA06420079D5BF /* BusinessDropTemplate.swift */; };
@@ -56,6 +57,7 @@
 		75175E0F2EAB735B00CAB223 /* MainBottomBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainBottomBar.swift; sourceTree = "<group>"; };
 		7526DC7E2EACCA3600B971AF /* FormSectionHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FormSectionHeader.swift; sourceTree = "<group>"; };
 		7530B20F2EAF55EC008A2082 /* StorageAsyncImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageAsyncImage.swift; sourceTree = "<group>"; };
+		753DDA0E2EB20E960041FE95 /* GeoDropTypography.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeoDropTypography.swift; sourceTree = "<group>"; };
 		754971472EA9CA7D0079D5BF /* GoogleMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleMapView.swift; sourceTree = "<group>"; };
 		754971492EA9F8410079D5BF /* OnboardingViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingViews.swift; sourceTree = "<group>"; };
 		7549714B2EAA06420079D5BF /* BusinessDropTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BusinessDropTemplate.swift; sourceTree = "<group>"; };
@@ -167,6 +169,7 @@
 		AA0000400000000000000005 /* Config */ = {
 			isa = PBXGroup;
 			children = (
+				753DDA0E2EB20E960041FE95 /* GeoDropTypography.swift */,
 				75175E092EAB46DF00CAB223 /* GeoDropColors.swift */,
 				AA0000200000000000000002 /* AppConfiguration.swift */,
 			);
@@ -411,6 +414,7 @@
 				AA0000100000000000000008 /* LocationService.swift in Sources */,
 				AA0000100000000000000007 /* FirestoreService.swift in Sources */,
 				AA0000100000000000000006 /* AuthService.swift in Sources */,
+				753DDA0F2EB20EB10041FE95 /* GeoDropTypography.swift in Sources */,
 				75175E0C2EAB68EF00CAB223 /* ExplorerDestination.swift in Sources */,
 				75175E082EAB370C00CAB223 /* NoteInventoryService.swift in Sources */,
 				AA0000100000000000000005 /* UserProfile.swift in Sources */,

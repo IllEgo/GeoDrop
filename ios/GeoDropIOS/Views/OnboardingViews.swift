@@ -20,7 +20,7 @@ struct TermsAcceptanceView: View {
                         .padding(.top, 40)
 
                     Text("Before you explore GeoDrop, please review and accept our Terms of Service and Privacy Policy.")
-                        .font(.title3.weight(.semibold))
+                        .font(geoDropTheme.typography.title.weight(.semibold))
                         .foregroundColor(geoDropTheme.colors.onSurface)
                         .multilineTextAlignment(.center)
 
@@ -96,7 +96,7 @@ struct OnboardingChecklistView: View {
             ScrollView {
                 VStack(spacing: 24) {
                     Text("You're almost ready!")
-                        .font(.title.weight(.bold))
+                        .font(geoDropTheme.typography.title.weight(.bold))
                         .foregroundColor(geoDropTheme.colors.onSurface)
                         .multilineTextAlignment(.center)
                         .padding(.top, 32)
@@ -105,7 +105,7 @@ struct OnboardingChecklistView: View {
                         ForEach(checklist) { item in
                             HStack(alignment: .top, spacing: 16) {
                                 Image(systemName: item.icon)
-                                    .font(.title3)
+                                    .font(geoDropTheme.typography.title)
                                     .foregroundColor(geoDropTheme.colors.primary)
                                     .frame(width: 32, height: 32)
                                 VStack(alignment: .leading, spacing: 6) {
@@ -162,7 +162,7 @@ struct UserModeSelectionView: View {
             ScrollView {
                 VStack(spacing: 24) {
                     Text("How would you like to use GeoDrop?")
-                        .font(.title2.weight(.bold))
+                        .font(geoDropTheme.typography.title.weight(.bold))
                         .foregroundColor(geoDropTheme.colors.onSurface)
                         .multilineTextAlignment(.center)
                         .padding(.top, 32)
@@ -212,7 +212,7 @@ struct UserModeSelectionView: View {
             VStack(alignment: .leading, spacing: 16) {
                 HStack(spacing: 12) {
                     Image(systemName: icon)
-                        .font(.title3)
+                        .font(geoDropTheme.typography.title)
                         .foregroundColor(geoDropTheme.colors.primary)
                     Text(title)
                         .font(.subheadline.weight(.semibold))

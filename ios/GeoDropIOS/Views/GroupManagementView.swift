@@ -46,7 +46,7 @@ extension GroupManagementView {
                     groupCode = ""
                 } label: {
                     Label("Join group", systemImage: "person.crop.circle.badge.plus")
-                        .font(.body.weight(.semibold))
+                        .font(geoDropTheme.typography.body.weight(.semibold))
                 }
                 .disabled(groupCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             } header: {
@@ -67,7 +67,7 @@ extension GroupManagementView {
                         HStack {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(group.code)
-                                    .font(.body.weight(.semibold))
+                                    .font(geoDropTheme.typography.body.weight(.semibold))
                                 if group.code == viewModel.selectedGroupCode {
                                     Text("Currently active")
                                         .font(.caption)

@@ -435,11 +435,11 @@ struct NotificationRadiusSheet: View {
     private var content: some View {
         VStack(alignment: .leading, spacing: 24) {
             Text("Choose how close a drop should be before we alert you.")
-                .font(.body)
+                .font(geoDropTheme.typography.body)
                 .foregroundColor(geoDropTheme.colors.onSurface)
 
             Text("\(Int(sliderValue)) meters")
-                .font(.title3.weight(.semibold))
+                .font(geoDropTheme.typography.title.weight(.semibold))
                 .foregroundColor(geoDropTheme.colors.onSurface)
 
             Slider(

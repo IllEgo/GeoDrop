@@ -94,6 +94,9 @@ final class AppViewModel: ObservableObject {
     @Published var isShowingGroupMenu: Bool = false
     @Published var isShowingGroupManagement: Bool = false
     @Published var isShowingNotificationRadius: Bool = false
+    @Published var isShowingTutorialSlides: Bool = false
+    @Published var isShowingFaq: Bool = false
+    @Published var infoMenuURL: URL?
 
     private let authService = AuthService.shared
     private let firestore = FirestoreService.shared
@@ -1093,6 +1096,38 @@ final class AppViewModel: ObservableObject {
     func setNotificationRadius(_ meters: Double) {
         notificationPreferences.setRadiusMeters(meters)
         notificationRadiusMeters = notificationPreferences.radiusMeters()
+    }
+    
+    func showTutorialSlides() {
+        hideTransientOverlays()
+        isShowingTutorialSlides = true
+    }
+
+    func dismissTutorialSlides() {
+        isShowingTutorialSlides = false
+    }
+
+    func showFaq() {
+        hideTransientOverlays()
+        isShowingFaq = true
+    }
+
+    func dismissFaq() {
+        isShowingFaq = false
+    }
+
+    func showTermsOfService() {
+        hideTransientOverlays()
+        infoMenuURL = URL(string: "https://www.geodrop.app/terms")
+    }
+
+    func showPrivacyPolicy() {
+        hideTransientOverlays()
+        infoMenuURL = URL(string: "https://www.geodrop.app/privacy")
+    }
+
+    func dismissInfoMenuLink() {
+        infoMenuURL = nil
     }
 
     func toggleAllowNsfw() {
