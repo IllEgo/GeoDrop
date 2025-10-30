@@ -7352,7 +7352,7 @@ private fun OtherDropsExplorerSection(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         when {
-                loading -> {
+            loading && drops.isEmpty() -> {
                     Box(
                         modifier = Modifier
                             .weight(1f)
@@ -7451,6 +7451,15 @@ private fun OtherDropsExplorerSection(
                                 notificationRadiusMeters = notificationRadiusMeters,
                                 onDropClick = onSelect
                             )
+
+                            if (loading) {
+                                LinearProgressIndicator(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 20.dp)
+                                        .align(Alignment.TopCenter)
+                                )
+                            }
                         }
 
                         Box(modifier = dividerModifier) {
