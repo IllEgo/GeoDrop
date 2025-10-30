@@ -28,6 +28,18 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.background
@@ -115,8 +127,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.ContentScale
@@ -198,6 +211,7 @@ import com.e3hi.geodrop.data.requiresRedemption
 import com.e3hi.geodrop.data.userLikeStatus
 import com.e3hi.geodrop.data.isBusiness
 import com.e3hi.geodrop.data.VisionApiStatus
+import kotlinx.coroutines.delay
 import com.e3hi.geodrop.data.isExpired
 import com.e3hi.geodrop.data.remainingDecayMillis
 import com.e3hi.geodrop.data.decayAtMillis
@@ -304,6 +318,8 @@ fun DropHereScreen(
     var showNsfwDialog by remember { mutableStateOf(false) }
     var nsfwUpdating by remember { mutableStateOf(false) }
     var nsfwUpdateError by remember { mutableStateOf<String?>(null) }
+    var pickupCelebrationDrop by remember { mutableStateOf<Drop?>(null) }
+    var pickupCelebrationVisible by remember { mutableStateOf(false) }
     val defaultWebClientId = remember(ctx) {
         val resourceId = ctx.resources.getIdentifier(
             "default_web_client_id",
@@ -334,6 +350,16 @@ fun DropHereScreen(
                 .requestEmail()
                 .build()
         )
+    }
+
+    LaunchedEffect(pickupCelebrationDrop) {
+        if (pickupCelebrationDrop != null) {
+            pickupCelebrationVisible = true
+            delay(2200)
+            pickupCelebrationVisible = false
+            delay(300)
+            pickupCelebrationDrop = null
+        }
     }
 
     fun resetAccountAuthFields(clearEmail: Boolean) {
@@ -1212,6 +1238,7 @@ fun DropHereScreen(
                 otherDropsSelectedId = remaining.firstOrNull()?.id
             }
             snackbar.showMessage(scope, "Drop added to your collection.")
+            pickupCelebrationDrop = drop
 
             val userId = currentUserId
             if (!userId.isNullOrBlank()) {
@@ -2359,6 +2386,7 @@ fun DropHereScreen(
 
     var topBarHeightPx by remember { mutableStateOf(0) }
     var explorerNavigationHeightPx by remember { mutableStateOf(0) }
+    val density = LocalDensity.current
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(
@@ -2419,6 +2447,18 @@ fun DropHereScreen(
                 Divider()
             }
         }
+
+        val celebrationTopPadding = with(density) {
+            (topBarHeightPx + explorerNavigationHeightPx).toDp()
+        } + 16.dp
+        PickupCelebrationBanner(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(horizontal = 24.dp)
+                .padding(top = celebrationTopPadding),
+            visible = pickupCelebrationVisible && pickupCelebrationDrop != null,
+            dropTitle = pickupCelebrationDrop?.displayTitle()
+        )
 
         Scaffold(
             modifier = Modifier.fillMaxSize(),
@@ -8817,6 +8857,97 @@ private fun DropTitleText(
         maxLines = maxLines,
         overflow = overflow
     )
+}
+
+@Composable
+private fun PickupCelebrationBanner(
+    modifier: Modifier = Modifier,
+    visible: Boolean,
+    dropTitle: String?
+) {
+    if (dropTitle.isNullOrBlank()) return
+    val infiniteTransition = rememberInfiniteTransition(label = "pickupCelebration")
+    val sparkleOffset by infiniteTransition.animateFloat(
+        initialValue = -4f,
+        targetValue = 4f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 900, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pickupSparkleOffset"
+    )
+    val shimmerAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.65f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pickupShimmerAlpha"
+    )
+
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(animationSpec = tween(durationMillis = 200)) + scaleIn(
+            initialScale = 0.9f,
+            animationSpec = spring(
+                dampingRatio = Spring.DampingRatioMediumBouncy,
+                stiffness = Spring.StiffnessLow
+            )
+        ),
+        exit = fadeOut(animationSpec = tween(durationMillis = 250)) + scaleOut(
+            targetScale = 0.95f,
+            animationSpec = tween(durationMillis = 250)
+        ),
+        modifier = modifier
+    ) {
+        Card(
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+            ),
+            shape = RoundedCornerShape(24.dp),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+        ) {
+            Row(
+                modifier = Modifier
+                    .padding(horizontal = 20.dp, vertical = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Star,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier
+                        .size(36.dp)
+                        .graphicsLayer { translationY = sparkleOffset }
+                )
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Drop collected!",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = dropTitle,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Icon(
+                    imageVector = Icons.Rounded.CheckCircle,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.secondary.copy(alpha = shimmerAlpha),
+                    modifier = Modifier.size(28.dp)
+                )
+            }
+        }
+    }
 }
 
 @Composable
