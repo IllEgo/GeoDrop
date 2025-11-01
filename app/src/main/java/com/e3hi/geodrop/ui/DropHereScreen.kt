@@ -7904,8 +7904,15 @@ private fun CollectedDropsMap(
                     else -> BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN)
                 }
 
+                val markerState = remember(key1 = note.id) {
+                    MarkerState(position)
+                }
+                if (markerState.position != position) {
+                    markerState.position = position
+                }
+
                 Marker(
-                    state = MarkerState(position),
+                    state = markerState,
                     title = title,
                     snippet = snippetParts.joinToString("\n"),
                     icon = markerIcon,
@@ -8900,8 +8907,14 @@ private fun MyDropsMap(
         uiSettings = uiSettings
     ) {
         currentLocation?.let { location ->
+            val markerState = remember(key1 = "my-drops-current-location") {
+                MarkerState(location)
+            }
+            if (markerState.position != location) {
+                markerState.position = location
+            }
             Marker(
-                state = MarkerState(location),
+                state = markerState,
                 title = "Your current location",
                 icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE),
                 zIndex = 1f
@@ -8934,8 +8947,15 @@ private fun MyDropsMap(
                 else -> BitmapDescriptorFactory.defaultMarker(likeHueFor(drop.likeCount))
             }
 
+            val markerState = remember(key1 = drop.id) {
+                MarkerState(position)
+            }
+            if (markerState.position != position) {
+                markerState.position = position
+            }
+
             Marker(
-                state = MarkerState(position),
+                state = markerState,
                 title = drop.displayTitle(),
                 snippet = snippetParts.joinToString("\n"),
                 icon = markerIcon,
@@ -9717,8 +9737,15 @@ private fun OtherDropsMap(
                 )
             }
 
+            val markerState = remember(key1 = "other-drops-current-location") {
+                MarkerState(location)
+            }
+            if (markerState.position != location) {
+                markerState.position = location
+            }
+
             Marker(
-                state = MarkerState(location),
+                state = markerState,
                 title = "Your current location",
                 icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE),
                 zIndex = 1f
@@ -9769,8 +9796,15 @@ private fun OtherDropsMap(
                 else -> descriptorForHue(likeHueFor(drop.likeCount))
             }
 
+            val markerState = remember(key1 = drop.id) {
+                MarkerState(position)
+            }
+            if (markerState.position != position) {
+                markerState.position = position
+            }
+
             Marker(
-                state = MarkerState(position),
+                state = markerState,
                 title = drop.displayTitle(),
                 snippet = snippetParts.joinToString("\n"),
                 icon = markerIcon,
