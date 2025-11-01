@@ -9213,37 +9213,32 @@ private fun OtherDropRow(
                                     count = drop.dislikeCount,
                                     isHighlighted = userLike == DropLikeStatus.DISLIKED
                                 )
+                            }
 
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(5.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                            if (showReport) {
+                                OutlinedButton(
+                                    onClick = onReport,
+                                    enabled = canReport && !alreadyReported && !isReporting
                                 ) {
-                                    if (showReport) {
-                                        OutlinedButton(
-                                            onClick = onReport,
-                                            enabled = canReport && !alreadyReported && !isReporting
-                                        ) {
-                                            if (isReporting) {
-                                                CircularProgressIndicator(
-                                                    modifier = Modifier.size(16.dp),
-                                                    strokeWidth = 2.dp
-                                                )
-                                            } else {
-                                                Icon(
-                                                    Icons.Rounded.Report,
-                                                    contentDescription = null
-                                                )
-                                            }
-                                            Spacer(Modifier.width(8.dp))
-                                            Text(
-                                                text = when {
-                                                    isReporting -> "Reporting..."
-                                                    alreadyReported -> "Reported"
-                                                    else -> "Report"
-                                                }
-                                            )
-                                        }
+                                    if (isReporting) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(16.dp),
+                                            strokeWidth = 2.dp
+                                        )
+                                    } else {
+                                        Icon(
+                                            Icons.Rounded.Report,
+                                            contentDescription = null
+                                        )
                                     }
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(
+                                        text = when {
+                                            isReporting -> "Reporting..."
+                                            alreadyReported -> "Reported"
+                                            else -> "Report"
+                                        }
+                                    )
                                 }
                             }
                         }
