@@ -848,6 +848,7 @@ fun DropHereScreen(
     var showOtherDropsMap by remember { mutableStateOf(false) }
     var otherDrops by remember { mutableStateOf<List<Drop>>(emptyList()) }
     var otherDropsLoading by remember { mutableStateOf(false) }
+    var otherDropsRefreshing by remember { mutableStateOf(false) }
     var otherDropsError by remember { mutableStateOf<String?>(null) }
     var otherDropsCurrentLocation by remember { mutableStateOf<LatLng?>(null) }
     var otherDropsSelectedId by remember { mutableStateOf<String?>(null) }
@@ -2088,18 +2089,29 @@ fun DropHereScreen(
         dismissedBrowseDropIds.toList()
     ) {
         if (explorerHomeVisible) {
-            otherDropsLoading = true
-            otherDropsError = null
-            otherDropsCurrentLocation = null
+            val hadExistingDrops = otherDrops.isNotEmpty()
+            if (hadExistingDrops) {
+                otherDropsRefreshing = true
+                otherDropsError = null
+            } else {
+                otherDropsLoading = true
+                otherDropsError = null
+                otherDropsCurrentLocation = null
+            }
             val rawUid = FirebaseAuth.getInstance().currentUser?.uid
             val effectiveUid = when (userMode) {
                 UserMode.GUEST -> null
                 else -> rawUid
             }
             if (userMode != UserMode.GUEST && effectiveUid == null) {
-                otherDrops = emptyList()
-                otherDropsError = "Sign-in is still in progress. Try again in a moment."
+                if (hadExistingDrops) {
+                    snackbar.showMessage(scope, "Sign-in is still in progress. Try again in a moment.")
+                } else {
+                    otherDrops = emptyList()
+                    otherDropsError = "Sign-in is still in progress. Try again in a moment."
+                }
                 otherDropsLoading = false
+                otherDropsRefreshing = false
             } else {
                 try {
                     val drops = repo.getVisibleDropsForUser(
@@ -2132,17 +2144,24 @@ fun DropHereScreen(
                     otherDropsCurrentLocation = latestLocation
                     otherDropsSelectedId = otherDropsSelectedId?.takeIf { id -> filteredDrops.any { it.id == id } }
                         ?: filteredDrops.firstOrNull()?.id
+                    otherDropsError = null
                 } catch (e: Exception) {
-                    otherDrops = emptyList()
-                    otherDropsError = e.message ?: "Failed to load nearby drops."
+                    if (hadExistingDrops) {
+                        snackbar.showMessage(scope, e.message ?: "Failed to load nearby drops.")
+                    } else {
+                        otherDrops = emptyList()
+                        otherDropsError = e.message ?: "Failed to load nearby drops."
+                    }
                 } finally {
                     otherDropsLoading = false
+                    otherDropsRefreshing = false
                 }
             }
         } else {
             otherDrops = emptyList()
             otherDropsError = null
             otherDropsLoading = false
+            otherDropsRefreshing = false
             otherDropsCurrentLocation = null
             otherDropsSelectedId = null
             if (!browseReportProcessing) {
@@ -2861,6 +2880,7 @@ fun DropHereScreen(
                                             modifier = Modifier.fillMaxSize(),
                                             topContentPadding = mapAwareTopPadding,
                                             loading = otherDropsLoading,
+                                            refreshing = otherDropsRefreshing,
                                             drops = sortedOtherDrops,
                                             currentLocation = otherDropsCurrentLocation,
                                             notificationRadiusMeters = notificationRadius,
@@ -7336,6 +7356,7 @@ private fun OtherDropsExplorerSection(
     modifier: Modifier = Modifier,
     topContentPadding: Dp = 0.dp,
     loading: Boolean,
+    refreshing: Boolean,
     drops: List<Drop>,
     currentLocation: LatLng?,
     notificationRadiusMeters: Double,
@@ -7413,6 +7434,13 @@ private fun OtherDropsExplorerSection(
             .fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        if (refreshing && !loading) {
+            LinearProgressIndicator(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+            )
+        }
         when {
             loading -> {
                 Box(
