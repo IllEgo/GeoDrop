@@ -7841,8 +7841,8 @@ private fun CollectedDropsMap(
         }
 
         if (shouldAnimate) {
-            val lat = target.lat ?: return@LaunchedEffect
-            val lng = target.lng ?: return@LaunchedEffect
+            val lat = target?.lat ?: return@LaunchedEffect
+            val lng = target?.lng ?: return@LaunchedEffect
             val zoom = if (highlightedNote != null) 15f else 12f
             val update = CameraUpdateFactory.newLatLngZoom(LatLng(lat, lng), zoom)
             cameraPositionState.animate(update)
