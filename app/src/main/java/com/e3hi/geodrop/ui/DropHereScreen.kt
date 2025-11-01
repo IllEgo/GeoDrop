@@ -24,6 +24,7 @@ import android.widget.Toast
 import android.view.MotionEvent
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import android.os.Looper
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
@@ -213,6 +214,10 @@ import com.e3hi.geodrop.data.userLikeStatus
 import com.e3hi.geodrop.data.isBusiness
 import com.e3hi.geodrop.data.VisionApiStatus
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.collectLatest
 import com.e3hi.geodrop.data.isExpired
 import com.e3hi.geodrop.data.remainingDecayMillis
 import com.e3hi.geodrop.data.decayAtMillis
@@ -228,6 +233,10 @@ import com.e3hi.geodrop.util.DropBlockedBySafetyException
 import com.e3hi.geodrop.util.DropSafetyAssessment
 import com.e3hi.geodrop.util.DropSafetyEvaluator
 import com.e3hi.geodrop.util.NoOpDropSafetyEvaluator
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationCallback
+import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
@@ -889,6 +898,7 @@ fun DropHereScreen(
     var myDropsError by remember { mutableStateOf<String?>(null) }
     var myDropsRefreshToken by remember { mutableStateOf(0) }
     var myDropsCurrentLocation by remember { mutableStateOf<LatLng?>(null) }
+    var latestDeviceLocation by remember { mutableStateOf<LatLng?>(null) }
     var myDropsDeletingId by remember { mutableStateOf<String?>(null) }
     var myDropsPendingDelete by remember { mutableStateOf<Drop?>(null) }
     var myDropsSelectedId by remember { mutableStateOf<String?>(null) }
@@ -936,6 +946,24 @@ fun DropHereScreen(
             userDataSync.start(uid)
         }
         onDispose { userDataSync.stop() }
+    }
+
+    LaunchedEffect(fused, ctx) {
+        if (!hasLocationPermission(ctx)) {
+            latestDeviceLocation = null
+            return@LaunchedEffect
+        }
+
+        latestDeviceLocation = getLatestLocation() ?: latestDeviceLocation
+
+        val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 5_000L)
+            .setMinUpdateIntervalMillis(2_500L)
+            .setMaxUpdateDelayMillis(5_000L)
+            .build()
+
+        locationUpdatesFlow(fused, request).collectLatest { location ->
+            latestDeviceLocation = location
+        }
     }
 
     LaunchedEffect(currentUser?.uid) {
@@ -1076,7 +1104,9 @@ fun DropHereScreen(
         }
     }
 
-    suspend fun getLatestLocation(): Pair<Double, Double>? = withContext(Dispatchers.IO) {
+    suspend fun getLatestLocation(): LatLng? = withContext(Dispatchers.IO) {
+        if (!hasLocationPermission(ctx)) return@withContext null
+
         val fresh = try {
             val cts = CancellationTokenSource()
             Tasks.await(fused.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cts.token))
@@ -1090,7 +1120,7 @@ fun DropHereScreen(
             null
         }
 
-        loc?.let { it.latitude to it.longitude }
+        loc?.let { location -> LatLng(location.latitude, location.longitude) }
     }
 
     fun clearAudio() {
@@ -2005,11 +2035,15 @@ fun DropHereScreen(
                     decayDaysResult = parsedDecay
                 }
 
-                val (lat, lng) = getLatestLocation() ?: run {
+                val location = getLatestLocation() ?: run {
                     isSubmitting = false
                     snackbar.showMessage(scope, "No location available. Turn on GPS & try again.")
                     return@launch
                 }
+
+                latestDeviceLocation = location
+                val lat = location.latitude
+                val lng = location.longitude
 
                 val dropDescription = dropDescriptionText.trim().takeIf { it.isNotEmpty() }
                 val anonymizeDrop = dropAnonymously && userProfile?.isBusiness() != true
@@ -2079,6 +2113,12 @@ fun DropHereScreen(
     }
     val explorerHomeVisible = !isBusinessUser || currentHomeDestination == HomeDestination.Explorer
 
+    LaunchedEffect(explorerHomeVisible, latestDeviceLocation) {
+        if (explorerHomeVisible) {
+            otherDropsCurrentLocation = latestDeviceLocation
+        }
+    }
+
     LaunchedEffect(
         explorerHomeVisible,
         joinedGroups,
@@ -2108,7 +2148,9 @@ fun DropHereScreen(
                         allowNsfw = userProfile?.canViewNsfw() == true && canParticipate
                     )
                         .sortedByDescending { it.createdAt }
-                    val latestLocation = getLatestLocation()?.let { (lat, lng) -> LatLng(lat, lng) }
+                    val latestLocation = latestDeviceLocation ?: getLatestLocation()?.also { location ->
+                        latestDeviceLocation = location
+                    }
                     dismissedBrowseDropIds.removeAll { id -> drops.none { it.id == id } }
                     val filteredDrops = drops.filterNot { drop ->
                         val id = drop.id
@@ -2168,6 +2210,15 @@ fun DropHereScreen(
         }
     }
 
+    val myDropsVisible = currentHomeDestination == HomeDestination.Explorer &&
+            currentExplorerDestination == ExplorerDestination.MyDrops
+
+    LaunchedEffect(myDropsVisible, latestDeviceLocation) {
+        if (myDropsVisible) {
+            myDropsCurrentLocation = latestDeviceLocation
+        }
+    }
+
     LaunchedEffect(effectiveExplorerDestination) {
         val desired = effectiveExplorerDestination.name
         if (desired != explorerDestination) {
@@ -2198,7 +2249,9 @@ fun DropHereScreen(
                     myDrops = drops
                     myDropCountHint = drops.size
                     myDropPendingReviewHint = drops.count { it.reportCount > 0 }
-                    myDropsCurrentLocation = getLatestLocation()?.let { (lat, lng) -> LatLng(lat, lng) }
+                    myDropsCurrentLocation = latestDeviceLocation ?: getLatestLocation()?.also { location ->
+                        latestDeviceLocation = location
+                    }
                     myDropsSelectedId = myDropsSelectedId?.takeIf { id -> drops.any { it.id == id } }
                         ?: drops.firstOrNull()?.id
                 } catch (e: Exception) {
@@ -2318,11 +2371,13 @@ fun DropHereScreen(
         }
     }
 
-    LaunchedEffect(currentHomeDestination, currentExplorerDestination) {
+    LaunchedEffect(currentHomeDestination, currentExplorerDestination, latestDeviceLocation) {
         val shouldUpdateLocation = currentHomeDestination == HomeDestination.Explorer &&
                 currentExplorerDestination == ExplorerDestination.Collected
         collectedCurrentLocation = if (shouldUpdateLocation) {
-            getLatestLocation()?.let { (lat, lng) -> LatLng(lat, lng) }
+            latestDeviceLocation ?: getLatestLocation()?.also { location ->
+                latestDeviceLocation = location
+            }
         } else {
             null
         }
@@ -10918,6 +10973,41 @@ private enum class AccountAuthMode {
 private enum class AccountType { EXPLORER, BUSINESS }
 
 private enum class DropVisibility { Public, GroupOnly }
+
+@SuppressLint("MissingPermission")
+private fun locationUpdatesFlow(
+    fused: FusedLocationProviderClient,
+    request: LocationRequest
+): Flow<LatLng> = callbackFlow {
+    val callback = object : LocationCallback() {
+        override fun onLocationResult(result: LocationResult) {
+            result.locations.forEach { location ->
+                trySend(LatLng(location.latitude, location.longitude))
+            }
+        }
+    }
+
+    try {
+        fused.requestLocationUpdates(request, callback, Looper.getMainLooper())
+    } catch (security: SecurityException) {
+        close(security)
+        return@callbackFlow
+    }
+
+    awaitClose { fused.removeLocationUpdates(callback) }
+}
+
+private fun hasLocationPermission(context: Context): Boolean {
+    val fineGranted = ContextCompat.checkSelfPermission(
+        context,
+        Manifest.permission.ACCESS_FINE_LOCATION
+    ) == PackageManager.PERMISSION_GRANTED
+    val coarseGranted = ContextCompat.checkSelfPermission(
+        context,
+        Manifest.permission.ACCESS_COARSE_LOCATION
+    ) == PackageManager.PERMISSION_GRANTED
+    return fineGranted || coarseGranted
+}
 
 /** Tiny helper to show snackbars from non-suspend places. */
 private fun SnackbarHostState.showMessage(scope: kotlinx.coroutines.CoroutineScope, msg: String) {
