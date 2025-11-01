@@ -242,6 +242,7 @@ import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
 import com.google.android.gms.tasks.Tasks
 import com.google.android.gms.maps.CameraUpdateFactory
+import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
@@ -257,6 +258,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerControlView
 import com.google.maps.android.compose.Circle
 import com.google.maps.android.compose.GoogleMap
+import com.google.maps.android.compose.MapEffect
 import com.google.maps.android.compose.MapUiSettings
 import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerState
@@ -8853,12 +8855,28 @@ private fun MyDropsMap(
 ) {
     val cameraPositionState = rememberCameraPositionState()
     val uiSettings = remember { MapUiSettings(zoomControlsEnabled = true) }
+    var hasUserMovedCamera by rememberSaveable { mutableStateOf(false) }
 
-    LaunchedEffect(drops, selectedDropId, currentLocation) {
+    MapEffect(Unit) { map ->
+        map.setOnCameraMoveStartedListener { reason ->
+            if (reason == GoogleMap.OnCameraMoveStartedListener.REASON_GESTURE) {
+                hasUserMovedCamera = true
+            }
+        }
+
+        onDispose {
+            map.setOnCameraMoveStartedListener(null)
+        }
+    }
+
+    LaunchedEffect(drops, selectedDropId, currentLocation, hasUserMovedCamera) {
         val targetDrop = drops.firstOrNull { it.id == selectedDropId }
-        val target = targetDrop?.let { LatLng(it.lat, it.lng) }
-            ?: currentLocation
-            ?: drops.firstOrNull()?.let { LatLng(it.lat, it.lng) }
+        val target = when {
+            targetDrop != null -> LatLng(targetDrop.lat, targetDrop.lng)
+            !hasUserMovedCamera && currentLocation != null -> currentLocation
+            !hasUserMovedCamera -> drops.firstOrNull()?.let { LatLng(it.lat, it.lng) }
+            else -> null
+        }
         if (target != null) {
             val zoomLevel = if (targetDrop != null) 18f else 15f
             val update = CameraUpdateFactory.newLatLngZoom(target, zoomLevel)
@@ -9634,12 +9652,28 @@ private fun OtherDropsMap(
 
     val cameraPositionState = rememberCameraPositionState()
     val uiSettings = remember { MapUiSettings(zoomControlsEnabled = true) }
+    var hasUserMovedCamera by rememberSaveable { mutableStateOf(false) }
 
-    LaunchedEffect(drops, selectedDropId, currentLocation) {
+    MapEffect(Unit) { map ->
+        map.setOnCameraMoveStartedListener { reason ->
+            if (reason == GoogleMap.OnCameraMoveStartedListener.REASON_GESTURE) {
+                hasUserMovedCamera = true
+            }
+        }
+
+        onDispose {
+            map.setOnCameraMoveStartedListener(null)
+        }
+    }
+
+    LaunchedEffect(drops, selectedDropId, currentLocation, hasUserMovedCamera) {
         val targetDrop = drops.firstOrNull { it.id == selectedDropId }
-        val target = targetDrop?.let { LatLng(it.lat, it.lng) }
-            ?: currentLocation
-            ?: drops.firstOrNull()?.let { LatLng(it.lat, it.lng) }
+        val target = when {
+            targetDrop != null -> LatLng(targetDrop.lat, targetDrop.lng)
+            !hasUserMovedCamera && currentLocation != null -> currentLocation
+            !hasUserMovedCamera -> drops.firstOrNull()?.let { LatLng(it.lat, it.lng) }
+            else -> null
+        }
         if (target != null) {
             val zoomLevel = if (targetDrop != null) 18f else 15f
             val update = CameraUpdateFactory.newLatLngZoom(target, zoomLevel)
