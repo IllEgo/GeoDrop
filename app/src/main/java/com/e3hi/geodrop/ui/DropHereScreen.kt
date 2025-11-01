@@ -9714,20 +9714,6 @@ private fun likeHueFor(likes: Long): Float {
     }
 }
 
-private fun formatReactionSummary(likeCount: Long, dislikeCount: Long): String {
-    val likeLabel = if (likeCount == 1L) {
-        "1 like"
-    } else {
-        "$likeCount likes"
-    }
-    val dislikeLabel = if (dislikeCount == 1L) {
-        "1 dislike"
-    } else {
-        "$dislikeCount dislikes"
-    }
-    return "$likeLabel · $dislikeLabel"
-}
-
 private fun resolveDropMediaAttachment(context: Context, drop: Drop): DropMediaAttachment? {
     val data = drop.mediaData?.takeIf { it.isNotBlank() }
     val preferredMime = drop.mediaMimeType?.takeIf { it.isNotBlank() }
@@ -10005,11 +9991,25 @@ private fun ManageDropRow(
                         )
                     }
 
-                    Text(
-                        text = formatReactionSummary(drop.likeCount, drop.dislikeCount),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = supportingColor
-                    )
+                    CompositionLocalProvider(LocalContentColor provides supportingColor) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(18.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            ReactionCount(
+                                icon = Icons.Rounded.ThumbUp,
+                                count = drop.likeCount,
+                                isHighlighted = false
+                            )
+
+                            ReactionCount(
+                                icon = Icons.Rounded.ThumbDown,
+                                count = drop.dislikeCount,
+                                isHighlighted = false
+                            )
+                        }
+                    }
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
