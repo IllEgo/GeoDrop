@@ -938,6 +938,25 @@ fun DropHereScreen(
         }
     }
 
+    suspend fun getLatestLocation(): LatLng? = withContext(Dispatchers.IO) {
+        if (!hasLocationPermission(ctx)) return@withContext null
+
+        val fresh = try {
+            val cts = CancellationTokenSource()
+            Tasks.await(fused.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cts.token))
+        } catch (_: Exception) {
+            null
+        }
+
+        val loc = fresh ?: try {
+            Tasks.await(fused.lastLocation)
+        } catch (_: Exception) {
+            null
+        }
+
+        loc?.let { location -> LatLng(location.latitude, location.longitude) }
+    }
+
     DisposableEffect(currentUser?.uid) {
         val uid = currentUser?.uid
         if (uid.isNullOrBlank()) {
@@ -1102,25 +1121,6 @@ fun DropHereScreen(
             showExplorerProfile = true
             snackbar.showMessage(scope, message)
         }
-    }
-
-    suspend fun getLatestLocation(): LatLng? = withContext(Dispatchers.IO) {
-        if (!hasLocationPermission(ctx)) return@withContext null
-
-        val fresh = try {
-            val cts = CancellationTokenSource()
-            Tasks.await(fused.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cts.token))
-        } catch (_: Exception) {
-            null
-        }
-
-        val loc = fresh ?: try {
-            Tasks.await(fused.lastLocation)
-        } catch (_: Exception) {
-            null
-        }
-
-        loc?.let { location -> LatLng(location.latitude, location.longitude) }
     }
 
     fun clearAudio() {
