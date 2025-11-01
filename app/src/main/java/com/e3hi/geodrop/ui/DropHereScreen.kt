@@ -7811,14 +7811,36 @@ private fun CollectedDropsMap(
 ) {
     val notesWithLocation = remember(notes) { notes.filter { it.lat != null && it.lng != null } }
     val cameraPositionState = rememberCameraPositionState()
+    var hasSetInitialCamera by rememberSaveable { mutableStateOf(false) }
+    var lastAnimatedHighlightId by rememberSaveable { mutableStateOf<String?>(null) }
     val uiSettings = remember { MapUiSettings(zoomControlsEnabled = true) }
 
     val highlightedNote = notesWithLocation.firstOrNull { it.id == highlightedId }
     val fallbackNote = notesWithLocation.firstOrNull()
 
     LaunchedEffect(notesWithLocation, highlightedNote?.id) {
+        if (highlightedNote == null) {
+            lastAnimatedHighlightId = null
+        }
         val target = highlightedNote ?: fallbackNote
-        if (target != null) {
+        val shouldAnimate = when {
+            target == null -> false
+            highlightedNote != null -> {
+                if (lastAnimatedHighlightId != highlightedNote.id) {
+                    lastAnimatedHighlightId = highlightedNote.id
+                    true
+                } else {
+                    false
+                }
+            }
+            !hasSetInitialCamera -> {
+                hasSetInitialCamera = true
+                true
+            }
+            else -> false
+        }
+
+        if (shouldAnimate) {
             val lat = target.lat ?: return@LaunchedEffect
             val lng = target.lng ?: return@LaunchedEffect
             val zoom = if (highlightedNote != null) 15f else 12f
