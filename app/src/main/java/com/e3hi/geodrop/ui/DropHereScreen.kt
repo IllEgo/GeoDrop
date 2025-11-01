@@ -113,6 +113,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -7557,7 +7558,6 @@ private fun OtherDropsExplorerSection(
                             ) {
                                 items(drops, key = { it.id }) { drop ->
                                     val hasCollected = collectedDropIds.contains(drop.id)
-                                    val canLike = canLikeDrops && isSignedIn && hasCollected
                                     val withinPickupRange = currentLocation?.let { location ->
                                         distanceBetweenMeters(
                                             location.latitude,
@@ -7566,12 +7566,6 @@ private fun OtherDropsExplorerSection(
                                             drop.lng
                                         ) <= DROP_PICKUP_RADIUS_METERS
                                     } ?: false
-                                    val likeMessage = when {
-                                        !canLikeDrops -> likeRestrictionMessage
-                                        !isSignedIn -> "Sign in to react to drops."
-                                        !hasCollected -> "Collect this drop to react to it."
-                                        else -> null
-                                    }
                                     val isOwnDrop = currentUserId != null && drop.createdBy == currentUserId
                                     val alreadyReported = currentUserId?.let { drop.reportedBy.containsKey(it) } == true
                                     val canReport = isSignedIn && !isOwnDrop && (hasCollected || withinPickupRange)
@@ -7591,11 +7585,8 @@ private fun OtherDropsExplorerSection(
                                         isSelected = drop.id == selectedId,
                                         currentLocation = currentLocation,
                                         userLike = drop.userLikeStatus(currentUserId),
-                                        canLike = canLike,
-                                        likeRestrictionMessage = likeMessage,
                                         canPickUp = canCollectDrops,
                                         pickupRestrictionMessage = collectRestrictionMessage,
-                                        isVoting = votingDropIds.contains(drop.id),
                                         showReport = showReportButton,
                                         canReport = canReport,
                                         alreadyReported = alreadyReported,
@@ -7612,7 +7603,6 @@ private fun OtherDropsExplorerSection(
                                             }
                                         },
                                         onSelect = { onSelect(drop) },
-                                        onLike = { status -> onLike(drop, status) },
                                         onPickUp = { onPickUp(drop) },
                                         onReport = { onReport(drop) }
                                     )
@@ -9017,11 +9007,8 @@ private fun OtherDropRow(
     isSelected: Boolean,
     currentLocation: LatLng?,
     userLike: DropLikeStatus,
-    canLike: Boolean,
-    likeRestrictionMessage: String?,
     canPickUp: Boolean,
     pickupRestrictionMessage: String?,
-    isVoting: Boolean,
     showReport: Boolean,
     canReport: Boolean,
     alreadyReported: Boolean,
@@ -9030,7 +9017,6 @@ private fun OtherDropRow(
     canIgnoreForNow: Boolean,
     onIgnoreForNow: () -> Unit,
     onSelect: () -> Unit,
-    onLike: (DropLikeStatus) -> Unit,
     onPickUp: () -> Unit,
     onReport: () -> Unit
 ) {
@@ -9216,63 +9202,17 @@ private fun OtherDropRow(
                                 horizontalArrangement = Arrangement.spacedBy(18.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(5.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    LikeToggleButton(
-                                        icon = Icons.Rounded.ThumbUp,
-                                        selected = userLike == DropLikeStatus.LIKED,
-                                        enabled = canLike && !isVoting,
-                                        onClick = {
-                                            val nextStatus = if (userLike == DropLikeStatus.LIKED) {
-                                                DropLikeStatus.NONE
-                                            } else {
-                                                DropLikeStatus.LIKED
-                                            }
-                                            onLike(nextStatus)
-                                        },
-                                        contentDescription = if (userLike == DropLikeStatus.LIKED) {
-                                            "Unlike drop"
-                                        } else {
-                                            "Like drop"
-                                        }
-                                    )
+                                ReactionCount(
+                                    icon = Icons.Rounded.ThumbUp,
+                                    count = drop.likeCount,
+                                    isHighlighted = userLike == DropLikeStatus.LIKED
+                                )
 
-                                    Text(
-                                        text = drop.likeCount.toString(),
-                                        style = MaterialTheme.typography.bodyMedium
-                                    )
-                                }
-
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(5.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    LikeToggleButton(
-                                        icon = Icons.Rounded.ThumbDown,
-                                        selected = userLike == DropLikeStatus.DISLIKED,
-                                        enabled = canLike && !isVoting,
-                                        onClick = {
-                                            val nextStatus = if (userLike == DropLikeStatus.DISLIKED) {
-                                                DropLikeStatus.NONE
-                                            } else {
-                                                DropLikeStatus.DISLIKED
-                                            }
-                                            onLike(nextStatus)
-                                        },
-                                        contentDescription = if (userLike == DropLikeStatus.DISLIKED) {
-                                            "Remove dislike"
-                                        } else {
-                                            "Dislike drop"
-                                        }
-                                    )
-
-                                    Text(
-                                        text = drop.dislikeCount.toString(),
-                                        style = MaterialTheme.typography.bodyMedium
-                                    )
-                                }
+                                ReactionCount(
+                                    icon = Icons.Rounded.ThumbDown,
+                                    count = drop.dislikeCount,
+                                    isHighlighted = userLike == DropLikeStatus.DISLIKED
+                                )
 
                                 Row(
                                     horizontalArrangement = Arrangement.spacedBy(5.dp),
@@ -9306,23 +9246,8 @@ private fun OtherDropRow(
                                     }
                                 }
                             }
-
-                            if (isVoting) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(20.dp),
-                                    strokeWidth = 2.dp
-                                )
-                            }
                         }
                     }
-//                    if (!canLike) {
-//                        Spacer(Modifier.height(4.dp))
-//                        Text(
-//                            text = likeRestrictionMessage ?: "Collect this drop to react to it.",
-//                            style = MaterialTheme.typography.bodySmall,
-//                            color = supportingColor
-//                        )
-//                    }
                     if (showReport) {
                         reportRestrictionMessage?.let { message ->
                             Spacer(Modifier.height(4.dp))
@@ -9371,6 +9296,44 @@ private fun OtherDropRow(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ReactionCount(
+    icon: ImageVector,
+    count: Long,
+    isHighlighted: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val highlightColor = MaterialTheme.colorScheme.primary
+    val iconColor = if (isHighlighted) {
+        highlightColor
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    val textColor = if (isHighlighted) {
+        highlightColor
+    } else {
+        LocalContentColor.current
+    }
+
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(5.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = iconColor
+        )
+
+        Text(
+            text = count.toString(),
+            style = MaterialTheme.typography.bodyMedium,
+            color = textColor
+        )
     }
 }
 
