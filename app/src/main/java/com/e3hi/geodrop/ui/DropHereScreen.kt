@@ -258,7 +258,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerControlView
 import com.google.maps.android.compose.Circle
 import com.google.maps.android.compose.GoogleMap
-import com.google.maps.android.compose.DisposableMapEffect
+import com.google.maps.android.compose.MapEffect
 import com.google.maps.android.compose.MapUiSettings
 import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerState
@@ -8856,16 +8856,24 @@ private fun MyDropsMap(
     val cameraPositionState = rememberCameraPositionState()
     val uiSettings = remember { MapUiSettings(zoomControlsEnabled = true) }
     var hasUserMovedCamera by rememberSaveable { mutableStateOf(false) }
+    var googleMap by remember { mutableStateOf<GoogleMap?>(null) }
 
-    DisposableMapEffect(Unit) { map ->
-        map.setOnCameraMoveStartedListener { reason ->
-            if (reason == GoogleMap.OnCameraMoveStartedListener.REASON_GESTURE) {
-                hasUserMovedCamera = true
+    MapEffect(Unit) { map ->
+        googleMap = map
+    }
+
+    googleMap?.let { map ->
+        DisposableEffect(map) {
+            val listener = GoogleMap.OnCameraMoveStartedListener { reason ->
+                if (reason == GoogleMap.OnCameraMoveStartedListener.REASON_GESTURE) {
+                    hasUserMovedCamera = true
+                }
             }
-        }
+            map.setOnCameraMoveStartedListener(listener)
 
-        onDispose {
-            map.setOnCameraMoveStartedListener(null)
+            onDispose {
+                map.setOnCameraMoveStartedListener(null)
+            }
         }
     }
 
@@ -9653,16 +9661,25 @@ private fun OtherDropsMap(
     val cameraPositionState = rememberCameraPositionState()
     val uiSettings = remember { MapUiSettings(zoomControlsEnabled = true) }
     var hasUserMovedCamera by rememberSaveable { mutableStateOf(false) }
+    var googleMap by remember { mutableStateOf<GoogleMap?>(null) }
 
-    DisposableMapEffect(Unit) { map ->
-        map.setOnCameraMoveStartedListener { reason ->
-            if (reason == GoogleMap.OnCameraMoveStartedListener.REASON_GESTURE) {
-                hasUserMovedCamera = true
+
+    MapEffect(Unit) { map ->
+        googleMap = map
+    }
+
+    googleMap?.let { map ->
+        DisposableEffect(map) {
+            val listener = GoogleMap.OnCameraMoveStartedListener { reason ->
+                if (reason == GoogleMap.OnCameraMoveStartedListener.REASON_GESTURE) {
+                    hasUserMovedCamera = true
+                }
             }
-        }
+            map.setOnCameraMoveStartedListener(listener)
 
-        onDispose {
-            map.setOnCameraMoveStartedListener(null)
+            onDispose {
+                map.setOnCameraMoveStartedListener(null)
+            }
         }
     }
 
