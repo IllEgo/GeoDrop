@@ -24,7 +24,6 @@ import android.widget.Toast
 import android.view.MotionEvent
 import android.view.ViewGroup
 import android.widget.FrameLayout
-import android.os.Looper
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
@@ -214,10 +213,6 @@ import com.e3hi.geodrop.data.userLikeStatus
 import com.e3hi.geodrop.data.isBusiness
 import com.e3hi.geodrop.data.VisionApiStatus
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.channels.awaitClose
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.callbackFlow
-import kotlinx.coroutines.flow.collectLatest
 import com.e3hi.geodrop.data.isExpired
 import com.e3hi.geodrop.data.remainingDecayMillis
 import com.e3hi.geodrop.data.decayAtMillis
@@ -233,16 +228,11 @@ import com.e3hi.geodrop.util.DropBlockedBySafetyException
 import com.e3hi.geodrop.util.DropSafetyAssessment
 import com.e3hi.geodrop.util.DropSafetyEvaluator
 import com.e3hi.geodrop.util.NoOpDropSafetyEvaluator
-import com.google.android.gms.location.FusedLocationProviderClient
-import com.google.android.gms.location.LocationCallback
-import com.google.android.gms.location.LocationRequest
-import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
 import com.google.android.gms.tasks.Tasks
 import com.google.android.gms.maps.CameraUpdateFactory
-import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
@@ -258,7 +248,6 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerControlView
 import com.google.maps.android.compose.Circle
 import com.google.maps.android.compose.GoogleMap
-import com.google.maps.android.compose.MapEffect
 import com.google.maps.android.compose.MapUiSettings
 import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerState
@@ -900,7 +889,6 @@ fun DropHereScreen(
     var myDropsError by remember { mutableStateOf<String?>(null) }
     var myDropsRefreshToken by remember { mutableStateOf(0) }
     var myDropsCurrentLocation by remember { mutableStateOf<LatLng?>(null) }
-    var latestDeviceLocation by remember { mutableStateOf<LatLng?>(null) }
     var myDropsDeletingId by remember { mutableStateOf<String?>(null) }
     var myDropsPendingDelete by remember { mutableStateOf<Drop?>(null) }
     var myDropsSelectedId by remember { mutableStateOf<String?>(null) }
@@ -940,25 +928,6 @@ fun DropHereScreen(
         }
     }
 
-    suspend fun getLatestLocation(): LatLng? = withContext(Dispatchers.IO) {
-        if (!hasLocationPermission(ctx)) return@withContext null
-
-        val fresh = try {
-            val cts = CancellationTokenSource()
-            Tasks.await(fused.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cts.token))
-        } catch (_: Exception) {
-            null
-        }
-
-        val loc = fresh ?: try {
-            Tasks.await(fused.lastLocation)
-        } catch (_: Exception) {
-            null
-        }
-
-        loc?.let { location -> LatLng(location.latitude, location.longitude) }
-    }
-
     DisposableEffect(currentUser?.uid) {
         val uid = currentUser?.uid
         if (uid.isNullOrBlank()) {
@@ -967,24 +936,6 @@ fun DropHereScreen(
             userDataSync.start(uid)
         }
         onDispose { userDataSync.stop() }
-    }
-
-    LaunchedEffect(fused, ctx) {
-        if (!hasLocationPermission(ctx)) {
-            latestDeviceLocation = null
-            return@LaunchedEffect
-        }
-
-        latestDeviceLocation = getLatestLocation() ?: latestDeviceLocation
-
-        val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 5_000L)
-            .setMinUpdateIntervalMillis(2_500L)
-            .setMaxUpdateDelayMillis(5_000L)
-            .build()
-
-        locationUpdatesFlow(fused, request).collectLatest { location ->
-            latestDeviceLocation = location
-        }
     }
 
     LaunchedEffect(currentUser?.uid) {
@@ -1123,6 +1074,23 @@ fun DropHereScreen(
             showExplorerProfile = true
             snackbar.showMessage(scope, message)
         }
+    }
+
+    suspend fun getLatestLocation(): Pair<Double, Double>? = withContext(Dispatchers.IO) {
+        val fresh = try {
+            val cts = CancellationTokenSource()
+            Tasks.await(fused.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cts.token))
+        } catch (_: Exception) {
+            null
+        }
+
+        val loc = fresh ?: try {
+            Tasks.await(fused.lastLocation)
+        } catch (_: Exception) {
+            null
+        }
+
+        loc?.let { it.latitude to it.longitude }
     }
 
     fun clearAudio() {
@@ -2037,15 +2005,11 @@ fun DropHereScreen(
                     decayDaysResult = parsedDecay
                 }
 
-                val location = getLatestLocation() ?: run {
+                val (lat, lng) = getLatestLocation() ?: run {
                     isSubmitting = false
                     snackbar.showMessage(scope, "No location available. Turn on GPS & try again.")
                     return@launch
                 }
-
-                latestDeviceLocation = location
-                val lat = location.latitude
-                val lng = location.longitude
 
                 val dropDescription = dropDescriptionText.trim().takeIf { it.isNotEmpty() }
                 val anonymizeDrop = dropAnonymously && userProfile?.isBusiness() != true
@@ -2115,12 +2079,6 @@ fun DropHereScreen(
     }
     val explorerHomeVisible = !isBusinessUser || currentHomeDestination == HomeDestination.Explorer
 
-    LaunchedEffect(explorerHomeVisible, latestDeviceLocation) {
-        if (explorerHomeVisible) {
-            otherDropsCurrentLocation = latestDeviceLocation
-        }
-    }
-
     LaunchedEffect(
         explorerHomeVisible,
         joinedGroups,
@@ -2150,9 +2108,7 @@ fun DropHereScreen(
                         allowNsfw = userProfile?.canViewNsfw() == true && canParticipate
                     )
                         .sortedByDescending { it.createdAt }
-                    val latestLocation = latestDeviceLocation ?: getLatestLocation()?.also { location ->
-                        latestDeviceLocation = location
-                    }
+                    val latestLocation = getLatestLocation()?.let { (lat, lng) -> LatLng(lat, lng) }
                     dismissedBrowseDropIds.removeAll { id -> drops.none { it.id == id } }
                     val filteredDrops = drops.filterNot { drop ->
                         val id = drop.id
@@ -2212,15 +2168,6 @@ fun DropHereScreen(
         }
     }
 
-    val myDropsVisible = currentHomeDestination == HomeDestination.Explorer &&
-            currentExplorerDestination == ExplorerDestination.MyDrops
-
-    LaunchedEffect(myDropsVisible, latestDeviceLocation) {
-        if (myDropsVisible) {
-            myDropsCurrentLocation = latestDeviceLocation
-        }
-    }
-
     LaunchedEffect(effectiveExplorerDestination) {
         val desired = effectiveExplorerDestination.name
         if (desired != explorerDestination) {
@@ -2251,9 +2198,7 @@ fun DropHereScreen(
                     myDrops = drops
                     myDropCountHint = drops.size
                     myDropPendingReviewHint = drops.count { it.reportCount > 0 }
-                    myDropsCurrentLocation = latestDeviceLocation ?: getLatestLocation()?.also { location ->
-                        latestDeviceLocation = location
-                    }
+                    myDropsCurrentLocation = getLatestLocation()?.let { (lat, lng) -> LatLng(lat, lng) }
                     myDropsSelectedId = myDropsSelectedId?.takeIf { id -> drops.any { it.id == id } }
                         ?: drops.firstOrNull()?.id
                 } catch (e: Exception) {
@@ -2373,13 +2318,11 @@ fun DropHereScreen(
         }
     }
 
-    LaunchedEffect(currentHomeDestination, currentExplorerDestination, latestDeviceLocation) {
+    LaunchedEffect(currentHomeDestination, currentExplorerDestination) {
         val shouldUpdateLocation = currentHomeDestination == HomeDestination.Explorer &&
                 currentExplorerDestination == ExplorerDestination.Collected
         collectedCurrentLocation = if (shouldUpdateLocation) {
-            latestDeviceLocation ?: getLatestLocation()?.also { location ->
-                latestDeviceLocation = location
-            }
+            getLatestLocation()?.let { (lat, lng) -> LatLng(lat, lng) }
         } else {
             null
         }
@@ -2889,18 +2832,174 @@ fun DropHereScreen(
                         )
                 ) {
                     when (effectiveExplorerDestination) {
-                    ExplorerDestination.Discover -> {
-                        Column(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(20.dp)
-                        ) {
-                            if (readOnlyParticipationMessage != null) {
-                                Spacer(Modifier.height(navAwareTopPadding))
-                                Box(Modifier.padding(horizontal = 20.dp)) {
-                                    ReadOnlyModeCard(message = readOnlyParticipationMessage)
+                        ExplorerDestination.Discover -> {
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(20.dp)
+                            ) {
+                                if (readOnlyParticipationMessage != null) {
+                                    Spacer(Modifier.height(navAwareTopPadding))
+                                    Box(Modifier.padding(horizontal = 20.dp)) {
+                                        ReadOnlyModeCard(message = readOnlyParticipationMessage)
+                                    }
                                 }
+
+                                Column(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxWidth(),
+                                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .fillMaxWidth()
+                                    ) {
+                                        OtherDropsExplorerSection(
+                                            modifier = Modifier.fillMaxSize(),
+                                            topContentPadding = mapAwareTopPadding,
+                                            loading = otherDropsLoading,
+                                            drops = sortedOtherDrops,
+                                            currentLocation = otherDropsCurrentLocation,
+                                            notificationRadiusMeters = notificationRadius,
+                                            error = otherDropsError,
+                                            emptyMessage = selectedExplorerGroupCode?.let { code ->
+                                                "No drops for $code yet."
+                                            },
+                                            selectedId = otherDropsSelectedId,
+                                            onSelect = { drop ->
+                                                otherDropsSelectedId = if (otherDropsSelectedId == drop.id) {
+                                                    null
+                                                } else {
+                                                    drop.id
+                                                }
+                                            },
+                                            onPickUp = { drop -> pickUpDrop(drop) },
+                                            currentUserId = currentUserId,
+                                            votingDropIds = votingDropIds,
+                                            collectedDropIds = collectedDropIds,
+                                            canCollectDrops = canParticipate,
+                                            collectRestrictionMessage = when (userMode) {
+                                                UserMode.GUEST -> "Preview drops nearby, then create an account to pick them up when you're ready."
+                                                UserMode.SIGNED_IN -> null
+                                            },
+                                            sortOption = otherDropsSortOption,
+                                            sortOptions = dropSortOptions,
+                                            onSortOptionChange = { option ->
+                                                otherDropsSortKey = option.name
+                                            },
+                                            canLikeDrops = canParticipate,
+                                            likeRestrictionMessage = if (canParticipate) null else participationRestriction("react to drops"),
+                                            onLike = { drop, status -> submitLike(drop, status) },
+                                            onReport = report@{ drop ->
+                                                if (browseReportProcessing) return@report
+                                                val userId = currentUserId
+                                                if (userId.isNullOrBlank()) {
+                                                    Toast.makeText(ctx, "Sign in to report drops.", Toast.LENGTH_SHORT).show()
+                                                    return@report
+                                                }
+                                                if (drop.createdBy == userId) {
+                                                    Toast.makeText(ctx, "You can't report your own drop.", Toast.LENGTH_SHORT).show()
+                                                    return@report
+                                                }
+                                                val hasCollected = collectedDropIds.contains(drop.id)
+                                                val withinPickupRange = otherDropsCurrentLocation?.let { location ->
+                                                    distanceBetweenMeters(
+                                                        location.latitude,
+                                                        location.longitude,
+                                                        drop.lat,
+                                                        drop.lng
+                                                    ) <= DROP_PICKUP_RADIUS_METERS
+                                                } ?: false
+//                                            if (!hasCollected && !withinPickupRange) {
+//                                                val radiusMeters = DROP_PICKUP_RADIUS_METERS.roundToInt()
+//                                                Toast.makeText(
+//                                                    ctx,
+//                                                    "Move within ${'$'}radiusMeters meters to report this drop, or collect it first.",
+//                                                    Toast.LENGTH_SHORT
+//                                                ).show()
+//                                                return@report
+//                                            }
+                                                if (drop.reportedBy.containsKey(userId)) {
+                                                    Toast.makeText(ctx, "You've already reported this drop.", Toast.LENGTH_SHORT).show()
+                                                    return@report
+                                                }
+                                                browseReportTarget = drop.toReportableDrop(source = REPORT_SOURCE_BROWSE_MAP)
+                                                browseReportSelectedReasons = emptySet()
+                                                browseReportError = null
+                                                browseReportDialogOpen = true
+                                            },
+                                            reportingDropId = browseReportingDropId,
+                                            dismissedBrowseDropIds = dismissedBrowseDropIds,
+                                            snackbar = snackbar,
+                                            scope = scope,
+                                            onRefresh = { otherDropsRefreshToken += 1 },
+                                            listState = otherDropsListState,
+                                            mapWeight = otherDropsMapWeight,
+                                            onMapWeightChange = { weight ->
+                                                val coerced = weight.coerceIn(MAP_LIST_MIN_WEIGHT, MAP_LIST_MAX_WEIGHT)
+                                                if (coerced != otherDropsMapWeight) {
+                                                    otherDropsMapWeight = coerced
+                                                }
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        ExplorerDestination.MyDrops -> {
+                            fun performDropDeletion(drop: Drop) {
+                                if (drop.id.isBlank()) {
+                                    snackbar.showMessage(scope, "Unable to delete this drop.")
+                                    return
+                                }
+
+                                myDropsDeletingId = drop.id
+                                scope.launch {
+                                    try {
+                                        repo.deleteDrop(drop.id)
+                                        val updated = myDrops.filterNot { it.id == drop.id }
+                                        myDrops = updated
+                                        myDropCountHint = updated.size
+                                        myDropPendingReviewHint = updated.count { it.reportCount > 0 }
+                                        if (myDropsSelectedId == drop.id) {
+                                            myDropsSelectedId = updated.firstOrNull()?.id
+                                        }
+                                        snackbar.showMessage(scope, "Drop deleted.")
+                                    } catch (e: Exception) {
+                                        snackbar.showMessage(scope, "Error: ${'$'}{e.message}")
+                                    } finally {
+                                        myDropsDeletingId = null
+                                    }
+                                }
+                            }
+
+                            val pendingDeletion = myDropsPendingDelete
+                            if (pendingDeletion != null) {
+                                AlertDialog(
+                                    onDismissRequest = { myDropsPendingDelete = null },
+                                    icon = { Icon(Icons.Filled.Delete, contentDescription = null) },
+                                    title = { Text("Delete drop?") },
+                                    text = { Text("Are you sure you want to delete this drop?") },
+                                    confirmButton = {
+                                        TextButton(
+                                            onClick = {
+                                                myDropsPendingDelete = null
+                                                performDropDeletion(pendingDeletion)
+                                            }
+                                        ) {
+                                            Text("Delete")
+                                        }
+                                    },
+                                    dismissButton = {
+                                        TextButton(onClick = { myDropsPendingDelete = null }) {
+                                            Text("Cancel")
+                                        }
+                                    }
+                                )
                             }
 
                             Column(
@@ -2914,368 +3013,212 @@ fun DropHereScreen(
                                         .weight(1f)
                                         .fillMaxWidth()
                                 ) {
-                                    OtherDropsExplorerSection(
+                                    MyDropsContent(
                                         modifier = Modifier.fillMaxSize(),
                                         topContentPadding = mapAwareTopPadding,
-                                        loading = otherDropsLoading,
-                                        drops = sortedOtherDrops,
-                                        currentLocation = otherDropsCurrentLocation,
-                                        notificationRadiusMeters = notificationRadius,
-                                        error = otherDropsError,
+                                        contentPadding = PaddingValues(bottom = 0.dp),
+                                        loading = myDropsLoading,
+                                        drops = sortedMyDrops,
+                                        currentLocation = myDropsCurrentLocation,
+                                        deletingId = myDropsDeletingId,
+                                        error = myDropsError,
                                         emptyMessage = selectedExplorerGroupCode?.let { code ->
-                                            "No drops for $code yet."
+                                            "You haven't dropped anything for $code yet."
                                         },
-                                        selectedId = otherDropsSelectedId,
+                                        selectedId = myDropsSelectedId,
+                                        sortOption = myDropsSortOption,
+                                        sortOptions = dropSortOptions,
+                                        onSortOptionChange = { option ->
+                                            myDropsSortKey = option.name
+                                        },
                                         onSelect = { drop ->
-                                            otherDropsSelectedId = if (otherDropsSelectedId == drop.id) {
+                                            myDropsSelectedId = if (myDropsSelectedId == drop.id) {
                                                 null
                                             } else {
                                                 drop.id
                                             }
                                         },
-                                        onPickUp = { drop -> pickUpDrop(drop) },
-                                        currentUserId = currentUserId,
-                                        votingDropIds = votingDropIds,
-                                        collectedDropIds = collectedDropIds,
-                                        canCollectDrops = canParticipate,
-                                        collectRestrictionMessage = when (userMode) {
-                                            UserMode.GUEST -> "Preview drops nearby, then create an account to pick them up when you're ready."
-                                            UserMode.SIGNED_IN -> null
+                                        onRetry = { myDropsRefreshToken += 1 },
+                                        onView = { drop ->
+                                            val intent = Intent(ctx, DropDetailActivity::class.java).apply {
+                                                putExtra("dropId", drop.id)
+                                                if (drop.text.isNotBlank()) putExtra("dropText", drop.text)
+                                                drop.description?.takeIf { it.isNotBlank() }?.let { putExtra("dropDescription", it) }
+                                                putExtra("dropContentType", drop.contentType.name)
+                                                putExtra("dropLat", drop.lat)
+                                                putExtra("dropLng", drop.lng)
+                                                putExtra("dropCreatedAt", drop.createdAt)
+                                                drop.groupCode?.let { putExtra("dropGroupCode", it) }
+                                                drop.mediaUrl?.let { putExtra("dropMediaUrl", it) }
+                                                drop.mediaMimeType?.let { putExtra("dropMediaMimeType", it) }
+                                                drop.mediaData?.let { putExtra("dropMediaData", it) }
+                                                putExtra("dropType", drop.dropType.name)
+                                                drop.businessName?.let { putExtra("dropBusinessName", it) }
+                                                drop.businessId?.let { putExtra("dropBusinessId", it) }
+                                                drop.redemptionLimit?.let { putExtra("dropRedemptionLimit", it) }
+                                                putExtra("dropRedemptionCount", drop.redemptionCount)
+                                                putExtra("dropLikeCount", drop.likeCount)
+                                                putExtra("dropDislikeCount", drop.dislikeCount)
+                                                val userId = currentUserId
+                                                when (drop.userLikeStatus(userId)) {
+                                                    DropLikeStatus.LIKED -> putExtra("dropIsLiked", true)
+                                                    DropLikeStatus.DISLIKED -> putExtra("dropIsDisliked", true)
+                                                    DropLikeStatus.NONE -> Unit
+                                                }
+                                                putExtra("dropIsNsfw", drop.isNsfw)
+                                                if (drop.nsfwLabels.isNotEmpty()) {
+                                                    putStringArrayListExtra("dropNsfwLabels", ArrayList(drop.nsfwLabels))
+                                                }
+                                                drop.decayDays?.let { putExtra("dropDecayDays", it) }
+                                            }
+                                            ctx.startActivity(intent)
                                         },
-                                        sortOption = otherDropsSortOption,
+                                        onDelete = { drop ->
+                                            if (drop.id.isBlank()) {
+                                                snackbar.showMessage(scope, "Unable to delete this drop.")
+                                            } else {
+                                                myDropsPendingDelete = drop
+                                            }
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
+                        ExplorerDestination.Collected -> {
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxWidth()
+                                ) {
+                                    val isSignedIn = !currentUserId.isNullOrBlank()
+                                    val collectedLikeRestrictionMessage = when {
+                                        !isSignedIn -> "Sign in to react to drops."
+                                        !canParticipate -> participationRestriction("react to drops")
+                                        else -> null
+                                    }
+                                    val pendingRemoval = collectedPendingRemove
+                                    if (pendingRemoval != null) {
+                                        AlertDialog(
+                                            onDismissRequest = { collectedPendingRemove = null },
+                                            icon = { Icon(Icons.Filled.Delete, contentDescription = null) },
+                                            title = { Text("Delete saved drop?") },
+                                            text = { Text("Are you sure you want to delete this saved drop?") },
+                                            confirmButton = {
+                                                TextButton(
+                                                    onClick = {
+                                                        noteInventory.removeCollected(pendingRemoval.id)
+                                                        collectedNotes = noteInventory.getCollectedNotes()
+                                                        collectedPendingRemove = null
+                                                    }
+                                                ) {
+                                                    Text("Delete")
+                                                }
+                                            },
+                                            dismissButton = {
+                                                TextButton(onClick = { collectedPendingRemove = null }) {
+                                                    Text("Cancel")
+                                                }
+                                            }
+                                        )
+                                    }
+
+                                    CollectedDropsContent(
+                                        modifier = Modifier.fillMaxSize(),
+                                        topContentPadding = mapAwareTopPadding,
+                                        contentPadding = PaddingValues(bottom = 0.dp),
+                                        notes = sortedCollectedNotes,
+                                        hiddenNsfwCount = hiddenNsfwCollectedCount,
+                                        canReportDrops = !currentUserId.isNullOrBlank(),
+                                        reportedDropIds = reportedCollectedDropIds.toSet(),
+                                        reportingDropId = browseReportingDropId,
+                                        isReportProcessing = browseReportProcessing,
+                                        emptyMessage = selectedExplorerGroupCode?.let { code ->
+                                            "You haven't collected any drops for $code yet."
+                                        },
+                                        sortOption = collectedSortOption,
                                         sortOptions = dropSortOptions,
                                         onSortOptionChange = { option ->
-                                            otherDropsSortKey = option.name
+                                            collectedSortKey = option.name
                                         },
                                         canLikeDrops = canParticipate,
-                                        likeRestrictionMessage = if (canParticipate) null else participationRestriction("react to drops"),
-                                        onLike = { drop, status -> submitLike(drop, status) },
-                                        onReport = report@{ drop ->
+                                        isSignedIn = isSignedIn,
+                                        likeRestrictionMessage = collectedLikeRestrictionMessage,
+                                        votingDropIds = votingDropIds,
+                                        onLike = { note, status ->
+                                            submitCollectedLike(note, status)
+                                        },
+                                        onReport = report@{ note ->
                                             if (browseReportProcessing) return@report
                                             val userId = currentUserId
                                             if (userId.isNullOrBlank()) {
                                                 Toast.makeText(ctx, "Sign in to report drops.", Toast.LENGTH_SHORT).show()
                                                 return@report
                                             }
-                                            if (drop.createdBy == userId) {
-                                                Toast.makeText(ctx, "You can't report your own drop.", Toast.LENGTH_SHORT).show()
-                                                return@report
-                                            }
-                                            val hasCollected = collectedDropIds.contains(drop.id)
-                                            val withinPickupRange = otherDropsCurrentLocation?.let { location ->
-                                                distanceBetweenMeters(
-                                                    location.latitude,
-                                                    location.longitude,
-                                                    drop.lat,
-                                                    drop.lng
-                                                ) <= DROP_PICKUP_RADIUS_METERS
-                                            } ?: false
-//                                            if (!hasCollected && !withinPickupRange) {
-//                                                val radiusMeters = DROP_PICKUP_RADIUS_METERS.roundToInt()
-//                                                Toast.makeText(
-//                                                    ctx,
-//                                                    "Move within ${'$'}radiusMeters meters to report this drop, or collect it first.",
-//                                                    Toast.LENGTH_SHORT
-//                                                ).show()
-//                                                return@report
-//                                            }
-                                            if (drop.reportedBy.containsKey(userId)) {
+                                            if (reportedCollectedDropIds.contains(note.id)) {
                                                 Toast.makeText(ctx, "You've already reported this drop.", Toast.LENGTH_SHORT).show()
                                                 return@report
                                             }
-                                            browseReportTarget = drop.toReportableDrop(source = REPORT_SOURCE_BROWSE_MAP)
+                                            browseReportTarget = note.toReportableDrop(source = REPORT_SOURCE_COLLECTED)
                                             browseReportSelectedReasons = emptySet()
                                             browseReportError = null
                                             browseReportDialogOpen = true
                                         },
-                                        reportingDropId = browseReportingDropId,
-                                        dismissedBrowseDropIds = dismissedBrowseDropIds,
-                                        snackbar = snackbar,
-                                        scope = scope,
-                                        onRefresh = { otherDropsRefreshToken += 1 },
-                                        listState = otherDropsListState,
-                                        mapWeight = otherDropsMapWeight,
-                                        onMapWeightChange = { weight ->
-                                            val coerced = weight.coerceIn(MAP_LIST_MIN_WEIGHT, MAP_LIST_MAX_WEIGHT)
-                                            if (coerced != otherDropsMapWeight) {
-                                                otherDropsMapWeight = coerced
-                                            }
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    ExplorerDestination.MyDrops -> {
-                        fun performDropDeletion(drop: Drop) {
-                            if (drop.id.isBlank()) {
-                                snackbar.showMessage(scope, "Unable to delete this drop.")
-                                return
-                            }
-
-                            myDropsDeletingId = drop.id
-                            scope.launch {
-                                try {
-                                    repo.deleteDrop(drop.id)
-                                    val updated = myDrops.filterNot { it.id == drop.id }
-                                    myDrops = updated
-                                    myDropCountHint = updated.size
-                                    myDropPendingReviewHint = updated.count { it.reportCount > 0 }
-                                    if (myDropsSelectedId == drop.id) {
-                                        myDropsSelectedId = updated.firstOrNull()?.id
-                                    }
-                                    snackbar.showMessage(scope, "Drop deleted.")
-                                } catch (e: Exception) {
-                                    snackbar.showMessage(scope, "Error: ${'$'}{e.message}")
-                                } finally {
-                                    myDropsDeletingId = null
-                                }
-                            }
-                        }
-
-                        val pendingDeletion = myDropsPendingDelete
-                        if (pendingDeletion != null) {
-                            AlertDialog(
-                                onDismissRequest = { myDropsPendingDelete = null },
-                                icon = { Icon(Icons.Filled.Delete, contentDescription = null) },
-                                title = { Text("Delete drop?") },
-                                text = { Text("Are you sure you want to delete this drop?") },
-                                confirmButton = {
-                                    TextButton(
-                                        onClick = {
-                                            myDropsPendingDelete = null
-                                            performDropDeletion(pendingDeletion)
-                                        }
-                                    ) {
-                                        Text("Delete")
-                                    }
-                                },
-                                dismissButton = {
-                                    TextButton(onClick = { myDropsPendingDelete = null }) {
-                                        Text("Cancel")
-                                    }
-                                }
-                            )
-                        }
-
-                        Column(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(16.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxWidth()
-                            ) {
-                                MyDropsContent(
-                                    modifier = Modifier.fillMaxSize(),
-                                    topContentPadding = mapAwareTopPadding,
-                                    contentPadding = PaddingValues(bottom = 0.dp),
-                                    loading = myDropsLoading,
-                                    drops = sortedMyDrops,
-                                    currentLocation = myDropsCurrentLocation,
-                                    deletingId = myDropsDeletingId,
-                                    error = myDropsError,
-                                    emptyMessage = selectedExplorerGroupCode?.let { code ->
-                                        "You haven't dropped anything for $code yet."
-                                    },
-                                    selectedId = myDropsSelectedId,
-                                    sortOption = myDropsSortOption,
-                                    sortOptions = dropSortOptions,
-                                    onSortOptionChange = { option ->
-                                        myDropsSortKey = option.name
-                                    },
-                                    onSelect = { drop ->
-                                        myDropsSelectedId = if (myDropsSelectedId == drop.id) {
-                                            null
-                                        } else {
-                                            drop.id
-                                        }
-                                    },
-                                    onRetry = { myDropsRefreshToken += 1 },
-                                    onView = { drop ->
-                                    val intent = Intent(ctx, DropDetailActivity::class.java).apply {
-                                        putExtra("dropId", drop.id)
-                                        if (drop.text.isNotBlank()) putExtra("dropText", drop.text)
-                                        drop.description?.takeIf { it.isNotBlank() }?.let { putExtra("dropDescription", it) }
-                                        putExtra("dropContentType", drop.contentType.name)
-                                        putExtra("dropLat", drop.lat)
-                                        putExtra("dropLng", drop.lng)
-                                        putExtra("dropCreatedAt", drop.createdAt)
-                                        drop.groupCode?.let { putExtra("dropGroupCode", it) }
-                                        drop.mediaUrl?.let { putExtra("dropMediaUrl", it) }
-                                        drop.mediaMimeType?.let { putExtra("dropMediaMimeType", it) }
-                                        drop.mediaData?.let { putExtra("dropMediaData", it) }
-                                        putExtra("dropType", drop.dropType.name)
-                                        drop.businessName?.let { putExtra("dropBusinessName", it) }
-                                        drop.businessId?.let { putExtra("dropBusinessId", it) }
-                                        drop.redemptionLimit?.let { putExtra("dropRedemptionLimit", it) }
-                                        putExtra("dropRedemptionCount", drop.redemptionCount)
-                                        putExtra("dropLikeCount", drop.likeCount)
-                                        putExtra("dropDislikeCount", drop.dislikeCount)
-                                        val userId = currentUserId
-                                        when (drop.userLikeStatus(userId)) {
-                                            DropLikeStatus.LIKED -> putExtra("dropIsLiked", true)
-                                            DropLikeStatus.DISLIKED -> putExtra("dropIsDisliked", true)
-                                            DropLikeStatus.NONE -> Unit
-                                        }
-                                        putExtra("dropIsNsfw", drop.isNsfw)
-                                        if (drop.nsfwLabels.isNotEmpty()) {
-                                            putStringArrayListExtra("dropNsfwLabels", ArrayList(drop.nsfwLabels))
-                                        }
-                                        drop.decayDays?.let { putExtra("dropDecayDays", it) }
-                                    }
-                                    ctx.startActivity(intent)
-                                },
-                                    onDelete = { drop ->
-                                        if (drop.id.isBlank()) {
-                                            snackbar.showMessage(scope, "Unable to delete this drop.")
-                                        } else {
-                                            myDropsPendingDelete = drop
-                                        }
-                                    }
-                                )
-                            }
-                        }
-                    }
-
-                    ExplorerDestination.Collected -> {
-                        Column(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(16.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxWidth()
-                            ) {
-                                val isSignedIn = !currentUserId.isNullOrBlank()
-                                val collectedLikeRestrictionMessage = when {
-                                    !isSignedIn -> "Sign in to react to drops."
-                                    !canParticipate -> participationRestriction("react to drops")
-                                    else -> null
-                                }
-                                val pendingRemoval = collectedPendingRemove
-                                if (pendingRemoval != null) {
-                                    AlertDialog(
-                                        onDismissRequest = { collectedPendingRemove = null },
-                                        icon = { Icon(Icons.Filled.Delete, contentDescription = null) },
-                                        title = { Text("Delete saved drop?") },
-                                        text = { Text("Are you sure you want to delete this saved drop?") },
-                                        confirmButton = {
-                                            TextButton(
-                                                onClick = {
-                                                    noteInventory.removeCollected(pendingRemoval.id)
-                                                    collectedNotes = noteInventory.getCollectedNotes()
-                                                    collectedPendingRemove = null
+                                        onView = { note ->
+                                            val intent = Intent(ctx, DropDetailActivity::class.java).apply {
+                                                putExtra("dropId", note.id)
+                                                if (note.text.isNotBlank()) putExtra("dropText", note.text)
+                                                note.description?.takeIf { it.isNotBlank() }?.let {
+                                                    putExtra("dropDescription", it)
                                                 }
-                                            ) {
-                                                Text("Delete")
+                                                note.lat?.let { putExtra("dropLat", it) }
+                                                note.lng?.let { putExtra("dropLng", it) }
+                                                note.dropCreatedAt?.let { putExtra("dropCreatedAt", it) }
+                                                note.groupCode?.let { putExtra("dropGroupCode", it) }
+                                                putExtra("dropContentType", note.contentType.name)
+                                                note.mediaUrl?.let { putExtra("dropMediaUrl", it) }
+                                                note.mediaMimeType?.let { putExtra("dropMediaMimeType", it) }
+                                                note.mediaData?.let { putExtra("dropMediaData", it) }
+                                                putExtra("dropType", note.dropType.name)
+                                                note.businessName?.let { putExtra("dropBusinessName", it) }
+                                                note.businessId?.let { putExtra("dropBusinessId", it) }
+                                                note.redemptionLimit?.let { putExtra("dropRedemptionLimit", it) }
+                                                putExtra("dropRedemptionCount", note.redemptionCount)
+                                                putExtra("dropCollectedAt", note.collectedAt)
+                                                putExtra("dropIsRedeemed", note.isRedeemed)
+                                                note.redeemedAt?.let { putExtra("dropRedeemedAt", it) }
+                                                putExtra("dropLikeCount", note.likeCount)
+                                                putExtra("dropDislikeCount", note.dislikeCount)
+                                                if (note.isLiked) {
+                                                    putExtra("dropIsLiked", true)
+                                                }
+                                                if (note.isDisliked) {
+                                                    putExtra("dropIsDisliked", true)
+                                                }
+                                                putExtra("dropIsNsfw", note.isNsfw)
+                                                if (note.nsfwLabels.isNotEmpty()) {
+                                                    putStringArrayListExtra("dropNsfwLabels", ArrayList(note.nsfwLabels))
+                                                }
+                                                note.decayDays?.let { putExtra("dropDecayDays", it) }
                                             }
+                                            ctx.startActivity(intent)
                                         },
-                                        dismissButton = {
-                                            TextButton(onClick = { collectedPendingRemove = null }) {
-                                                Text("Cancel")
-                                            }
+                                        onRemove = { note ->
+                                            collectedPendingRemove = note
                                         }
                                     )
                                 }
-
-                                CollectedDropsContent(
-                                    modifier = Modifier.fillMaxSize(),
-                                    topContentPadding = mapAwareTopPadding,
-                                    contentPadding = PaddingValues(bottom = 0.dp),
-                                    notes = sortedCollectedNotes,
-                                    hiddenNsfwCount = hiddenNsfwCollectedCount,
-                                    canReportDrops = !currentUserId.isNullOrBlank(),
-                                    reportedDropIds = reportedCollectedDropIds.toSet(),
-                                    reportingDropId = browseReportingDropId,
-                                    isReportProcessing = browseReportProcessing,
-                                    emptyMessage = selectedExplorerGroupCode?.let { code ->
-                                        "You haven't collected any drops for $code yet."
-                                    },
-                                    sortOption = collectedSortOption,
-                                    sortOptions = dropSortOptions,
-                                    onSortOptionChange = { option ->
-                                        collectedSortKey = option.name
-                                    },
-                                    canLikeDrops = canParticipate,
-                                    isSignedIn = isSignedIn,
-                                    likeRestrictionMessage = collectedLikeRestrictionMessage,
-                                    votingDropIds = votingDropIds,
-                                    onLike = { note, status ->
-                                        submitCollectedLike(note, status)
-                                    },
-                                    onReport = report@{ note ->
-                                        if (browseReportProcessing) return@report
-                                        val userId = currentUserId
-                                        if (userId.isNullOrBlank()) {
-                                            Toast.makeText(ctx, "Sign in to report drops.", Toast.LENGTH_SHORT).show()
-                                            return@report
-                                        }
-                                        if (reportedCollectedDropIds.contains(note.id)) {
-                                            Toast.makeText(ctx, "You've already reported this drop.", Toast.LENGTH_SHORT).show()
-                                            return@report
-                                        }
-                                        browseReportTarget = note.toReportableDrop(source = REPORT_SOURCE_COLLECTED)
-                                        browseReportSelectedReasons = emptySet()
-                                        browseReportError = null
-                                        browseReportDialogOpen = true
-                                    },
-                                    onView = { note ->
-                                        val intent = Intent(ctx, DropDetailActivity::class.java).apply {
-                                            putExtra("dropId", note.id)
-                                            if (note.text.isNotBlank()) putExtra("dropText", note.text)
-                                            note.description?.takeIf { it.isNotBlank() }?.let {
-                                                putExtra("dropDescription", it)
-                                            }
-                                            note.lat?.let { putExtra("dropLat", it) }
-                                            note.lng?.let { putExtra("dropLng", it) }
-                                            note.dropCreatedAt?.let { putExtra("dropCreatedAt", it) }
-                                            note.groupCode?.let { putExtra("dropGroupCode", it) }
-                                            putExtra("dropContentType", note.contentType.name)
-                                            note.mediaUrl?.let { putExtra("dropMediaUrl", it) }
-                                            note.mediaMimeType?.let { putExtra("dropMediaMimeType", it) }
-                                            note.mediaData?.let { putExtra("dropMediaData", it) }
-                                            putExtra("dropType", note.dropType.name)
-                                            note.businessName?.let { putExtra("dropBusinessName", it) }
-                                            note.businessId?.let { putExtra("dropBusinessId", it) }
-                                            note.redemptionLimit?.let { putExtra("dropRedemptionLimit", it) }
-                                            putExtra("dropRedemptionCount", note.redemptionCount)
-                                            putExtra("dropCollectedAt", note.collectedAt)
-                                            putExtra("dropIsRedeemed", note.isRedeemed)
-                                            note.redeemedAt?.let { putExtra("dropRedeemedAt", it) }
-                                            putExtra("dropLikeCount", note.likeCount)
-                                            putExtra("dropDislikeCount", note.dislikeCount)
-                                            if (note.isLiked) {
-                                                putExtra("dropIsLiked", true)
-                                            }
-                                            if (note.isDisliked) {
-                                                putExtra("dropIsDisliked", true)
-                                            }
-                                            putExtra("dropIsNsfw", note.isNsfw)
-                                            if (note.nsfwLabels.isNotEmpty()) {
-                                                putStringArrayListExtra("dropNsfwLabels", ArrayList(note.nsfwLabels))
-                                            }
-                                            note.decayDays?.let { putExtra("dropDecayDays", it) }
-                                        }
-                                        ctx.startActivity(intent)
-                                    },
-                                    onRemove = { note ->
-                                        collectedPendingRemove = note
-                                    }
-                                )
                             }
                         }
                     }
                 }
             }
-        }
 
             SnackbarHost(
                 hostState = snackbar,
@@ -3284,196 +3227,196 @@ fun DropHereScreen(
                     .padding(bottom = 16.dp)
                     .zIndex(1f)
             )
-    }
+        }
 
-    if (showDropComposer) {
-        DropComposerDialog(
-            isSubmitting = isSubmitting,
-            isBusinessUser = userProfile?.isBusiness() == true,
-            businessName = userProfile?.businessName,
-            businessCategories = businessCategories,
-            userProfileLoading = userProfileLoading,
-            userProfileError = userProfileError,
-            dropType = dropType,
-            onDropTypeChange = { dropType = it },
-            dropContentType = dropContentType,
-            onDropContentTypeChange = { dropContentType = it },
-            note = note,
-            onNoteChange = { note = it },
-            description = description,
-            onDescriptionChange = { description = it },
-            capturedPhotoPath = capturedPhotoPath,
-            onCapturePhoto = { ensureCameraAndLaunch() },
-            onClearPhoto = { clearPhoto() },
-            capturedAudioUri = capturedAudioUri,
-            onRecordAudio = { ensureAudioAndLaunch() },
-            onClearAudio = { clearAudio() },
-            capturedVideoUri = capturedVideoUri,
-            onRecordVideo = { ensureVideoAndLaunch() },
-            onClearVideo = { clearVideo() },
-            dropVisibility = dropVisibility,
-            onDropVisibilityChange = { dropVisibility = it },
-            dropAnonymously = dropAnonymously,
-            onDropAnonymouslyChange = { dropAnonymously = it },
-            groupCodeInput = groupCodeInput,
-            onGroupCodeInputChange = { groupCodeInput = it },
-            joinedGroups = createdGroups.map { it.code },
-            onSelectGroupCode = { code -> groupCodeInput = TextFieldValue(code) },
-            redemptionCodeInput = redemptionCodeInput,
-            onRedemptionCodeChange = { redemptionCodeInput = it },
-            redemptionLimitInput = redemptionLimitInput,
-            onRedemptionLimitChange = { redemptionLimitInput = it },
-            decayDaysInput = decayDaysInput,
-            onDecayDaysChange = { decayDaysInput = it },
-            onManageGroupCodes = { showManageGroups = true },
-            onSubmit = { submitDrop() },
-            onDismiss = {
-                if (!isSubmitting) {
-                    showDropComposer = false
+        if (showDropComposer) {
+            DropComposerDialog(
+                isSubmitting = isSubmitting,
+                isBusinessUser = userProfile?.isBusiness() == true,
+                businessName = userProfile?.businessName,
+                businessCategories = businessCategories,
+                userProfileLoading = userProfileLoading,
+                userProfileError = userProfileError,
+                dropType = dropType,
+                onDropTypeChange = { dropType = it },
+                dropContentType = dropContentType,
+                onDropContentTypeChange = { dropContentType = it },
+                note = note,
+                onNoteChange = { note = it },
+                description = description,
+                onDescriptionChange = { description = it },
+                capturedPhotoPath = capturedPhotoPath,
+                onCapturePhoto = { ensureCameraAndLaunch() },
+                onClearPhoto = { clearPhoto() },
+                capturedAudioUri = capturedAudioUri,
+                onRecordAudio = { ensureAudioAndLaunch() },
+                onClearAudio = { clearAudio() },
+                capturedVideoUri = capturedVideoUri,
+                onRecordVideo = { ensureVideoAndLaunch() },
+                onClearVideo = { clearVideo() },
+                dropVisibility = dropVisibility,
+                onDropVisibilityChange = { dropVisibility = it },
+                dropAnonymously = dropAnonymously,
+                onDropAnonymouslyChange = { dropAnonymously = it },
+                groupCodeInput = groupCodeInput,
+                onGroupCodeInputChange = { groupCodeInput = it },
+                joinedGroups = createdGroups.map { it.code },
+                onSelectGroupCode = { code -> groupCodeInput = TextFieldValue(code) },
+                redemptionCodeInput = redemptionCodeInput,
+                onRedemptionCodeChange = { redemptionCodeInput = it },
+                redemptionLimitInput = redemptionLimitInput,
+                onRedemptionLimitChange = { redemptionLimitInput = it },
+                decayDaysInput = decayDaysInput,
+                onDecayDaysChange = { decayDaysInput = it },
+                onManageGroupCodes = { showManageGroups = true },
+                onSubmit = { submitDrop() },
+                onDismiss = {
+                    if (!isSubmitting) {
+                        showDropComposer = false
+                    }
                 }
-            }
-        )
-    }
+            )
+        }
 
-    if (browseReportDialogOpen) {
-        val targetDrop = browseReportTarget
-        ReportDropDialog(
-            reasons = dropReportReasons,
-            selectedReasons = browseReportSelectedReasons,
-            onReasonToggle = { code ->
-                browseReportSelectedReasons = if (browseReportSelectedReasons.contains(code)) {
-                    browseReportSelectedReasons - code
-                } else {
-                    browseReportSelectedReasons + code
-                }
-            },
-            onDismiss = {
-                if (!browseReportProcessing) {
-                    browseReportDialogOpen = false
-                    browseReportTarget = null
-                    browseReportSelectedReasons = emptySet()
-                    browseReportError = null
-                    browseReportingDropId = null
-                }
-            },
-            onSubmit = submit@{
-                val userId = currentUserId
-                val target = targetDrop
-                if (userId.isNullOrBlank()) {
-                    Toast.makeText(ctx, "Sign in to report drops.", Toast.LENGTH_SHORT).show()
-                    return@submit
-                }
-                if (target == null || target.id.isBlank()) {
-                    browseReportError = "Drop information is missing."
-                    return@submit
-                }
-                if (browseReportSelectedReasons.isEmpty()) {
-                    browseReportError = "Select at least one reason."
-                    return@submit
-                }
-                browseReportProcessing = true
-                browseReportError = null
-                browseReportingDropId = target.id
-                scope.launch {
-                    try {
-                        repo.submitDropReport(
-                            dropId = target.id,
-                            reporterId = userId,
-                            reasonCodes = browseReportSelectedReasons,
-                            additionalContext = mapOf(
-                                "source" to target.source,
-                                "contentType" to target.contentType.name,
-                                "hasMedia" to target.hasMedia,
-                                "dropType" to target.dropType.name
-                            )
-                        )
+        if (browseReportDialogOpen) {
+            val targetDrop = browseReportTarget
+            ReportDropDialog(
+                reasons = dropReportReasons,
+                selectedReasons = browseReportSelectedReasons,
+                onReasonToggle = { code ->
+                    browseReportSelectedReasons = if (browseReportSelectedReasons.contains(code)) {
+                        browseReportSelectedReasons - code
+                    } else {
+                        browseReportSelectedReasons + code
+                    }
+                },
+                onDismiss = {
+                    if (!browseReportProcessing) {
                         browseReportDialogOpen = false
                         browseReportTarget = null
                         browseReportSelectedReasons = emptySet()
                         browseReportError = null
-                        val now = System.currentTimeMillis()
-                        when (target.source) {
-                            REPORT_SOURCE_BROWSE_MAP -> {
-                                otherDrops = otherDrops.map { existing ->
-                                    if (existing.id == target.id) {
-                                        val updatedReportedBy = existing.reportedBy.toMutableMap()
-                                        val already = updatedReportedBy.containsKey(userId)
-                                        updatedReportedBy[userId] = now
-                                        val updatedCount = if (already) {
-                                            existing.reportCount
-                                        } else {
-                                            existing.reportCount + 1
-                                        }
-                                        existing.copy(
-                                            reportedBy = updatedReportedBy,
-                                            reportCount = updatedCount
-                                        )
-                                    } else {
-                                        existing
-                                    }
-                                }
-                            }
-
-                            REPORT_SOURCE_COLLECTED -> {
-                                if (!reportedCollectedDropIds.contains(target.id)) {
-                                    reportedCollectedDropIds.add(target.id)
-                                }
-                            }
-
-                            else -> Unit
-                        }
-                        Toast.makeText(ctx, "Report submitted.", Toast.LENGTH_SHORT).show()
-                    } catch (error: Exception) {
-                        val message = error.localizedMessage?.takeIf { it.isNotBlank() }
-                            ?: "Couldn't submit report. Try again."
-                        browseReportError = message
-                    } finally {
-                        browseReportProcessing = false
                         browseReportingDropId = null
                     }
-                }
-            },
-            isSubmitting = browseReportProcessing,
-            errorMessage = browseReportError
-        )
-    }
+                },
+                onSubmit = submit@{
+                    val userId = currentUserId
+                    val target = targetDrop
+                    if (userId.isNullOrBlank()) {
+                        Toast.makeText(ctx, "Sign in to report drops.", Toast.LENGTH_SHORT).show()
+                        return@submit
+                    }
+                    if (target == null || target.id.isBlank()) {
+                        browseReportError = "Drop information is missing."
+                        return@submit
+                    }
+                    if (browseReportSelectedReasons.isEmpty()) {
+                        browseReportError = "Select at least one reason."
+                        return@submit
+                    }
+                    browseReportProcessing = true
+                    browseReportError = null
+                    browseReportingDropId = target.id
+                    scope.launch {
+                        try {
+                            repo.submitDropReport(
+                                dropId = target.id,
+                                reporterId = userId,
+                                reasonCodes = browseReportSelectedReasons,
+                                additionalContext = mapOf(
+                                    "source" to target.source,
+                                    "contentType" to target.contentType.name,
+                                    "hasMedia" to target.hasMedia,
+                                    "dropType" to target.dropType.name
+                                )
+                            )
+                            browseReportDialogOpen = false
+                            browseReportTarget = null
+                            browseReportSelectedReasons = emptySet()
+                            browseReportError = null
+                            val now = System.currentTimeMillis()
+                            when (target.source) {
+                                REPORT_SOURCE_BROWSE_MAP -> {
+                                    otherDrops = otherDrops.map { existing ->
+                                        if (existing.id == target.id) {
+                                            val updatedReportedBy = existing.reportedBy.toMutableMap()
+                                            val already = updatedReportedBy.containsKey(userId)
+                                            updatedReportedBy[userId] = now
+                                            val updatedCount = if (already) {
+                                                existing.reportCount
+                                            } else {
+                                                existing.reportCount + 1
+                                            }
+                                            existing.copy(
+                                                reportedBy = updatedReportedBy,
+                                                reportCount = updatedCount
+                                            )
+                                        } else {
+                                            existing
+                                        }
+                                    }
+                                }
 
-    if (showExplorerProfile) {
-        ExplorerProfileDialog(
-            currentUsername = userProfile?.username,
-            username = explorerUsernameField,
-            onUsernameChange = { explorerUsernameField = it },
-            isSubmitting = explorerProfileSubmitting,
-            error = explorerProfileError,
-            onSubmit = { saveExplorerUsername() },
-            onDismiss = {
-                if (!explorerProfileSubmitting) {
-                    showExplorerProfile = false
-                }
-            }
-        )
-    }
+                                REPORT_SOURCE_COLLECTED -> {
+                                    if (!reportedCollectedDropIds.contains(target.id)) {
+                                        reportedCollectedDropIds.add(target.id)
+                                    }
+                                }
 
-    if (showNotificationRadiusDialog) {
-        NotificationRadiusDialog(
-            initialRadius = notificationRadius,
-            onConfirm = { newRadius ->
-                notificationRadius = newRadius
-                notificationPrefs.setNotificationRadiusMeters(newRadius)
-                showNotificationRadiusDialog = false
-                snackbar.showMessage(
-                    scope,
-                    "We'll alert you to drops within ${newRadius.roundToInt()} meters."
-                )
-                registrar.registerNearby(
-                    ctx,
-                    maxMeters = newRadius,
-                    groupCodes = groupPrefs.getMemberships().map { it.code }.toSet()
-                )
-            },
-            onDismiss = { showNotificationRadiusDialog = false }
-        )
-    }
+                                else -> Unit
+                            }
+                            Toast.makeText(ctx, "Report submitted.", Toast.LENGTH_SHORT).show()
+                        } catch (error: Exception) {
+                            val message = error.localizedMessage?.takeIf { it.isNotBlank() }
+                                ?: "Couldn't submit report. Try again."
+                            browseReportError = message
+                        } finally {
+                            browseReportProcessing = false
+                            browseReportingDropId = null
+                        }
+                    }
+                },
+                isSubmitting = browseReportProcessing,
+                errorMessage = browseReportError
+            )
+        }
+
+        if (showExplorerProfile) {
+            ExplorerProfileDialog(
+                currentUsername = userProfile?.username,
+                username = explorerUsernameField,
+                onUsernameChange = { explorerUsernameField = it },
+                isSubmitting = explorerProfileSubmitting,
+                error = explorerProfileError,
+                onSubmit = { saveExplorerUsername() },
+                onDismiss = {
+                    if (!explorerProfileSubmitting) {
+                        showExplorerProfile = false
+                    }
+                }
+            )
+        }
+
+        if (showNotificationRadiusDialog) {
+            NotificationRadiusDialog(
+                initialRadius = notificationRadius,
+                onConfirm = { newRadius ->
+                    notificationRadius = newRadius
+                    notificationPrefs.setNotificationRadiusMeters(newRadius)
+                    showNotificationRadiusDialog = false
+                    snackbar.showMessage(
+                        scope,
+                        "We'll alert you to drops within ${newRadius.roundToInt()} meters."
+                    )
+                    registrar.registerNearby(
+                        ctx,
+                        maxMeters = newRadius,
+                        groupCodes = groupPrefs.getMemberships().map { it.code }.toSet()
+                    )
+                },
+                onDismiss = { showNotificationRadiusDialog = false }
+            )
+        }
 
         termsPrivacyDialogTab?.let { tab ->
             TermsPrivacyDialog(
@@ -3482,237 +3425,237 @@ fun DropHereScreen(
             )
         }
 
-    if (showFaqDialog) {
-        FaqDialog(onDismiss = { showFaqDialog = false })
-    }
+        if (showFaqDialog) {
+            FaqDialog(onDismiss = { showFaqDialog = false })
+        }
 
-    if (showNsfwDialog) {
-        NsfwPreferenceDialog(
-            enabled = userProfile?.canViewNsfw() == true,
-            isProcessing = nsfwUpdating,
-            error = nsfwUpdateError,
-            onConfirm = { enable ->
-                val userId = currentUserId
-                if (userId.isNullOrBlank()) {
-                    nsfwUpdateError = "Sign in again to update content settings."
-                    return@NsfwPreferenceDialog
-                }
-                nsfwUpdating = true
-                nsfwUpdateError = null
-                scope.launch {
-                    try {
-                        val updated = repo.updateNsfwPreference(userId, enable)
-                        userProfile = updated
-                        otherDropsRefreshToken += 1
-                        showNsfwDialog = false
-                        val message = if (enable) {
-                            "NSFW drops enabled."
-                        } else {
-                            "NSFW drops disabled."
-                        }
-                        snackbar.showMessage(scope, message)
-                        registrar.registerNearby(
-                            ctx,
-                            maxMeters = notificationRadius,
-                            groupCodes = groupPrefs.getMemberships().map { it.code }.toSet()
-                        )
-                    } catch (error: Exception) {
-                        nsfwUpdateError = error.localizedMessage ?: "Couldn't update settings."
-                    } finally {
-                        nsfwUpdating = false
+        if (showNsfwDialog) {
+            NsfwPreferenceDialog(
+                enabled = userProfile?.canViewNsfw() == true,
+                isProcessing = nsfwUpdating,
+                error = nsfwUpdateError,
+                onConfirm = { enable ->
+                    val userId = currentUserId
+                    if (userId.isNullOrBlank()) {
+                        nsfwUpdateError = "Sign in again to update content settings."
+                        return@NsfwPreferenceDialog
                     }
-                }
-            },
-            onDismiss = { showNsfwDialog = false }
-        )
-    }
-
-    if (showBusinessOnboarding) {
-        var businessNameField by rememberSaveable(
-            userProfile?.businessName,
-            stateSaver = TextFieldValue.Saver
-        ) {
-            mutableStateOf(TextFieldValue(userProfile?.businessName.orEmpty()))
+                    nsfwUpdating = true
+                    nsfwUpdateError = null
+                    scope.launch {
+                        try {
+                            val updated = repo.updateNsfwPreference(userId, enable)
+                            userProfile = updated
+                            otherDropsRefreshToken += 1
+                            showNsfwDialog = false
+                            val message = if (enable) {
+                                "NSFW drops enabled."
+                            } else {
+                                "NSFW drops disabled."
+                            }
+                            snackbar.showMessage(scope, message)
+                            registrar.registerNearby(
+                                ctx,
+                                maxMeters = notificationRadius,
+                                groupCodes = groupPrefs.getMemberships().map { it.code }.toSet()
+                            )
+                        } catch (error: Exception) {
+                            nsfwUpdateError = error.localizedMessage ?: "Couldn't update settings."
+                        } finally {
+                            nsfwUpdating = false
+                        }
+                    }
+                },
+                onDismiss = { showNsfwDialog = false }
+            )
         }
-        var onboardingError by remember { mutableStateOf<String?>(null) }
-        var onboardingSubmitting by remember { mutableStateOf(false) }
-        val categoriesKey = userProfile?.businessCategories
-            ?.joinToString(separator = ",") { it.id }
-        var selectedCategoryIds by remember(categoriesKey) {
-            mutableStateOf(userProfile?.businessCategories?.map { it.id } ?: emptyList())
-        }
 
-        BusinessOnboardingDialog(
-            name = businessNameField,
-            selectedCategories = selectedCategoryIds
-                .mapNotNull { id -> BusinessCategory.fromId(id) }
-                .toSet(),
-            onNameChange = { businessNameField = it },
-            onToggleCategory = { category ->
-                selectedCategoryIds = if (selectedCategoryIds.contains(category.id)) {
-                    selectedCategoryIds.filterNot { it == category.id }
-                } else {
-                    selectedCategoryIds + category.id
-                }
-            },
-            isSubmitting = onboardingSubmitting,
-            error = onboardingError,
-            onSubmit = {
-                val trimmed = businessNameField.text.trim()
-                if (trimmed.isEmpty()) {
-                    onboardingError = "Enter your business name."
-                    return@BusinessOnboardingDialog
-                }
-                val selectedCategories = selectedCategoryIds
+        if (showBusinessOnboarding) {
+            var businessNameField by rememberSaveable(
+                userProfile?.businessName,
+                stateSaver = TextFieldValue.Saver
+            ) {
+                mutableStateOf(TextFieldValue(userProfile?.businessName.orEmpty()))
+            }
+            var onboardingError by remember { mutableStateOf<String?>(null) }
+            var onboardingSubmitting by remember { mutableStateOf(false) }
+            val categoriesKey = userProfile?.businessCategories
+                ?.joinToString(separator = ",") { it.id }
+            var selectedCategoryIds by remember(categoriesKey) {
+                mutableStateOf(userProfile?.businessCategories?.map { it.id } ?: emptyList())
+            }
+
+            BusinessOnboardingDialog(
+                name = businessNameField,
+                selectedCategories = selectedCategoryIds
                     .mapNotNull { id -> BusinessCategory.fromId(id) }
-                if (selectedCategories.isEmpty()) {
-                    onboardingError = "Select at least one business category."
-                    return@BusinessOnboardingDialog
-                }
-                val uid = currentUserId
-                if (uid.isNullOrBlank()) {
-                    onboardingError = "Sign-in is required."
-                    return@BusinessOnboardingDialog
-                }
-                onboardingSubmitting = true
-                onboardingError = null
-                scope.launch {
-                    try {
-                        val updated = repo.updateBusinessProfile(uid, trimmed, selectedCategories)
-                        userProfile = updated
+                    .toSet(),
+                onNameChange = { businessNameField = it },
+                onToggleCategory = { category ->
+                    selectedCategoryIds = if (selectedCategoryIds.contains(category.id)) {
+                        selectedCategoryIds.filterNot { it == category.id }
+                    } else {
+                        selectedCategoryIds + category.id
+                    }
+                },
+                isSubmitting = onboardingSubmitting,
+                error = onboardingError,
+                onSubmit = {
+                    val trimmed = businessNameField.text.trim()
+                    if (trimmed.isEmpty()) {
+                        onboardingError = "Enter your business name."
+                        return@BusinessOnboardingDialog
+                    }
+                    val selectedCategories = selectedCategoryIds
+                        .mapNotNull { id -> BusinessCategory.fromId(id) }
+                    if (selectedCategories.isEmpty()) {
+                        onboardingError = "Select at least one business category."
+                        return@BusinessOnboardingDialog
+                    }
+                    val uid = currentUserId
+                    if (uid.isNullOrBlank()) {
+                        onboardingError = "Sign-in is required."
+                        return@BusinessOnboardingDialog
+                    }
+                    onboardingSubmitting = true
+                    onboardingError = null
+                    scope.launch {
+                        try {
+                            val updated = repo.updateBusinessProfile(uid, trimmed, selectedCategories)
+                            userProfile = updated
+                            showBusinessOnboarding = false
+                            snackbar.showMessage(scope, "Business profile saved.")
+                        } catch (error: Exception) {
+                            onboardingError = error.localizedMessage ?: "Couldn't save business info."
+                        } finally {
+                            onboardingSubmitting = false
+                        }
+                    }
+                },
+                onDismiss = {
+                    if (!onboardingSubmitting) {
                         showBusinessOnboarding = false
-                        snackbar.showMessage(scope, "Business profile saved.")
-                    } catch (error: Exception) {
-                        onboardingError = error.localizedMessage ?: "Couldn't save business info."
-                    } finally {
-                        onboardingSubmitting = false
                     }
                 }
-            },
-            onDismiss = {
-                if (!onboardingSubmitting) {
-                    showBusinessOnboarding = false
-                }
-            }
-        )
-    }
+            )
+        }
 
-    if (showBusinessDashboard) {
-        BusinessDashboardDialog(
-            drops = businessDrops,
-            loading = businessDashboardLoading,
-            error = businessDashboardError,
-            onDismiss = { showBusinessDashboard = false },
-            onRefresh = { businessDashboardRefreshToken += 1 }
-        )
-    }
+        if (showBusinessDashboard) {
+            BusinessDashboardDialog(
+                drops = businessDrops,
+                loading = businessDashboardLoading,
+                error = businessDashboardError,
+                onDismiss = { showBusinessDashboard = false },
+                onRefresh = { businessDashboardRefreshToken += 1 }
+            )
+        }
 
-    if (showManageGroups) {
-        ManageGroupsDialog(
-            groups = joinedGroups,
-            snackbarHostState = manageGroupsSnackbar,
-            onDismiss = {
-                showManageGroups = false
-                showGroupMenu = false
-            },
-            onCreate = { code ->
-                val uid = FirebaseAuth.getInstance().currentUser?.uid
-                if (uid.isNullOrBlank()) {
-                    manageGroupsSnackbar.showMessage(scope, "Sign in to manage groups.")
-                    return@ManageGroupsDialog
-                }
-                scope.launch {
-                    val normalized = GroupPreferences.normalizeGroupCode(code) ?: return@launch
-                    try {
-                        val membership = repo.joinGroup(
-                            uid,
-                            normalized,
-                            allowCreateIfMissing = true
-                        )
-                        groupPrefs.addGroup(membership)
-                        joinedGroups = groupPrefs.getMemberships()
-                        if (dropVisibility == DropVisibility.GroupOnly && membership.role == GroupRole.OWNER) {
-                            groupCodeInput = TextFieldValue(normalized)
+        if (showManageGroups) {
+            ManageGroupsDialog(
+                groups = joinedGroups,
+                snackbarHostState = manageGroupsSnackbar,
+                onDismiss = {
+                    showManageGroups = false
+                    showGroupMenu = false
+                },
+                onCreate = { code ->
+                    val uid = FirebaseAuth.getInstance().currentUser?.uid
+                    if (uid.isNullOrBlank()) {
+                        manageGroupsSnackbar.showMessage(scope, "Sign in to manage groups.")
+                        return@ManageGroupsDialog
+                    }
+                    scope.launch {
+                        val normalized = GroupPreferences.normalizeGroupCode(code) ?: return@launch
+                        try {
+                            val membership = repo.joinGroup(
+                                uid,
+                                normalized,
+                                allowCreateIfMissing = true
+                            )
+                            groupPrefs.addGroup(membership)
+                            joinedGroups = groupPrefs.getMemberships()
+                            if (dropVisibility == DropVisibility.GroupOnly && membership.role == GroupRole.OWNER) {
+                                groupCodeInput = TextFieldValue(normalized)
+                            }
+                            val message = if (membership.role == GroupRole.OWNER) {
+                                "Created group $normalized"
+                            } else {
+                                "Subscribed to $normalized"
+                            }
+                            manageGroupsSnackbar.showMessage(scope, message)
+                        } catch (error: Exception) {
+                            val message = when (error) {
+                                is GroupAlreadyExistsException ->
+                                    "Group ${error.code} already exist."
+                                is GroupNotFoundException ->
+                                    "Group $normalized doesn't exist. Ask the creator to share it once it's ready."
+                                else -> error.localizedMessage ?: "Couldn't save group $normalized"
+                            }
+                            manageGroupsSnackbar.showMessage(scope, message)
                         }
-                        val message = if (membership.role == GroupRole.OWNER) {
-                            "Created group $normalized"
-                        } else {
-                            "Subscribed to $normalized"
+                    }
+                },
+                onSubscribe = { code ->
+                    val uid = FirebaseAuth.getInstance().currentUser?.uid
+                    if (uid.isNullOrBlank()) {
+                        manageGroupsSnackbar.showMessage(scope, "Sign in to manage groups.")
+                        return@ManageGroupsDialog
+                    }
+                    scope.launch {
+                        val normalized = GroupPreferences.normalizeGroupCode(code) ?: return@launch
+                        try {
+                            val membership = repo.joinGroup(
+                                uid,
+                                normalized,
+                                allowCreateIfMissing = false
+                            )
+                            groupPrefs.addGroup(membership)
+                            joinedGroups = groupPrefs.getMemberships()
+                            if (dropVisibility == DropVisibility.GroupOnly && membership.role == GroupRole.OWNER) {
+                                groupCodeInput = TextFieldValue(normalized)
+                            }
+                            val message = if (membership.role == GroupRole.OWNER) {
+                                "Created group $normalized"
+                            } else {
+                                "Subscribed to $normalized"
+                            }
+                            manageGroupsSnackbar.showMessage(scope, message)
+                        } catch (error: Exception) {
+                            val message = when (error) {
+                                is GroupNotFoundException ->
+                                    "Group $normalized doesn't exist. Ask the creator to share it once it's ready."
+                                else -> error.localizedMessage ?: "Couldn't save group $normalized"
+                            }
+                            manageGroupsSnackbar.showMessage(scope, message)
                         }
-                        manageGroupsSnackbar.showMessage(scope, message)
-                    } catch (error: Exception) {
-                        val message = when (error) {
-                            is GroupAlreadyExistsException ->
-                                "Group ${error.code} already exist."
-                            is GroupNotFoundException ->
-                                "Group $normalized doesn't exist. Ask the creator to share it once it's ready."
-                            else -> error.localizedMessage ?: "Couldn't save group $normalized"
+                    }
+                },
+                onRemove = { code ->
+                    val uid = FirebaseAuth.getInstance().currentUser?.uid
+                    if (uid.isNullOrBlank()) {
+                        manageGroupsSnackbar.showMessage(scope, "Sign in to manage groups.")
+                        return@ManageGroupsDialog
+                    }
+                    scope.launch {
+                        val normalized = GroupPreferences.normalizeGroupCode(code) ?: return@launch
+                        try {
+                            repo.leaveGroup(uid, normalized)
+                            groupPrefs.removeGroup(normalized)
+                            joinedGroups = groupPrefs.getMemberships()
+                            val currentInput = GroupPreferences.normalizeGroupCode(groupCodeInput.text)
+                            if (currentInput == normalized) {
+                                groupCodeInput = TextFieldValue("")
+                            }
+                            manageGroupsSnackbar.showMessage(scope, "Removed group $normalized")
+                        } catch (error: Exception) {
+                            val message = error.localizedMessage ?: "Couldn't remove group $normalized"
+                            manageGroupsSnackbar.showMessage(scope, message)
                         }
-                        manageGroupsSnackbar.showMessage(scope, message)
                     }
                 }
-            },
-            onSubscribe = { code ->
-                val uid = FirebaseAuth.getInstance().currentUser?.uid
-                if (uid.isNullOrBlank()) {
-                    manageGroupsSnackbar.showMessage(scope, "Sign in to manage groups.")
-                    return@ManageGroupsDialog
-                }
-                scope.launch {
-                    val normalized = GroupPreferences.normalizeGroupCode(code) ?: return@launch
-                    try {
-                        val membership = repo.joinGroup(
-                            uid,
-                            normalized,
-                            allowCreateIfMissing = false
-                        )
-                        groupPrefs.addGroup(membership)
-                        joinedGroups = groupPrefs.getMemberships()
-                        if (dropVisibility == DropVisibility.GroupOnly && membership.role == GroupRole.OWNER) {
-                            groupCodeInput = TextFieldValue(normalized)
-                        }
-                        val message = if (membership.role == GroupRole.OWNER) {
-                            "Created group $normalized"
-                        } else {
-                            "Subscribed to $normalized"
-                        }
-                        manageGroupsSnackbar.showMessage(scope, message)
-                    } catch (error: Exception) {
-                        val message = when (error) {
-                            is GroupNotFoundException ->
-                                "Group $normalized doesn't exist. Ask the creator to share it once it's ready."
-                            else -> error.localizedMessage ?: "Couldn't save group $normalized"
-                        }
-                        manageGroupsSnackbar.showMessage(scope, message)
-                    }
-                }
-            },
-            onRemove = { code ->
-                val uid = FirebaseAuth.getInstance().currentUser?.uid
-                if (uid.isNullOrBlank()) {
-                    manageGroupsSnackbar.showMessage(scope, "Sign in to manage groups.")
-                    return@ManageGroupsDialog
-                }
-                scope.launch {
-                    val normalized = GroupPreferences.normalizeGroupCode(code) ?: return@launch
-                    try {
-                        repo.leaveGroup(uid, normalized)
-                        groupPrefs.removeGroup(normalized)
-                        joinedGroups = groupPrefs.getMemberships()
-                        val currentInput = GroupPreferences.normalizeGroupCode(groupCodeInput.text)
-                        if (currentInput == normalized) {
-                            groupCodeInput = TextFieldValue("")
-                        }
-                        manageGroupsSnackbar.showMessage(scope, "Removed group $normalized")
-                    } catch (error: Exception) {
-                        val message = error.localizedMessage ?: "Couldn't remove group $normalized"
-                        manageGroupsSnackbar.showMessage(scope, message)
-                    }
-                }
-            }
-        )
+            )
+        }
     }
-}
 
 }
 
@@ -7472,197 +7415,197 @@ private fun OtherDropsExplorerSection(
     ) {
         when {
             loading -> {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(top = topContentPadding),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            }
+
+            error != null -> {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp)
+                        .padding(top = topContentPadding),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = error,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                    OutlinedButton(onClick = onRefresh) {
+                        Icon(Icons.Rounded.Refresh, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.action_retry_generic))
+                    }
+                }
+            }
+
+            drops.isEmpty() -> {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp)
+                        .padding(top = topContentPadding),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = emptyMessage ?: "No drops from other users are available right now.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    OutlinedButton(onClick = onRefresh) {
+                        Icon(Icons.Rounded.Refresh, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.action_retry_generic))
+                    }
+                }
+            }
+
+            else -> {
+                var lastSortOption by remember { mutableStateOf(sortOption) }
+                var skipSelectionScroll by remember { mutableStateOf(false) }
+
+                LaunchedEffect(sortOption) {
+                    if (lastSortOption != sortOption) {
+                        skipSelectionScroll = true
+                        listState.scrollToItem(0)
+                        lastSortOption = sortOption
+                    }
+                }
+
+                LaunchedEffect(selectedId, drops) {
+                    if (skipSelectionScroll) {
+                        skipSelectionScroll = false
+                        return@LaunchedEffect
+                    }
+                    val targetId = selectedId ?: return@LaunchedEffect
+                    val index = drops.indexOfFirst { it.id == targetId }
+                    if (index >= 0) {
+                        listState.animateScrollToItem(index)
+                    }
+                }
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .onSizeChanged { containerHeight = it.height }
+                        .padding(top = topContentPadding)
+                ) {
                     Box(
                         modifier = Modifier
-                            .weight(1f)
                             .fillMaxWidth()
-                            .padding(top = topContentPadding),
-                        contentAlignment = Alignment.Center
+                            .weight(internalWeight)
                     ) {
-                        CircularProgressIndicator()
-                    }
-                }
-
-                error != null -> {
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxWidth()
-                            .padding(horizontal = 20.dp)
-                            .padding(top = topContentPadding),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Text(
-                            text = error,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.error
+                        OtherDropsMap(
+                            drops = drops,
+                            selectedDropId = selectedId,
+                            currentLocation = currentLocation,
+                            notificationRadiusMeters = notificationRadiusMeters,
+                            onDropClick = onSelect
                         )
-                        OutlinedButton(onClick = onRefresh) {
-                            Icon(Icons.Rounded.Refresh, contentDescription = null)
-                            Spacer(Modifier.width(8.dp))
-                            Text(stringResource(R.string.action_retry_generic))
-                        }
                     }
-                }
 
-                drops.isEmpty() -> {
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxWidth()
-                            .padding(horizontal = 20.dp)
-                            .padding(top = topContentPadding),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Text(
-                            text = emptyMessage ?: "No drops from other users are available right now.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                    Box(modifier = dividerModifier) {
+                        Divider(modifier = Modifier.align(Alignment.Center))
+                        DividerDragHandleHint(
+                            modifier = Modifier.align(Alignment.Center),
+                            text = stringResource(R.string.drag_to_resize)
                         )
-                        OutlinedButton(onClick = onRefresh) {
-                            Icon(Icons.Rounded.Refresh, contentDescription = null)
-                            Spacer(Modifier.width(8.dp))
-                            Text(stringResource(R.string.action_retry_generic))
-                        }
-                    }
-                }
-
-                else -> {
-                    var lastSortOption by remember { mutableStateOf(sortOption) }
-                    var skipSelectionScroll by remember { mutableStateOf(false) }
-
-                    LaunchedEffect(sortOption) {
-                        if (lastSortOption != sortOption) {
-                            skipSelectionScroll = true
-                            listState.scrollToItem(0)
-                            lastSortOption = sortOption
-                        }
-                    }
-
-                    LaunchedEffect(selectedId, drops) {
-                        if (skipSelectionScroll) {
-                            skipSelectionScroll = false
-                            return@LaunchedEffect
-                        }
-                        val targetId = selectedId ?: return@LaunchedEffect
-                        val index = drops.indexOfFirst { it.id == targetId }
-                        if (index >= 0) {
-                            listState.animateScrollToItem(index)
-                        }
                     }
 
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .weight(1f)
-                            .onSizeChanged { containerHeight = it.height }
-                            .padding(top = topContentPadding)
+                            .weight(listWeight)
                     ) {
-                        Box(
+                        val isSignedIn = !currentUserId.isNullOrBlank()
+                        Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .weight(internalWeight)
+                                .padding(horizontal = 20.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            OtherDropsMap(
-                                drops = drops,
-                                selectedDropId = selectedId,
-                                currentLocation = currentLocation,
-                                notificationRadiusMeters = notificationRadiusMeters,
-                                onDropClick = onSelect
+                            DropSortMenu(
+                                modifier = Modifier.weight(1f),
+                                current = sortOption,
+                                options = sortOptions,
+                                onSelect = onSortOptionChange
                             )
-                        }
 
-                        Box(modifier = dividerModifier) {
-                            Divider(modifier = Modifier.align(Alignment.Center))
-                            DividerDragHandleHint(
-                                modifier = Modifier.align(Alignment.Center),
-                                text = stringResource(R.string.drag_to_resize)
-                            )
-                        }
-
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .weight(listWeight)
-                        ) {
-                            val isSignedIn = !currentUserId.isNullOrBlank()
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 20.dp, vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                DropSortMenu(
-                                        modifier = Modifier.weight(1f),
-                                        current = sortOption,
-                                        options = sortOptions,
-                                        onSelect = onSortOptionChange
-                                )
-
-                                if (drops.isNotEmpty()) {
-                                    Spacer(Modifier.width(12.dp))
-                                    CountBadge(count = drops.size)
-                                }
+                            if (drops.isNotEmpty()) {
+                                Spacer(Modifier.width(12.dp))
+                                CountBadge(count = drops.size)
                             }
+                        }
 
-                            LazyColumn(
-                                state = listState,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .weight(1f),
-                                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
-                                verticalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                items(drops, key = { it.id }) { drop ->
-                                    val hasCollected = collectedDropIds.contains(drop.id)
-                                    val withinPickupRange = currentLocation?.let { location ->
-                                        distanceBetweenMeters(
-                                            location.latitude,
-                                            location.longitude,
-                                            drop.lat,
-                                            drop.lng
-                                        ) <= DROP_PICKUP_RADIUS_METERS
-                                    } ?: false
-                                    val isOwnDrop = currentUserId != null && drop.createdBy == currentUserId
-                                    val alreadyReported = currentUserId?.let { drop.reportedBy.containsKey(it) } == true
-                                    val canReport = isSignedIn && !isOwnDrop && (hasCollected || withinPickupRange)
-                                    val reportMessage = when {
-                                        isOwnDrop -> "You created this drop."
-                                        !isSignedIn -> "Sign in to report drops."
-                                        alreadyReported -> "Thanks for your report. We'll review it soon."
+                        LazyColumn(
+                            state = listState,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f),
+                            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            items(drops, key = { it.id }) { drop ->
+                                val hasCollected = collectedDropIds.contains(drop.id)
+                                val withinPickupRange = currentLocation?.let { location ->
+                                    distanceBetweenMeters(
+                                        location.latitude,
+                                        location.longitude,
+                                        drop.lat,
+                                        drop.lng
+                                    ) <= DROP_PICKUP_RADIUS_METERS
+                                } ?: false
+                                val isOwnDrop = currentUserId != null && drop.createdBy == currentUserId
+                                val alreadyReported = currentUserId?.let { drop.reportedBy.containsKey(it) } == true
+                                val canReport = isSignedIn && !isOwnDrop && (hasCollected || withinPickupRange)
+                                val reportMessage = when {
+                                    isOwnDrop -> "You created this drop."
+                                    !isSignedIn -> "Sign in to report drops."
+                                    alreadyReported -> "Thanks for your report. We'll review it soon."
 //                                        !hasCollected && !withinPickupRange ->
 //                                            "Move within ${DROP_PICKUP_RADIUS_METERS.roundToInt()} meters to report this drop, or collect it first."
-                                        else -> null
-                                    }
-                                    val showReportButton = !isOwnDrop
-                                    val isReporting = reportingDropId == drop.id
-                                    val canIgnoreForNow = !withinPickupRange
-                                    OtherDropRow(
-                                        drop = drop,
-                                        isSelected = drop.id == selectedId,
-                                        currentLocation = currentLocation,
-                                        userLike = drop.userLikeStatus(currentUserId),
-                                        canPickUp = canCollectDrops,
-                                        pickupRestrictionMessage = collectRestrictionMessage,
-                                        showReport = showReportButton,
-                                        canReport = canReport,
-                                        alreadyReported = alreadyReported,
-                                        reportRestrictionMessage = reportMessage,
-                                        isReporting = isReporting,
-                                        canIgnoreForNow = canIgnoreForNow,
-                                        onIgnoreForNow = {
-                                            if (!dismissedBrowseDropIds.contains(drop.id)) {
-                                                dismissedBrowseDropIds.add(drop.id)
-                                                snackbar.showMessage(
-                                                    scope,
-                                                    context.getString(R.string.browse_ignore_drop_snackbar)
-                                                )
-                                            }
-                                        },
-                                        onSelect = { onSelect(drop) },
-                                        onPickUp = { onPickUp(drop) },
-                                        onReport = { onReport(drop) }
-                                    )
+                                    else -> null
+                                }
+                                val showReportButton = !isOwnDrop
+                                val isReporting = reportingDropId == drop.id
+                                val canIgnoreForNow = !withinPickupRange
+                                OtherDropRow(
+                                    drop = drop,
+                                    isSelected = drop.id == selectedId,
+                                    currentLocation = currentLocation,
+                                    userLike = drop.userLikeStatus(currentUserId),
+                                    canPickUp = canCollectDrops,
+                                    pickupRestrictionMessage = collectRestrictionMessage,
+                                    showReport = showReportButton,
+                                    canReport = canReport,
+                                    alreadyReported = alreadyReported,
+                                    reportRestrictionMessage = reportMessage,
+                                    isReporting = isReporting,
+                                    canIgnoreForNow = canIgnoreForNow,
+                                    onIgnoreForNow = {
+                                        if (!dismissedBrowseDropIds.contains(drop.id)) {
+                                            dismissedBrowseDropIds.add(drop.id)
+                                            snackbar.showMessage(
+                                                scope,
+                                                context.getString(R.string.browse_ignore_drop_snackbar)
+                                            )
+                                        }
+                                    },
+                                    onSelect = { onSelect(drop) },
+                                    onPickUp = { onPickUp(drop) },
+                                    onReport = { onReport(drop) }
+                                )
                             }
                         }
                     }
@@ -7813,38 +7756,16 @@ private fun CollectedDropsMap(
 ) {
     val notesWithLocation = remember(notes) { notes.filter { it.lat != null && it.lng != null } }
     val cameraPositionState = rememberCameraPositionState()
-    var hasSetInitialCamera by rememberSaveable { mutableStateOf(false) }
-    var lastAnimatedHighlightId by rememberSaveable { mutableStateOf<String?>(null) }
     val uiSettings = remember { MapUiSettings(zoomControlsEnabled = true) }
 
     val highlightedNote = notesWithLocation.firstOrNull { it.id == highlightedId }
     val fallbackNote = notesWithLocation.firstOrNull()
 
     LaunchedEffect(notesWithLocation, highlightedNote?.id) {
-        if (highlightedNote == null) {
-            lastAnimatedHighlightId = null
-        }
         val target = highlightedNote ?: fallbackNote
-        val shouldAnimate = when {
-            target == null -> false
-            highlightedNote != null -> {
-                if (lastAnimatedHighlightId != highlightedNote.id) {
-                    lastAnimatedHighlightId = highlightedNote.id
-                    true
-                } else {
-                    false
-                }
-            }
-            !hasSetInitialCamera -> {
-                hasSetInitialCamera = true
-                true
-            }
-            else -> false
-        }
-
-        if (shouldAnimate) {
-            val lat = target?.lat ?: return@LaunchedEffect
-            val lng = target?.lng ?: return@LaunchedEffect
+        if (target != null) {
+            val lat = target.lat ?: return@LaunchedEffect
+            val lng = target.lng ?: return@LaunchedEffect
             val zoom = if (highlightedNote != null) 15f else 12f
             val update = CameraUpdateFactory.newLatLngZoom(LatLng(lat, lng), zoom)
             cameraPositionState.animate(update)
@@ -7904,15 +7825,8 @@ private fun CollectedDropsMap(
                     else -> BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN)
                 }
 
-                val markerState = remember(key1 = note.id) {
-                    MarkerState(position)
-                }
-                if (markerState.position != position) {
-                    markerState.position = position
-                }
-
                 Marker(
-                    state = markerState,
+                    state = MarkerState(position),
                     title = title,
                     snippet = snippetParts.joinToString("\n"),
                     icon = markerIcon,
@@ -8862,36 +8776,12 @@ private fun MyDropsMap(
 ) {
     val cameraPositionState = rememberCameraPositionState()
     val uiSettings = remember { MapUiSettings(zoomControlsEnabled = true) }
-    var hasUserMovedCamera by rememberSaveable { mutableStateOf(false) }
-    var googleMap by remember { mutableStateOf<GoogleMap?>(null) }
 
-    MapEffect(Unit) { map ->
-        googleMap = map
-    }
-
-    googleMap?.let { map ->
-        DisposableEffect(map) {
-            val listener = GoogleMap.OnCameraMoveStartedListener { reason ->
-                if (reason == GoogleMap.OnCameraMoveStartedListener.REASON_GESTURE) {
-                    hasUserMovedCamera = true
-                }
-            }
-            map.setOnCameraMoveStartedListener(listener)
-
-            onDispose {
-                map.setOnCameraMoveStartedListener(null)
-            }
-        }
-    }
-
-    LaunchedEffect(drops, selectedDropId, currentLocation, hasUserMovedCamera) {
+    LaunchedEffect(drops, selectedDropId, currentLocation) {
         val targetDrop = drops.firstOrNull { it.id == selectedDropId }
-        val target = when {
-            targetDrop != null -> LatLng(targetDrop.lat, targetDrop.lng)
-            !hasUserMovedCamera && currentLocation != null -> currentLocation
-            !hasUserMovedCamera -> drops.firstOrNull()?.let { LatLng(it.lat, it.lng) }
-            else -> null
-        }
+        val target = targetDrop?.let { LatLng(it.lat, it.lng) }
+            ?: currentLocation
+            ?: drops.firstOrNull()?.let { LatLng(it.lat, it.lng) }
         if (target != null) {
             val zoomLevel = if (targetDrop != null) 18f else 15f
             val update = CameraUpdateFactory.newLatLngZoom(target, zoomLevel)
@@ -8907,14 +8797,8 @@ private fun MyDropsMap(
         uiSettings = uiSettings
     ) {
         currentLocation?.let { location ->
-            val markerState = remember(key1 = "my-drops-current-location") {
-                MarkerState(location)
-            }
-            if (markerState.position != location) {
-                markerState.position = location
-            }
             Marker(
-                state = markerState,
+                state = MarkerState(location),
                 title = "Your current location",
                 icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE),
                 zIndex = 1f
@@ -8947,15 +8831,8 @@ private fun MyDropsMap(
                 else -> BitmapDescriptorFactory.defaultMarker(likeHueFor(drop.likeCount))
             }
 
-            val markerState = remember(key1 = drop.id) {
-                MarkerState(position)
-            }
-            if (markerState.position != position) {
-                markerState.position = position
-            }
-
             Marker(
-                state = markerState,
+                state = MarkerState(position),
                 title = drop.displayTitle(),
                 snippet = snippetParts.joinToString("\n"),
                 icon = markerIcon,
@@ -9680,37 +9557,12 @@ private fun OtherDropsMap(
 
     val cameraPositionState = rememberCameraPositionState()
     val uiSettings = remember { MapUiSettings(zoomControlsEnabled = true) }
-    var hasUserMovedCamera by rememberSaveable { mutableStateOf(false) }
-    var googleMap by remember { mutableStateOf<GoogleMap?>(null) }
 
-
-    MapEffect(Unit) { map ->
-        googleMap = map
-    }
-
-    googleMap?.let { map ->
-        DisposableEffect(map) {
-            val listener = GoogleMap.OnCameraMoveStartedListener { reason ->
-                if (reason == GoogleMap.OnCameraMoveStartedListener.REASON_GESTURE) {
-                    hasUserMovedCamera = true
-                }
-            }
-            map.setOnCameraMoveStartedListener(listener)
-
-            onDispose {
-                map.setOnCameraMoveStartedListener(null)
-            }
-        }
-    }
-
-    LaunchedEffect(drops, selectedDropId, currentLocation, hasUserMovedCamera) {
+    LaunchedEffect(drops, selectedDropId, currentLocation) {
         val targetDrop = drops.firstOrNull { it.id == selectedDropId }
-        val target = when {
-            targetDrop != null -> LatLng(targetDrop.lat, targetDrop.lng)
-            !hasUserMovedCamera && currentLocation != null -> currentLocation
-            !hasUserMovedCamera -> drops.firstOrNull()?.let { LatLng(it.lat, it.lng) }
-            else -> null
-        }
+        val target = targetDrop?.let { LatLng(it.lat, it.lng) }
+            ?: currentLocation
+            ?: drops.firstOrNull()?.let { LatLng(it.lat, it.lng) }
         if (target != null) {
             val zoomLevel = if (targetDrop != null) 18f else 15f
             val update = CameraUpdateFactory.newLatLngZoom(target, zoomLevel)
@@ -9737,15 +9589,8 @@ private fun OtherDropsMap(
                 )
             }
 
-            val markerState = remember(key1 = "other-drops-current-location") {
-                MarkerState(location)
-            }
-            if (markerState.position != location) {
-                markerState.position = location
-            }
-
             Marker(
-                state = markerState,
+                state = MarkerState(location),
                 title = "Your current location",
                 icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE),
                 zIndex = 1f
@@ -9796,15 +9641,8 @@ private fun OtherDropsMap(
                 else -> descriptorForHue(likeHueFor(drop.likeCount))
             }
 
-            val markerState = remember(key1 = drop.id) {
-                MarkerState(position)
-            }
-            if (markerState.position != position) {
-                markerState.position = position
-            }
-
             Marker(
-                state = markerState,
+                state = MarkerState(position),
                 title = drop.displayTitle(),
                 snippet = snippetParts.joinToString("\n"),
                 icon = markerIcon,
@@ -11080,41 +10918,6 @@ private enum class AccountAuthMode {
 private enum class AccountType { EXPLORER, BUSINESS }
 
 private enum class DropVisibility { Public, GroupOnly }
-
-@SuppressLint("MissingPermission")
-private fun locationUpdatesFlow(
-    fused: FusedLocationProviderClient,
-    request: LocationRequest
-): Flow<LatLng> = callbackFlow {
-    val callback = object : LocationCallback() {
-        override fun onLocationResult(result: LocationResult) {
-            result.locations.forEach { location ->
-                trySend(LatLng(location.latitude, location.longitude))
-            }
-        }
-    }
-
-    try {
-        fused.requestLocationUpdates(request, callback, Looper.getMainLooper())
-    } catch (security: SecurityException) {
-        close(security)
-        return@callbackFlow
-    }
-
-    awaitClose { fused.removeLocationUpdates(callback) }
-}
-
-private fun hasLocationPermission(context: Context): Boolean {
-    val fineGranted = ContextCompat.checkSelfPermission(
-        context,
-        Manifest.permission.ACCESS_FINE_LOCATION
-    ) == PackageManager.PERMISSION_GRANTED
-    val coarseGranted = ContextCompat.checkSelfPermission(
-        context,
-        Manifest.permission.ACCESS_COARSE_LOCATION
-    ) == PackageManager.PERMISSION_GRANTED
-    return fineGranted || coarseGranted
-}
 
 /** Tiny helper to show snackbars from non-suspend places. */
 private fun SnackbarHostState.showMessage(scope: kotlinx.coroutines.CoroutineScope, msg: String) {
