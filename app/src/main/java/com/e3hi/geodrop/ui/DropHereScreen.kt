@@ -258,7 +258,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerControlView
 import com.google.maps.android.compose.Circle
 import com.google.maps.android.compose.GoogleMap
-import com.google.maps.android.compose.MapEffect
+import com.google.maps.android.compose.DisposableMapEffect
 import com.google.maps.android.compose.MapUiSettings
 import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerState
@@ -8857,7 +8857,7 @@ private fun MyDropsMap(
     val uiSettings = remember { MapUiSettings(zoomControlsEnabled = true) }
     var hasUserMovedCamera by rememberSaveable { mutableStateOf(false) }
 
-    MapEffect(Unit) { map ->
+    DisposableMapEffect(Unit) { map ->
         map.setOnCameraMoveStartedListener { reason ->
             if (reason == GoogleMap.OnCameraMoveStartedListener.REASON_GESTURE) {
                 hasUserMovedCamera = true
@@ -9654,7 +9654,7 @@ private fun OtherDropsMap(
     val uiSettings = remember { MapUiSettings(zoomControlsEnabled = true) }
     var hasUserMovedCamera by rememberSaveable { mutableStateOf(false) }
 
-    MapEffect(Unit) { map ->
+    DisposableMapEffect(Unit) { map ->
         map.setOnCameraMoveStartedListener { reason ->
             if (reason == GoogleMap.OnCameraMoveStartedListener.REASON_GESTURE) {
                 hasUserMovedCamera = true
