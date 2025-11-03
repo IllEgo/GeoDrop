@@ -220,7 +220,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.flow.snapshotFlow
+import androidx.compose.runtime.snapshotFlow
 import com.e3hi.geodrop.data.isExpired
 import com.e3hi.geodrop.data.remainingDecayMillis
 import com.e3hi.geodrop.data.decayAtMillis
