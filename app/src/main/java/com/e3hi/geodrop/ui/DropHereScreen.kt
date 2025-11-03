@@ -2462,28 +2462,13 @@ fun DropHereScreen(
                             contentColor = MaterialTheme.colorScheme.onSurface
                         ) {
                             explorerDestinations.forEach { destination ->
-                                val (label, icon) = when (destination) {
-                                    ExplorerDestination.Discover -> Pair(
-                                        stringResource(R.string.action_browse_map_title),
-                                        Icons.Rounded.Map
-                                    )
-
-                                    ExplorerDestination.MyDrops -> Pair(
-                                        stringResource(R.string.action_my_drops_title),
-                                        Icons.Rounded.Inbox
-                                    )
-
-                                    ExplorerDestination.Collected -> Pair(
-                                        stringResource(R.string.action_collected_drops_title),
-                                        Icons.Rounded.Bookmark
-                                    )
-                                }
+                                val label = destination.navigationLabel()
                                 NavigationBarItem(
                                     selected = destination == effectiveExplorerDestination,
                                     onClick = { openExplorerDestination(destination) },
                                     icon = {
                                         Icon(
-                                            imageVector = icon,
+                                            imageVector = destination.navigationIcon(),
                                             contentDescription = label
                                         )
                                     },
@@ -10909,6 +10894,19 @@ private data class BusinessDropTypeOption(
     val description: String,
     val icon: ImageVector
 )
+
+@Composable
+private fun ExplorerDestination.navigationLabel(): String = when (this) {
+    ExplorerDestination.Discover -> stringResource(R.string.action_browse_map_title)
+    ExplorerDestination.MyDrops -> stringResource(R.string.action_my_drops_title)
+    ExplorerDestination.Collected -> stringResource(R.string.action_collected_drops_title)
+}
+
+private fun ExplorerDestination.navigationIcon(): ImageVector = when (this) {
+    ExplorerDestination.Discover -> Icons.Rounded.Map
+    ExplorerDestination.MyDrops -> Icons.Rounded.Inbox
+    ExplorerDestination.Collected -> Icons.Rounded.Bookmark
+}
 
 private enum class HomeDestination { Explorer, Business }
 
