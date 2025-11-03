@@ -95,6 +95,7 @@ import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.material.icons.rounded.Place
 import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.OpenInFull
 import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.DragHandle
 import androidx.compose.material.icons.rounded.Videocam
@@ -3083,8 +3084,8 @@ fun DropHereScreen(
                                         selectedId = myDropsSelectedId,
                                         sortOption = myDropsSortOption,
                                         sortOptions = dropSortOptions,
+                                        mapPreviewBitmap = myDropsMapPreviewSnapshot,
                                         mapPreviewExpanded = myDropsMapPreviewExpanded,
-                                        mapPreviewSnapshot = myDropsMapPreviewSnapshot,
                                         mapCameraPosition = myDropsMapPreviewCamera,
                                         onMapSnapshotChange = { bitmap, position ->
                                             myDropsMapPreviewSnapshot = bitmap
@@ -3092,6 +3093,9 @@ fun DropHereScreen(
                                         },
                                         onMapPreviewExpandedChange = { expanded ->
                                             myDropsMapPreviewExpanded = expanded
+                                        },
+                                        onOpenMap = {
+                                            myDropsMapPreviewExpanded = true
                                         },
                                         onSortOptionChange = { option ->
                                             myDropsSortKey = option.name
@@ -8107,11 +8111,12 @@ private fun MyDropsContent(
     selectedId: String?,
     sortOption: DropSortOption,
     sortOptions: List<DropSortOption>,
+    mapPreviewBitmap: Bitmap?,
     mapPreviewExpanded: Boolean,
-    mapPreviewSnapshot: Bitmap?,
     mapCameraPosition: CameraPosition?,
     onMapSnapshotChange: (Bitmap?, CameraPosition) -> Unit,
     onMapPreviewExpandedChange: (Boolean) -> Unit,
+    onOpenMap: () -> Unit,
     onSortOptionChange: (DropSortOption) -> Unit,
     onSelect: (Drop) -> Unit,
     onRetry: () -> Unit,
@@ -8200,11 +8205,12 @@ private fun MyDropsContent(
                         drops = drops,
                         selectedId = selectedId,
                         currentLocation = currentLocation,
+                        previewBitmap = mapPreviewBitmap,
                         expanded = mapPreviewExpanded,
-                        snapshot = mapPreviewSnapshot,
                         cameraPosition = mapCameraPosition,
                         onSnapshotChange = onMapSnapshotChange,
                         onExpandedChange = onMapPreviewExpandedChange,
+                        onOpenMap = onOpenMap,
                         onDropClick = onSelect
                     )
 
@@ -8256,11 +8262,12 @@ private fun MyDropsMapPreviewHeader(
     drops: List<Drop>,
     selectedId: String?,
     currentLocation: LatLng?,
+    previewBitmap: Bitmap?,
     expanded: Boolean,
-    snapshot: Bitmap?,
     cameraPosition: CameraPosition?,
     onSnapshotChange: (Bitmap?, CameraPosition) -> Unit,
     onExpandedChange: (Boolean) -> Unit,
+    onOpenMap: () -> Unit,
     onDropClick: (Drop) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -8270,7 +8277,7 @@ private fun MyDropsMapPreviewHeader(
     )
     val selectedDrop = remember(drops, selectedId) { drops.firstOrNull { it.id == selectedId } }
 
-    val overlayAlpha = if (expanded) 0.45f else 0.65f
+    val overlayAlpha = if (expanded) 0.35f else 0.6f
     val headerTitle = selectedDrop?.displayTitle() ?: "Your drops overview"
     val subtitle = remember(selectedDrop, currentLocation, cameraPosition, drops.size) {
         when {
@@ -8303,21 +8310,19 @@ private fun MyDropsMapPreviewHeader(
                 .fillMaxWidth()
                 .height(previewHeight)
         ) {
-            MyDropsMap(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer { alpha = if (expanded) 1f else 0f },
-                drops = drops,
-                selectedDropId = selectedId,
-                currentLocation = currentLocation,
-                onDropClick = onDropClick,
-                onSnapshotUpdate = onSnapshotChange
-            )
-
-            if (!expanded) {
-                if (snapshot != null) {
+            if (expanded) {
+                MyDropsMap(
+                    modifier = Modifier.fillMaxSize(),
+                    drops = drops,
+                    selectedDropId = selectedId,
+                    currentLocation = currentLocation,
+                    onDropClick = onDropClick,
+                    onSnapshotUpdate = onSnapshotChange
+                )
+            } else {
+                if (previewBitmap != null) {
                     Image(
-                        bitmap = snapshot.asImageBitmap(),
+                        bitmap = previewBitmap.asImageBitmap(),
                         contentDescription = "Map preview",
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop
@@ -8361,7 +8366,10 @@ private fun MyDropsMapPreviewHeader(
                         .padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
                         Column(
                             modifier = Modifier.weight(1f),
                             verticalArrangement = Arrangement.spacedBy(4.dp)
@@ -8386,22 +8394,49 @@ private fun MyDropsMapPreviewHeader(
                             )
                         }
 
-                        Surface(
-                            modifier = Modifier.size(36.dp),
-                            shape = CircleShape,
-                            color = Color.White.copy(alpha = 0.2f)
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            IconButton(onClick = { onExpandedChange(!expanded) }) {
-                                Icon(
-                                    imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                                    contentDescription = if (expanded) "Collapse map preview" else "Expand map preview",
-                                    tint = Color.White
-                                )
-                            }
+                            MapPreviewActionButton(
+                                onClick = { onExpandedChange(!expanded) },
+                                icon = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                                contentDescription = if (expanded) {
+                                    "Collapse map preview"
+                                } else {
+                                    "Expand map preview"
+                                }
+                            )
+                            MapPreviewActionButton(
+                                onClick = onOpenMap,
+                                icon = Icons.Rounded.OpenInFull,
+                                contentDescription = "Open map in full screen"
+                            )
                         }
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun MapPreviewActionButton(
+    onClick: () -> Unit,
+    icon: ImageVector,
+    contentDescription: String,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier.size(40.dp),
+        shape = CircleShape,
+        color = Color.Black.copy(alpha = 0.35f)
+    ) {
+        IconButton(onClick = onClick) {
+            Icon(
+                imageVector = icon,
+                contentDescription = contentDescription,
+                tint = Color.White
+            )
         }
     }
 }
