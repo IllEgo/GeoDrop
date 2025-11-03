@@ -7543,8 +7543,8 @@ private fun ExplorerSearchFiltersBar(
                             selectedContainerColor = MaterialTheme.colorScheme.tertiaryContainer,
                             selectedLabelColor = MaterialTheme.colorScheme.onTertiaryContainer,
                             labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            leadingIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            selectedLeadingIconContentColor = MaterialTheme.colorScheme.onTertiaryContainer
+                            leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            selectedLeadingIconColor = MaterialTheme.colorScheme.onTertiaryContainer
                         ),
                         modifier = Modifier.semantics {
                             role = Role.Switch
