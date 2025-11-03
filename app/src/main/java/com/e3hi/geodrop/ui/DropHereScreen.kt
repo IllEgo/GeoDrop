@@ -3193,7 +3193,7 @@ fun DropHereScreen(
             SnackbarHost(
                 hostState = snackbar,
                 modifier = Modifier
-                    .align(Alignment.BottomCenter)
+                    .align(Alignment.CenterHorizontally)
                     .padding(bottom = 16.dp)
                     .zIndex(1f)
             )
