@@ -135,7 +135,6 @@ import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -2406,85 +2405,18 @@ fun DropHereScreen(
         }
     }
 
-    var topBarHeightPx by remember { mutableStateOf(0) }
-    var explorerNavigationHeightPx by remember { mutableStateOf(0) }
-    val density = LocalDensity.current
+    val celebrationVisible = pickupCelebrationVisible && pickupCelebrationDrop != null
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        Column(
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .fillMaxWidth()
-                .statusBarsPadding()
-                .onSizeChanged { size -> topBarHeightPx = size.height }
-                .zIndex(1f)
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surface)
-            ) {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    TopAppBar(
-                        modifier = Modifier.fillMaxWidth(),
-                        title = {
-                            GeoDropHeader(
-                                onShowTutorial = { showOnboardingHelp = true },
-                                onShowFaq = { showFaqDialog = true },
-                                onShowTerms = { termsPrivacyDialogTab = 0 },
-                                onShowPrivacy = { termsPrivacyDialogTab = 1 }
-                            )
-                        },
-                        colors = TopAppBarDefaults.topAppBarColors(
-                            containerColor = Color.Transparent,
-                            scrolledContainerColor = Color.Transparent,
-                            titleContentColor = MaterialTheme.colorScheme.onBackground,
-                            actionIconContentColor = MaterialTheme.colorScheme.onBackground
-                        )
-                    )
-
-                    if (currentHomeDestination == HomeDestination.Explorer && userMode != null) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .onSizeChanged { size -> explorerNavigationHeightPx = size.height }
-                        ) {
-                            ExplorerDestinationTabs(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 20.dp)
-                                    .padding(bottom = 4.dp),
-                                current = effectiveExplorerDestination,
-                                onSelect = { destination -> openExplorerDestination(destination) },
-                                showMyDrops = hasExplorerAccount,
-                                showCollected = hasExplorerAccount
-                            )
-                        }
-                    } else {
-                        SideEffect { explorerNavigationHeightPx = 0 }
-                    }
-                }
-            }
-            if (isBusinessUser) {
-                Divider()
-            }
-        }
-
-        val celebrationTopPadding = with(density) {
-            (topBarHeightPx + explorerNavigationHeightPx).toDp()
-        } + 16.dp
-        PickupCelebrationBanner(
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .padding(horizontal = 24.dp)
-                .zIndex(2f)
-                .padding(top = celebrationTopPadding),
-            visible = pickupCelebrationVisible && pickupCelebrationDrop != null,
-            dropTitle = pickupCelebrationDrop?.displayTitle()
-        )
-
-        Scaffold(
-            modifier = Modifier.fillMaxSize(),
+    Scaffold(
+        modifier = Modifier.fillMaxSize(),
+        topBar = {
+            DropHereTopAppBar(
+                onShowTutorial = { showOnboardingHelp = true },
+                onShowFaq = { showFaqDialog = true },
+                onShowTerms = { termsPrivacyDialogTab = 0 },
+                onShowPrivacy = { termsPrivacyDialogTab = 1 }
+            )
+        },
             bottomBar = {
                 NavigationBar(
                     modifier = Modifier.height(56.dp),
@@ -2807,28 +2739,40 @@ fun DropHereScreen(
             snackbarHost = {}
         ) { innerPadding ->
             val layoutDirection = LocalLayoutDirection.current
-            val topPadding = innerPadding.calculateTopPadding()
-            val bottomPadding = innerPadding.calculateBottomPadding()
             val startPadding = innerPadding.calculateStartPadding(layoutDirection)
+            val topPadding = innerPadding.calculateTopPadding()
             val endPadding = innerPadding.calculateEndPadding(layoutDirection)
-            val density = LocalDensity.current
-            val topPaddingPx = with(density) { topPadding.toPx() }
-            val headerHeightPx = (topBarHeightPx - explorerNavigationHeightPx).coerceAtLeast(0)
-            val navAwareTopPaddingPx = max(topPaddingPx, headerHeightPx.toFloat())
-            val navAwareTopPadding = with(density) { navAwareTopPaddingPx.toDp() }
-            val mapAwareTopPaddingPx = max(navAwareTopPaddingPx, topBarHeightPx.toFloat())
-            val mapAwareTopPadding = with(density) { mapAwareTopPaddingPx.toDp() }
+        val bottomPadding = innerPadding.calculateBottomPadding()
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(
+                    start = startPadding,
+                    top = topPadding,
+                    end = endPadding,
+                    bottom = bottomPadding
+                )
+        ) {
+            if (celebrationVisible) {
+                Box(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.TopCenter
+                ) {
+                    PickupCelebrationBanner(
+                        modifier = Modifier.padding(horizontal = 24.dp),
+                        visible = celebrationVisible,
+                        dropTitle = pickupCelebrationDrop?.displayTitle()
+                        )
+                }
+                Spacer(Modifier.height(16.dp))
+            }
 
             if (isBusinessUser && currentHomeDestination == HomeDestination.Business) {
                 BusinessHomeScreen(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .padding(
-                            start = startPadding,
-                            top = navAwareTopPadding,
-                            end = endPadding,
-                            bottom = bottomPadding
-                        ),
+                        .fillMaxWidth()
+                        .weight(1f),
                     businessName = userProfile?.businessName,
                     businessCategories = businessCategories,
                     metrics = businessHomeMetrics,
@@ -2841,14 +2785,24 @@ fun DropHereScreen(
                     onViewMyDrops = { openExplorerDestination(ExplorerDestination.MyDrops) }
                 )
             } else {
+                if (currentHomeDestination == HomeDestination.Explorer && userMode != null) {
+                    ExplorerDestinationTabs(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp)
+                            .padding(bottom = 8.dp),
+                        current = effectiveExplorerDestination,
+                        onSelect = { destination -> openExplorerDestination(destination) },
+                        showMyDrops = hasExplorerAccount,
+                        showCollected = hasExplorerAccount
+                    )
+                    Spacer(Modifier.height(8.dp))
+                }
+
                 Column(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .padding(
-                            start = startPadding,
-                            end = endPadding,
-                            bottom = bottomPadding
-                        )
+                        .fillMaxWidth()
+                        .weight(1f)
                 ) {
                     when (effectiveExplorerDestination) {
                         ExplorerDestination.Discover -> {
@@ -2859,7 +2813,6 @@ fun DropHereScreen(
                                 verticalArrangement = Arrangement.spacedBy(20.dp)
                             ) {
                                 if (readOnlyParticipationMessage != null) {
-                                    Spacer(Modifier.height(navAwareTopPadding))
                                     Box(Modifier.padding(horizontal = 20.dp)) {
                                         ReadOnlyModeCard(message = readOnlyParticipationMessage)
                                     }
@@ -2878,7 +2831,6 @@ fun DropHereScreen(
                                     ) {
                                         OtherDropsExplorerSection(
                                             modifier = Modifier.fillMaxSize(),
-                                            topContentPadding = mapAwareTopPadding,
                                             loading = otherDropsLoading,
                                             refreshing = otherDropsRefreshing,
                                             drops = sortedOtherDrops,
@@ -3035,7 +2987,6 @@ fun DropHereScreen(
                                 ) {
                                     MyDropsContent(
                                         modifier = Modifier.fillMaxSize(),
-                                        topContentPadding = mapAwareTopPadding,
                                         contentPadding = PaddingValues(bottom = 0.dp),
                                         loading = myDropsLoading,
                                         drops = sortedMyDrops,
@@ -3151,7 +3102,6 @@ fun DropHereScreen(
 
                                     CollectedDropsContent(
                                         modifier = Modifier.fillMaxSize(),
-                                        topContentPadding = mapAwareTopPadding,
                                         contentPadding = PaddingValues(bottom = 0.dp),
                                         notes = sortedCollectedNotes,
                                         hiddenNsfwCount = hiddenNsfwCollectedCount,
@@ -6288,7 +6238,7 @@ private fun CollectedDropsContent(
 }
 
 @Composable
-private fun GeoDropHeader(
+private fun DropHereTopAppBar(
     modifier: Modifier = Modifier,
     onShowTutorial: () -> Unit = {},
     onShowFaq: () -> Unit = {},
@@ -6296,70 +6246,72 @@ private fun GeoDropHeader(
     onShowPrivacy: () -> Unit = {},
 ) {
     var infoMenuExpanded by remember { mutableStateOf(false) }
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 12.dp),
-        contentAlignment = Alignment.CenterStart
-    ) {
-        Text(
-            text = stringResource(R.string.app_name),
-            style = MaterialTheme.typography.titleLarge.copy(
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 1.5.sp
-            ),
-            color = MaterialTheme.colorScheme.primary
+    LargeTopAppBar(
+        modifier = modifier,
+        title = {
+            Text(
+                text = stringResource(R.string.app_name),
+                style = MaterialTheme.typography.titleLarge.copy(
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.5.sp
+                ),
+                color = MaterialTheme.colorScheme.primary
+            )
+        },
+        actions = {
+            Box {
+                IconButton(onClick = { infoMenuExpanded = true }) {
+                    Icon(
+                        imageVector = Icons.Rounded.Info,
+                        contentDescription = stringResource(R.string.content_description_open_info_menu)
+                    )
+                }
+
+                DropdownMenu(
+                    expanded = infoMenuExpanded,
+                    onDismissRequest = { infoMenuExpanded = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.info_menu_tutorial)) },
+                        leadingIcon = { Icon(Icons.Rounded.PlayArrow, contentDescription = null) },
+                        onClick = {
+                            infoMenuExpanded = false
+                            onShowTutorial()
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.info_menu_faq)) },
+                        leadingIcon = { Icon(Icons.Rounded.Help, contentDescription = null) },
+                        onClick = {
+                            infoMenuExpanded = false
+                            onShowFaq()
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.info_menu_terms)) },
+                        leadingIcon = { Icon(Icons.Rounded.Description, contentDescription = null) },
+                        onClick = {
+                            infoMenuExpanded = false
+                            onShowTerms()
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.info_menu_privacy)) },
+                        leadingIcon = { Icon(Icons.Rounded.Lock, contentDescription = null) },
+                        onClick = {
+                            infoMenuExpanded = false
+                            onShowPrivacy()
+                        }
+                    )
+                }
+            }
+        },
+        colors = TopAppBarDefaults.largeTopAppBarColors(
+            containerColor = MaterialTheme.colorScheme.surface,
+            scrolledContainerColor = MaterialTheme.colorScheme.surface,
+            actionIconContentColor = MaterialTheme.colorScheme.onBackground
         )
-
-        Box(modifier = Modifier.align(Alignment.CenterEnd)) {
-            IconButton(
-                onClick = { infoMenuExpanded = true }
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.Info,
-                    contentDescription = stringResource(R.string.content_description_open_info_menu)
-                )
-            }
-
-            DropdownMenu(
-                expanded = infoMenuExpanded,
-                onDismissRequest = { infoMenuExpanded = false }
-            ) {
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.info_menu_tutorial)) },
-                    leadingIcon = { Icon(Icons.Rounded.PlayArrow, contentDescription = null) },
-                    onClick = {
-                        infoMenuExpanded = false
-                        onShowTutorial()
-                    }
-                )
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.info_menu_faq)) },
-                    leadingIcon = { Icon(Icons.Rounded.Help, contentDescription = null) },
-                    onClick = {
-                        infoMenuExpanded = false
-                        onShowFaq()
-                    }
-                )
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.info_menu_terms)) },
-                    leadingIcon = { Icon(Icons.Rounded.Description, contentDescription = null) },
-                    onClick = {
-                        infoMenuExpanded = false
-                        onShowTerms()
-                    }
-                )
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.info_menu_privacy)) },
-                    leadingIcon = { Icon(Icons.Rounded.Lock, contentDescription = null) },
-                    onClick = {
-                        infoMenuExpanded = false
-                        onShowPrivacy()
-                    }
-                )
-            }
-        }
-    }
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
