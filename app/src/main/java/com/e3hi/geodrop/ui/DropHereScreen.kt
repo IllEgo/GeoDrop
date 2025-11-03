@@ -136,8 +136,10 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -2426,6 +2428,8 @@ fun DropHereScreen(
         }
     }
 
+    var largeTopAppBarHeight by remember { mutableStateOf(0) }
+
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         topBar = {
@@ -2435,6 +2439,9 @@ fun DropHereScreen(
                     .background(MaterialTheme.colorScheme.surface)
             ) {
                 LargeTopAppBar(
+                    modifier = Modifier.onGloballyPositioned { coordinates ->
+                        largeTopAppBarHeight = coordinates.size.height
+                    },
                     title = { GeoDropHeader() },
                     actions = {
                         Box {
@@ -2860,13 +2867,17 @@ fun DropHereScreen(
         val navAwareTopPadding = topPadding
         val mapAwareTopPadding = topPadding
 
+        val largeTopAppBarHeightDp = with(LocalDensity.current) {
+            largeTopAppBarHeight.toDp()
+        }
+
         Box(modifier = Modifier.fillMaxSize()) {
             PickupCelebrationBanner(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .zIndex(2f)
                     .padding(horizontal = 24.dp)
-                    .padding(top = topPadding + 16.dp),
+                    .padding(top = largeTopAppBarHeightDp + 16.dp),
                 visible = pickupCelebrationVisible && pickupCelebrationDrop != null,
                 dropTitle = pickupCelebrationDrop?.displayTitle()
             )
