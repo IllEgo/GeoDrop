@@ -161,6 +161,14 @@ fun Drop.displayTitle(): String {
 
 fun Drop.mediaLabel(): String? = mediaUrl?.takeIf { it.isNotBlank() }
 
+
+fun DropContentType.mediaLabel(): String = when (this) {
+    DropContentType.TEXT -> "Text note"
+    DropContentType.PHOTO -> "Photo drop"
+    DropContentType.AUDIO -> "Audio drop"
+    DropContentType.VIDEO -> "Video drop"
+}
+
 fun Drop.discoveryTitle(): String = when (dropType) {
     DropType.RESTAURANT_COUPON -> "Local business offer"
     DropType.TOUR_STOP -> "Guided tour stop"
