@@ -6237,6 +6237,7 @@ private fun CollectedDropsContent(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DropHereTopAppBar(
     modifier: Modifier = Modifier,
