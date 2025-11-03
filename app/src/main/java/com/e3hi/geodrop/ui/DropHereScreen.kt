@@ -101,7 +101,6 @@ import androidx.compose.material.icons.rounded.Flag
 import androidx.compose.material.icons.rounded.Report
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Refresh
-import androidx.compose.material.icons.rounded.Sort
 import androidx.compose.material.icons.rounded.ThumbDown
 import androidx.compose.material.icons.rounded.ThumbUp
 import androidx.compose.material.icons.rounded.Lightbulb
@@ -2301,7 +2300,9 @@ fun DropHereScreen(
         runCatching { DropSortOption.valueOf(otherDropsSortKey) }
             .getOrDefault(DropSortOption.NEAREST)
     }
-    val dropSortOptions = remember { DropSortOption.entries }
+    val dropSortOptions = remember { DropSortOption.entries.toList() }
+    val myDropsSortOptions = dropSortOptions
+    val collectedSortOptions = dropSortOptions
     val sortedOtherDrops = remember(filteredOtherDrops, otherDropsSortOption, otherDropsCurrentLocation) {
         sortDrops(filteredOtherDrops, otherDropsSortOption, otherDropsCurrentLocation)
     }
@@ -2918,23 +2919,6 @@ fun DropHereScreen(
                                         .fillMaxWidth(),
                                     verticalArrangement = Arrangement.spacedBy(16.dp)
                                 ) {
-                                    ExplorerSearchFiltersBar(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 20.dp),
-                                        otherDropsSortOption = otherDropsSortOption,
-                                        sortOptions = dropSortOptions,
-                                        onUpdateDropSort = { option ->
-                                            otherDropsSortKey = option.name
-                                        },
-                                        explorerGroups = explorerGroups,
-                                        selectedExplorerGroupCode = selectedExplorerGroupCode,
-                                        onSelectExplorerGroup = { code ->
-                                            selectedExplorerGroupCode = code
-                                        },
-                                        searchToggles = explorerSearchToggles
-                                    )
-
                                     Box(
                                         modifier = Modifier
                                             .weight(1f)
@@ -2970,6 +2954,16 @@ fun DropHereScreen(
                                                 UserMode.SIGNED_IN -> null
                                             },
                                             sortOption = otherDropsSortOption,
+                                            sortOptions = dropSortOptions,
+                                            onSortOptionChange = { option ->
+                                                otherDropsSortKey = option.name
+                                            },
+                                            explorerGroups = explorerGroups,
+                                            selectedExplorerGroupCode = selectedExplorerGroupCode,
+                                            onSelectExplorerGroup = { code ->
+                                                selectedExplorerGroupCode = code
+                                            },
+                                            searchToggles = explorerSearchToggles,
                                             canLikeDrops = canParticipate,
                                             likeRestrictionMessage = if (canParticipate) null else participationRestriction("react to drops"),
                                             onLike = { drop, status -> submitLike(drop, status) },
@@ -3114,7 +3108,12 @@ fun DropHereScreen(
                                         },
                                         selectedId = myDropsSelectedId,
                                         sortOption = myDropsSortOption,
-                                        sortOptions = dropSortOptions,
+                                        sortOptions = myDropsSortOptions,
+                                        explorerGroups = explorerGroups,
+                                        selectedExplorerGroupCode = selectedExplorerGroupCode,
+                                        onSelectExplorerGroup = { code ->
+                                            selectedExplorerGroupCode = code
+                                        },
                                         mapPreviewBitmap = myDropsMapPreviewSnapshot,
                                         mapPreviewExpanded = myDropsMapPreviewExpanded,
                                         mapCameraPosition = myDropsMapPreviewCamera,
@@ -3252,7 +3251,12 @@ fun DropHereScreen(
                                             "You haven't collected any drops for $code yet."
                                         },
                                         sortOption = collectedSortOption,
-                                        sortOptions = dropSortOptions,
+                                        sortOptions = collectedSortOptions,
+                                        explorerGroups = explorerGroups,
+                                        selectedExplorerGroupCode = selectedExplorerGroupCode,
+                                        onSelectExplorerGroup = { code ->
+                                            selectedExplorerGroupCode = code
+                                        },
                                         mapPreviewBitmap = collectedMapPreviewSnapshot,
                                         mapPreviewExpanded = collectedMapPreviewExpanded,
                                         mapPreviewCameraPosition = collectedMapPreviewCamera,
@@ -4696,8 +4700,9 @@ private fun ActionCard(
 }
 
 @Composable
-private fun CountBadge(count: Int) {
+private fun CountBadge(count: Int, modifier: Modifier = Modifier) {
     Surface(
+        modifier = modifier,
         shape = CircleShape,
         color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
     ) {
@@ -6152,6 +6157,9 @@ private fun CollectedDropsContent(
     isReportProcessing: Boolean,
     sortOption: DropSortOption,
     sortOptions: List<DropSortOption>,
+    explorerGroups: List<GroupMembership>,
+    selectedExplorerGroupCode: String?,
+    onSelectExplorerGroup: (String?) -> Unit,
     mapPreviewBitmap: Bitmap?,
     mapPreviewExpanded: Boolean,
     mapPreviewCameraPosition: CameraPosition?,
@@ -6253,6 +6261,21 @@ private fun CollectedDropsContent(
         )
         Spacer(Modifier.height(16.dp))
 
+        ExplorerSharedChipRow(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+            sortOption = sortOption,
+            sortOptions = sortOptions,
+            onSortOptionChange = onSortOptionChange,
+            explorerGroups = explorerGroups,
+            selectedExplorerGroupCode = selectedExplorerGroupCode,
+            onSelectExplorerGroup = onSelectExplorerGroup,
+            itemCount = notes.size
+        )
+
+        Spacer(Modifier.height(12.dp))
+
         if (hiddenNsfwCount > 0) {
             val plural = if (hiddenNsfwCount == 1) "drop" else "drops"
             Surface(
@@ -6292,23 +6315,6 @@ private fun CollectedDropsContent(
                 )
             }
             Spacer(Modifier.height(12.dp))
-        }
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            DropSortMenu(
-                modifier = Modifier.weight(1f),
-                current = sortOption,
-                options = sortOptions,
-                onSelect = onSortOptionChange
-            )
-
-            Spacer(Modifier.width(12.dp))
-            CountBadge(count = notes.size)
         }
 
         LazyColumn(
@@ -7391,15 +7397,16 @@ private class ExplorerSearchToggle(
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ExplorerSearchFiltersBar(
+private fun ExplorerSharedChipRow(
     modifier: Modifier = Modifier,
-    otherDropsSortOption: DropSortOption,
+    sortOption: DropSortOption,
     sortOptions: List<DropSortOption>,
-    onUpdateDropSort: (DropSortOption) -> Unit,
+    onSortOptionChange: (DropSortOption) -> Unit,
     explorerGroups: List<GroupMembership>,
     selectedExplorerGroupCode: String?,
     onSelectExplorerGroup: (String?) -> Unit,
-    searchToggles: List<ExplorerSearchToggle>
+    searchToggles: List<ExplorerSearchToggle> = emptyList(),
+    itemCount: Int? = null
 ) {
     Column(
         modifier = modifier,
@@ -7410,7 +7417,7 @@ private fun ExplorerSearchFiltersBar(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             sortOptions.forEach { option ->
-                val isSelected = option == otherDropsSortOption
+                val isSelected = option == sortOption
                 val semanticsDescription = if (isSelected) {
                     "Sorting by ${option.displayName}"
                 } else {
@@ -7420,7 +7427,7 @@ private fun ExplorerSearchFiltersBar(
                     selected = isSelected,
                     onClick = {
                         if (!isSelected) {
-                            onUpdateDropSort(option)
+                            onSortOptionChange(option)
                         }
                     },
                     label = { Text(option.displayName) },
@@ -7435,6 +7442,10 @@ private fun ExplorerSearchFiltersBar(
                         contentDescription = semanticsDescription
                     }
                 )
+            }
+
+            itemCount?.let { count ->
+                CountBadge(count = count)
             }
         }
 
@@ -7628,57 +7639,6 @@ private fun sortCollectedNotes(
             compareBy<CollectedNote> { note -> note.decayAtMillis() ?: Long.MAX_VALUE }
                 .thenByDescending { note -> note.dropCreatedAt ?: note.collectedAt }
         )
-    }
-}
-
-@Composable
-private fun DropSortMenu(
-    modifier: Modifier = Modifier,
-    current: DropSortOption,
-    options: List<DropSortOption>,
-    onSelect: (DropSortOption) -> Unit
-) {
-    var expanded by remember { mutableStateOf(false) }
-
-    Box(
-        modifier = modifier,
-        contentAlignment = Alignment.CenterStart
-    ) {
-        AssistChip(
-            onClick = { expanded = true },
-            label = { Text("Sort: ${current.displayName}") },
-            leadingIcon = {
-                Icon(
-                    imageVector = Icons.Rounded.Sort,
-                    contentDescription = null
-                )
-            }
-        )
-
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false }
-        ) {
-            options.forEach { option ->
-                DropdownMenuItem(
-                    text = { Text(option.displayName) },
-                    onClick = {
-                        expanded = false
-                        onSelect(option)
-                    },
-                    trailingIcon = if (option == current) {
-                        {
-                            Icon(
-                                imageVector = Icons.Rounded.Check,
-                                contentDescription = null
-                            )
-                        }
-                    } else {
-                        null
-                    }
-                )
-            }
-        }
     }
 }
 
@@ -8377,6 +8337,9 @@ private fun MyDropsContent(
     selectedId: String?,
     sortOption: DropSortOption,
     sortOptions: List<DropSortOption>,
+    explorerGroups: List<GroupMembership>,
+    selectedExplorerGroupCode: String?,
+    onSelectExplorerGroup: (String?) -> Unit,
     mapPreviewBitmap: Bitmap?,
     mapPreviewExpanded: Boolean,
     mapCameraPosition: CameraPosition?,
@@ -8482,21 +8445,20 @@ private fun MyDropsContent(
 
                     Spacer(Modifier.height(16.dp))
 
-                    Row(
+                    ExplorerSharedChipRow(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        DropSortMenu(
-                            modifier = Modifier.weight(1f),
-                            current = sortOption,
-                            options = sortOptions,
-                            onSelect = onSortOptionChange
-                        )
-                        Spacer(Modifier.width(12.dp))
-                        CountBadge(count = drops.size)
-                    }
+                            .padding(horizontal = 20.dp),
+                        sortOption = sortOption,
+                        sortOptions = sortOptions,
+                        onSortOptionChange = onSortOptionChange,
+                        explorerGroups = explorerGroups,
+                        selectedExplorerGroupCode = selectedExplorerGroupCode,
+                        onSelectExplorerGroup = onSelectExplorerGroup,
+                        itemCount = drops.size
+                    )
+
+                    Spacer(Modifier.height(12.dp))
 
                     LazyColumn(
                         state = listState,
@@ -11554,6 +11516,12 @@ private fun OtherDropsExplorerSection(
     canCollectDrops: Boolean,
     collectRestrictionMessage: String?,
     sortOption: DropSortOption,
+    sortOptions: List<DropSortOption>,
+    onSortOptionChange: (DropSortOption) -> Unit,
+    explorerGroups: List<GroupMembership>,
+    selectedExplorerGroupCode: String?,
+    onSelectExplorerGroup: (String?) -> Unit,
+    searchToggles: List<ExplorerSearchToggle>,
     canLikeDrops: Boolean,
     likeRestrictionMessage: String?,
     onLike: (Drop, DropLikeStatus) -> Unit,
@@ -11686,18 +11654,23 @@ private fun OtherDropsExplorerSection(
                         Spacer(Modifier.height(16.dp))
                     }
 
-                    val isSignedIn = !currentUserId.isNullOrBlank()
+                    ExplorerSharedChipRow(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp),
+                        sortOption = sortOption,
+                        sortOptions = sortOptions,
+                        onSortOptionChange = onSortOptionChange,
+                        explorerGroups = explorerGroups,
+                        selectedExplorerGroupCode = selectedExplorerGroupCode,
+                        onSelectExplorerGroup = onSelectExplorerGroup,
+                        searchToggles = searchToggles,
+                        itemCount = drops.size
+                    )
 
-                    if (drops.isNotEmpty()) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 20.dp, vertical = 12.dp),
-                            horizontalArrangement = Arrangement.End
-                        ) {
-                            CountBadge(count = drops.size)
-                        }
-                    }
+                    Spacer(Modifier.height(12.dp))
+
+                    val isSignedIn = !currentUserId.isNullOrBlank()
 
                     LazyColumn(
                         state = listState,
