@@ -112,6 +112,8 @@ import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.SegmentedButton
@@ -120,6 +122,7 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Slider
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.*
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -850,7 +853,7 @@ fun DropHereScreen(
     var redemptionLimitInput by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
     var decayDaysInput by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
     var status by remember { mutableStateOf<String?>(null) }
-    var showOtherDropsMap by remember { mutableStateOf(false) }
+    var showOtherDropsMap by remember { mutableStateOf(true) }
     var otherDrops by remember { mutableStateOf<List<Drop>>(emptyList()) }
     var otherDropsLoading by remember { mutableStateOf(false) }
     var otherDropsRefreshing by remember { mutableStateOf(false) }
@@ -2879,6 +2882,22 @@ fun DropHereScreen(
                 ) {
                     when (effectiveExplorerDestination) {
                         ExplorerDestination.Discover -> {
+                            val explorerSearchToggles = listOf(
+                                ExplorerSearchToggle(
+                                    key = "map_preview",
+                                    label = "Map preview",
+                                    checked = showOtherDropsMap,
+                                    onCheckedChange = { isChecked ->
+                                        showOtherDropsMap = isChecked
+                                        if (!isChecked) {
+                                            otherDropsMapPreviewExpanded = false
+                                        }
+                                    },
+                                    icon = Icons.Rounded.Map,
+                                    checkedDescription = "Hide map preview in search results",
+                                    uncheckedDescription = "Show map preview in search results"
+                                )
+                            )
                             Column(
                                 modifier = Modifier
                                     .weight(1f)
@@ -2898,6 +2917,23 @@ fun DropHereScreen(
                                         .fillMaxWidth(),
                                     verticalArrangement = Arrangement.spacedBy(16.dp)
                                 ) {
+                                    ExplorerSearchFiltersBar(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 20.dp),
+                                        otherDropsSortOption = otherDropsSortOption,
+                                        sortOptions = dropSortOptions,
+                                        onUpdateDropSort = { option ->
+                                            otherDropsSortKey = option.name
+                                        },
+                                        explorerGroups = explorerGroups,
+                                        selectedExplorerGroupCode = selectedExplorerGroupCode,
+                                        onSelectExplorerGroup = { code ->
+                                            selectedExplorerGroupCode = code
+                                        },
+                                        searchToggles = explorerSearchToggles
+                                    )
+
                                     Box(
                                         modifier = Modifier
                                             .weight(1f)
@@ -2933,10 +2969,6 @@ fun DropHereScreen(
                                                 UserMode.SIGNED_IN -> null
                                             },
                                             sortOption = otherDropsSortOption,
-                                            sortOptions = dropSortOptions,
-                                            onSortOptionChange = { option ->
-                                                otherDropsSortKey = option.name
-                                            },
                                             canLikeDrops = canParticipate,
                                             likeRestrictionMessage = if (canParticipate) null else participationRestriction("react to drops"),
                                             onLike = { drop, status -> submitLike(drop, status) },
@@ -2994,6 +3026,7 @@ fun DropHereScreen(
                                             onMapPreviewExpandedChange = { expanded ->
                                                 otherDropsMapPreviewExpanded = expanded
                                             },
+                                            showMapPreview = showOtherDropsMap,
                                             onOpenMapView = {
                                                 otherDropsMapPreviewExpanded = true
                                             }
@@ -7344,6 +7377,185 @@ private enum class DropSortOption(val displayName: String) {
     ENDING_SOON("Ending soon")
 }
 
+@Stable
+private class ExplorerSearchToggle(
+    val key: String,
+    val label: String,
+    val checked: Boolean,
+    val onCheckedChange: (Boolean) -> Unit,
+    val icon: ImageVector? = null,
+    val checkedDescription: String? = null,
+    val uncheckedDescription: String? = null
+)
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ExplorerSearchFiltersBar(
+    modifier: Modifier = Modifier,
+    otherDropsSortOption: DropSortOption,
+    sortOptions: List<DropSortOption>,
+    onUpdateDropSort: (DropSortOption) -> Unit,
+    explorerGroups: List<GroupMembership>,
+    selectedExplorerGroupCode: String?,
+    onSelectExplorerGroup: (String?) -> Unit,
+    searchToggles: List<ExplorerSearchToggle>
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            sortOptions.forEach { option ->
+                val isSelected = option == otherDropsSortOption
+                val semanticsDescription = if (isSelected) {
+                    "Sorting by ${option.displayName}"
+                } else {
+                    "Sort drops by ${option.displayName}"
+                }
+                FilterChip(
+                    selected = isSelected,
+                    onClick = {
+                        if (!isSelected) {
+                            onUpdateDropSort(option)
+                        }
+                    },
+                    label = { Text(option.displayName) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                        labelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    ),
+                    modifier = Modifier.semantics {
+                        role = Role.RadioButton
+                        contentDescription = semanticsDescription
+                    }
+                )
+            }
+        }
+
+        if (explorerGroups.isNotEmpty()) {
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                val showAllSelected = selectedExplorerGroupCode == null
+                AssistChip(
+                    onClick = {
+                        if (!showAllSelected) {
+                            onSelectExplorerGroup(null)
+                        }
+                    },
+                    label = { Text("All groups") },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Rounded.Public,
+                            contentDescription = null
+                        )
+                    },
+                    colors = AssistChipDefaults.assistChipColors(
+                        containerColor = if (showAllSelected) {
+                            MaterialTheme.colorScheme.secondaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.surfaceVariant
+                        },
+                        labelColor = if (showAllSelected) {
+                            MaterialTheme.colorScheme.onSecondaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                        leadingIconContentColor = if (showAllSelected) {
+                            MaterialTheme.colorScheme.onSecondaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+                    ),
+                    modifier = Modifier.semantics {
+                        role = Role.RadioButton
+                        contentDescription = if (showAllSelected) {
+                            "Showing drops from all groups"
+                        } else {
+                            "Show drops from all groups"
+                        }
+                    }
+                )
+
+                explorerGroups.forEach { membership ->
+                    val isSelected = membership.code == selectedExplorerGroupCode
+                    AssistChip(
+                        onClick = {
+                            if (!isSelected) {
+                                onSelectExplorerGroup(membership.code)
+                            }
+                        },
+                        label = { Text(membership.code) },
+                        colors = AssistChipDefaults.assistChipColors(
+                            containerColor = if (isSelected) {
+                                MaterialTheme.colorScheme.secondaryContainer
+                            } else {
+                                MaterialTheme.colorScheme.surfaceVariant
+                            },
+                            labelColor = if (isSelected) {
+                                MaterialTheme.colorScheme.onSecondaryContainer
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            }
+                        ),
+                        modifier = Modifier.semantics {
+                            role = Role.RadioButton
+                            contentDescription = if (isSelected) {
+                                "Filtering drops for group ${membership.code}"
+                            } else {
+                                "Filter drops to group ${membership.code}"
+                            }
+                        }
+                    )
+                }
+            }
+        }
+
+        if (searchToggles.isNotEmpty()) {
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                searchToggles.forEach { toggle ->
+                    val semanticsDescription = if (toggle.checked) {
+                        toggle.checkedDescription ?: "Disable ${toggle.label.lowercase()} filter"
+                    } else {
+                        toggle.uncheckedDescription ?: "Enable ${toggle.label.lowercase()} filter"
+                    }
+                    FilterChip(
+                        selected = toggle.checked,
+                        onClick = { toggle.onCheckedChange(!toggle.checked) },
+                        label = { Text(toggle.label) },
+                        leadingIcon = toggle.icon?.let { icon ->
+                            {
+                                Icon(imageVector = icon, contentDescription = null)
+                            }
+                        },
+                        colors = FilterChipDefaults.filterChipColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            selectedContainerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                            selectedLabelColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                            labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            leadingIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            selectedLeadingIconContentColor = MaterialTheme.colorScheme.onTertiaryContainer
+                        ),
+                        modifier = Modifier.semantics {
+                            role = Role.Switch
+                            contentDescription = semanticsDescription
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
 private fun sortDrops(
     drops: List<Drop>,
     option: DropSortOption,
@@ -11341,8 +11553,6 @@ private fun OtherDropsExplorerSection(
     canCollectDrops: Boolean,
     collectRestrictionMessage: String?,
     sortOption: DropSortOption,
-    sortOptions: List<DropSortOption>,
-    onSortOptionChange: (DropSortOption) -> Unit,
     canLikeDrops: Boolean,
     likeRestrictionMessage: String?,
     onLike: (Drop, DropLikeStatus) -> Unit,
@@ -11358,6 +11568,7 @@ private fun OtherDropsExplorerSection(
     onMapSnapshotChange: (Bitmap?, CameraPosition) -> Unit,
     mapPreviewExpanded: Boolean,
     onMapPreviewExpandedChange: (Boolean) -> Unit,
+    showMapPreview: Boolean,
     onOpenMapView: () -> Unit
 ) {
     val context = LocalContext.current
@@ -11456,39 +11667,33 @@ private fun OtherDropsExplorerSection(
                         .fillMaxSize()
                         .padding(top = topContentPadding)
                 ) {
-                    OtherDropsMapPreviewHeader(
-                        drops = drops,
-                        selectedId = selectedId,
-                        currentLocation = currentLocation,
-                        notificationRadiusMeters = notificationRadiusMeters,
-                        expanded = mapPreviewExpanded,
-                        snapshot = mapPreviewBitmap,
-                        cameraPosition = mapCameraPosition,
-                        onSnapshotChange = onMapSnapshotChange,
-                        onExpandedChange = onMapPreviewExpandedChange,
-                        onOpenMapView = onOpenMapView,
-                        onDropClick = onSelect
-                    )
+                    if (showMapPreview) {
+                        OtherDropsMapPreviewHeader(
+                            drops = drops,
+                            selectedId = selectedId,
+                            currentLocation = currentLocation,
+                            notificationRadiusMeters = notificationRadiusMeters,
+                            expanded = mapPreviewExpanded,
+                            snapshot = mapPreviewBitmap,
+                            cameraPosition = mapCameraPosition,
+                            onSnapshotChange = onMapSnapshotChange,
+                            onExpandedChange = onMapPreviewExpandedChange,
+                            onOpenMapView = onOpenMapView,
+                            onDropClick = onSelect
+                        )
 
-                    Spacer(Modifier.height(16.dp))
+                        Spacer(Modifier.height(16.dp))
+                    }
 
                     val isSignedIn = !currentUserId.isNullOrBlank()
 
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 20.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        DropSortMenu(
-                            modifier = Modifier.weight(1f),
-                            current = sortOption,
-                            options = sortOptions,
-                            onSelect = onSortOptionChange
-                        )
-
-                        if (drops.isNotEmpty()) {
-                            Spacer(Modifier.width(12.dp))
+                    if (drops.isNotEmpty()) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp, vertical = 12.dp),
+                            horizontalArrangement = Arrangement.End
+                        ) {
                             CountBadge(count = drops.size)
                         }
                     }
