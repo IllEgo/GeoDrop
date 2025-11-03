@@ -10611,16 +10611,15 @@ private fun ExplorerDestinationMap(
                     Marker(
                         state = MarkerState(position),
                         title = drop.displayTitle(),
-                        snippet = snippetParts.joinToString("
-                            "),
-                                    icon = markerIcon,
-                            alpha = if (isSelected) 1f else 0.9f,
-                            zIndex = if (isSelected) 2f else 0f,
-                            onClick = {
-                                onOtherDropClick(drop)
-                                false
-                            }
-                        )
+                        snippet = snippetParts.joinToString("\n"),
+                        icon = markerIcon,
+                        alpha = if (isSelected) 1f else 0.9f,
+                        zIndex = if (isSelected) 2f else 0f,
+                        onClick = {
+                            onOtherDropClick(drop)
+                            false
+                        }
+                    )
                 }
             }
 
@@ -10676,16 +10675,15 @@ private fun ExplorerDestinationMap(
                     Marker(
                         state = MarkerState(position),
                         title = drop.displayTitle(),
-                        snippet = snippetParts.joinToString("
-                            "),
-                                    icon = markerIcon,
-                            alpha = if (isSelected) 1f else 0.9f,
-                            zIndex = if (isSelected) 2f else 0f,
-                            onClick = {
-                                onMyDropClick(drop)
-                                false
-                            }
-                        )
+                        snippet = snippetParts.joinToString("\n"),
+                        icon = markerIcon,
+                        alpha = if (isSelected) 1f else 0.9f,
+                        zIndex = if (isSelected) 2f else 0f,
+                        onClick = {
+                            onMyDropClick(drop)
+                            false
+                        }
+                    )
                 }
             }
 
@@ -10737,15 +10735,14 @@ private fun ExplorerDestinationMap(
                     Marker(
                         state = MarkerState(position),
                         title = title,
-                        snippet = snippetParts.joinToString("
-                            "),
-                                    icon = markerIcon,
-                            zIndex = if (note.id == collectedHighlightedId) 1f else 0f,
-                            onClick = {
-                                onCollectedNoteClick(note)
-                                false
-                            }
-                        )
+                        snippet = snippetParts.joinToString("\n"),
+                        icon = markerIcon,
+                        zIndex = if (note.id == collectedHighlightedId) 1f else 0f,
+                        onClick = {
+                            onCollectedNoteClick(note)
+                            false
+                        }
+                    )
                 }
             }
         }
