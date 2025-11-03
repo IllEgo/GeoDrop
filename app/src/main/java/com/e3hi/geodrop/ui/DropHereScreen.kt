@@ -3219,28 +3219,22 @@ fun DropHereScreen(
                                         },
                                         sortOption = collectedSortOption,
                                         sortOptions = dropSortOptions,
-                                        mapPreviewHeader = {
-                                            CollectedDropsMapPreviewHeader(
-                                                notes = sortedCollectedNotes,
-                                                highlightedId = collectedHighlightedId,
-                                                currentLocation = collectedCurrentLocation,
-                                                expanded = collectedMapPreviewExpanded,
-                                                snapshot = collectedMapPreviewSnapshot,
-                                                cameraPosition = collectedMapPreviewCamera,
-                                                onSnapshotChange = { bitmap, position ->
-                                                    collectedMapPreviewSnapshot = bitmap
-                                                    collectedMapPreviewCamera = position
-                                                },
-                                                onExpandedChange = { expanded ->
-                                                    collectedMapPreviewExpanded = expanded
-                                                    if (expanded) {
-                                                        collectedMapPreviewSnapshot = null
-                                                    }
-                                                },
-                                                onNoteClick = { note ->
-                                                    collectedHighlightedId = note.id
-                                                }
-                                            )
+                                        mapPreviewBitmap = collectedMapPreviewSnapshot,
+                                        mapPreviewExpanded = collectedMapPreviewExpanded,
+                                        mapPreviewCameraPosition = collectedMapPreviewCamera,
+                                        mapPreviewCurrentLocation = collectedCurrentLocation,
+                                        onMapPreviewSnapshotChange = { bitmap, position ->
+                                            collectedMapPreviewSnapshot = bitmap
+                                            collectedMapPreviewCamera = position
+                                        },
+                                        onMapPreviewExpandedChange = { expanded ->
+                                            collectedMapPreviewExpanded = expanded
+                                            if (expanded) {
+                                                collectedMapPreviewSnapshot = null
+                                            }
+                                        },
+                                        onMapPreviewOpenMap = {
+                                            collectedMapPreviewExpanded = true
                                         },
                                         onSortOptionChange = { option ->
                                             collectedSortKey = option.name
@@ -6124,7 +6118,13 @@ private fun CollectedDropsContent(
     isReportProcessing: Boolean,
     sortOption: DropSortOption,
     sortOptions: List<DropSortOption>,
-    mapPreviewHeader: (@Composable () -> Unit)? = null,
+    mapPreviewBitmap: Bitmap?,
+    mapPreviewExpanded: Boolean,
+    mapPreviewCameraPosition: CameraPosition?,
+    mapPreviewCurrentLocation: LatLng?,
+    onMapPreviewSnapshotChange: (Bitmap?, CameraPosition) -> Unit,
+    onMapPreviewExpandedChange: (Boolean) -> Unit,
+    onMapPreviewOpenMap: () -> Unit,
     onSortOptionChange: (DropSortOption) -> Unit,
     canLikeDrops: Boolean,
     isSignedIn: Boolean,
@@ -6193,10 +6193,31 @@ private fun CollectedDropsContent(
             .padding(contentPadding)
             .padding(top = topContentPadding)
     ) {
-        mapPreviewHeader?.let {
-            it()
-            Spacer(Modifier.height(16.dp))
-        }
+        CollectedDropsMapPreviewHeader(
+            notes = notes,
+            highlightedId = highlightedId,
+            currentLocation = mapPreviewCurrentLocation,
+            expanded = mapPreviewExpanded,
+            snapshot = mapPreviewBitmap,
+            cameraPosition = mapPreviewCameraPosition,
+            canReportDrops = canReportDrops,
+            reportedDropIds = reportedDropIds,
+            reportingDropId = reportingDropId,
+            isReportProcessing = isReportProcessing,
+            canLikeDrops = canLikeDrops,
+            isSignedIn = isSignedIn,
+            likeRestrictionMessage = likeRestrictionMessage,
+            votingDropIds = votingDropIds,
+            onSnapshotChange = onMapPreviewSnapshotChange,
+            onExpandedChange = onMapPreviewExpandedChange,
+            onOpenMap = onMapPreviewOpenMap,
+            onHighlightedIdChange = onHighlightedIdChange,
+            onLike = onLike,
+            onReport = onReport,
+            onView = onView,
+            onRemove = onRemove
+        )
+        Spacer(Modifier.height(16.dp))
 
         if (hiddenNsfwCount > 0) {
             val plural = if (hiddenNsfwCount == 1) "drop" else "drops"
@@ -8459,20 +8480,33 @@ private fun CollectedDropsMapPreviewHeader(
     expanded: Boolean,
     snapshot: Bitmap?,
     cameraPosition: CameraPosition?,
+    canReportDrops: Boolean,
+    reportedDropIds: Set<String>,
+    reportingDropId: String?,
+    isReportProcessing: Boolean,
+    canLikeDrops: Boolean,
+    isSignedIn: Boolean,
+    likeRestrictionMessage: String?,
+    votingDropIds: Set<String>,
     onSnapshotChange: (Bitmap?, CameraPosition) -> Unit,
     onExpandedChange: (Boolean) -> Unit,
-    onNoteClick: (CollectedNote) -> Unit,
+    onOpenMap: () -> Unit,
+    onHighlightedIdChange: (String?) -> Unit,
+    onLike: (CollectedNote, DropLikeStatus) -> Unit,
+    onReport: (CollectedNote) -> Unit,
+    onView: (CollectedNote) -> Unit,
+    onRemove: (CollectedNote) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val previewHeight by animateDpAsState(
-        targetValue = if (expanded) 320.dp else 160.dp,
+        targetValue = if (expanded) 320.dp else 180.dp,
         label = "collectedMapPreviewHeight"
     )
     val highlightedNote = remember(notes, highlightedId) { notes.firstOrNull { it.id == highlightedId } }
-    val overlayAlpha = if (expanded) 0.35f else 0.6f
     val mappedCount = remember(notes) { notes.count { it.lat != null && it.lng != null } }
     val headerTitle = remember(highlightedNote) {
-        highlightedNote?.text?.ifBlank { highlightedNote.contentType.mediaLabel() } ?: "Collected drops overview"
+        highlightedNote?.text?.ifBlank { highlightedNote.contentType.mediaLabel() }
+            ?: "Collected drops overview"
     }
     val subtitle = remember(highlightedNote, currentLocation, cameraPosition, mappedCount, notes.size) {
         when {
@@ -8510,112 +8544,190 @@ private fun CollectedDropsMapPreviewHeader(
         }
     }
 
+    val canReact = canLikeDrops && isSignedIn
+
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp),
+            .padding(horizontal = 16.dp),
         shape = RoundedCornerShape(24.dp),
         tonalElevation = 6.dp
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(previewHeight)
-        ) {
-            if (expanded) {
-                CollectedDropsMap(
-                    notes = notes,
-                    highlightedId = highlightedId,
-                    currentLocation = currentLocation,
-                    modifier = Modifier.fillMaxSize(),
-                    onNoteClick = onNoteClick,
-                    onSnapshotUpdate = onSnapshotChange
-                )
-            } else {
-                if (snapshot != null) {
-                    Image(
-                        bitmap = snapshot.asImageBitmap(),
-                        contentDescription = "Map preview",
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-                } else {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                    )
-                }
-
-                Box(
+        Column {
+            Surface(
+                tonalElevation = 2.dp,
+                color = MaterialTheme.colorScheme.surface
+            ) {
+                Row(
                     modifier = Modifier
-                        .matchParentSize()
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) { onExpandedChange(true) }
-                )
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = "Map preview",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = headerTitle,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = subtitle,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        FilledTonalIconButton(onClick = { onExpandedChange(!expanded) }) {
+                            Icon(
+                                imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                                contentDescription = if (expanded) {
+                                    "Collapse map preview"
+                                } else {
+                                    "Expand map preview"
+                                }
+                            )
+                        }
+                        FilledTonalIconButton(onClick = onOpenMap) {
+                            Icon(
+                                imageVector = Icons.Rounded.OpenInFull,
+                                contentDescription = "Open map view"
+                            )
+                        }
+                    }
+                }
             }
+
+            Divider()
 
             Box(
                 modifier = Modifier
-                    .matchParentSize()
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(
-                                Color.Black.copy(alpha = overlayAlpha),
-                                Color.Transparent
-                            )
-                        )
+                    .fillMaxWidth()
+                    .height(previewHeight)
+                    .clip(RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp))
+            ) {
+                if (expanded) {
+                    CollectedDropsMap(
+                        notes = notes,
+                        highlightedId = highlightedId,
+                        currentLocation = currentLocation,
+                        modifier = Modifier.fillMaxSize(),
+                        onNoteClick = { note -> onHighlightedIdChange(note.id) },
+                        onSnapshotUpdate = onSnapshotChange
                     )
-            )
-
-            CompositionLocalProvider(LocalContentColor provides Color.White) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .align(Alignment.TopStart)
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Column(
-                            modifier = Modifier.weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                } else {
+                    if (snapshot != null) {
+                        Image(
+                            bitmap = snapshot.asImageBitmap(),
+                            contentDescription = "Map preview",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(MaterialTheme.colorScheme.surfaceVariant),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Text(
-                                text = "Map preview",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = Color.White.copy(alpha = 0.9f)
-                            )
-                            Text(
-                                text = headerTitle,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                color = Color.White,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Text(
-                                text = subtitle,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Color.White.copy(alpha = 0.85f)
-                            )
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Map,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = "Expand map preview",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
+                    }
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .clickable { onExpandedChange(true) }
+                            .semantics { role = Role.Button }
+                    )
+                }
+            }
 
-                        MapPreviewActionButton(
-                            onClick = { onExpandedChange(!expanded) },
-                            icon = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                            contentDescription = if (expanded) {
-                                "Collapse map preview"
-                            } else {
-                                "Expand map preview"
+            if (expanded) {
+                Divider()
+                highlightedNote?.let { note ->
+                    val alreadyReported = reportedDropIds.contains(note.id)
+                    val restrictionMessage = when {
+                        alreadyReported -> "Thanks for your report. We'll review it soon."
+                        !canReportDrops -> "Sign in to report drops."
+                        else -> null
+                    }
+                    val isReporting = isReportProcessing && reportingDropId == note.id
+                    val isVoting = votingDropIds.contains(note.id)
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp)
+                    ) {
+                        CollectedNoteCard(
+                            note = note,
+                            selected = true,
+                            expanded = true,
+                            onSelect = {
+                                onHighlightedIdChange(
+                                    if (highlightedId == note.id) null else note.id
+                                )
+                            },
+                            likeCount = note.likeCount,
+                            dislikeCount = note.dislikeCount,
+                            userLike = note.likeStatus(),
+                            canLike = canReact,
+                            likeRestrictionMessage = likeRestrictionMessage,
+                            isVoting = isVoting,
+                            onLike = { status -> onLike(note, status) },
+                            canReport = canReportDrops,
+                            alreadyReported = alreadyReported,
+                            reportRestrictionMessage = restrictionMessage,
+                            isReporting = isReporting,
+                            onReport = { onReport(note) },
+                            onView = {
+                                onHighlightedIdChange(note.id)
+                                onView(note)
+                            },
+                            onRemove = {
+                                onHighlightedIdChange(null)
+                                onRemove(note)
                             }
                         )
                     }
+                } ?: Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 24.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Select a drop to view details",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
                 }
             }
         }
