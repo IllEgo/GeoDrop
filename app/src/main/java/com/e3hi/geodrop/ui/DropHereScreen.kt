@@ -172,6 +172,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import coil.compose.AsyncImage
@@ -318,6 +319,9 @@ fun DropHereScreen(
     var termsPrivacyDialogTab by remember { mutableStateOf<Int?>(null) }
     var showExplorerProfile by remember { mutableStateOf(false) }
     var explorerDestination by rememberSaveable { mutableStateOf(ExplorerDestination.Discover.name) }
+    var showDiscoverMapOverlay by rememberSaveable { mutableStateOf(false) }
+    var showMyDropsMapOverlay by rememberSaveable { mutableStateOf(false) }
+    var showCollectedMapOverlay by rememberSaveable { mutableStateOf(false) }
     var explorerUsernameField by rememberSaveable(stateSaver = TextFieldValue.Saver) {
         mutableStateOf(TextFieldValue(""))
     }
@@ -3024,8 +3028,35 @@ fun DropHereScreen(
                                             showMapPreview = showOtherDropsMap,
                                             onOpenMapView = {
                                                 otherDropsMapPreviewExpanded = true
+                                                showDiscoverMapOverlay = true
                                             }
                                         )
+                                    }
+
+                                    if (showDiscoverMapOverlay) {
+                                        ExplorerFullScreenMapDialog(
+                                            title = "Nearby drops map",
+                                            onDismiss = { showDiscoverMapOverlay = false }
+                                        ) {
+                                            OtherDropsMap(
+                                                drops = sortedOtherDrops,
+                                                selectedDropId = otherDropsSelectedId,
+                                                currentLocation = otherDropsCurrentLocation,
+                                                notificationRadiusMeters = notificationRadius,
+                                                onDropClick = { drop ->
+                                                    otherDropsSelectedId = if (otherDropsSelectedId == drop.id) {
+                                                        null
+                                                    } else {
+                                                        drop.id
+                                                    }
+                                                },
+                                                modifier = Modifier.fillMaxSize(),
+                                                onSnapshotUpdate = { bitmap, position ->
+                                                    otherDropsMapPreviewSnapshot = bitmap
+                                                    otherDropsMapPreviewCamera = position
+                                                }
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -3126,6 +3157,7 @@ fun DropHereScreen(
                                         },
                                         onOpenMap = {
                                             myDropsMapPreviewExpanded = true
+                                            showMyDropsMapOverlay = true
                                         },
                                         onSortOptionChange = { option ->
                                             myDropsSortKey = option.name
@@ -3180,6 +3212,31 @@ fun DropHereScreen(
                                             }
                                         }
                                     )
+                                }
+
+                                if (showMyDropsMapOverlay) {
+                                    ExplorerFullScreenMapDialog(
+                                        title = "Your drops map",
+                                        onDismiss = { showMyDropsMapOverlay = false }
+                                    ) {
+                                        MyDropsMap(
+                                            drops = sortedMyDrops,
+                                            selectedDropId = myDropsSelectedId,
+                                            currentLocation = myDropsCurrentLocation,
+                                            onDropClick = { drop ->
+                                                myDropsSelectedId = if (myDropsSelectedId == drop.id) {
+                                                    null
+                                                } else {
+                                                    drop.id
+                                                }
+                                            },
+                                            modifier = Modifier.fillMaxSize(),
+                                            onSnapshotUpdate = { bitmap, position ->
+                                                myDropsMapPreviewSnapshot = bitmap
+                                                myDropsMapPreviewCamera = position
+                                            }
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -3273,6 +3330,7 @@ fun DropHereScreen(
                                         },
                                         onMapPreviewOpenMap = {
                                             collectedMapPreviewExpanded = true
+                                            showCollectedMapOverlay = true
                                         },
                                         onSortOptionChange = { option ->
                                             collectedSortKey = option.name
@@ -3345,6 +3403,31 @@ fun DropHereScreen(
                                             collectedPendingRemove = note
                                         }
                                     )
+                                }
+
+                                if (showCollectedMapOverlay) {
+                                    ExplorerFullScreenMapDialog(
+                                        title = "Collected drops map",
+                                        onDismiss = { showCollectedMapOverlay = false }
+                                    ) {
+                                        CollectedDropsMap(
+                                            notes = sortedCollectedNotes,
+                                            highlightedId = collectedHighlightedId,
+                                            currentLocation = collectedCurrentLocation,
+                                            modifier = Modifier.fillMaxSize(),
+                                            onNoteClick = { note ->
+                                                collectedHighlightedId = if (collectedHighlightedId == note.id) {
+                                                    null
+                                                } else {
+                                                    note.id
+                                                }
+                                            },
+                                            onSnapshotUpdate = { bitmap, position ->
+                                                collectedMapPreviewSnapshot = bitmap
+                                                collectedMapPreviewCamera = position
+                                            }
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -11491,6 +11574,46 @@ private fun OtherDropsMapPreviewHeader(
                         Text("Open map view")
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ExplorerFullScreenMapDialog(
+    title: String,
+    onDismiss: () -> Unit,
+    content: @Composable BoxScope.() -> Unit
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.surface
+        ) {
+            BackHandler(onBack = onDismiss)
+            Box(modifier = Modifier.fillMaxSize()) {
+                content()
+
+                TopAppBar(
+                    title = { Text(title) },
+                    navigationIcon = {
+                        IconButton(onClick = onDismiss) {
+                            Icon(
+                                imageVector = Icons.Filled.ArrowBack,
+                                contentDescription = "Close map view"
+                            )
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+                        navigationIconContentColor = MaterialTheme.colorScheme.onSurface,
+                        titleContentColor = MaterialTheme.colorScheme.onSurface
+                    ),
+                    modifier = Modifier.align(Alignment.TopCenter)
+                )
             }
         }
     }
