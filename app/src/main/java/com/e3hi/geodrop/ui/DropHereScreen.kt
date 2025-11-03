@@ -4365,382 +4365,6 @@ fun DropHereScreen(
     }
 
     @Composable
-    private fun TermsAcceptanceScreen(
-        onAccept: () -> Unit,
-        onExit: () -> Unit
-    ) {
-        val scrollState = rememberScrollState()
-        var selectedTab by remember { mutableStateOf(0) }
-        val agreementText = remember(selectedTab) {
-            if (selectedTab == 0) TERMS_OF_SERVICE_TEXT else PRIVACY_POLICY_TEXT
-        }
-
-        LaunchedEffect(selectedTab) {
-            scrollState.scrollTo(0)
-        }
-
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(24.dp)
-        ) {
-            Surface(
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .fillMaxWidth(),
-                shape = RoundedCornerShape(24.dp),
-                tonalElevation = 6.dp
-            ) {
-                Column(
-                    modifier = Modifier
-                        .padding(24.dp)
-                        .fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Text(
-                        text = "Welcome to GeoDrop",
-                        style = MaterialTheme.typography.headlineSmall,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Text(
-                        text = TERMS_PRIVACY_SUMMARY,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Divider()
-                    TabRow(
-                        selectedTabIndex = selectedTab,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        TERMS_PRIVACY_TABS.forEachIndexed { index, title ->
-                            Tab(
-                                selected = selectedTab == index,
-                                onClick = { selectedTab = index },
-                                text = { Text(title) }
-                            )
-                        }
-                    }
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 200.dp, max = 360.dp)
-                            .verticalScroll(scrollState)
-                            .border(
-                                BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                                RoundedCornerShape(12.dp)
-                            )
-                            .padding(16.dp)
-                    ) {
-                        Text(
-                            text = agreementText,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            lineHeight = MaterialTheme.typography.bodySmall.lineHeight
-                        )
-                    }
-                    Text(
-                        text = "By tapping Accept & Continue you agree to these terms and policies.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        TextButton(onClick = onExit) {
-                            Text("Exit app")
-                        }
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Button(onClick = onAccept) {
-                            Text("Accept & Continue")
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    @OptIn(ExperimentalFoundationApi::class)
-    @Composable
-    private fun FirstRunOnboardingScreen(
-        onContinue: () -> Unit,
-        onExit: () -> Unit,
-        showExitButton: Boolean = true
-    ) {
-        val slides = remember {
-            listOf(
-                OnboardingSlide(
-                    icon = Icons.Rounded.Map,
-                    title = "Discover nearby drops",
-                    description = "See stories, rewards, and community posts pinned to real-world locations around you."
-                ),
-                OnboardingSlide(
-                    icon = Icons.Rounded.Place,
-                    title = "Collect and redeem",
-                    description = "Walk up to a drop to unlock it, save it to your inventory, and redeem special offers in person."
-                ),
-                OnboardingSlide(
-                    icon = Icons.Rounded.Storefront,
-                    title = "Share your own moments",
-                    description = "Create drops with photos, audio, or coupons so nearby explorers can discover your business or story."
-                ),
-                OnboardingSlide(
-                    icon = Icons.Rounded.AccountCircle,
-                    title = "Build your profile",
-                    description = "Personalize your explorer profile to track progress and highlight the drops you're proud of."
-                ),
-                OnboardingSlide(
-                    icon = Icons.Rounded.Groups,
-                    title = "Join community groups",
-                    description = "Follow local crews or start your own group to coordinate adventures and share exclusive drops."
-                )
-            )
-        }
-        val pagerState = rememberPagerState(pageCount = { slides.size })
-        val scope = rememberCoroutineScope()
-
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(24.dp)
-        ) {
-            Surface(
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .fillMaxWidth(),
-                shape = RoundedCornerShape(24.dp),
-                tonalElevation = 6.dp
-            ) {
-                Column(
-                    modifier = Modifier
-                        .padding(24.dp)
-                        .fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Welcome to GeoDrop",
-                            style = MaterialTheme.typography.titleLarge,
-                            modifier = Modifier.weight(1f)
-                        )
-                        TextButton(onClick = onContinue) {
-                            Text("Skip")
-                        }
-                    }
-
-                    HorizontalPager(
-                        state = pagerState,
-                        modifier = Modifier.fillMaxWidth()
-                    ) { page ->
-                        val slide = slides[page]
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 8.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(16.dp)
-                        ) {
-                            Surface(
-                                modifier = Modifier.size(140.dp),
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.primaryContainer
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = slide.icon,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                        modifier = Modifier.size(72.dp)
-                                    )
-                                }
-                            }
-
-                            Text(
-                                text = slide.title,
-                                style = MaterialTheme.typography.titleMedium,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-
-                            Text(
-                                text = slide.description,
-                                style = MaterialTheme.typography.bodyMedium,
-                                textAlign = TextAlign.Center,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                    }
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 8.dp),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        slides.forEachIndexed { index, _ ->
-                            val isSelected = pagerState.currentPage == index
-                            Box(
-                                modifier = Modifier
-                                    .padding(horizontal = 4.dp)
-                                    .height(8.dp)
-                                    .width(if (isSelected) 24.dp else 8.dp)
-                                    .clip(CircleShape)
-                                    .background(
-                                        if (isSelected) MaterialTheme.colorScheme.primary
-                                        else MaterialTheme.colorScheme.surfaceVariant
-                                    )
-                            )
-                        }
-                    }
-
-                    Button(
-                        onClick = {
-                            if (pagerState.currentPage == slides.lastIndex) {
-                                onContinue()
-                            } else {
-                                scope.launch {
-                                    pagerState.animateScrollToPage(pagerState.currentPage + 1)
-                                }
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(if (pagerState.currentPage == slides.lastIndex) "Continue" else "Next")
-                    }
-                }
-            }
-
-            if (showExitButton) {
-                TextButton(
-                    onClick = onExit,
-                    modifier = Modifier.align(Alignment.BottomStart)
-                ) {
-                    Text("Exit app")
-                }
-            }
-        }
-    }
-
-    private data class OnboardingSlide(
-        val icon: ImageVector,
-        val title: String,
-        val description: String
-    )
-
-    private const val TERMS_PRIVACY_SUMMARY =
-        "GeoDrop uses your location and saved preferences to help you discover nearby drops. " +
-                "Use the tabs below to review our Terms of Service and Privacy Policy, then accept to continue."
-
-    private val TERMS_PRIVACY_TABS = listOf(
-        "Terms of Service",
-        "Privacy Policy"
-    )
-
-    private val TERMS_OF_SERVICE_TEXT = """
-📜 GeoDrop – Terms of Service
-Last updated: 10/02/2025
-Welcome to GeoDrop! By using our app, you agree to the following:
-
-1. Use of the App
-You may use GeoDrop to create and discover location-based messages, media, or coupons (“drops”).
-You agree not to post harmful, illegal, hateful, or malicious content.
-You agree not to spam, harass, or misuse the service.
-
-2. Location Services
-GeoDrop uses your device’s location to notify you of nearby drops.
-You must grant location permissions for the app to function properly.
-
-3. User Content
-You are responsible for any content you drop.
-GeoDrop may remove content that violates these terms.
-Coupons, promotions, or offers from businesses are managed by those businesses — GeoDrop is not responsible for their accuracy or fulfillment.
-
-4. NSFW Content
-GeoDrop includes an optional NSFW (Not Safe For Work) feature.
-By enabling NSFW mode, you confirm you are at least 18 years old (or the age of majority in your country).
-NSFW content may include mature, adult, or offensive material.
-GeoDrop is not responsible for the nature of user-generated NSFW content.
-Businesses are prohibited from posting NSFW coupons or promotions.
-
-5. Accounts & Data
-GeoDrop collects only the information needed to operate the service, such as your device ID, location (while you use the app), and any drops you create.
-We never sell your personal data.
-You may delete your account at any time from the in-app settings.
-
-6. Business Accounts
-Business users must keep their account information up to date.
-Business users are responsible for honoring coupons or offers they distribute through GeoDrop.
-GeoDrop may suspend business accounts that violate these terms or applicable laws.
-
-7. Changes to the Terms
-We may update these terms from time to time. If the changes are material, we'll notify you in the app.
-Continuing to use GeoDrop after an update means you accept the revised terms.
-
-8. Contact
-Questions? Reach us at support@geodrop.app.
-
-📍 Location Notice
-GeoDrop relies on accurate GPS data. Turn on high accuracy mode for the best experience.
-
-📢 Notifications
-GeoDrop may send push notifications about nearby drops, reminders, or account updates. You can opt out in your device settings.
-
-🔒 Data Security
-We use industry-standard safeguards to protect your data. However, we cannot guarantee the security of information transmitted over the internet.
-
-By accepting, you agree to follow these terms whenever you use GeoDrop.
-""".trimIndent()
-
-    private val PRIVACY_POLICY_TEXT = """
-🔐 GeoDrop – Privacy Policy
-Last updated: 10/02/2025
-
-1. Information We Collect
-• Account basics: email address for explorer and business accounts.
-• Location data: precise GPS coordinates while you use key features like the map and background alerts for nearby drops.
-• Content you provide: text, media, and coupons that you create or redeem.
-• Device data: app version, device model, and crash diagnostics.
-
-2. How We Use Information
-• Deliver core features such as finding and unlocking drops near you.
-• Maintain the safety of the community by moderating content and preventing abuse.
-• Provide analytics to improve app performance and plan future features.
-• Notify you about nearby drops, redemption reminders, or account changes.
-
-3. Sharing & Disclosure
-• We never sell your personal information.
-• Drop content is shared with other explorers in the area based on your privacy settings.
-• Business partners only see analytics for drops they create.
-• Service providers (like cloud hosting and crash reporting) process data on our behalf under strict confidentiality agreements.
-
-4. Your Choices
-• You can disable push notifications or location permissions at any time in system settings.
-• You may delete drops you posted or remove collected notes from your inventory.
-• Request account deletion or data export by emailing support@geodrop.app.
-
-5. Data Retention
-• Account and drop data are retained as long as your account is active.
-• We keep minimal logs for fraud prevention, typically no longer than 30 days.
-
-6. Children’s Privacy
-• GeoDrop is not intended for children under 13.
-• NSFW mode is restricted to users 18+ only.
-
-7. Updates
-• We will notify you in-app or via email (for business accounts) when this policy changes.
-
-By accepting, you acknowledge that you have read and understood how GeoDrop handles your data.
-""".trimIndent()
-
-    @Composable
     private fun UserModeSelectionScreen(
         onSelectGuest: () -> Unit,
         onSelectExplorerSignIn: () -> Unit,
@@ -12343,6 +11967,383 @@ By accepting, you acknowledge that you have read and understood how GeoDrop hand
         }
     }
 }
+
+
+@Composable
+private fun TermsAcceptanceScreen(
+    onAccept: () -> Unit,
+    onExit: () -> Unit
+) {
+    val scrollState = rememberScrollState()
+    var selectedTab by remember { mutableStateOf(0) }
+    val agreementText = remember(selectedTab) {
+        if (selectedTab == 0) TERMS_OF_SERVICE_TEXT else PRIVACY_POLICY_TEXT
+    }
+
+    LaunchedEffect(selectedTab) {
+        scrollState.scrollTo(0)
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp)
+    ) {
+        Surface(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .fillMaxWidth(),
+            shape = RoundedCornerShape(24.dp),
+            tonalElevation = 6.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(24.dp)
+                    .fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = "Welcome to GeoDrop",
+                    style = MaterialTheme.typography.headlineSmall,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Text(
+                    text = TERMS_PRIVACY_SUMMARY,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Divider()
+                TabRow(
+                    selectedTabIndex = selectedTab,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    TERMS_PRIVACY_TABS.forEachIndexed { index, title ->
+                        Tab(
+                            selected = selectedTab == index,
+                            onClick = { selectedTab = index },
+                            text = { Text(title) }
+                        )
+                    }
+                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 200.dp, max = 360.dp)
+                        .verticalScroll(scrollState)
+                        .border(
+                            BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                            RoundedCornerShape(12.dp)
+                        )
+                        .padding(16.dp)
+                ) {
+                    Text(
+                        text = agreementText,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        lineHeight = MaterialTheme.typography.bodySmall.lineHeight
+                    )
+                }
+                Text(
+                    text = "By tapping Accept & Continue you agree to these terms and policies.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(onClick = onExit) {
+                        Text("Exit app")
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(onClick = onAccept) {
+                        Text("Accept & Continue")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun FirstRunOnboardingScreen(
+    onContinue: () -> Unit,
+    onExit: () -> Unit,
+    showExitButton: Boolean = true
+) {
+    val slides = remember {
+        listOf(
+            OnboardingSlide(
+                icon = Icons.Rounded.Map,
+                title = "Discover nearby drops",
+                description = "See stories, rewards, and community posts pinned to real-world locations around you."
+            ),
+            OnboardingSlide(
+                icon = Icons.Rounded.Place,
+                title = "Collect and redeem",
+                description = "Walk up to a drop to unlock it, save it to your inventory, and redeem special offers in person."
+            ),
+            OnboardingSlide(
+                icon = Icons.Rounded.Storefront,
+                title = "Share your own moments",
+                description = "Create drops with photos, audio, or coupons so nearby explorers can discover your business or story."
+            ),
+            OnboardingSlide(
+                icon = Icons.Rounded.AccountCircle,
+                title = "Build your profile",
+                description = "Personalize your explorer profile to track progress and highlight the drops you're proud of."
+            ),
+            OnboardingSlide(
+                icon = Icons.Rounded.Groups,
+                title = "Join community groups",
+                description = "Follow local crews or start your own group to coordinate adventures and share exclusive drops."
+            )
+        )
+    }
+    val pagerState = rememberPagerState(pageCount = { slides.size })
+    val scope = rememberCoroutineScope()
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp)
+    ) {
+        Surface(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .fillMaxWidth(),
+            shape = RoundedCornerShape(24.dp),
+            tonalElevation = 6.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(24.dp)
+                    .fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Welcome to GeoDrop",
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(onClick = onContinue) {
+                        Text("Skip")
+                    }
+                }
+
+                HorizontalPager(
+                    state = pagerState,
+                    modifier = Modifier.fillMaxWidth()
+                ) { page ->
+                    val slide = slides[page]
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Surface(
+                            modifier = Modifier.size(140.dp),
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primaryContainer
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = slide.icon,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.size(72.dp)
+                                )
+                            }
+                        }
+
+                        Text(
+                            text = slide.title,
+                            style = MaterialTheme.typography.titleMedium,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        Text(
+                            text = slide.description,
+                            style = MaterialTheme.typography.bodyMedium,
+                            textAlign = TextAlign.Center,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    slides.forEachIndexed { index, _ ->
+                        val isSelected = pagerState.currentPage == index
+                        Box(
+                            modifier = Modifier
+                                .padding(horizontal = 4.dp)
+                                .height(8.dp)
+                                .width(if (isSelected) 24.dp else 8.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    if (isSelected) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.surfaceVariant
+                                )
+                        )
+                    }
+                }
+
+                Button(
+                    onClick = {
+                        if (pagerState.currentPage == slides.lastIndex) {
+                            onContinue()
+                        } else {
+                            scope.launch {
+                                pagerState.animateScrollToPage(pagerState.currentPage + 1)
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(if (pagerState.currentPage == slides.lastIndex) "Continue" else "Next")
+                }
+            }
+        }
+
+        if (showExitButton) {
+            TextButton(
+                onClick = onExit,
+                modifier = Modifier.align(Alignment.BottomStart)
+            ) {
+                Text("Exit app")
+            }
+        }
+    }
+}
+
+private data class OnboardingSlide(
+    val icon: ImageVector,
+    val title: String,
+    val description: String
+)
+
+private const val TERMS_PRIVACY_SUMMARY =
+    "GeoDrop uses your location and saved preferences to help you discover nearby drops. " +
+            "Use the tabs below to review our Terms of Service and Privacy Policy, then accept to continue."
+
+private val TERMS_PRIVACY_TABS = listOf(
+    "Terms of Service",
+    "Privacy Policy"
+)
+
+private val TERMS_OF_SERVICE_TEXT = """
+📜 GeoDrop – Terms of Service
+Last updated: 10/02/2025
+Welcome to GeoDrop! By using our app, you agree to the following:
+
+1. Use of the App
+You may use GeoDrop to create and discover location-based messages, media, or coupons (“drops”).
+You agree not to post harmful, illegal, hateful, or malicious content.
+You agree not to spam, harass, or misuse the service.
+
+2. Location Services
+GeoDrop uses your device’s location to notify you of nearby drops.
+You must grant location permissions for the app to function properly.
+
+3. User Content
+You are responsible for any content you drop.
+GeoDrop may remove content that violates these terms.
+Coupons, promotions, or offers from businesses are managed by those businesses — GeoDrop is not responsible for their accuracy or fulfillment.
+
+4. NSFW Content
+GeoDrop includes an optional NSFW (Not Safe For Work) feature.
+By enabling NSFW mode, you confirm you are at least 18 years old (or the age of majority in your country).
+NSFW content may include mature, adult, or offensive material.
+GeoDrop is not responsible for the nature of user-generated NSFW content.
+Businesses are prohibited from posting NSFW coupons or promotions.
+
+5. Accounts & Data
+GeoDrop collects only the information needed to operate the service, such as your device ID, location (while you use the app), and any drops you create.
+We never sell your personal data.
+You may delete your account at any time from the in-app settings.
+
+6. Business Accounts
+Business users must keep their account information up to date.
+Business users are responsible for honoring coupons or offers they distribute through GeoDrop.
+GeoDrop may suspend business accounts that violate these terms or applicable laws.
+
+7. Changes to the Terms
+We may update these terms from time to time. If the changes are material, we'll notify you in the app.
+Continuing to use GeoDrop after an update means you accept the revised terms.
+
+8. Contact
+Questions? Reach us at support@geodrop.app.
+
+📍 Location Notice
+GeoDrop relies on accurate GPS data. Turn on high accuracy mode for the best experience.
+
+📢 Notifications
+GeoDrop may send push notifications about nearby drops, reminders, or account updates. You can opt out in your device settings.
+
+🔒 Data Security
+We use industry-standard safeguards to protect your data. However, we cannot guarantee the security of information transmitted over the internet.
+
+By accepting, you agree to follow these terms whenever you use GeoDrop.
+""".trimIndent()
+
+private val PRIVACY_POLICY_TEXT = """
+🔐 GeoDrop – Privacy Policy
+Last updated: 10/02/2025
+
+1. Information We Collect
+• Account basics: email address for explorer and business accounts.
+• Location data: precise GPS coordinates while you use key features like the map and background alerts for nearby drops.
+• Content you provide: text, media, and coupons that you create or redeem.
+• Device data: app version, device model, and crash diagnostics.
+
+2. How We Use Information
+• Deliver core features such as finding and unlocking drops near you.
+• Maintain the safety of the community by moderating content and preventing abuse.
+• Provide analytics to improve app performance and plan future features.
+• Notify you about nearby drops, redemption reminders, or account changes.
+
+3. Sharing & Disclosure
+• We never sell your personal information.
+• Drop content is shared with other explorers in the area based on your privacy settings.
+• Business partners only see analytics for drops they create.
+• Service providers (like cloud hosting and crash reporting) process data on our behalf under strict confidentiality agreements.
+
+4. Your Choices
+• You can disable push notifications or location permissions at any time in system settings.
+• You may delete drops you posted or remove collected notes from your inventory.
+• Request account deletion or data export by emailing support@geodrop.app.
+
+5. Data Retention
+• Account and drop data are retained as long as your account is active.
+• We keep minimal logs for fraud prevention, typically no longer than 30 days.
+
+6. Children’s Privacy
+• GeoDrop is not intended for children under 13.
+• NSFW mode is restricted to users 18+ only.
+
+7. Updates
+• We will notify you in-app or via email (for business accounts) when this policy changes.
+
+By accepting, you acknowledge that you have read and understood how GeoDrop handles your data.
+""".trimIndent()
 
 private enum class HomeDestination { Explorer, Business }
 
