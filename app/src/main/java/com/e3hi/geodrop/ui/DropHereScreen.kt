@@ -885,6 +885,8 @@ fun DropHereScreen(
     }
     var otherDropsRefreshToken by remember { mutableStateOf(0) }
     var otherDropsMapPreviewExpanded by rememberSaveable { mutableStateOf(true) }
+    var otherDropsMapPreviewSnapshot by remember { mutableStateOf<Bitmap?>(null) }
+    var otherDropsMapPreviewCamera by remember { mutableStateOf<CameraPosition?>(null) }
     val otherDropsListState = rememberLazyListState()
     var votingDropIds by remember { mutableStateOf(setOf<String>()) }
     val dropReportReasons = remember { DefaultReportReasons }
@@ -2981,9 +2983,18 @@ fun DropHereScreen(
                                             scope = scope,
                                             onRefresh = { otherDropsRefreshToken += 1 },
                                             listState = otherDropsListState,
+                                            mapPreviewBitmap = otherDropsMapPreviewSnapshot,
+                                            mapCameraPosition = otherDropsMapPreviewCamera,
+                                            onMapSnapshotChange = { bitmap, position ->
+                                                otherDropsMapPreviewSnapshot = bitmap
+                                                otherDropsMapPreviewCamera = position
+                                            },
                                             mapPreviewExpanded = otherDropsMapPreviewExpanded,
                                             onMapPreviewExpandedChange = { expanded ->
                                                 otherDropsMapPreviewExpanded = expanded
+                                            },
+                                            onOpenMapView = {
+                                                otherDropsMapPreviewExpanded = true
                                             }
                                         )
                                     }
@@ -10687,6 +10698,7 @@ private fun OtherDropsMapPreviewHeader(
     cameraPosition: CameraPosition?,
     onSnapshotChange: (Bitmap?, CameraPosition) -> Unit,
     onExpandedChange: (Boolean) -> Unit,
+    onOpenMapView: () -> Unit,
     onDropClick: (Drop) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -10696,142 +10708,147 @@ private fun OtherDropsMapPreviewHeader(
     )
     val selectedDrop = remember(drops, selectedId) { drops.firstOrNull { it.id == selectedId } }
 
-    Column(
+    val overlayAlpha = if (expanded) 0.45f else 0.65f
+    val headerTitle = selectedDrop?.displayTitle() ?: "Explore drops nearby"
+    val subtitle = remember(selectedDrop, currentLocation, cameraPosition, drops.size) {
+        when {
+            selectedDrop != null && currentLocation != null -> {
+                val distance = distanceBetweenMeters(
+                    currentLocation.latitude,
+                    currentLocation.longitude,
+                    selectedDrop.lat,
+                    selectedDrop.lng
+                )
+                "Selected • ${formatDistanceMeters(distance)} away"
+            }
+
+            cameraPosition != null ->
+                "Zoom ${"%.1f".format(cameraPosition.zoom)} • ${drops.size} drops"
+
+            else -> "${drops.size} drops nearby"
+        }
+    }
+
+    Surface(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp)
+            .padding(horizontal = 20.dp),
+        shape = RoundedCornerShape(24.dp),
+        tonalElevation = 6.dp
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Map preview",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = if (expanded) {
-                        "Drag or tap pins to explore drops nearby."
-                    } else {
-                        "Tap to expand the live map and browse drops."
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            Surface(
-                modifier = Modifier
-                    .size(36.dp),
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f)
-            ) {
-                IconButton(onClick = { onExpandedChange(!expanded) }) {
-                    Icon(
-                        imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                        contentDescription = if (expanded) "Collapse map preview" else "Expand map preview"
-                    )
-                }
-            }
-        }
-
-        Spacer(Modifier.height(12.dp))
-
-        Surface(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(previewHeight)
-                .animateContentSize(),
-            shape = RoundedCornerShape(24.dp),
-            tonalElevation = 6.dp
         ) {
-            Box(Modifier.fillMaxSize()) {
-                OtherDropsMap(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .graphicsLayer { alpha = if (expanded) 1f else 0f },
-                    drops = drops,
-                    selectedDropId = selectedId,
-                    currentLocation = currentLocation,
-                    notificationRadiusMeters = notificationRadiusMeters,
-                    onDropClick = onDropClick,
-                    onSnapshotUpdate = onSnapshotChange
-                )
+            OtherDropsMap(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { alpha = if (expanded) 1f else 0f },
+                drops = drops,
+                selectedDropId = selectedId,
+                currentLocation = currentLocation,
+                notificationRadiusMeters = notificationRadiusMeters,
+                onDropClick = onDropClick,
+                onSnapshotUpdate = onSnapshotChange
+            )
 
-                if (!expanded) {
-                    if (snapshot != null) {
-                        Image(
-                            bitmap = snapshot.asImageBitmap(),
-                            contentDescription = "Map preview",
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
-                        )
-                    } else {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(MaterialTheme.colorScheme.surfaceVariant)
-                        )
-                    }
-
+            if (!expanded) {
+                if (snapshot != null) {
+                    Image(
+                        bitmap = snapshot.asImageBitmap(),
+                        contentDescription = "Map preview",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(
-                                Brush.verticalGradient(
-                                    colors = listOf(
-                                        Color.Black.copy(alpha = 0.35f),
-                                        Color.Transparent
-                                    )
-                                )
-                            )
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
                     )
+                }
 
-                    Column(
-                        modifier = Modifier
-                            .align(Alignment.BottomStart)
-                            .padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Text(
-                            text = selectedDrop?.displayTitle() ?: "Explore drops nearby",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = Color.White,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { onExpandedChange(true) }
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                Color.Black.copy(alpha = overlayAlpha),
+                                Color.Transparent
+                            )
                         )
+                    )
+            )
 
-                        val subtitle = when {
-                            selectedDrop != null && currentLocation != null -> {
-                                val distance = distanceBetweenMeters(
-                                    currentLocation.latitude,
-                                    currentLocation.longitude,
-                                    selectedDrop.lat,
-                                    selectedDrop.lng
-                                )
-                                "Selected • ${formatDistanceMeters(distance)} away"
-                            }
-
-                            cameraPosition != null ->
-                                "Zoom ${"%.1f".format(cameraPosition.zoom)} • ${drops.size} drops"
-
-                            else -> "${drops.size} drops nearby"
+            CompositionLocalProvider(LocalContentColor provides Color.White) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.TopStart)
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                text = "Map preview",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = Color.White.copy(alpha = 0.9f)
+                            )
+                            Text(
+                                text = headerTitle,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color.White,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = subtitle,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.White.copy(alpha = 0.85f)
+                            )
                         }
 
-                        Text(
-                            text = subtitle,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color.White.copy(alpha = 0.85f)
-                        )
+                        Surface(
+                            modifier = Modifier.size(36.dp),
+                            shape = CircleShape,
+                            color = Color.White.copy(alpha = 0.2f)
+                        ) {
+                            IconButton(onClick = { onExpandedChange(!expanded) }) {
+                                Icon(
+                                    imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                                    contentDescription = if (expanded) "Collapse map preview" else "Expand map preview",
+                                    tint = Color.White
+                                )
+                            }
+                        }
                     }
-
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .clickable { onExpandedChange(true) }
-                    )
+                    TextButton(
+                        onClick = onOpenMapView,
+                        colors = ButtonDefaults.textButtonColors(contentColor = Color.White)
+                    ) {
+                        Icon(Icons.Rounded.Map, contentDescription = null)
+                        Spacer(Modifier.width(6.dp))
+                        Text("Open map view")
+                    }
                 }
             }
         }
@@ -10870,12 +10887,14 @@ private fun OtherDropsExplorerSection(
     scope: CoroutineScope,
     onRefresh: () -> Unit,
     listState: LazyListState,
+    mapPreviewBitmap: Bitmap?,
+    mapCameraPosition: CameraPosition?,
+    onMapSnapshotChange: (Bitmap?, CameraPosition) -> Unit,
     mapPreviewExpanded: Boolean,
-    onMapPreviewExpandedChange: (Boolean) -> Unit
+    onMapPreviewExpandedChange: (Boolean) -> Unit,
+    onOpenMapView: () -> Unit
 ) {
     val context = LocalContext.current
-    var mapSnapshot by remember { mutableStateOf<Bitmap?>(null) }
-    var mapCameraPosition by remember { mutableStateOf<CameraPosition?>(null) }
 
     Column(
         modifier = modifier.fillMaxSize(),
@@ -10977,13 +10996,11 @@ private fun OtherDropsExplorerSection(
                         currentLocation = currentLocation,
                         notificationRadiusMeters = notificationRadiusMeters,
                         expanded = mapPreviewExpanded,
-                        snapshot = mapSnapshot,
+                        snapshot = mapPreviewBitmap,
                         cameraPosition = mapCameraPosition,
-                        onSnapshotChange = { bitmap, position ->
-                            mapSnapshot = bitmap
-                            mapCameraPosition = position
-                        },
+                        onSnapshotChange = onMapSnapshotChange,
                         onExpandedChange = onMapPreviewExpandedChange,
+                        onOpenMapView = onOpenMapView,
                         onDropClick = onSelect
                     )
 
