@@ -905,6 +905,9 @@ fun DropHereScreen(
     var myDropsPendingDelete by remember { mutableStateOf<Drop?>(null) }
     var myDropsSelectedId by remember { mutableStateOf<String?>(null) }
     var myDropsSortKey by rememberSaveable { mutableStateOf(DropSortOption.NEWEST.name) }
+    var myDropsMapPreviewExpanded by rememberSaveable { mutableStateOf(true) }
+    var myDropsMapPreviewSnapshot by remember { mutableStateOf<Bitmap?>(null) }
+    var myDropsMapPreviewCamera by remember { mutableStateOf<CameraPosition?>(null) }
     var myDropCountHint by remember { mutableStateOf<Int?>(null) }
     var myDropPendingReviewHint by remember { mutableStateOf<Int?>(null) }
     var showManageGroups by remember { mutableStateOf(false) }
@@ -3080,6 +3083,16 @@ fun DropHereScreen(
                                         selectedId = myDropsSelectedId,
                                         sortOption = myDropsSortOption,
                                         sortOptions = dropSortOptions,
+                                        mapPreviewExpanded = myDropsMapPreviewExpanded,
+                                        mapPreviewSnapshot = myDropsMapPreviewSnapshot,
+                                        mapCameraPosition = myDropsMapPreviewCamera,
+                                        onMapSnapshotChange = { bitmap, position ->
+                                            myDropsMapPreviewSnapshot = bitmap
+                                            myDropsMapPreviewCamera = position
+                                        },
+                                        onMapPreviewExpandedChange = { expanded ->
+                                            myDropsMapPreviewExpanded = expanded
+                                        },
                                         onSortOptionChange = { option ->
                                             myDropsSortKey = option.name
                                         },
@@ -8094,6 +8107,11 @@ private fun MyDropsContent(
     selectedId: String?,
     sortOption: DropSortOption,
     sortOptions: List<DropSortOption>,
+    mapPreviewExpanded: Boolean,
+    mapPreviewSnapshot: Bitmap?,
+    mapCameraPosition: CameraPosition?,
+    onMapSnapshotChange: (Bitmap?, CameraPosition) -> Unit,
+    onMapPreviewExpandedChange: (Boolean) -> Unit,
     onSortOptionChange: (DropSortOption) -> Unit,
     onSelect: (Drop) -> Unit,
     onRetry: () -> Unit,
@@ -8173,113 +8191,211 @@ private fun MyDropsContent(
                         listState.animateScrollToItem(index)
                     }
                 }
-                val minMapWeight = MAP_LIST_MIN_WEIGHT
-                val maxMapWeight = MAP_LIST_MAX_WEIGHT
-                var containerHeight by remember { mutableStateOf(0) }
-                var mapWeight by rememberSaveable {
-                    mutableStateOf(DEFAULT_MAP_WEIGHT.coerceIn(minMapWeight, maxMapWeight))
-                }
-
-                val listWeight = 1f - mapWeight
-                val dividerDragState = rememberDraggableState { delta ->
-                    val height = containerHeight.takeIf { it > 0 }?.toFloat()
-                        ?: return@rememberDraggableState
-                    val deltaWeight = delta / height
-                    val updated = (mapWeight + deltaWeight).coerceIn(minMapWeight, maxMapWeight)
-                    if (updated != mapWeight) {
-                        mapWeight = updated
-                    }
-                }
-                val dividerInteraction = remember { MutableInteractionSource() }
-                val dividerModifier = Modifier
-                    .fillMaxWidth()
-                    .height(DIVIDER_DRAG_HANDLE_HEIGHT)
-                    .draggable(
-                        state = dividerDragState,
-                        orientation = Orientation.Vertical,
-                        interactionSource = dividerInteraction
-                    )
-                    .semantics(mergeDescendants = true) {
-                        progressBarRangeInfo = ProgressBarRangeInfo(
-                            current = mapWeight,
-                            range = minMapWeight..maxMapWeight
-                        )
-                        stateDescription =
-                            "Map occupies ${(mapWeight * 100).roundToInt()} percent of the available height"
-                        setProgress { target ->
-                            val coerced = target.coerceIn(minMapWeight, maxMapWeight)
-                            if (coerced != mapWeight) {
-                                mapWeight = coerced
-                            }
-                            true
-                        }
-                    }
-
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .onSizeChanged { containerHeight = it.height }
                         .padding(top = topContentPadding)
                 ) {
+                    MyDropsMapPreviewHeader(
+                        drops = drops,
+                        selectedId = selectedId,
+                        currentLocation = currentLocation,
+                        expanded = mapPreviewExpanded,
+                        snapshot = mapPreviewSnapshot,
+                        cameraPosition = mapCameraPosition,
+                        onSnapshotChange = onMapSnapshotChange,
+                        onExpandedChange = onMapPreviewExpandedChange,
+                        onDropClick = onSelect
+                    )
+
+                    Spacer(Modifier.height(16.dp))
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        DropSortMenu(
+                            modifier = Modifier.weight(1f),
+                            current = sortOption,
+                            options = sortOptions,
+                            onSelect = onSortOptionChange
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        CountBadge(count = drops.size)
+                    }
+
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        items(drops, key = { it.id }) { drop ->
+                            ManageDropRow(
+                                drop = drop,
+                                isDeleting = deletingId == drop.id,
+                                isSelected = drop.id == selectedId,
+                                onSelect = { onSelect(drop) },
+                                onView = { onView(drop) },
+                                onDelete = { onDelete(drop) }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MyDropsMapPreviewHeader(
+    drops: List<Drop>,
+    selectedId: String?,
+    currentLocation: LatLng?,
+    expanded: Boolean,
+    snapshot: Bitmap?,
+    cameraPosition: CameraPosition?,
+    onSnapshotChange: (Bitmap?, CameraPosition) -> Unit,
+    onExpandedChange: (Boolean) -> Unit,
+    onDropClick: (Drop) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val previewHeight by animateDpAsState(
+        targetValue = if (expanded) 320.dp else 160.dp,
+        label = "myDropsMapPreviewHeight"
+    )
+    val selectedDrop = remember(drops, selectedId) { drops.firstOrNull { it.id == selectedId } }
+
+    val overlayAlpha = if (expanded) 0.45f else 0.65f
+    val headerTitle = selectedDrop?.displayTitle() ?: "Your drops overview"
+    val subtitle = remember(selectedDrop, currentLocation, cameraPosition, drops.size) {
+        when {
+            selectedDrop != null && currentLocation != null -> {
+                val distance = distanceBetweenMeters(
+                    currentLocation.latitude,
+                    currentLocation.longitude,
+                    selectedDrop.lat,
+                    selectedDrop.lng
+                )
+                "Selected • ${formatDistanceMeters(distance)} away"
+            }
+
+            cameraPosition != null ->
+                "Zoom ${"%.1f".format(cameraPosition.zoom)} • ${drops.size} drops"
+
+            else -> "${drops.size} drops total"
+        }
+    }
+
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp),
+        shape = RoundedCornerShape(24.dp),
+        tonalElevation = 6.dp
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(previewHeight)
+        ) {
+            MyDropsMap(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { alpha = if (expanded) 1f else 0f },
+                drops = drops,
+                selectedDropId = selectedId,
+                currentLocation = currentLocation,
+                onDropClick = onDropClick,
+                onSnapshotUpdate = onSnapshotChange
+            )
+
+            if (!expanded) {
+                if (snapshot != null) {
+                    Image(
+                        bitmap = snapshot.asImageBitmap(),
+                        contentDescription = "Map preview",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
                     Box(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(mapWeight)
-                    ) {
-                        MyDropsMap(
-                            drops = drops,
-                            selectedDropId = selectedId,
-                            currentLocation = currentLocation,
-                            onDropClick = onSelect
-                        )
-                    }
+                            .fillMaxSize()
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                    )
+                }
 
-                    Box(modifier = dividerModifier) {
-                        Divider(modifier = Modifier.align(Alignment.Center))
-                        DividerDragHandleHint(
-                            modifier = Modifier.align(Alignment.Center),
-                            text = stringResource(R.string.drag_to_resize)
-                        )
-                    }
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { onExpandedChange(true) }
+                )
+            }
 
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(listWeight)
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            DropSortMenu(
-                                modifier = Modifier.weight(1f),
-                                current = sortOption,
-                                options = sortOptions,
-                                onSelect = onSortOptionChange
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                Color.Black.copy(alpha = overlayAlpha),
+                                Color.Transparent
                             )
+                        )
+                    )
+            )
 
-                            Spacer(Modifier.width(12.dp))
-                            CountBadge(count = drops.size)
+            CompositionLocalProvider(LocalContentColor provides Color.White) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.TopStart)
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                text = "Map preview",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = Color.White.copy(alpha = 0.9f)
+                            )
+                            Text(
+                                text = headerTitle,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color.White,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = subtitle,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.White.copy(alpha = 0.85f)
+                            )
                         }
 
-                        LazyColumn(
-                            state = listState,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .weight(1f),
-                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        Surface(
+                            modifier = Modifier.size(36.dp),
+                            shape = CircleShape,
+                            color = Color.White.copy(alpha = 0.2f)
                         ) {
-                            items(drops, key = { it.id }) { drop ->
-                                ManageDropRow(
-                                    drop = drop,
-                                    isDeleting = deletingId == drop.id,
-                                    isSelected = drop.id == selectedId,
-                                    onSelect = { onSelect(drop) },
-                                    onView = { onView(drop) },
-                                    onDelete = { onDelete(drop) }
+                            IconButton(onClick = { onExpandedChange(!expanded) }) {
+                                Icon(
+                                    imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                                    contentDescription = if (expanded) "Collapse map preview" else "Expand map preview",
+                                    tint = Color.White
                                 )
                             }
                         }
@@ -8484,10 +8600,14 @@ private fun MyDropsMap(
     drops: List<Drop>,
     selectedDropId: String?,
     currentLocation: LatLng?,
-    onDropClick: (Drop) -> Unit
+    onDropClick: (Drop) -> Unit,
+    modifier: Modifier = Modifier.fillMaxSize(),
+    onSnapshotUpdate: ((Bitmap?, CameraPosition) -> Unit)? = null
 ) {
     val cameraPositionState = rememberCameraPositionState()
     val uiSettings = remember { MapUiSettings(zoomControlsEnabled = true) }
+    var googleMap by remember { mutableStateOf<com.google.android.gms.maps.GoogleMap?>(null) }
+    var mapReady by remember { mutableStateOf(false) }
 
     LaunchedEffect(drops, selectedDropId, currentLocation) {
         val targetDrop = drops.firstOrNull { it.id == selectedDropId }
@@ -8501,13 +8621,46 @@ private fun MyDropsMap(
         }
     }
 
+    fun requestSnapshot() {
+        val callback = onSnapshotUpdate ?: return
+        val map = googleMap ?: return
+        map.snapshot { bitmap ->
+            callback(bitmap, cameraPositionState.position)
+        }
+    }
+
+    LaunchedEffect(mapReady, drops, selectedDropId, currentLocation) {
+        if (mapReady) {
+            requestSnapshot()
+        }
+    }
+
+    LaunchedEffect(mapReady) {
+        if (!mapReady || onSnapshotUpdate == null) return@LaunchedEffect
+        snapshotFlow { cameraPositionState.isMoving }
+            .distinctUntilChanged()
+            .filter { moving -> !moving }
+            .collectLatest {
+                requestSnapshot()
+            }
+    }
+
     GoogleMap(
-        modifier = Modifier
-            .fillMaxSize()
+        modifier = modifier
             .consumeMapGesturesInParent(),
         cameraPositionState = cameraPositionState,
-        uiSettings = uiSettings
+        uiSettings = uiSettings,
+        onMapLoaded = {
+            mapReady = true
+            requestSnapshot()
+        }
     ) {
+        MapEffect(Unit) { map ->
+            googleMap = map
+            if (mapReady) {
+                requestSnapshot()
+            }
+        }
         currentLocation?.let { location ->
             Marker(
                 state = MarkerState(location),
