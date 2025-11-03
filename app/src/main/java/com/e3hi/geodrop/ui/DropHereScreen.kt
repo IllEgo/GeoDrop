@@ -198,6 +198,7 @@ import com.e3hi.geodrop.data.UserDataSyncRepository
 import com.e3hi.geodrop.data.DropType
 import com.e3hi.geodrop.data.UserProfile
 import com.e3hi.geodrop.data.ExplorerUsername
+import kotlin.collections.buildList
 import com.e3hi.geodrop.data.UserMode
 import com.e3hi.geodrop.data.dropTemplatesFor
 import com.e3hi.geodrop.data.businessDropTypeOptionsFor
@@ -2444,21 +2445,51 @@ fun DropHereScreen(
                     )
 
                     if (currentHomeDestination == HomeDestination.Explorer && userMode != null) {
-                        Column(
+                        val explorerDestinations = remember(hasExplorerAccount) {
+                            buildList {
+                                add(ExplorerDestination.Discover)
+                                if (hasExplorerAccount) {
+                                    add(ExplorerDestination.MyDrops)
+                                    add(ExplorerDestination.Collected)
+                                }
+                            }
+                        }
+                        NavigationBar(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .onSizeChanged { size -> explorerNavigationHeightPx = size.height }
+                                .onSizeChanged { size -> explorerNavigationHeightPx = size.height },
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            contentColor = MaterialTheme.colorScheme.onSurface
                         ) {
-                            ExplorerDestinationTabs(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 20.dp)
-                                    .padding(bottom = 4.dp),
-                                current = effectiveExplorerDestination,
-                                onSelect = { destination -> openExplorerDestination(destination) },
-                                showMyDrops = hasExplorerAccount,
-                                showCollected = hasExplorerAccount
-                            )
+                            explorerDestinations.forEach { destination ->
+                                val (label, icon) = when (destination) {
+                                    ExplorerDestination.Discover -> Pair(
+                                        stringResource(R.string.action_browse_map_title),
+                                        Icons.Rounded.Map
+                                    )
+
+                                    ExplorerDestination.MyDrops -> Pair(
+                                        stringResource(R.string.action_my_drops_title),
+                                        Icons.Rounded.Inbox
+                                    )
+
+                                    ExplorerDestination.Collected -> Pair(
+                                        stringResource(R.string.action_collected_drops_title),
+                                        Icons.Rounded.Bookmark
+                                    )
+                                }
+                                NavigationBarItem(
+                                    selected = destination == effectiveExplorerDestination,
+                                    onClick = { openExplorerDestination(destination) },
+                                    icon = {
+                                        Icon(
+                                            imageVector = icon,
+                                            contentDescription = label
+                                        )
+                                    },
+                                    label = { Text(label) }
+                                )
+                            }
                         }
                     } else {
                         SideEffect { explorerNavigationHeightPx = 0 }
@@ -6361,61 +6392,6 @@ private fun GeoDropHeader(
         }
     }
 }
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun ExplorerDestinationTabs(
-    modifier: Modifier = Modifier,
-    current: ExplorerDestination,
-    onSelect: (ExplorerDestination) -> Unit,
-    showMyDrops: Boolean,
-    showCollected: Boolean
-) {
-    val destinations = remember(showMyDrops, showCollected) {
-        ExplorerDestination.values().filter { destination ->
-            when (destination) {
-                ExplorerDestination.MyDrops -> showMyDrops
-                ExplorerDestination.Collected -> showCollected
-                ExplorerDestination.Discover -> true
-            }
-        }
-    }
-    SingleChoiceSegmentedButtonRow(modifier = modifier) {
-        destinations.forEachIndexed { index, destination ->
-            val selected = destination == current
-            val shape = SegmentedButtonDefaults.itemShape(index, destinations.size)
-            val (label, icon) = when (destination) {
-                ExplorerDestination.Discover -> Pair(
-                    stringResource(R.string.action_browse_map_title),
-                    Icons.Rounded.Map
-                )
-
-                ExplorerDestination.MyDrops -> Pair(
-                    stringResource(R.string.action_my_drops_title),
-                    Icons.Rounded.Inbox
-                )
-
-                ExplorerDestination.Collected -> Pair(
-                    stringResource(R.string.action_collected_drops_title),
-                    Icons.Rounded.Bookmark
-                )
-            }
-            SegmentedButton(
-                selected = selected,
-                onClick = { onSelect(destination) },
-                shape = shape,
-                icon = {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null
-                    )
-                },
-                label = { Text(label) }
-            )
-        }
-    }
-}
-
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
