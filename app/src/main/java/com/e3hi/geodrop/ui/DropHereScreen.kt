@@ -135,10 +135,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.focus.FocusDirection
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -315,6 +313,7 @@ fun DropHereScreen(
     var showBusinessOnboarding by remember { mutableStateOf(false) }
     var accountGoogleSigningIn by remember { mutableStateOf(false) }
     var showAccountMenu by remember { mutableStateOf(false) }
+    var headerInfoMenuExpanded by remember { mutableStateOf(false) }
     var showFaqDialog by remember { mutableStateOf(false) }
     var termsPrivacyDialogTab by remember { mutableStateOf<Int?>(null) }
     var showExplorerProfile by remember { mutableStateOf(false) }
@@ -2427,106 +2426,117 @@ fun DropHereScreen(
         }
     }
 
-    var topBarHeightPx by remember { mutableStateOf(0) }
-    var explorerNavigationHeightPx by remember { mutableStateOf(0) }
-    val density = LocalDensity.current
-
-    Box(modifier = Modifier.fillMaxSize()) {
-        Column(
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .fillMaxWidth()
-                .statusBarsPadding()
-                .onSizeChanged { size -> topBarHeightPx = size.height }
-                .zIndex(1f)
-        ) {
-            Box(
+    Scaffold(
+        modifier = Modifier.fillMaxSize(),
+        topBar = {
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(MaterialTheme.colorScheme.surface)
             ) {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    TopAppBar(
-                        modifier = Modifier.fillMaxWidth(),
-                        title = {
-                            GeoDropHeader(
-                                onShowTutorial = { showOnboardingHelp = true },
-                                onShowFaq = { showFaqDialog = true },
-                                onShowTerms = { termsPrivacyDialogTab = 0 },
-                                onShowPrivacy = { termsPrivacyDialogTab = 1 }
-                            )
-                        },
-                        colors = TopAppBarDefaults.topAppBarColors(
-                            containerColor = Color.Transparent,
-                            scrolledContainerColor = Color.Transparent,
-                            titleContentColor = MaterialTheme.colorScheme.onBackground,
-                            actionIconContentColor = MaterialTheme.colorScheme.onBackground
-                        )
-                    )
-
-                    if (currentHomeDestination == HomeDestination.Explorer && userMode != null) {
-                        val explorerDestinations = remember(hasExplorerAccount) {
-                            buildList {
-                                add(ExplorerDestination.Discover)
-                                if (hasExplorerAccount) {
-                                    add(ExplorerDestination.MyDrops)
-                                    add(ExplorerDestination.Collected)
-                                }
+                LargeTopAppBar(
+                    title = { GeoDropHeader() },
+                    actions = {
+                        Box {
+                            IconButton(
+                                onClick = { headerInfoMenuExpanded = true }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Info,
+                                    contentDescription = stringResource(R.string.content_description_open_info_menu)
+                                )
                             }
-                        }
-                        NavigationBar(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .onSizeChanged { size -> explorerNavigationHeightPx = size.height },
-                            containerColor = MaterialTheme.colorScheme.surface,
-                            contentColor = MaterialTheme.colorScheme.onSurface
-                        ) {
-                            explorerDestinations.forEach { destination ->
-                                val label = destination.navigationLabel()
-                                NavigationBarItem(
-                                    selected = destination == effectiveExplorerDestination,
-                                    onClick = { openExplorerDestination(destination) },
-                                    icon = {
-                                        Icon(
-                                            imageVector = destination.navigationIcon(),
-                                            contentDescription = label
-                                        )
-                                    },
-                                    label = { Text(label) }
+
+                            DropdownMenu(
+                                expanded = headerInfoMenuExpanded,
+                                onDismissRequest = { headerInfoMenuExpanded = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.info_menu_tutorial)) },
+                                    leadingIcon = { Icon(Icons.Rounded.PlayArrow, contentDescription = null) },
+                                    onClick = {
+                                        headerInfoMenuExpanded = false
+                                        showOnboardingHelp = true
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.info_menu_faq)) },
+                                    leadingIcon = { Icon(Icons.Rounded.Help, contentDescription = null) },
+                                    onClick = {
+                                        headerInfoMenuExpanded = false
+                                        showFaqDialog = true
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.info_menu_terms)) },
+                                    leadingIcon = { Icon(Icons.Rounded.Description, contentDescription = null) },
+                                    onClick = {
+                                        headerInfoMenuExpanded = false
+                                        termsPrivacyDialogTab = 0
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.info_menu_privacy)) },
+                                    leadingIcon = { Icon(Icons.Rounded.Lock, contentDescription = null) },
+                                    onClick = {
+                                        headerInfoMenuExpanded = false
+                                        termsPrivacyDialogTab = 1
+                                    }
                                 )
                             }
                         }
-                    } else {
-                        SideEffect { explorerNavigationHeightPx = 0 }
+                    },
+                    colors = TopAppBarDefaults.largeTopAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        scrolledContainerColor = MaterialTheme.colorScheme.surface,
+                        titleContentColor = MaterialTheme.colorScheme.onBackground,
+                        actionIconContentColor = MaterialTheme.colorScheme.onBackground
+                    )
+                )
+
+                if (currentHomeDestination == HomeDestination.Explorer && userMode != null) {
+                    val explorerDestinations = remember(hasExplorerAccount) {
+                        buildList {
+                            add(ExplorerDestination.Discover)
+                            if (hasExplorerAccount) {
+                                add(ExplorerDestination.MyDrops)
+                                add(ExplorerDestination.Collected)
+                            }
+                        }
+                    }
+                    NavigationBar(
+                        modifier = Modifier.fillMaxWidth(),
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        contentColor = MaterialTheme.colorScheme.onSurface
+                    ) {
+                        explorerDestinations.forEach { destination ->
+                            val label = destination.navigationLabel()
+                            NavigationBarItem(
+                                selected = destination == effectiveExplorerDestination,
+                                onClick = { openExplorerDestination(destination) },
+                                icon = {
+                                    Icon(
+                                        imageVector = destination.navigationIcon(),
+                                        contentDescription = label
+                                    )
+                                },
+                                label = { Text(label) }
+                            )
+                        }
                     }
                 }
-            }
-            if (isBusinessUser) {
-                Divider()
-            }
-        }
 
-        val celebrationTopPadding = with(density) {
-            (topBarHeightPx + explorerNavigationHeightPx).toDp()
-        } + 16.dp
-        PickupCelebrationBanner(
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .padding(horizontal = 24.dp)
-                .zIndex(2f)
-                .padding(top = celebrationTopPadding),
-            visible = pickupCelebrationVisible && pickupCelebrationDrop != null,
-            dropTitle = pickupCelebrationDrop?.displayTitle()
-        )
-
-        Scaffold(
-            modifier = Modifier.fillMaxSize(),
-            bottomBar = {
-                NavigationBar(
-                    modifier = Modifier.height(56.dp),
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    contentColor = MaterialTheme.colorScheme.onSurface
-                ) {
+                if (isBusinessUser) {
+                    Divider()
+                }
+            }
+        },
+        bottomBar = {
+            NavigationBar(
+                modifier = Modifier.height(56.dp),
+                containerColor = MaterialTheme.colorScheme.surface,
+                contentColor = MaterialTheme.colorScheme.onSurface
+            ) {
                     val labelSpacingModifier = Modifier.offset(y = (-4).dp)
                     val navigationBarScope = this
                     Box(
@@ -2839,21 +2849,27 @@ fun DropHereScreen(
                         }
                     }
                 }
-            },
-            snackbarHost = {}
-        ) { innerPadding ->
-            val layoutDirection = LocalLayoutDirection.current
-            val topPadding = innerPadding.calculateTopPadding()
-            val bottomPadding = innerPadding.calculateBottomPadding()
-            val startPadding = innerPadding.calculateStartPadding(layoutDirection)
-            val endPadding = innerPadding.calculateEndPadding(layoutDirection)
-            val density = LocalDensity.current
-            val topPaddingPx = with(density) { topPadding.toPx() }
-            val headerHeightPx = (topBarHeightPx - explorerNavigationHeightPx).coerceAtLeast(0)
-            val navAwareTopPaddingPx = max(topPaddingPx, headerHeightPx.toFloat())
-            val navAwareTopPadding = with(density) { navAwareTopPaddingPx.toDp() }
-            val mapAwareTopPaddingPx = max(navAwareTopPaddingPx, topBarHeightPx.toFloat())
-            val mapAwareTopPadding = with(density) { mapAwareTopPaddingPx.toDp() }
+        },
+        snackbarHost = {}
+    ) { innerPadding ->
+        val layoutDirection = LocalLayoutDirection.current
+        val topPadding = innerPadding.calculateTopPadding()
+        val bottomPadding = innerPadding.calculateBottomPadding()
+        val startPadding = innerPadding.calculateStartPadding(layoutDirection)
+        val endPadding = innerPadding.calculateEndPadding(layoutDirection)
+        val navAwareTopPadding = topPadding
+        val mapAwareTopPadding = topPadding
+
+        Box(modifier = Modifier.fillMaxSize()) {
+            PickupCelebrationBanner(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .zIndex(2f)
+                    .padding(horizontal = 24.dp)
+                    .padding(top = topPadding + 16.dp),
+                visible = pickupCelebrationVisible && pickupCelebrationDrop != null,
+                dropTitle = pickupCelebrationDrop?.displayTitle()
+            )
 
             if (isBusinessUser && currentHomeDestination == HomeDestination.Business) {
                 BusinessHomeScreen(
@@ -6454,77 +6470,17 @@ private fun CollectedDropsContent(
 
 @Composable
 private fun GeoDropHeader(
-    modifier: Modifier = Modifier,
-    onShowTutorial: () -> Unit = {},
-    onShowFaq: () -> Unit = {},
-    onShowTerms: () -> Unit = {},
-    onShowPrivacy: () -> Unit = {},
+    modifier: Modifier = Modifier
 ) {
-    var infoMenuExpanded by remember { mutableStateOf(false) }
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 12.dp),
-        contentAlignment = Alignment.CenterStart
-    ) {
-        Text(
-            text = stringResource(R.string.app_name),
-            style = MaterialTheme.typography.titleLarge.copy(
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 1.5.sp
-            ),
-            color = MaterialTheme.colorScheme.primary
-        )
-
-        Box(modifier = Modifier.align(Alignment.CenterEnd)) {
-            IconButton(
-                onClick = { infoMenuExpanded = true }
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.Info,
-                    contentDescription = stringResource(R.string.content_description_open_info_menu)
-                )
-            }
-
-            DropdownMenu(
-                expanded = infoMenuExpanded,
-                onDismissRequest = { infoMenuExpanded = false }
-            ) {
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.info_menu_tutorial)) },
-                    leadingIcon = { Icon(Icons.Rounded.PlayArrow, contentDescription = null) },
-                    onClick = {
-                        infoMenuExpanded = false
-                        onShowTutorial()
-                    }
-                )
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.info_menu_faq)) },
-                    leadingIcon = { Icon(Icons.Rounded.Help, contentDescription = null) },
-                    onClick = {
-                        infoMenuExpanded = false
-                        onShowFaq()
-                    }
-                )
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.info_menu_terms)) },
-                    leadingIcon = { Icon(Icons.Rounded.Description, contentDescription = null) },
-                    onClick = {
-                        infoMenuExpanded = false
-                        onShowTerms()
-                    }
-                )
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.info_menu_privacy)) },
-                    leadingIcon = { Icon(Icons.Rounded.Lock, contentDescription = null) },
-                    onClick = {
-                        infoMenuExpanded = false
-                        onShowPrivacy()
-                    }
-                )
-            }
-        }
-    }
+    Text(
+        modifier = modifier,
+        text = stringResource(R.string.app_name),
+        style = MaterialTheme.typography.titleLarge.copy(
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.5.sp
+        ),
+        color = MaterialTheme.colorScheme.primary
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
