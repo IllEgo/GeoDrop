@@ -758,6 +758,400 @@ fun DropHereScreen(
         return
     }
 
+    @OptIn(ExperimentalMaterial3Api::class)
+    @Composable
+    private fun AccountSignInDialog(
+        accountType: AccountType,
+        canChangeAccountType: Boolean,
+        onAccountTypeChange: (AccountType) -> Unit,
+        mode: AccountAuthMode,
+        onModeChange: (AccountAuthMode) -> Unit,
+        email: TextFieldValue,
+        onEmailChange: (TextFieldValue) -> Unit,
+        password: TextFieldValue,
+        onPasswordChange: (TextFieldValue) -> Unit,
+        confirmPassword: TextFieldValue,
+        onConfirmPasswordChange: (TextFieldValue) -> Unit,
+        username: TextFieldValue,
+        onUsernameChange: (TextFieldValue) -> Unit,
+        isSubmitting: Boolean,
+        isGoogleSigningIn: Boolean,
+        error: String?,
+        status: String?,
+        onSubmit: () -> Unit,
+        onDismiss: () -> Unit,
+        onForgotPassword: () -> Unit,
+        onGoogleSignIn: () -> Unit
+    ) {
+        val isBusy = isSubmitting || isGoogleSigningIn
+        val focusManager = LocalFocusManager.current
+        val keyboardController = LocalSoftwareKeyboardController.current
+
+        val scrollState = rememberScrollState()
+        val configuration = LocalConfiguration.current
+        val maxDialogHeight = remember(configuration) {
+            (configuration.screenHeightDp.dp * 0.9f).coerceAtLeast(0.dp)
+        }
+
+        val hideKeyboardAndClearFocus = {
+            keyboardController?.hide()
+            focusManager.clearFocus(force = true)
+        }
+        val submitWithKeyboardDismiss = {
+            hideKeyboardAndClearFocus()
+            onSubmit()
+        }
+        val dismissWithKeyboardDismiss = {
+            hideKeyboardAndClearFocus()
+            onDismiss()
+        }
+        val forgotPasswordWithKeyboardDismiss = {
+            hideKeyboardAndClearFocus()
+            onForgotPassword()
+        }
+        val googleSignInWithKeyboardDismiss = {
+            hideKeyboardAndClearFocus()
+            onGoogleSignIn()
+        }
+
+        Dialog(
+            onDismissRequest = {
+                if (!isBusy) {
+                    dismissWithKeyboardDismiss()
+                }
+            },
+            properties = DialogProperties(
+                dismissOnBackPress = !isBusy,
+                dismissOnClickOutside = !isBusy
+            )
+        ) {
+            Surface(
+                shape = MaterialTheme.shapes.large,
+                tonalElevation = 6.dp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .padding(24.dp)
+                        .imePadding()
+                        .heightIn(max = maxDialogHeight)
+                        .verticalScroll(scrollState),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Text(
+                        text = when (accountType) {
+                            AccountType.EXPLORER -> "Explorer account"
+                            AccountType.BUSINESS -> "Business account"
+                        },
+                        style = MaterialTheme.typography.titleLarge
+                    )
+
+                    if (canChangeAccountType) {
+                        SingleChoiceSegmentedButtonRow {
+                            AccountType.entries.forEachIndexed { index, type ->
+                                SegmentedButton(
+                                    shape = SegmentedButtonDefaults.itemShape(
+                                        index,
+                                        AccountType.entries.size
+                                    ),
+                                    selected = accountType == type,
+                                    onClick = { onAccountTypeChange(type) }
+                                ) {
+                                    Text(
+                                        text = when (type) {
+                                            AccountType.EXPLORER -> "Explorer"
+                                            AccountType.BUSINESS -> "Business"
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Text(
+                        text = when (accountType) {
+                            AccountType.EXPLORER -> "Explorer accounts let you drop, like, and collect rewards."
+                            AccountType.BUSINESS -> "Business accounts can publish offers and require business details."
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    BoxWithConstraints {
+                        val shouldStackVertically = maxWidth < 360.dp
+
+                        if (shouldStackVertically) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                AccountAuthMode.entries.forEach { option ->
+                                    val selected = mode == option
+                                    val buttonColors = if (selected) {
+                                        ButtonDefaults.filledTonalButtonColors()
+                                    } else {
+                                        ButtonDefaults.filledTonalButtonColors(
+                                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                            contentColor = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+
+                                    FilledTonalButton(
+                                        onClick = { onModeChange(option) },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        enabled = !isBusy,
+                                        colors = buttonColors,
+                                        shape = MaterialTheme.shapes.large
+                                    ) {
+                                        Text(
+                                            text = when (option) {
+                                                AccountAuthMode.SIGN_IN -> "Sign in"
+                                                AccountAuthMode.REGISTER -> "Create account"
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        } else {
+                            SingleChoiceSegmentedButtonRow {
+                                AccountAuthMode.entries.forEachIndexed { index, option ->
+                                    SegmentedButton(
+                                        shape = SegmentedButtonDefaults.itemShape(
+                                            index,
+                                            AccountAuthMode.entries.size
+                                        ),
+                                        selected = mode == option,
+                                        onClick = { onModeChange(option) }
+                                    ) {
+                                        Text(
+                                            text = when (option) {
+                                                AccountAuthMode.SIGN_IN -> "Sign in"
+                                                AccountAuthMode.REGISTER -> "Create account"
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    val isRegister = mode == AccountAuthMode.REGISTER
+                    val requiresExplorerUsername = isRegister && accountType == AccountType.EXPLORER
+
+                    if (requiresExplorerUsername) {
+                        OutlinedTextField(
+                            value = username,
+                            onValueChange = onUsernameChange,
+                            label = { Text(stringResource(R.string.explorer_profile_username_label)) },
+                            placeholder = { Text(stringResource(R.string.explorer_profile_username_placeholder)) },
+                            enabled = !isBusy,
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(
+                                capitalization = KeyboardCapitalization.None,
+                                autoCorrect = false,
+                                keyboardType = KeyboardType.Ascii,
+                                imeAction = ImeAction.Next
+                            ),
+                            keyboardActions = KeyboardActions(
+                                onNext = { focusManager.moveFocus(FocusDirection.Next) }
+                            )
+                        )
+
+                        Text(
+                            text = stringResource(R.string.explorer_profile_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    OutlinedTextField(
+                        value = email,
+                        onValueChange = onEmailChange,
+                        label = { Text("Email address") },
+                        enabled = !isBusy,
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Email,
+                            imeAction = ImeAction.Next
+                        ),
+                        keyboardActions = KeyboardActions(
+                            onNext = { focusManager.moveFocus(FocusDirection.Next) }
+                        )
+                    )
+
+                    OutlinedTextField(
+                        value = password,
+                        onValueChange = onPasswordChange,
+                        label = { Text("Password") },
+                        enabled = !isBusy,
+                        modifier = Modifier.fillMaxWidth(),
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Password,
+                            imeAction = if (isRegister) ImeAction.Next else ImeAction.Done
+                        ),
+                        keyboardActions = if (isRegister) {
+                            KeyboardActions(
+                                onNext = { focusManager.moveFocus(FocusDirection.Next) }
+                            )
+                        } else {
+                            KeyboardActions(
+                                onDone = { submitWithKeyboardDismiss() }
+                            )
+                        }
+                    )
+
+                    if (isRegister) {
+                        OutlinedTextField(
+                            value = confirmPassword,
+                            onValueChange = onConfirmPasswordChange,
+                            label = { Text("Confirm password") },
+                            enabled = !isBusy,
+                            modifier = Modifier.fillMaxWidth(),
+                            visualTransformation = PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Password,
+                                imeAction = ImeAction.Done
+                            ),
+                            keyboardActions = KeyboardActions(
+                                onDone = { submitWithKeyboardDismiss() }
+                            )
+                        )
+                    }
+
+                    error?.let { message ->
+                        Text(
+                            text = message,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+
+                    status?.let { message ->
+                        Text(
+                            text = message,
+                            color = MaterialTheme.colorScheme.primary,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+
+                    if (!isRegister) {
+                        TextButton(
+                            onClick = forgotPasswordWithKeyboardDismiss,
+                            enabled = !isBusy,
+                            modifier = Modifier.align(Alignment.End)
+                        ) {
+                            Text("Forgot password?")
+                        }
+                    }
+
+                    if (isRegister) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            Button(
+                                onClick = submitWithKeyboardDismiss,
+                                enabled = !isBusy,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                if (isSubmitting) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(18.dp),
+                                        strokeWidth = 2.dp
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Working…")
+                                } else {
+                                    Text(
+                                        text = when (mode) {
+                                            AccountAuthMode.SIGN_IN -> "Sign in"
+                                            AccountAuthMode.REGISTER -> "Create account"
+                                        }
+                                    )
+                                }
+                            }
+
+                            OutlinedButton(
+                                onClick = dismissWithKeyboardDismiss,
+                                enabled = !isBusy,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Cancel")
+                            }
+                        }
+                    } else {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            OutlinedButton(
+                                onClick = dismissWithKeyboardDismiss,
+                                enabled = !isBusy,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("Cancel")
+                            }
+
+                            Button(
+                                onClick = submitWithKeyboardDismiss,
+                                enabled = !isBusy,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                if (isSubmitting) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(18.dp),
+                                        strokeWidth = 2.dp
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Working…")
+                                } else {
+                                    Text(
+                                        text = when (mode) {
+                                            AccountAuthMode.SIGN_IN -> "Sign in"
+                                            AccountAuthMode.REGISTER -> "Create account"
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(12.dp))
+                    Divider()
+                    Text(
+                        text = "Or continue with",
+                        modifier = Modifier.fillMaxWidth(),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+                    OutlinedButton(
+                        onClick = googleSignInWithKeyboardDismiss,
+                        enabled = !isBusy,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        if (isGoogleSigningIn) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text("Connecting to Google…")
+                        } else {
+                            Text("Sign in with Google")
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+
     if (showAccountSignIn) {
         AccountSignInDialog(
             accountType = accountType,
@@ -4304,6 +4698,7 @@ fun DropHereScreen(
                                         normalized,
                                         allowCreateIfMissing = false
                                     )
+
                                     groupPrefs.addGroup(membership)
                                     joinedGroups = groupPrefs.getMemberships()
                                     if (dropVisibility == DropVisibility.GroupOnly && membership.role == GroupRole.OWNER) {
@@ -4359,9 +4754,7 @@ fun DropHereScreen(
                     )
                 }
             }
-
         }
-
     }
 
     @Composable
@@ -5110,18 +5503,19 @@ fun DropHereScreen(
                             Text("Cancel")
                         }
                     }
+                }
 
-                    Text(
-                        text = "Complete the steps below to share something new with nearby explorers.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                Text(
+                    text = "Complete the steps below to share something new with nearby explorers.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
-                    if (userProfileLoading) {
-                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                    }
+                if (userProfileLoading) {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                }
 
-                    userProfileError?.let { errorMessage ->
+                userProfileError?.let { errorMessage ->
                         Surface(
                             tonalElevation = 2.dp,
                             shape = MaterialTheme.shapes.medium,
@@ -5136,210 +5530,209 @@ fun DropHereScreen(
                                     .padding(16.dp)
                             )
                         }
+                }
+
+                if (isBusinessUser) {
+                    var currentStep by rememberSaveable { mutableStateOf(BusinessComposerStep.PLAN) }
+                    val availableSteps = remember(dropType) {
+                        buildList {
+                            add(BusinessComposerStep.PLAN)
+                            add(BusinessComposerStep.CONTENT)
+                            if (dropType == DropType.RESTAURANT_COUPON) {
+                                add(BusinessComposerStep.OFFER)
+                                }
+                            add(BusinessComposerStep.SETTINGS)
+                            }
+                        }
+                    LaunchedEffect(availableSteps) {
+                        if (!availableSteps.contains(currentStep)) {
+                            currentStep = availableSteps.first()
+                            }
+                    }
+                    val templateSuggestions = remember(businessCategories) {
+                        dropTemplatesFor(businessCategories)
+                            .take(MAX_BUSINESS_TEMPLATE_SUGGESTIONS)
                     }
 
-                    if (isBusinessUser) {
-                        var currentStep by rememberSaveable { mutableStateOf(BusinessComposerStep.PLAN) }
-                        val availableSteps = remember(dropType) {
-                            buildList {
-                                add(BusinessComposerStep.PLAN)
-                                add(BusinessComposerStep.CONTENT)
-                                if (dropType == DropType.RESTAURANT_COUPON) {
-                                    add(BusinessComposerStep.OFFER)
-                                }
-                                add(BusinessComposerStep.SETTINGS)
+                    BusinessComposerStepIndicator(
+                        steps = availableSteps,
+                        currentStep = currentStep,
+                        onStepSelected = { selected ->
+                            if (availableSteps.contains(selected)) {
+                                currentStep = selected
                             }
                         }
-                        LaunchedEffect(availableSteps) {
-                            if (!availableSteps.contains(currentStep)) {
-                                currentStep = availableSteps.first()
-                            }
-                        }
-                        val templateSuggestions = remember(businessCategories) {
-                            dropTemplatesFor(businessCategories)
-                                .take(MAX_BUSINESS_TEMPLATE_SUGGESTIONS)
-                        }
+                    )
 
-                        BusinessComposerStepIndicator(
-                            steps = availableSteps,
-                            currentStep = currentStep,
-                            onStepSelected = { selected ->
-                                if (availableSteps.contains(selected)) {
-                                    currentStep = selected
-                                }
-                            }
-                        )
+                    Text(
+                        text = currentStep.title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
 
-                        Text(
-                            text = currentStep.title,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
+                    Text(
+                        text = currentStep.helper,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
 
-                        Text(
-                            text = currentStep.helper,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-
-                        when (currentStep) {
-                            BusinessComposerStep.PLAN -> {
-                                DropComposerSection(
-                                    title = "Business goal",
-                                    description = "Choose the purpose for this drop. Options are tailored to your business categories.",
-                                    leadingIcon = Icons.Rounded.Storefront
-                                ) {
-                                    BusinessDropTypeSection(
-                                        dropType = dropType,
-                                        onDropTypeChange = onDropTypeChange,
-                                        businessName = businessName,
-                                        businessCategories = businessCategories,
-                                        showHeader = false
+                    when (currentStep) {
+                        BusinessComposerStep.PLAN -> {
+                            DropComposerSection(
+                                title = "Business goal",
+                                description = "Choose the purpose for this drop. Options are tailored to your business categories.",
+                                leadingIcon = Icons.Rounded.Storefront
+                            ) {
+                                BusinessDropTypeSection(
+                                    dropType = dropType,
+                                    onDropTypeChange = onDropTypeChange,
+                                    businessName = businessName,
+                                    businessCategories = businessCategories,
+                                    showHeader = false
                                     )
-                                }
-
-                                if (templateSuggestions.isNotEmpty()) {
-                                    DropComposerSection(
-                                        title = "Need inspiration?",
-                                        description = "Browse suggested ideas based on your business categories.",
-                                        leadingIcon = Icons.Rounded.Info
-                                    ) {
-                                        BusinessDropTemplatesSection(
-                                            templates = templateSuggestions,
-                                            onApply = { template ->
-                                                onDropTypeChange(template.dropType)
-                                                onDropContentTypeChange(template.contentType)
-                                                onNoteChange(TextFieldValue(template.caption.ifBlank { "" }))
-                                                onDescriptionChange(TextFieldValue(template.note))
-                                            },
-                                            showHeader = false
-                                        )
-                                    }
-                                }
                             }
 
-                            BusinessComposerStep.CONTENT -> {
-                                DropContentFormatSection(
-                                    dropContentType = dropContentType,
-                                    onDropContentTypeChange = onDropContentTypeChange
-                                )
-                                DropNoteAndDescriptionSection(
-                                    dropContentType = dropContentType,
-                                    note = note,
-                                    onNoteChange = onNoteChange,
-                                    description = description,
-                                    onDescriptionChange = onDescriptionChange
-                                )
-                                DropMediaAttachmentsSection(
-                                    context = context,
-                                    dropContentType = dropContentType,
-                                    capturedPhotoPath = capturedPhotoPath,
-                                    onCapturePhoto = onCapturePhoto,
-                                    onClearPhoto = onClearPhoto,
-                                    capturedAudioUri = capturedAudioUri,
-                                    onRecordAudio = onRecordAudio,
-                                    onClearAudio = onClearAudio,
-                                    capturedVideoUri = capturedVideoUri,
-                                    onRecordVideo = onRecordVideo,
-                                    onClearVideo = onClearVideo
-                                )
-                            }
-
-                            BusinessComposerStep.OFFER -> {
+                            if (templateSuggestions.isNotEmpty()) {
                                 DropComposerSection(
-                                    title = "Offer security",
-                                    description = "Set a redemption code and optional limit so each guest redeems only once.",
-                                    leadingIcon = Icons.Rounded.Flag
+                                    title = "Need inspiration?",
+                                    description = "Browse suggested ideas based on your business categories.",
+                                    leadingIcon = Icons.Rounded.Info
                                 ) {
-                                    BusinessRedemptionSection(
-                                        redemptionCode = redemptionCodeInput,
-                                        onRedemptionCodeChange = onRedemptionCodeChange,
-                                        redemptionLimit = redemptionLimitInput,
-                                        onRedemptionLimitChange = onRedemptionLimitChange,
+                                    BusinessDropTemplatesSection(
+                                        templates = templateSuggestions,
+                                        onApply = { template ->
+                                            onDropTypeChange(template.dropType)
+                                            onDropContentTypeChange(template.contentType)
+                                            onNoteChange(TextFieldValue(template.caption.ifBlank { "" }))
+                                            onDescriptionChange(TextFieldValue(template.note))
+                                        },
                                         showHeader = false
                                     )
                                 }
                             }
+                        }
 
-                            BusinessComposerStep.SETTINGS -> {
-                                DropAutoDeleteSection(
-                                    decayDaysInput = decayDaysInput,
-                                    onDecayDaysChange = onDecayDaysChange
-                                )
-                                DropVisibilitySectionCard(
-                                    dropVisibility = dropVisibility,
-                                    onDropVisibilityChange = onDropVisibilityChange,
-                                    groupCodeInput = groupCodeInput,
-                                    onGroupCodeInputChange = onGroupCodeInputChange,
-                                    joinedGroups = joinedGroups,
-                                    onSelectGroupCode = onSelectGroupCode,
-                                    onManageGroupCodes = onManageGroupCodes,
-                                    isSubmitting = isSubmitting
+                        BusinessComposerStep.CONTENT -> {
+                            DropContentFormatSection(
+                                dropContentType = dropContentType,
+                                onDropContentTypeChange = onDropContentTypeChange
+                            )
+                            DropNoteAndDescriptionSection(
+                                dropContentType = dropContentType,
+                                note = note,
+                                onNoteChange = onNoteChange,
+                                description = description,
+                                onDescriptionChange = onDescriptionChange
+                            )
+                            DropMediaAttachmentsSection(
+                                context = context,
+                                dropContentType = dropContentType,
+                                capturedPhotoPath = capturedPhotoPath,
+                                onCapturePhoto = onCapturePhoto,
+                                onClearPhoto = onClearPhoto,
+                                capturedAudioUri = capturedAudioUri,
+                                onRecordAudio = onRecordAudio,
+                                onClearAudio = onClearAudio,
+                                capturedVideoUri = capturedVideoUri,
+                                onRecordVideo = onRecordVideo,
+                                onClearVideo = onClearVideo
+                            )
+                        }
+
+                        BusinessComposerStep.OFFER -> {
+                            DropComposerSection(
+                                title = "Offer security",
+                                description = "Set a redemption code and optional limit so each guest redeems only once.",
+                                leadingIcon = Icons.Rounded.Flag
+                            ) {
+                                BusinessRedemptionSection(
+                                    redemptionCode = redemptionCodeInput,
+                                    onRedemptionCodeChange = onRedemptionCodeChange,
+                                    redemptionLimit = redemptionLimitInput,
+                                    onRedemptionLimitChange = onRedemptionLimitChange,
+                                    showHeader = false
                                 )
                             }
                         }
 
-                        val currentIndex = availableSteps.indexOf(currentStep).coerceAtLeast(0)
-                        val previousStep = availableSteps.getOrNull(currentIndex - 1)
-                        val nextStep = availableSteps.getOrNull(currentIndex + 1)
-
-                        BusinessComposerStepNavigation(
-                            previousStep = previousStep,
-                            nextStep = nextStep,
-                            isSubmitting = isSubmitting,
-                            onBack = { step -> currentStep = step },
-                            onNext = { step -> currentStep = step },
-                            onSubmit = onSubmit
-                        )
-                    } else {
-                        DropContentFormatSection(
-                            dropContentType = dropContentType,
-                            onDropContentTypeChange = onDropContentTypeChange
-                        )
-                        DropNoteAndDescriptionSection(
-                            dropContentType = dropContentType,
-                            note = note,
-                            onNoteChange = onNoteChange,
-                            description = description,
-                            onDescriptionChange = onDescriptionChange
-                        )
-                        DropAutoDeleteSection(
-                            decayDaysInput = decayDaysInput,
-                            onDecayDaysChange = onDecayDaysChange
-                        )
-                        DropMediaAttachmentsSection(
-                            context = context,
-                            dropContentType = dropContentType,
-                            capturedPhotoPath = capturedPhotoPath,
-                            onCapturePhoto = onCapturePhoto,
-                            onClearPhoto = onClearPhoto,
-                            capturedAudioUri = capturedAudioUri,
-                            onRecordAudio = onRecordAudio,
-                            onClearAudio = onClearAudio,
-                            capturedVideoUri = capturedVideoUri,
-                            onRecordVideo = onRecordVideo,
-                            onClearVideo = onClearVideo
-                        )
-                        DropIdentitySection(
-                            dropAnonymously = dropAnonymously,
-                            onDropAnonymouslyChange = onDropAnonymouslyChange,
-                            isSubmitting = isSubmitting
-                        )
-                        DropVisibilitySectionCard(
-                            dropVisibility = dropVisibility,
-                            onDropVisibilityChange = onDropVisibilityChange,
-                            groupCodeInput = groupCodeInput,
-                            onGroupCodeInputChange = onGroupCodeInputChange,
-                            joinedGroups = joinedGroups,
-                            onSelectGroupCode = onSelectGroupCode,
-                            onManageGroupCodes = onManageGroupCodes,
-                            isSubmitting = isSubmitting
-                        )
-                        DropSubmitButton(
-                            isSubmitting = isSubmitting,
-                            onSubmit = onSubmit
-                        )
+                        BusinessComposerStep.SETTINGS -> {
+                            DropAutoDeleteSection(
+                                decayDaysInput = decayDaysInput,
+                                onDecayDaysChange = onDecayDaysChange
+                            )
+                            DropVisibilitySectionCard(
+                                dropVisibility = dropVisibility,
+                                onDropVisibilityChange = onDropVisibilityChange,
+                                groupCodeInput = groupCodeInput,
+                                onGroupCodeInputChange = onGroupCodeInputChange,
+                                joinedGroups = joinedGroups,
+                                onSelectGroupCode = onSelectGroupCode,
+                                onManageGroupCodes = onManageGroupCodes,
+                                isSubmitting = isSubmitting
+                            )
+                        }
                     }
+
+                    val currentIndex = availableSteps.indexOf(currentStep).coerceAtLeast(0)
+                    val previousStep = availableSteps.getOrNull(currentIndex - 1)
+                    val nextStep = availableSteps.getOrNull(currentIndex + 1)
+
+                    BusinessComposerStepNavigation(
+                        previousStep = previousStep,
+                        nextStep = nextStep,
+                        isSubmitting = isSubmitting,
+                        onBack = { step -> currentStep = step },
+                        onNext = { step -> currentStep = step },
+                        onSubmit = onSubmit
+                    )
+                } else {
+                    DropContentFormatSection(
+                        dropContentType = dropContentType,
+                        onDropContentTypeChange = onDropContentTypeChange
+                    )
+                    DropNoteAndDescriptionSection(
+                        dropContentType = dropContentType,
+                        note = note,
+                        onNoteChange = onNoteChange,
+                        description = description,
+                        onDescriptionChange = onDescriptionChange
+                    )
+                    DropAutoDeleteSection(
+                        decayDaysInput = decayDaysInput,
+                        onDecayDaysChange = onDecayDaysChange
+                    )
+                    DropMediaAttachmentsSection(
+                        context = context,
+                        dropContentType = dropContentType,
+                        capturedPhotoPath = capturedPhotoPath,
+                        onCapturePhoto = onCapturePhoto,
+                        onClearPhoto = onClearPhoto,
+                        capturedAudioUri = capturedAudioUri,
+                        onRecordAudio = onRecordAudio,
+                        onClearAudio = onClearAudio,
+                        capturedVideoUri = capturedVideoUri,
+                        onRecordVideo = onRecordVideo,
+                        onClearVideo = onClearVideo
+                    )
+                    DropIdentitySection(
+                        dropAnonymously = dropAnonymously,
+                        onDropAnonymouslyChange = onDropAnonymouslyChange,
+                        isSubmitting = isSubmitting
+                    )
+                    DropVisibilitySectionCard(
+                        dropVisibility = dropVisibility,
+                        onDropVisibilityChange = onDropVisibilityChange,
+                        groupCodeInput = groupCodeInput,
+                        onGroupCodeInputChange = onGroupCodeInputChange,
+                        joinedGroups = joinedGroups,
+                        onSelectGroupCode = onSelectGroupCode,
+                        onManageGroupCodes = onManageGroupCodes,
+                        isSubmitting = isSubmitting
+                    )
+                    DropSubmitButton(
+                        isSubmitting = isSubmitting,
+                        onSubmit = onSubmit
+                    )
                 }
             }
         }
@@ -5837,6 +6230,7 @@ fun DropHereScreen(
     }
 
     private enum class BusinessStepStatus { Completed, Active, Upcoming }
+
 
     @Composable
     private fun BusinessComposerStepIndicator(
@@ -6587,399 +6981,6 @@ fun DropHereScreen(
             ),
             color = MaterialTheme.colorScheme.primary
         )
-    }
-
-    @OptIn(ExperimentalMaterial3Api::class)
-    @Composable
-    private fun AccountSignInDialog(
-        accountType: AccountType,
-        canChangeAccountType: Boolean,
-        onAccountTypeChange: (AccountType) -> Unit,
-        mode: AccountAuthMode,
-        onModeChange: (AccountAuthMode) -> Unit,
-        email: TextFieldValue,
-        onEmailChange: (TextFieldValue) -> Unit,
-        password: TextFieldValue,
-        onPasswordChange: (TextFieldValue) -> Unit,
-        confirmPassword: TextFieldValue,
-        onConfirmPasswordChange: (TextFieldValue) -> Unit,
-        username: TextFieldValue,
-        onUsernameChange: (TextFieldValue) -> Unit,
-        isSubmitting: Boolean,
-        isGoogleSigningIn: Boolean,
-        error: String?,
-        status: String?,
-        onSubmit: () -> Unit,
-        onDismiss: () -> Unit,
-        onForgotPassword: () -> Unit,
-        onGoogleSignIn: () -> Unit
-    ) {
-        val isBusy = isSubmitting || isGoogleSigningIn
-        val focusManager = LocalFocusManager.current
-        val keyboardController = LocalSoftwareKeyboardController.current
-
-        val scrollState = rememberScrollState()
-        val configuration = LocalConfiguration.current
-        val maxDialogHeight = remember(configuration) {
-            (configuration.screenHeightDp.dp * 0.9f).coerceAtLeast(0.dp)
-        }
-
-        val hideKeyboardAndClearFocus = {
-            keyboardController?.hide()
-            focusManager.clearFocus(force = true)
-        }
-        val submitWithKeyboardDismiss = {
-            hideKeyboardAndClearFocus()
-            onSubmit()
-        }
-        val dismissWithKeyboardDismiss = {
-            hideKeyboardAndClearFocus()
-            onDismiss()
-        }
-        val forgotPasswordWithKeyboardDismiss = {
-            hideKeyboardAndClearFocus()
-            onForgotPassword()
-        }
-        val googleSignInWithKeyboardDismiss = {
-            hideKeyboardAndClearFocus()
-            onGoogleSignIn()
-        }
-
-        Dialog(
-            onDismissRequest = {
-                if (!isBusy) {
-                    dismissWithKeyboardDismiss()
-                }
-            },
-            properties = DialogProperties(
-                dismissOnBackPress = !isBusy,
-                dismissOnClickOutside = !isBusy
-            )
-        ) {
-            Surface(
-                shape = MaterialTheme.shapes.large,
-                tonalElevation = 6.dp,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .padding(24.dp)
-                        .imePadding()
-                        .heightIn(max = maxDialogHeight)
-                        .verticalScroll(scrollState),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Text(
-                        text = when (accountType) {
-                            AccountType.EXPLORER -> "Explorer account"
-                            AccountType.BUSINESS -> "Business account"
-                        },
-                        style = MaterialTheme.typography.titleLarge
-                    )
-
-                    if (canChangeAccountType) {
-                        SingleChoiceSegmentedButtonRow {
-                            AccountType.entries.forEachIndexed { index, type ->
-                                SegmentedButton(
-                                    shape = SegmentedButtonDefaults.itemShape(
-                                        index,
-                                        AccountType.entries.size
-                                    ),
-                                    selected = accountType == type,
-                                    onClick = { onAccountTypeChange(type) }
-                                ) {
-                                    Text(
-                                        text = when (type) {
-                                            AccountType.EXPLORER -> "Explorer"
-                                            AccountType.BUSINESS -> "Business"
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    Text(
-                        text = when (accountType) {
-                            AccountType.EXPLORER -> "Explorer accounts let you drop, like, and collect rewards."
-                            AccountType.BUSINESS -> "Business accounts can publish offers and require business details."
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    BoxWithConstraints {
-                        val shouldStackVertically = maxWidth < 360.dp
-
-                        if (shouldStackVertically) {
-                            Column(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                AccountAuthMode.entries.forEach { option ->
-                                    val selected = mode == option
-                                    val buttonColors = if (selected) {
-                                        ButtonDefaults.filledTonalButtonColors()
-                                    } else {
-                                        ButtonDefaults.filledTonalButtonColors(
-                                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                                            contentColor = MaterialTheme.colorScheme.onSurface
-                                        )
-                                    }
-
-                                    FilledTonalButton(
-                                        onClick = { onModeChange(option) },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        enabled = !isBusy,
-                                        colors = buttonColors,
-                                        shape = MaterialTheme.shapes.large
-                                    ) {
-                                        Text(
-                                            text = when (option) {
-                                                AccountAuthMode.SIGN_IN -> "Sign in"
-                                                AccountAuthMode.REGISTER -> "Create account"
-                                            }
-                                        )
-                                    }
-                                }
-                            }
-                        } else {
-                            SingleChoiceSegmentedButtonRow {
-                                AccountAuthMode.entries.forEachIndexed { index, option ->
-                                    SegmentedButton(
-                                        shape = SegmentedButtonDefaults.itemShape(
-                                            index,
-                                            AccountAuthMode.entries.size
-                                        ),
-                                        selected = mode == option,
-                                        onClick = { onModeChange(option) }
-                                    ) {
-                                        Text(
-                                            text = when (option) {
-                                                AccountAuthMode.SIGN_IN -> "Sign in"
-                                                AccountAuthMode.REGISTER -> "Create account"
-                                            }
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    val isRegister = mode == AccountAuthMode.REGISTER
-                    val requiresExplorerUsername = isRegister && accountType == AccountType.EXPLORER
-
-                    if (requiresExplorerUsername) {
-                        OutlinedTextField(
-                            value = username,
-                            onValueChange = onUsernameChange,
-                            label = { Text(stringResource(R.string.explorer_profile_username_label)) },
-                            placeholder = { Text(stringResource(R.string.explorer_profile_username_placeholder)) },
-                            enabled = !isBusy,
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(
-                                capitalization = KeyboardCapitalization.None,
-                                autoCorrect = false,
-                                keyboardType = KeyboardType.Ascii,
-                                imeAction = ImeAction.Next
-                            ),
-                            keyboardActions = KeyboardActions(
-                                onNext = { focusManager.moveFocus(FocusDirection.Next) }
-                            )
-                        )
-
-                        Text(
-                            text = stringResource(R.string.explorer_profile_hint),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
-                    OutlinedTextField(
-                        value = email,
-                        onValueChange = onEmailChange,
-                        label = { Text("Email address") },
-                        enabled = !isBusy,
-                        modifier = Modifier.fillMaxWidth(),
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Email,
-                            imeAction = ImeAction.Next
-                        ),
-                        keyboardActions = KeyboardActions(
-                            onNext = { focusManager.moveFocus(FocusDirection.Next) }
-                        )
-                    )
-
-                    OutlinedTextField(
-                        value = password,
-                        onValueChange = onPasswordChange,
-                        label = { Text("Password") },
-                        enabled = !isBusy,
-                        modifier = Modifier.fillMaxWidth(),
-                        visualTransformation = PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Password,
-                            imeAction = if (isRegister) ImeAction.Next else ImeAction.Done
-                        ),
-                        keyboardActions = if (isRegister) {
-                            KeyboardActions(
-                                onNext = { focusManager.moveFocus(FocusDirection.Next) }
-                            )
-                        } else {
-                            KeyboardActions(
-                                onDone = { submitWithKeyboardDismiss() }
-                            )
-                        }
-                    )
-
-                    if (isRegister) {
-                        OutlinedTextField(
-                            value = confirmPassword,
-                            onValueChange = onConfirmPasswordChange,
-                            label = { Text("Confirm password") },
-                            enabled = !isBusy,
-                            modifier = Modifier.fillMaxWidth(),
-                            visualTransformation = PasswordVisualTransformation(),
-                            keyboardOptions = KeyboardOptions(
-                                keyboardType = KeyboardType.Password,
-                                imeAction = ImeAction.Done
-                            ),
-                            keyboardActions = KeyboardActions(
-                                onDone = { submitWithKeyboardDismiss() }
-                            )
-                        )
-                    }
-
-                    error?.let { message ->
-                        Text(
-                            text = message,
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
-
-                    status?.let { message ->
-                        Text(
-                            text = message,
-                            color = MaterialTheme.colorScheme.primary,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
-
-                    if (!isRegister) {
-                        TextButton(
-                            onClick = forgotPasswordWithKeyboardDismiss,
-                            enabled = !isBusy,
-                            modifier = Modifier.align(Alignment.End)
-                        ) {
-                            Text("Forgot password?")
-                        }
-                    }
-
-                    if (isRegister) {
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            Button(
-                                onClick = submitWithKeyboardDismiss,
-                                enabled = !isBusy,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                if (isSubmitting) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(18.dp),
-                                        strokeWidth = 2.dp
-                                    )
-                                    Spacer(Modifier.width(8.dp))
-                                    Text("Working…")
-                                } else {
-                                    Text(
-                                        text = when (mode) {
-                                            AccountAuthMode.SIGN_IN -> "Sign in"
-                                            AccountAuthMode.REGISTER -> "Create account"
-                                        }
-                                    )
-                                }
-                            }
-
-                            OutlinedButton(
-                                onClick = dismissWithKeyboardDismiss,
-                                enabled = !isBusy,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text("Cancel")
-                            }
-                        }
-                    } else {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            OutlinedButton(
-                                onClick = dismissWithKeyboardDismiss,
-                                enabled = !isBusy,
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Text("Cancel")
-                            }
-
-                            Button(
-                                onClick = submitWithKeyboardDismiss,
-                                enabled = !isBusy,
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                if (isSubmitting) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(18.dp),
-                                        strokeWidth = 2.dp
-                                    )
-                                    Spacer(Modifier.width(8.dp))
-                                    Text("Working…")
-                                } else {
-                                    Text(
-                                        text = when (mode) {
-                                            AccountAuthMode.SIGN_IN -> "Sign in"
-                                            AccountAuthMode.REGISTER -> "Create account"
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    Spacer(Modifier.height(12.dp))
-                    Divider()
-                    Text(
-                        text = "Or continue with",
-                        modifier = Modifier.fillMaxWidth(),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center
-                    )
-                    OutlinedButton(
-                        onClick = googleSignInWithKeyboardDismiss,
-                        enabled = !isBusy,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        if (isGoogleSigningIn) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(18.dp),
-                                strokeWidth = 2.dp
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text("Connecting to Google…")
-                        } else {
-                            Text("Sign in with Google")
-                        }
-                    }
-                }
-            }
-        }
     }
 
     @Composable
