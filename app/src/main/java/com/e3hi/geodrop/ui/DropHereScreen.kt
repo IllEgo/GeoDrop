@@ -334,6 +334,7 @@ fun DropHereScreen(
     var nsfwUpdateError by remember { mutableStateOf<String?>(null) }
     var pickupCelebrationDrop by remember { mutableStateOf<Drop?>(null) }
     var pickupCelebrationVisible by remember { mutableStateOf(false) }
+    val explorerBottomSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val defaultWebClientId = remember(ctx) {
         val resourceId = ctx.resources.getIdentifier(
             "default_web_client_id",
@@ -2947,18 +2948,23 @@ fun DropHereScreen(
                     onUpdateBusinessProfile = { showBusinessOnboarding = true },
                     onViewMyDrops = { openExplorerDestination(ExplorerDestination.MyDrops) }
                 )
-            } else {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(
-                            start = startPadding,
-                            end = endPadding,
-                            bottom = bottomPadding
-                        )
+            } else if (currentHomeDestination == HomeDestination.Explorer) {
+                ModalBottomSheet(
+                    onDismissRequest = {},
+                    sheetState = explorerBottomSheetState,
+                    scrimColor = Color.Transparent
                 ) {
-                    when (effectiveExplorerDestination) {
-                        ExplorerDestination.Discover -> {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(
+                                start = startPadding,
+                                end = endPadding,
+                                bottom = bottomPadding
+                            )
+                    ) {
+                        when (effectiveExplorerDestination) {
+                            ExplorerDestination.Discover -> {
                             val explorerSearchToggles = listOf(
                                 ExplorerSearchToggle(
                                     key = "map_preview",
@@ -3142,7 +3148,7 @@ fun DropHereScreen(
                             }
                         }
 
-                        ExplorerDestination.MyDrops -> {
+                            ExplorerDestination.MyDrops -> {
                             fun performDropDeletion(drop: Drop) {
                                 if (drop.id.isBlank()) {
                                     snackbar.showMessage(scope, "Unable to delete this drop.")
@@ -3331,7 +3337,7 @@ fun DropHereScreen(
                             }
                         }
 
-                        ExplorerDestination.Collected -> {
+                            ExplorerDestination.Collected -> {
                             LaunchedEffect(sortedCollectedNotes) {
                                 val current = collectedHighlightedId
                                 if (current != null && sortedCollectedNotes.none { note -> note.id == current }) {
