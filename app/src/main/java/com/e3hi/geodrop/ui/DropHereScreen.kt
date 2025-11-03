@@ -11870,19 +11870,6 @@ By accepting, you acknowledge that you have read and understood how GeoDrop hand
         ExplorerDestination.Collected -> Icons.Rounded.Bookmark
     }
 
-    private enum class HomeDestination { Explorer, Business }
-
-    private enum class ExplorerDestination { Discover, MyDrops, Collected }
-
-    private enum class AccountAuthMode {
-        SIGN_IN,
-        REGISTER
-    }
-
-    private enum class AccountType { EXPLORER, BUSINESS }
-
-    private enum class DropVisibility { Public, GroupOnly }
-
     /** Tiny helper to show snackbars from non-suspend places. */
     private fun SnackbarHostState.showMessage(
         scope: kotlinx.coroutines.CoroutineScope,
@@ -12356,3 +12343,16 @@ By accepting, you acknowledge that you have read and understood how GeoDrop hand
         }
     }
 }
+
+private enum class HomeDestination { Explorer, Business }
+
+private enum class ExplorerDestination { Discover, MyDrops, Collected }
+
+private enum class AccountAuthMode {
+    SIGN_IN,
+    REGISTER
+}
+
+private enum class AccountType { EXPLORER, BUSINESS }
+
+private enum class DropVisibility { Public, GroupOnly }
