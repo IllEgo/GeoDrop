@@ -7316,8 +7316,6 @@ private fun BusinessDropAnalyticsCard(drop: Drop) {
     }
 }
 
-@OptIn(ExperimentalComposeUiApi::class)
-@Composable
 private enum class DropSortOption(val displayName: String) {
     NEAREST("Nearest"),
     MOST_POPULAR("Most popular"),
