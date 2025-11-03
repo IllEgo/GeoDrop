@@ -28,6 +28,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
@@ -41,6 +42,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -130,6 +132,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.layout.onSizeChanged
@@ -214,6 +217,10 @@ import com.e3hi.geodrop.data.userLikeStatus
 import com.e3hi.geodrop.data.isBusiness
 import com.e3hi.geodrop.data.VisionApiStatus
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.snapshotFlow
 import com.e3hi.geodrop.data.isExpired
 import com.e3hi.geodrop.data.remainingDecayMillis
 import com.e3hi.geodrop.data.decayAtMillis
@@ -234,11 +241,13 @@ import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
 import com.google.android.gms.tasks.Tasks
 import com.google.android.gms.maps.CameraUpdateFactory
+import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.maps.model.BitmapDescriptor
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
+import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
@@ -249,6 +258,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerControlView
 import com.google.maps.android.compose.Circle
 import com.google.maps.android.compose.GoogleMap
+import com.google.maps.android.compose.MapEffect
 import com.google.maps.android.compose.MapUiSettings
 import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerState
@@ -874,9 +884,7 @@ fun DropHereScreen(
         mutableStateListOf<String>()
     }
     var otherDropsRefreshToken by remember { mutableStateOf(0) }
-    var otherDropsMapWeight by rememberSaveable {
-        mutableStateOf(DEFAULT_MAP_WEIGHT.coerceIn(MAP_LIST_MIN_WEIGHT, MAP_LIST_MAX_WEIGHT))
-    }
+    var otherDropsMapPreviewExpanded by rememberSaveable { mutableStateOf(true) }
     val otherDropsListState = rememberLazyListState()
     var votingDropIds by remember { mutableStateOf(setOf<String>()) }
     val dropReportReasons = remember { DefaultReportReasons }
@@ -2973,12 +2981,9 @@ fun DropHereScreen(
                                             scope = scope,
                                             onRefresh = { otherDropsRefreshToken += 1 },
                                             listState = otherDropsListState,
-                                            mapWeight = otherDropsMapWeight,
-                                            onMapWeightChange = { weight ->
-                                                val coerced = weight.coerceIn(MAP_LIST_MIN_WEIGHT, MAP_LIST_MAX_WEIGHT)
-                                                if (coerced != otherDropsMapWeight) {
-                                                    otherDropsMapWeight = coerced
-                                                }
+                                            mapPreviewExpanded = otherDropsMapPreviewExpanded,
+                                            onMapPreviewExpandedChange = { expanded ->
+                                                otherDropsMapPreviewExpanded = expanded
                                             }
                                         )
                                     }
@@ -7313,297 +7318,6 @@ private fun BusinessDropAnalyticsCard(drop: Drop) {
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-private fun OtherDropsExplorerSection(
-    modifier: Modifier = Modifier,
-    topContentPadding: Dp = 0.dp,
-    loading: Boolean,
-    refreshing: Boolean,
-    drops: List<Drop>,
-    currentLocation: LatLng?,
-    notificationRadiusMeters: Double,
-    error: String?,
-    emptyMessage: String? = null,
-    selectedId: String?,
-    onSelect: (Drop) -> Unit,
-    onPickUp: (Drop) -> Unit,
-    currentUserId: String?,
-    votingDropIds: Set<String>,
-    collectedDropIds: Set<String>,
-    canCollectDrops: Boolean,
-    collectRestrictionMessage: String?,
-    sortOption: DropSortOption,
-    sortOptions: List<DropSortOption>,
-    onSortOptionChange: (DropSortOption) -> Unit,
-    canLikeDrops: Boolean,
-    likeRestrictionMessage: String?,
-    onLike: (Drop, DropLikeStatus) -> Unit,
-    onReport: (Drop) -> Unit,
-    reportingDropId: String?,
-    dismissedBrowseDropIds: SnapshotStateList<String>,
-    snackbar: SnackbarHostState,
-    scope: CoroutineScope,
-    onRefresh: () -> Unit,
-    listState: LazyListState,
-    mapWeight: Float,
-    onMapWeightChange: (Float) -> Unit
-) {
-    val context = LocalContext.current
-    val clampedMapWeight = mapWeight.coerceIn(MAP_LIST_MIN_WEIGHT, MAP_LIST_MAX_WEIGHT)
-    var internalWeight by remember { mutableStateOf(clampedMapWeight) }
-    internalWeight = clampedMapWeight
-    val listWeight = 1f - internalWeight
-    var containerHeight by remember { mutableStateOf(0) }
-    val dividerInteraction = remember { MutableInteractionSource() }
-    val dividerDragState = rememberDraggableState { delta ->
-        val height = containerHeight.takeIf { it > 0 }?.toFloat() ?: return@rememberDraggableState
-        val deltaWeight = delta / height
-        val updated = (internalWeight + deltaWeight).coerceIn(MAP_LIST_MIN_WEIGHT, MAP_LIST_MAX_WEIGHT)
-        if (updated != internalWeight) {
-            internalWeight = updated
-            onMapWeightChange(updated)
-        }
-    }
-    val dividerModifier = Modifier
-        .fillMaxWidth()
-        .height(DIVIDER_DRAG_HANDLE_HEIGHT)
-        .draggable(
-            state = dividerDragState,
-            orientation = Orientation.Vertical,
-            interactionSource = dividerInteraction
-        )
-        .semantics(mergeDescendants = true) {
-            progressBarRangeInfo = ProgressBarRangeInfo(
-                current = internalWeight,
-                range = MAP_LIST_MIN_WEIGHT..MAP_LIST_MAX_WEIGHT
-            )
-            stateDescription =
-                "Map occupies ${'$'}{(internalWeight * 100).roundToInt()} percent of the available height"
-            setProgress { target ->
-                val coerced = target.coerceIn(MAP_LIST_MIN_WEIGHT, MAP_LIST_MAX_WEIGHT)
-                if (coerced != internalWeight) {
-                    internalWeight = coerced
-                    onMapWeightChange(coerced)
-                    true
-                } else {
-                    false
-                }
-            }
-        }
-
-    Column(
-        modifier = modifier
-            .fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        if (refreshing && !loading) {
-            LinearProgressIndicator(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp)
-            )
-        }
-        when {
-            loading -> {
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .padding(top = topContentPadding),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator()
-                }
-            }
-
-            error != null -> {
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp)
-                        .padding(top = topContentPadding),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Text(
-                        text = error,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                    OutlinedButton(onClick = onRefresh) {
-                        Icon(Icons.Rounded.Refresh, contentDescription = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text(stringResource(R.string.action_retry_generic))
-                    }
-                }
-            }
-
-            drops.isEmpty() -> {
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp)
-                        .padding(top = topContentPadding),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Text(
-                        text = emptyMessage ?: "No drops from other users are available right now.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    OutlinedButton(onClick = onRefresh) {
-                        Icon(Icons.Rounded.Refresh, contentDescription = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text(stringResource(R.string.action_retry_generic))
-                    }
-                }
-            }
-
-            else -> {
-                var lastSortOption by remember { mutableStateOf(sortOption) }
-                var skipSelectionScroll by remember { mutableStateOf(false) }
-
-                LaunchedEffect(sortOption) {
-                    if (lastSortOption != sortOption) {
-                        skipSelectionScroll = true
-                        listState.scrollToItem(0)
-                        lastSortOption = sortOption
-                    }
-                }
-
-                LaunchedEffect(selectedId, drops) {
-                    if (skipSelectionScroll) {
-                        skipSelectionScroll = false
-                        return@LaunchedEffect
-                    }
-                    val targetId = selectedId ?: return@LaunchedEffect
-                    val index = drops.indexOfFirst { it.id == targetId }
-                    if (index >= 0) {
-                        listState.animateScrollToItem(index)
-                    }
-                }
-
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
-                        .onSizeChanged { containerHeight = it.height }
-                        .padding(top = topContentPadding)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(internalWeight)
-                    ) {
-                        OtherDropsMap(
-                            drops = drops,
-                            selectedDropId = selectedId,
-                            currentLocation = currentLocation,
-                            notificationRadiusMeters = notificationRadiusMeters,
-                            onDropClick = onSelect
-                        )
-                    }
-
-                    Box(modifier = dividerModifier) {
-                        Divider(modifier = Modifier.align(Alignment.Center))
-                        DividerDragHandleHint(
-                            modifier = Modifier.align(Alignment.Center),
-                            text = stringResource(R.string.drag_to_resize)
-                        )
-                    }
-
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(listWeight)
-                    ) {
-                        val isSignedIn = !currentUserId.isNullOrBlank()
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 20.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            DropSortMenu(
-                                modifier = Modifier.weight(1f),
-                                current = sortOption,
-                                options = sortOptions,
-                                onSelect = onSortOptionChange
-                            )
-
-                            if (drops.isNotEmpty()) {
-                                Spacer(Modifier.width(12.dp))
-                                CountBadge(count = drops.size)
-                            }
-                        }
-
-                        LazyColumn(
-                            state = listState,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .weight(1f),
-                            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            items(drops, key = { it.id }) { drop ->
-                                val hasCollected = collectedDropIds.contains(drop.id)
-                                val withinPickupRange = currentLocation?.let { location ->
-                                    distanceBetweenMeters(
-                                        location.latitude,
-                                        location.longitude,
-                                        drop.lat,
-                                        drop.lng
-                                    ) <= DROP_PICKUP_RADIUS_METERS
-                                } ?: false
-                                val isOwnDrop = currentUserId != null && drop.createdBy == currentUserId
-                                val alreadyReported = currentUserId?.let { drop.reportedBy.containsKey(it) } == true
-                                val canReport = isSignedIn && !isOwnDrop && (hasCollected || withinPickupRange)
-                                val reportMessage = when {
-                                    isOwnDrop -> "You created this drop."
-                                    !isSignedIn -> "Sign in to report drops."
-                                    alreadyReported -> "Thanks for your report. We'll review it soon."
-//                                        !hasCollected && !withinPickupRange ->
-//                                            "Move within ${DROP_PICKUP_RADIUS_METERS.roundToInt()} meters to report this drop, or collect it first."
-                                    else -> null
-                                }
-                                val showReportButton = !isOwnDrop
-                                val isReporting = reportingDropId == drop.id
-                                val canIgnoreForNow = !withinPickupRange
-                                OtherDropRow(
-                                    drop = drop,
-                                    isSelected = drop.id == selectedId,
-                                    currentLocation = currentLocation,
-                                    userLike = drop.userLikeStatus(currentUserId),
-                                    canPickUp = canCollectDrops,
-                                    pickupRestrictionMessage = collectRestrictionMessage,
-                                    showReport = showReportButton,
-                                    canReport = canReport,
-                                    alreadyReported = alreadyReported,
-                                    reportRestrictionMessage = reportMessage,
-                                    isReporting = isReporting,
-                                    canIgnoreForNow = canIgnoreForNow,
-                                    onIgnoreForNow = {
-                                        if (!dismissedBrowseDropIds.contains(drop.id)) {
-                                            dismissedBrowseDropIds.add(drop.id)
-                                            snackbar.showMessage(
-                                                scope,
-                                                context.getString(R.string.browse_ignore_drop_snackbar)
-                                            )
-                                        }
-                                    },
-                                    onSelect = { onSelect(drop) },
-                                    onPickUp = { onPickUp(drop) },
-                                    onReport = { onReport(drop) }
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
 private enum class DropSortOption(val displayName: String) {
     NEAREST("Nearest"),
     MOST_POPULAR("Most popular"),
@@ -9489,7 +9203,9 @@ private fun OtherDropsMap(
     selectedDropId: String?,
     currentLocation: LatLng?,
     notificationRadiusMeters: Double,
-    onDropClick: (Drop) -> Unit
+    onDropClick: (Drop) -> Unit,
+    modifier: Modifier = Modifier,
+    onSnapshotUpdate: ((Bitmap?, CameraPosition) -> Unit)? = null
 ) {
     val context = LocalContext.current
     val baseMarkerBitmap = remember {
@@ -9546,6 +9262,8 @@ private fun OtherDropsMap(
 
     val cameraPositionState = rememberCameraPositionState()
     val uiSettings = remember { MapUiSettings(zoomControlsEnabled = true) }
+    var googleMap by remember { mutableStateOf<GoogleMap?>(null) }
+    var mapReady by remember { mutableStateOf(false) }
 
     LaunchedEffect(drops, selectedDropId, currentLocation) {
         val targetDrop = drops.firstOrNull { it.id == selectedDropId }
@@ -9559,13 +9277,47 @@ private fun OtherDropsMap(
         }
     }
 
+    fun requestSnapshot() {
+        val callback = onSnapshotUpdate ?: return
+        val map = googleMap ?: return
+        map.snapshot { bitmap ->
+            callback(bitmap, cameraPositionState.position)
+        }
+    }
+
+    LaunchedEffect(mapReady, drops, selectedDropId, currentLocation) {
+        if (mapReady) {
+            requestSnapshot()
+        }
+    }
+
+    LaunchedEffect(mapReady) {
+        if (!mapReady || onSnapshotUpdate == null) return@LaunchedEffect
+        snapshotFlow { cameraPositionState.isMoving }
+            .distinctUntilChanged()
+            .filter { moving -> !moving }
+            .collectLatest {
+                requestSnapshot()
+            }
+    }
+
     GoogleMap(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxSize()
             .consumeMapGesturesInParent(),
         cameraPositionState = cameraPositionState,
-        uiSettings = uiSettings
+        uiSettings = uiSettings,
+        onMapLoaded = {
+            mapReady = true
+            requestSnapshot()
+        }
     ) {
+        MapEffect(Unit) { map ->
+            googleMap = map
+            if (mapReady) {
+                requestSnapshot()
+            }
+        }
         currentLocation?.let { location ->
             if (notificationRadiusMeters > 0.0) {
                 Circle(
@@ -10924,4 +10676,404 @@ private enum class DropVisibility { Public, GroupOnly }
 /** Tiny helper to show snackbars from non-suspend places. */
 private fun SnackbarHostState.showMessage(scope: kotlinx.coroutines.CoroutineScope, msg: String) {
     scope.launch { showSnackbar(msg) }
+
+}
+@Composable
+private fun OtherDropsMapPreviewHeader(
+    drops: List<Drop>,
+    selectedId: String?,
+    currentLocation: LatLng?,
+    notificationRadiusMeters: Double,
+    expanded: Boolean,
+    snapshot: Bitmap?,
+    cameraPosition: CameraPosition?,
+    onSnapshotChange: (Bitmap?, CameraPosition) -> Unit,
+    onExpandedChange: (Boolean) -> Unit,
+    onDropClick: (Drop) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val previewHeight by animateDpAsState(
+        targetValue = if (expanded) 320.dp else 160.dp,
+        label = "mapPreviewHeight"
+    )
+    val selectedDrop = remember(drops, selectedId) { drops.firstOrNull { it.id == selectedId } }
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Map preview",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = if (expanded) {
+                        "Drag or tap pins to explore drops nearby."
+                    } else {
+                        "Tap to expand the live map and browse drops."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            Surface(
+                modifier = Modifier
+                    .size(36.dp),
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f)
+            ) {
+                IconButton(onClick = { onExpandedChange(!expanded) }) {
+                    Icon(
+                        imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                        contentDescription = if (expanded) "Collapse map preview" else "Expand map preview"
+                    )
+                }
+            }
+        }
+
+        Spacer(Modifier.height(12.dp))
+
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(previewHeight)
+                .animateContentSize(),
+            shape = RoundedCornerShape(24.dp),
+            tonalElevation = 6.dp
+        ) {
+            Box(Modifier.fillMaxSize()) {
+                OtherDropsMap(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer { alpha = if (expanded) 1f else 0f },
+                    drops = drops,
+                    selectedDropId = selectedId,
+                    currentLocation = currentLocation,
+                    notificationRadiusMeters = notificationRadiusMeters,
+                    onDropClick = onDropClick,
+                    onSnapshotUpdate = onSnapshotChange
+                )
+
+                if (!expanded) {
+                    if (snapshot != null) {
+                        Image(
+                            bitmap = snapshot.asImageBitmap(),
+                            contentDescription = "Map preview",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                        )
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                Brush.verticalGradient(
+                                    colors = listOf(
+                                        Color.Black.copy(alpha = 0.35f),
+                                        Color.Transparent
+                                    )
+                                )
+                            )
+                    )
+
+                    Column(
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = selectedDrop?.displayTitle() ?: "Explore drops nearby",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = Color.White,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+
+                        val subtitle = when {
+                            selectedDrop != null && currentLocation != null -> {
+                                val distance = distanceBetweenMeters(
+                                    currentLocation.latitude,
+                                    currentLocation.longitude,
+                                    selectedDrop.lat,
+                                    selectedDrop.lng
+                                )
+                                "Selected • ${formatDistanceMeters(distance)} away"
+                            }
+
+                            cameraPosition != null ->
+                                "Zoom ${"%.1f".format(cameraPosition.zoom)} • ${drops.size} drops"
+
+                            else -> "${drops.size} drops nearby"
+                        }
+
+                        Text(
+                            text = subtitle,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.White.copy(alpha = 0.85f)
+                        )
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clickable { onExpandedChange(true) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun OtherDropsExplorerSection(
+    modifier: Modifier = Modifier,
+    topContentPadding: Dp = 0.dp,
+    loading: Boolean,
+    refreshing: Boolean,
+    drops: List<Drop>,
+    currentLocation: LatLng?,
+    notificationRadiusMeters: Double,
+    error: String?,
+    emptyMessage: String? = null,
+    selectedId: String?,
+    onSelect: (Drop) -> Unit,
+    onPickUp: (Drop) -> Unit,
+    currentUserId: String?,
+    votingDropIds: Set<String>,
+    collectedDropIds: Set<String>,
+    canCollectDrops: Boolean,
+    collectRestrictionMessage: String?,
+    sortOption: DropSortOption,
+    sortOptions: List<DropSortOption>,
+    onSortOptionChange: (DropSortOption) -> Unit,
+    canLikeDrops: Boolean,
+    likeRestrictionMessage: String?,
+    onLike: (Drop, DropLikeStatus) -> Unit,
+    onReport: (Drop) -> Unit,
+    reportingDropId: String?,
+    dismissedBrowseDropIds: SnapshotStateList<String>,
+    snackbar: SnackbarHostState,
+    scope: CoroutineScope,
+    onRefresh: () -> Unit,
+    listState: LazyListState,
+    mapPreviewExpanded: Boolean,
+    onMapPreviewExpandedChange: (Boolean) -> Unit
+) {
+    val context = LocalContext.current
+    var mapSnapshot by remember { mutableStateOf<Bitmap?>(null) }
+    var mapCameraPosition by remember { mutableStateOf<CameraPosition?>(null) }
+
+    Column(
+        modifier = modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        if (refreshing && !loading) {
+            LinearProgressIndicator(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+            )
+        }
+        when {
+            loading -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(top = topContentPadding),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            }
+
+            error != null -> {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 20.dp)
+                        .padding(top = topContentPadding),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = error,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                    OutlinedButton(onClick = onRefresh) {
+                        Icon(Icons.Rounded.Refresh, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.action_retry_generic))
+                    }
+                }
+            }
+
+            drops.isEmpty() -> {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 20.dp)
+                        .padding(top = topContentPadding),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = emptyMessage ?: "No drops from other users are available right now.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    OutlinedButton(onClick = onRefresh) {
+                        Icon(Icons.Rounded.Refresh, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.action_retry_generic))
+                    }
+                }
+            }
+
+            else -> {
+                var lastSortOption by remember { mutableStateOf(sortOption) }
+                var skipSelectionScroll by remember { mutableStateOf(false) }
+
+                LaunchedEffect(sortOption) {
+                    if (lastSortOption != sortOption) {
+                        skipSelectionScroll = true
+                        listState.scrollToItem(0)
+                        lastSortOption = sortOption
+                    }
+                }
+
+                LaunchedEffect(selectedId, drops) {
+                    if (skipSelectionScroll) {
+                        skipSelectionScroll = false
+                        return@LaunchedEffect
+                    }
+                    val targetId = selectedId ?: return@LaunchedEffect
+                    val index = drops.indexOfFirst { it.id == targetId }
+                    if (index >= 0) {
+                        listState.animateScrollToItem(index)
+                    }
+                }
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(top = topContentPadding)
+                ) {
+                    OtherDropsMapPreviewHeader(
+                        drops = drops,
+                        selectedId = selectedId,
+                        currentLocation = currentLocation,
+                        notificationRadiusMeters = notificationRadiusMeters,
+                        expanded = mapPreviewExpanded,
+                        snapshot = mapSnapshot,
+                        cameraPosition = mapCameraPosition,
+                        onSnapshotChange = { bitmap, position ->
+                            mapSnapshot = bitmap
+                            mapCameraPosition = position
+                        },
+                        onExpandedChange = onMapPreviewExpandedChange,
+                        onDropClick = onSelect
+                    )
+
+                    Spacer(Modifier.height(16.dp))
+
+                    val isSignedIn = !currentUserId.isNullOrBlank()
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        DropSortMenu(
+                            modifier = Modifier.weight(1f),
+                            current = sortOption,
+                            options = sortOptions,
+                            onSelect = onSortOptionChange
+                        )
+
+                        if (drops.isNotEmpty()) {
+                            Spacer(Modifier.width(12.dp))
+                            CountBadge(count = drops.size)
+                        }
+                    }
+
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        items(drops, key = { it.id }) { drop ->
+                            val hasCollected = collectedDropIds.contains(drop.id)
+                            val withinPickupRange = currentLocation?.let { location ->
+                                distanceBetweenMeters(
+                                    location.latitude,
+                                    location.longitude,
+                                    drop.lat,
+                                    drop.lng
+                                ) <= DROP_PICKUP_RADIUS_METERS
+                            } ?: false
+                            val isOwnDrop = currentUserId != null && drop.createdBy == currentUserId
+                            val alreadyReported = currentUserId?.let { drop.reportedBy.containsKey(it) } == true
+                            val canReport = isSignedIn && !isOwnDrop && (hasCollected || withinPickupRange)
+                            val reportMessage = when {
+                                isOwnDrop -> "You created this drop."
+                                !isSignedIn -> "Sign in to report drops."
+                                alreadyReported -> "Thanks for your report. We'll review it soon."
+//                                        !hasCollected && !withinPickupRange ->
+//                                            "Move within ${DROP_PICKUP_RADIUS_METERS.roundToInt()} meters to report this drop, or collect it first."
+                                else -> null
+                            }
+                            val showReportButton = !isOwnDrop
+                            val isReporting = reportingDropId == drop.id
+                            val canIgnoreForNow = !withinPickupRange
+                            OtherDropRow(
+                                drop = drop,
+                                isSelected = drop.id == selectedId,
+                                currentLocation = currentLocation,
+                                userLike = drop.userLikeStatus(currentUserId),
+                                canPickUp = canCollectDrops,
+                                pickupRestrictionMessage = collectRestrictionMessage,
+                                showReport = showReportButton,
+                                canReport = canReport,
+                                alreadyReported = alreadyReported,
+                                reportRestrictionMessage = reportMessage,
+                                isReporting = isReporting,
+                                canIgnoreForNow = canIgnoreForNow,
+                                onIgnoreForNow = {
+                                    if (!dismissedBrowseDropIds.contains(drop.id)) {
+                                        dismissedBrowseDropIds.add(drop.id)
+                                        snackbar.showMessage(
+                                            scope,
+                                            context.getString(R.string.browse_ignore_drop_snackbar)
+                                        )
+                                    }
+                                },
+                                onSelect = { onSelect(drop) },
+                                onPickUp = { onPickUp(drop) },
+                                onReport = { onReport(drop) }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
