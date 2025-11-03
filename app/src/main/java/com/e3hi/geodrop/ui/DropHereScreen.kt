@@ -28,7 +28,6 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
@@ -42,10 +41,12 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -92,7 +93,6 @@ import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.material.icons.rounded.Place
 import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.OpenInFull
 import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.DragHandle
 import androidx.compose.material.icons.rounded.Videocam
@@ -101,6 +101,7 @@ import androidx.compose.material.icons.rounded.Flag
 import androidx.compose.material.icons.rounded.Report
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Sort
 import androidx.compose.material.icons.rounded.ThumbDown
 import androidx.compose.material.icons.rounded.ThumbUp
 import androidx.compose.material.icons.rounded.Lightbulb
@@ -111,8 +112,6 @@ import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.SegmentedButton
@@ -121,7 +120,6 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Slider
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.*
-import androidx.compose.runtime.Stable
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -132,14 +130,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -168,11 +165,13 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.zIndex
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
-import androidx.activity.compose.BackHandler
+import androidx.compose.ui.semantics.setProgress
+import androidx.compose.ui.semantics.stateDescription
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import coil.compose.AsyncImage
@@ -199,7 +198,6 @@ import com.e3hi.geodrop.data.UserDataSyncRepository
 import com.e3hi.geodrop.data.DropType
 import com.e3hi.geodrop.data.UserProfile
 import com.e3hi.geodrop.data.ExplorerUsername
-import kotlin.collections.buildList
 import com.e3hi.geodrop.data.UserMode
 import com.e3hi.geodrop.data.dropTemplatesFor
 import com.e3hi.geodrop.data.businessDropTypeOptionsFor
@@ -215,10 +213,6 @@ import com.e3hi.geodrop.data.userLikeStatus
 import com.e3hi.geodrop.data.isBusiness
 import com.e3hi.geodrop.data.VisionApiStatus
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.filter
-import androidx.compose.runtime.snapshotFlow
 import com.e3hi.geodrop.data.isExpired
 import com.e3hi.geodrop.data.remainingDecayMillis
 import com.e3hi.geodrop.data.decayAtMillis
@@ -239,13 +233,11 @@ import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
 import com.google.android.gms.tasks.Tasks
 import com.google.android.gms.maps.CameraUpdateFactory
-import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.maps.model.BitmapDescriptor
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
-import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
@@ -256,7 +248,6 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerControlView
 import com.google.maps.android.compose.Circle
 import com.google.maps.android.compose.GoogleMap
-import com.google.maps.android.compose.MapEffect
 import com.google.maps.android.compose.MapUiSettings
 import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerState
@@ -301,29 +292,13 @@ fun DropHereScreen(
     var showOnboardingHelp by remember { mutableStateOf(false) }
     var guestModeEnabled by rememberSaveable { mutableStateOf(false) }
     var showAccountSignIn by remember { mutableStateOf(false) }
-    var accountAuthMode: AccountAuthMode by remember { mutableStateOf(AccountAuthMode.SIGN_IN) }
+    var accountAuthMode by remember { mutableStateOf(AccountAuthMode.SIGN_IN) }
     var accountType by remember { mutableStateOf(AccountType.EXPLORER) }
     var accountTypeSelectionLocked by remember { mutableStateOf(false) }
-    var accountEmail by rememberSaveable(stateSaver = TextFieldValue.Saver) {
-        mutableStateOf(
-            TextFieldValue("")
-        )
-    }
-    var accountPassword by rememberSaveable(stateSaver = TextFieldValue.Saver) {
-        mutableStateOf(
-            TextFieldValue("")
-        )
-    }
-    var accountConfirmPassword by rememberSaveable(stateSaver = TextFieldValue.Saver) {
-        mutableStateOf(
-            TextFieldValue("")
-        )
-    }
-    var accountUsername by rememberSaveable(stateSaver = TextFieldValue.Saver) {
-        mutableStateOf(
-            TextFieldValue("")
-        )
-    }
+    var accountEmail by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
+    var accountPassword by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
+    var accountConfirmPassword by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
+    var accountUsername by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
     var accountAuthSubmitting by remember { mutableStateOf(false) }
     var accountAuthError by remember { mutableStateOf<String?>(null) }
     var accountAuthStatus by remember { mutableStateOf<String?>(null) }
@@ -331,14 +306,10 @@ fun DropHereScreen(
     var showBusinessOnboarding by remember { mutableStateOf(false) }
     var accountGoogleSigningIn by remember { mutableStateOf(false) }
     var showAccountMenu by remember { mutableStateOf(false) }
-    var headerInfoMenuExpanded by remember { mutableStateOf(false) }
     var showFaqDialog by remember { mutableStateOf(false) }
     var termsPrivacyDialogTab by remember { mutableStateOf<Int?>(null) }
     var showExplorerProfile by remember { mutableStateOf(false) }
     var explorerDestination by rememberSaveable { mutableStateOf(ExplorerDestination.Discover.name) }
-    var showDiscoverMapOverlay by rememberSaveable { mutableStateOf(false) }
-    var showMyDropsMapOverlay by rememberSaveable { mutableStateOf(false) }
-    var showCollectedMapOverlay by rememberSaveable { mutableStateOf(false) }
     var explorerUsernameField by rememberSaveable(stateSaver = TextFieldValue.Saver) {
         mutableStateOf(TextFieldValue(""))
     }
@@ -350,7 +321,6 @@ fun DropHereScreen(
     var nsfwUpdateError by remember { mutableStateOf<String?>(null) }
     var pickupCelebrationDrop by remember { mutableStateOf<Drop?>(null) }
     var pickupCelebrationVisible by remember { mutableStateOf(false) }
-    val explorerBottomSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val defaultWebClientId = remember(ctx) {
         val resourceId = ctx.resources.getIdentifier(
             "default_web_client_id",
@@ -435,8 +405,7 @@ fun DropHereScreen(
         val password = accountPassword.text
         val confirm = accountConfirmPassword.text
         val username = accountUsername.text
-        val needsExplorerUsername =
-            accountAuthMode == AccountAuthMode.REGISTER && accountType == AccountType.EXPLORER
+        val needsExplorerUsername = accountAuthMode == AccountAuthMode.REGISTER && accountType == AccountType.EXPLORER
         var sanitizedExplorerUsername: String? = null
 
         when {
@@ -592,9 +561,8 @@ fun DropHereScreen(
                             showBusinessOnboarding = true
                         }
                     } else {
-                        val message =
-                            authTask.exception?.localizedMessage?.takeIf { it.isNotBlank() }
-                                ?: "Couldn't sign you in with Google. Try again."
+                        val message = authTask.exception?.localizedMessage?.takeIf { it.isNotBlank() }
+                            ?: "Couldn't sign you in with Google. Try again."
                         accountAuthError = message
                     }
                 }
@@ -608,8 +576,7 @@ fun DropHereScreen(
     fun startAccountGoogleSignIn() {
         if (accountAuthSubmitting || accountGoogleSigningIn) return
         if (defaultWebClientId.isBlank()) {
-            accountAuthError =
-                "Google sign-in isn't configured. Provide a valid web client ID via google-services.json or the GOOGLE_WEB_CLIENT_ID property."
+            accountAuthError = "Google sign-in isn't configured. Provide a valid web client ID via google-services.json or the GOOGLE_WEB_CLIENT_ID property."
             return
         }
 
@@ -758,400 +725,6 @@ fun DropHereScreen(
         return
     }
 
-    @OptIn(ExperimentalMaterial3Api::class)
-    @Composable
-    private fun AccountSignInDialog(
-        accountType: AccountType,
-        canChangeAccountType: Boolean,
-        onAccountTypeChange: (AccountType) -> Unit,
-        mode: AccountAuthMode,
-        onModeChange: (AccountAuthMode) -> Unit,
-        email: TextFieldValue,
-        onEmailChange: (TextFieldValue) -> Unit,
-        password: TextFieldValue,
-        onPasswordChange: (TextFieldValue) -> Unit,
-        confirmPassword: TextFieldValue,
-        onConfirmPasswordChange: (TextFieldValue) -> Unit,
-        username: TextFieldValue,
-        onUsernameChange: (TextFieldValue) -> Unit,
-        isSubmitting: Boolean,
-        isGoogleSigningIn: Boolean,
-        error: String?,
-        status: String?,
-        onSubmit: () -> Unit,
-        onDismiss: () -> Unit,
-        onForgotPassword: () -> Unit,
-        onGoogleSignIn: () -> Unit
-    ) {
-        val isBusy = isSubmitting || isGoogleSigningIn
-        val focusManager = LocalFocusManager.current
-        val keyboardController = LocalSoftwareKeyboardController.current
-
-        val scrollState = rememberScrollState()
-        val configuration = LocalConfiguration.current
-        val maxDialogHeight = remember(configuration) {
-            (configuration.screenHeightDp.dp * 0.9f).coerceAtLeast(0.dp)
-        }
-
-        val hideKeyboardAndClearFocus = {
-            keyboardController?.hide()
-            focusManager.clearFocus(force = true)
-        }
-        val submitWithKeyboardDismiss = {
-            hideKeyboardAndClearFocus()
-            onSubmit()
-        }
-        val dismissWithKeyboardDismiss = {
-            hideKeyboardAndClearFocus()
-            onDismiss()
-        }
-        val forgotPasswordWithKeyboardDismiss = {
-            hideKeyboardAndClearFocus()
-            onForgotPassword()
-        }
-        val googleSignInWithKeyboardDismiss = {
-            hideKeyboardAndClearFocus()
-            onGoogleSignIn()
-        }
-
-        Dialog(
-            onDismissRequest = {
-                if (!isBusy) {
-                    dismissWithKeyboardDismiss()
-                }
-            },
-            properties = DialogProperties(
-                dismissOnBackPress = !isBusy,
-                dismissOnClickOutside = !isBusy
-            )
-        ) {
-            Surface(
-                shape = MaterialTheme.shapes.large,
-                tonalElevation = 6.dp,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .padding(24.dp)
-                        .imePadding()
-                        .heightIn(max = maxDialogHeight)
-                        .verticalScroll(scrollState),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Text(
-                        text = when (accountType) {
-                            AccountType.EXPLORER -> "Explorer account"
-                            AccountType.BUSINESS -> "Business account"
-                        },
-                        style = MaterialTheme.typography.titleLarge
-                    )
-
-                    if (canChangeAccountType) {
-                        SingleChoiceSegmentedButtonRow {
-                            AccountType.entries.forEachIndexed { index, type ->
-                                SegmentedButton(
-                                    shape = SegmentedButtonDefaults.itemShape(
-                                        index,
-                                        AccountType.entries.size
-                                    ),
-                                    selected = accountType == type,
-                                    onClick = { onAccountTypeChange(type) }
-                                ) {
-                                    Text(
-                                        text = when (type) {
-                                            AccountType.EXPLORER -> "Explorer"
-                                            AccountType.BUSINESS -> "Business"
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    Text(
-                        text = when (accountType) {
-                            AccountType.EXPLORER -> "Explorer accounts let you drop, like, and collect rewards."
-                            AccountType.BUSINESS -> "Business accounts can publish offers and require business details."
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    BoxWithConstraints {
-                        val shouldStackVertically = maxWidth < 360.dp
-
-                        if (shouldStackVertically) {
-                            Column(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                AccountAuthMode.entries.forEach { option ->
-                                    val selected = mode == option
-                                    val buttonColors = if (selected) {
-                                        ButtonDefaults.filledTonalButtonColors()
-                                    } else {
-                                        ButtonDefaults.filledTonalButtonColors(
-                                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                                            contentColor = MaterialTheme.colorScheme.onSurface
-                                        )
-                                    }
-
-                                    FilledTonalButton(
-                                        onClick = { onModeChange(option) },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        enabled = !isBusy,
-                                        colors = buttonColors,
-                                        shape = MaterialTheme.shapes.large
-                                    ) {
-                                        Text(
-                                            text = when (option) {
-                                                AccountAuthMode.SIGN_IN -> "Sign in"
-                                                AccountAuthMode.REGISTER -> "Create account"
-                                            }
-                                        )
-                                    }
-                                }
-                            }
-                        } else {
-                            SingleChoiceSegmentedButtonRow {
-                                AccountAuthMode.entries.forEachIndexed { index, option ->
-                                    SegmentedButton(
-                                        shape = SegmentedButtonDefaults.itemShape(
-                                            index,
-                                            AccountAuthMode.entries.size
-                                        ),
-                                        selected = mode == option,
-                                        onClick = { onModeChange(option) }
-                                    ) {
-                                        Text(
-                                            text = when (option) {
-                                                AccountAuthMode.SIGN_IN -> "Sign in"
-                                                AccountAuthMode.REGISTER -> "Create account"
-                                            }
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    val isRegister = mode == AccountAuthMode.REGISTER
-                    val requiresExplorerUsername = isRegister && accountType == AccountType.EXPLORER
-
-                    if (requiresExplorerUsername) {
-                        OutlinedTextField(
-                            value = username,
-                            onValueChange = onUsernameChange,
-                            label = { Text(stringResource(R.string.explorer_profile_username_label)) },
-                            placeholder = { Text(stringResource(R.string.explorer_profile_username_placeholder)) },
-                            enabled = !isBusy,
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(
-                                capitalization = KeyboardCapitalization.None,
-                                autoCorrect = false,
-                                keyboardType = KeyboardType.Ascii,
-                                imeAction = ImeAction.Next
-                            ),
-                            keyboardActions = KeyboardActions(
-                                onNext = { focusManager.moveFocus(FocusDirection.Next) }
-                            )
-                        )
-
-                        Text(
-                            text = stringResource(R.string.explorer_profile_hint),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
-                    OutlinedTextField(
-                        value = email,
-                        onValueChange = onEmailChange,
-                        label = { Text("Email address") },
-                        enabled = !isBusy,
-                        modifier = Modifier.fillMaxWidth(),
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Email,
-                            imeAction = ImeAction.Next
-                        ),
-                        keyboardActions = KeyboardActions(
-                            onNext = { focusManager.moveFocus(FocusDirection.Next) }
-                        )
-                    )
-
-                    OutlinedTextField(
-                        value = password,
-                        onValueChange = onPasswordChange,
-                        label = { Text("Password") },
-                        enabled = !isBusy,
-                        modifier = Modifier.fillMaxWidth(),
-                        visualTransformation = PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Password,
-                            imeAction = if (isRegister) ImeAction.Next else ImeAction.Done
-                        ),
-                        keyboardActions = if (isRegister) {
-                            KeyboardActions(
-                                onNext = { focusManager.moveFocus(FocusDirection.Next) }
-                            )
-                        } else {
-                            KeyboardActions(
-                                onDone = { submitWithKeyboardDismiss() }
-                            )
-                        }
-                    )
-
-                    if (isRegister) {
-                        OutlinedTextField(
-                            value = confirmPassword,
-                            onValueChange = onConfirmPasswordChange,
-                            label = { Text("Confirm password") },
-                            enabled = !isBusy,
-                            modifier = Modifier.fillMaxWidth(),
-                            visualTransformation = PasswordVisualTransformation(),
-                            keyboardOptions = KeyboardOptions(
-                                keyboardType = KeyboardType.Password,
-                                imeAction = ImeAction.Done
-                            ),
-                            keyboardActions = KeyboardActions(
-                                onDone = { submitWithKeyboardDismiss() }
-                            )
-                        )
-                    }
-
-                    error?.let { message ->
-                        Text(
-                            text = message,
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
-
-                    status?.let { message ->
-                        Text(
-                            text = message,
-                            color = MaterialTheme.colorScheme.primary,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
-
-                    if (!isRegister) {
-                        TextButton(
-                            onClick = forgotPasswordWithKeyboardDismiss,
-                            enabled = !isBusy,
-                            modifier = Modifier.align(Alignment.End)
-                        ) {
-                            Text("Forgot password?")
-                        }
-                    }
-
-                    if (isRegister) {
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            Button(
-                                onClick = submitWithKeyboardDismiss,
-                                enabled = !isBusy,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                if (isSubmitting) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(18.dp),
-                                        strokeWidth = 2.dp
-                                    )
-                                    Spacer(Modifier.width(8.dp))
-                                    Text("Working…")
-                                } else {
-                                    Text(
-                                        text = when (mode) {
-                                            AccountAuthMode.SIGN_IN -> "Sign in"
-                                            AccountAuthMode.REGISTER -> "Create account"
-                                        }
-                                    )
-                                }
-                            }
-
-                            OutlinedButton(
-                                onClick = dismissWithKeyboardDismiss,
-                                enabled = !isBusy,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text("Cancel")
-                            }
-                        }
-                    } else {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            OutlinedButton(
-                                onClick = dismissWithKeyboardDismiss,
-                                enabled = !isBusy,
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Text("Cancel")
-                            }
-
-                            Button(
-                                onClick = submitWithKeyboardDismiss,
-                                enabled = !isBusy,
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                if (isSubmitting) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(18.dp),
-                                        strokeWidth = 2.dp
-                                    )
-                                    Spacer(Modifier.width(8.dp))
-                                    Text("Working…")
-                                } else {
-                                    Text(
-                                        text = when (mode) {
-                                            AccountAuthMode.SIGN_IN -> "Sign in"
-                                            AccountAuthMode.REGISTER -> "Create account"
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    Spacer(Modifier.height(12.dp))
-                    Divider()
-                    Text(
-                        text = "Or continue with",
-                        modifier = Modifier.fillMaxWidth(),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center
-                    )
-                    OutlinedButton(
-                        onClick = googleSignInWithKeyboardDismiss,
-                        enabled = !isBusy,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        if (isGoogleSigningIn) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(18.dp),
-                                strokeWidth = 2.dp
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text("Connecting to Google…")
-                        } else {
-                            Text("Sign in with Google")
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-
     if (showAccountSignIn) {
         AccountSignInDialog(
             accountType = accountType,
@@ -1267,28 +840,12 @@ fun DropHereScreen(
     var capturedAudioUri by rememberSaveable { mutableStateOf<String?>(null) }
     var capturedVideoUri by rememberSaveable { mutableStateOf<String?>(null) }
     var isSubmitting by remember { mutableStateOf(false) }
-    var groupCodeInput by rememberSaveable(stateSaver = TextFieldValue.Saver) {
-        mutableStateOf(
-            TextFieldValue("")
-        )
-    }
-    var redemptionCodeInput by rememberSaveable(stateSaver = TextFieldValue.Saver) {
-        mutableStateOf(
-            TextFieldValue("")
-        )
-    }
-    var redemptionLimitInput by rememberSaveable(stateSaver = TextFieldValue.Saver) {
-        mutableStateOf(
-            TextFieldValue("")
-        )
-    }
-    var decayDaysInput by rememberSaveable(stateSaver = TextFieldValue.Saver) {
-        mutableStateOf(
-            TextFieldValue("")
-        )
-    }
+    var groupCodeInput by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
+    var redemptionCodeInput by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
+    var redemptionLimitInput by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
+    var decayDaysInput by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
     var status by remember { mutableStateOf<String?>(null) }
-    var showOtherDropsMap by remember { mutableStateOf(true) }
+    var showOtherDropsMap by remember { mutableStateOf(false) }
     var otherDrops by remember { mutableStateOf<List<Drop>>(emptyList()) }
     var otherDropsLoading by remember { mutableStateOf(false) }
     var otherDropsRefreshing by remember { mutableStateOf(false) }
@@ -1316,9 +873,9 @@ fun DropHereScreen(
         mutableStateListOf<String>()
     }
     var otherDropsRefreshToken by remember { mutableStateOf(0) }
-    var otherDropsMapPreviewExpanded by rememberSaveable { mutableStateOf(true) }
-    var otherDropsMapPreviewSnapshot by remember { mutableStateOf<Bitmap?>(null) }
-    var otherDropsMapPreviewCamera by remember { mutableStateOf<CameraPosition?>(null) }
+    var otherDropsMapWeight by rememberSaveable {
+        mutableStateOf(DEFAULT_MAP_WEIGHT.coerceIn(MAP_LIST_MIN_WEIGHT, MAP_LIST_MAX_WEIGHT))
+    }
     val otherDropsListState = rememberLazyListState()
     var votingDropIds by remember { mutableStateOf(setOf<String>()) }
     val dropReportReasons = remember { DefaultReportReasons }
@@ -1337,13 +894,6 @@ fun DropHereScreen(
     var myDropsPendingDelete by remember { mutableStateOf<Drop?>(null) }
     var myDropsSelectedId by remember { mutableStateOf<String?>(null) }
     var myDropsSortKey by rememberSaveable { mutableStateOf(DropSortOption.NEWEST.name) }
-    var myDropsMapPreviewExpanded by rememberSaveable { mutableStateOf(true) }
-    var myDropsMapPreviewSnapshot by remember { mutableStateOf<Bitmap?>(null) }
-    var myDropsMapPreviewCamera by remember { mutableStateOf<CameraPosition?>(null) }
-    var collectedMapPreviewExpanded by rememberSaveable { mutableStateOf(true) }
-    var collectedMapPreviewSnapshot by remember { mutableStateOf<Bitmap?>(null) }
-    var collectedMapPreviewCamera by remember { mutableStateOf<CameraPosition?>(null) }
-    var collectedHighlightedId by rememberSaveable { mutableStateOf<String?>(null) }
     var myDropCountHint by remember { mutableStateOf<Int?>(null) }
     var myDropPendingReviewHint by remember { mutableStateOf<Int?>(null) }
     var showManageGroups by remember { mutableStateOf(false) }
@@ -1672,12 +1222,7 @@ fun DropHereScreen(
             drop.businessName?.takeIf { it.isNotBlank() }?.let {
                 putExtra(DropDecisionReceiver.EXTRA_DROP_BUSINESS_NAME, it)
             }
-            drop.redemptionLimit?.let {
-                putExtra(
-                    DropDecisionReceiver.EXTRA_DROP_REDEMPTION_LIMIT,
-                    it
-                )
-            }
+            drop.redemptionLimit?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_REDEMPTION_LIMIT, it) }
             putExtra(DropDecisionReceiver.EXTRA_DROP_REDEMPTION_COUNT, drop.redemptionCount)
             putExtra(DropDecisionReceiver.EXTRA_DROP_IS_NSFW, drop.isNsfw)
             if (drop.nsfwLabels.isNotEmpty()) {
@@ -1747,8 +1292,7 @@ fun DropHereScreen(
 
         val previousOtherDrops = otherDrops
         val previousMyDrops = myDrops
-        val previousCollectedNote =
-            noteInventory.getCollectedNotes().firstOrNull { it.id == dropId }
+        val previousCollectedNote = noteInventory.getCollectedNotes().firstOrNull { it.id == dropId }
 
         votingDropIds = votingDropIds + dropId
         updateDropInLists(dropId) { current -> current.applyUserLike(userId, desiredStatus) }
@@ -1825,9 +1369,7 @@ fun DropHereScreen(
 
         when (previousStatus) {
             DropLikeStatus.LIKED -> updatedLikeCount = (updatedLikeCount - 1).coerceAtLeast(0L)
-            DropLikeStatus.DISLIKED -> updatedDislikeCount =
-                (updatedDislikeCount - 1).coerceAtLeast(0L)
-
+            DropLikeStatus.DISLIKED -> updatedDislikeCount = (updatedDislikeCount - 1).coerceAtLeast(0L)
             DropLikeStatus.NONE -> Unit
         }
 
@@ -1846,12 +1388,7 @@ fun DropHereScreen(
             try {
                 repo.setDropLike(dropId, userId, desiredStatus)
             } catch (e: Exception) {
-                noteInventory.updateLikeStatus(
-                    dropId,
-                    previousLikeCount,
-                    previousDislikeCount,
-                    previousStatus
-                )
+                noteInventory.updateLikeStatus(dropId, previousLikeCount, previousDislikeCount, previousStatus)
                 collectedNotes = noteInventory.getCollectedNotes()
                 if (e is FirebaseFirestoreException &&
                     e.code == FirebaseFirestoreException.Code.PERMISSION_DENIED
@@ -1975,62 +1512,57 @@ fun DropHereScreen(
     var pendingPermissionAction by remember { mutableStateOf<(() -> Unit)?>(null) }
     var pendingAudioPermissionAction by remember { mutableStateOf<(() -> Unit)?>(null) }
 
-    val takePictureLauncher =
-        rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
-            val path = pendingPhotoPath
-            if (success && path != null) {
-                capturedPhotoPath = path
-            } else if (path != null) {
-                runCatching { File(path).delete() }
-            }
-            pendingPhotoPath = null
+    val takePictureLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
+        val path = pendingPhotoPath
+        if (success && path != null) {
+            capturedPhotoPath = path
+        } else if (path != null) {
+            runCatching { File(path).delete() }
         }
+        pendingPhotoPath = null
+    }
 
-    val recordAudioLauncher =
-        rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            if (result.resultCode == Activity.RESULT_OK) {
-                val uri = result.data?.data
-                if (uri != null) {
-                    capturedAudioUri = uri.toString()
-                } else {
-                    snackbar.showMessage(scope, "Recording unavailable. Try again.")
-                }
-            }
-        }
-
-    val captureVideoLauncher =
-        rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            if (result.resultCode == Activity.RESULT_OK) {
-                val uri = result.data?.data
-                if (uri != null) {
-                    capturedVideoUri = uri.toString()
-                } else {
-                    snackbar.showMessage(scope, "Video unavailable. Try again.")
-                }
-            }
-        }
-
-    val cameraPermissionLauncher =
-        rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-            val action = pendingPermissionAction
-            pendingPermissionAction = null
-            if (granted) {
-                action?.invoke()
+    val recordAudioLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val uri = result.data?.data
+            if (uri != null) {
+                capturedAudioUri = uri.toString()
             } else {
-                snackbar.showMessage(scope, "Camera permission is required to capture a photo.")
+                snackbar.showMessage(scope, "Recording unavailable. Try again.")
             }
         }
+    }
 
-    val audioPermissionLauncher =
-        rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-            val action = pendingAudioPermissionAction
-            pendingAudioPermissionAction = null
-            if (granted) {
-                action?.invoke()
+    val captureVideoLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val uri = result.data?.data
+            if (uri != null) {
+                capturedVideoUri = uri.toString()
             } else {
-                snackbar.showMessage(scope, "Microphone permission is required to record audio.")
+                snackbar.showMessage(scope, "Video unavailable. Try again.")
             }
         }
+    }
+
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        val action = pendingPermissionAction
+        pendingPermissionAction = null
+        if (granted) {
+            action?.invoke()
+        } else {
+            snackbar.showMessage(scope, "Camera permission is required to capture a photo.")
+        }
+    }
+
+    val audioPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        val action = pendingAudioPermissionAction
+        pendingAudioPermissionAction = null
+        if (granted) {
+            action?.invoke()
+        } else {
+            snackbar.showMessage(scope, "Microphone permission is required to record audio.")
+        }
+    }
 
     fun clearPhoto() {
         val path = capturedPhotoPath
@@ -2042,15 +1574,10 @@ fun DropHereScreen(
 
     fun ensureCameraAndLaunch() {
         val permission = Manifest.permission.CAMERA
-        if (ContextCompat.checkSelfPermission(
-                ctx,
-                permission
-            ) == PackageManager.PERMISSION_GRANTED
-        ) {
+        if (ContextCompat.checkSelfPermission(ctx, permission) == PackageManager.PERMISSION_GRANTED) {
             val photoDir = File(ctx.cacheDir, "camera").apply { if (!exists()) mkdirs() }
-            val photoFile =
-                kotlin.runCatching { File.createTempFile("geodrop_photo_", ".jpg", photoDir) }
-                    .getOrNull()
+            val photoFile = kotlin.runCatching { File.createTempFile("geodrop_photo_", ".jpg", photoDir) }
+                .getOrNull()
             if (photoFile == null) {
                 snackbar.showMessage(scope, "Couldn't prepare a file for the camera.")
                 return
@@ -2066,11 +1593,7 @@ fun DropHereScreen(
 
     fun ensureAudioAndLaunch() {
         val permission = Manifest.permission.RECORD_AUDIO
-        if (ContextCompat.checkSelfPermission(
-                ctx,
-                permission
-            ) == PackageManager.PERMISSION_GRANTED
-        ) {
+        if (ContextCompat.checkSelfPermission(ctx, permission) == PackageManager.PERMISSION_GRANTED) {
             val intent = Intent(ctx, AudioRecorderActivity::class.java)
             recordAudioLauncher.launch(intent)
         } else {
@@ -2081,11 +1604,7 @@ fun DropHereScreen(
 
     fun ensureVideoAndLaunch() {
         val permission = Manifest.permission.CAMERA
-        if (ContextCompat.checkSelfPermission(
-                ctx,
-                permission
-            ) == PackageManager.PERMISSION_GRANTED
-        ) {
+        if (ContextCompat.checkSelfPermission(ctx, permission) == PackageManager.PERMISSION_GRANTED) {
             val intent = Intent(MediaStore.ACTION_VIDEO_CAPTURE)
             runCatching { captureVideoLauncher.launch(intent) }
                 .onFailure {
@@ -2464,10 +1983,7 @@ fun DropHereScreen(
                         val parsed = limitText.toIntOrNull()
                         if (parsed == null || parsed <= 0) {
                             isSubmitting = false
-                            snackbar.showMessage(
-                                scope,
-                                "Enter a valid redemption limit or leave it blank."
-                            )
+                            snackbar.showMessage(scope, "Enter a valid redemption limit or leave it blank.")
                             return@launch
                         }
                         redemptionLimitResult = parsed
@@ -2479,10 +1995,7 @@ fun DropHereScreen(
                     val parsedDecay = decayText.toIntOrNull()
                     if (parsedDecay == null || parsedDecay <= 0) {
                         isSubmitting = false
-                        snackbar.showMessage(
-                            scope,
-                            "Enter a valid number of days or leave it blank."
-                        )
+                        snackbar.showMessage(scope, "Enter a valid number of days or leave it blank.")
                         return@launch
                     }
                     if (parsedDecay > MAX_DECAY_DAYS) {
@@ -2592,10 +2105,7 @@ fun DropHereScreen(
             }
             if (userMode != UserMode.GUEST && effectiveUid == null) {
                 if (hadExistingDrops) {
-                    snackbar.showMessage(
-                        scope,
-                        "Sign-in is still in progress. Try again in a moment."
-                    )
+                    snackbar.showMessage(scope, "Sign-in is still in progress. Try again in a moment.")
                 } else {
                     otherDrops = emptyList()
                     otherDropsError = "Sign-in is still in progress. Try again in a moment."
@@ -2627,15 +2137,13 @@ fun DropHereScreen(
                                 } ?: false
                                 !withinPickupRange
                             }
-
                             else -> false
                         }
                     }
                     otherDrops = filteredDrops
                     otherDropsCurrentLocation = latestLocation
-                    otherDropsSelectedId =
-                        otherDropsSelectedId?.takeIf { id -> filteredDrops.any { it.id == id } }
-                            ?: filteredDrops.firstOrNull()?.id
+                    otherDropsSelectedId = otherDropsSelectedId?.takeIf { id -> filteredDrops.any { it.id == id } }
+                        ?: filteredDrops.firstOrNull()?.id
                     otherDropsError = null
                 } catch (e: Exception) {
                     if (hadExistingDrops) {
@@ -2709,11 +2217,9 @@ fun DropHereScreen(
                     myDrops = drops
                     myDropCountHint = drops.size
                     myDropPendingReviewHint = drops.count { it.reportCount > 0 }
-                    myDropsCurrentLocation =
-                        getLatestLocation()?.let { (lat, lng) -> LatLng(lat, lng) }
-                    myDropsSelectedId =
-                        myDropsSelectedId?.takeIf { id -> drops.any { it.id == id } }
-                            ?: drops.firstOrNull()?.id
+                    myDropsCurrentLocation = getLatestLocation()?.let { (lat, lng) -> LatLng(lat, lng) }
+                    myDropsSelectedId = myDropsSelectedId?.takeIf { id -> drops.any { it.id == id } }
+                        ?: drops.firstOrNull()?.id
                 } catch (e: Exception) {
                     myDropsError = e.message ?: "Failed to load your drops."
                 } finally {
@@ -2746,10 +2252,7 @@ fun DropHereScreen(
 
             ExplorerDestination.MyDrops -> {
                 if (!hasExplorerAccount) {
-                    snackbar.showMessage(
-                        scope,
-                        participationRestriction("view and manage your drops")
-                    )
+                    snackbar.showMessage(scope, participationRestriction("view and manage your drops"))
                     return
                 }
                 explorerDestination = destination.name
@@ -2773,32 +2276,27 @@ fun DropHereScreen(
 
 
     val filteredOtherDrops = remember(selectedExplorerGroupCode, otherDrops, explorerGroups) {
-        selectedExplorerGroupCode?.takeIf { code -> explorerGroups.any { it.code == code } }
-            ?.let { code ->
-                otherDrops.filter { drop -> drop.groupCode == code }
-            } ?: otherDrops
+        selectedExplorerGroupCode?.takeIf { code -> explorerGroups.any { it.code == code } }?.let { code ->
+            otherDrops.filter { drop -> drop.groupCode == code }
+        } ?: otherDrops
     }
     var otherDropsSortKey by rememberSaveable { mutableStateOf(DropSortOption.NEAREST.name) }
     val otherDropsSortOption = remember(otherDropsSortKey) {
         runCatching { DropSortOption.valueOf(otherDropsSortKey) }
             .getOrDefault(DropSortOption.NEAREST)
     }
-    val dropSortOptions = remember { DropSortOption.entries.toList() }
-    val myDropsSortOptions = dropSortOptions
-    val collectedSortOptions = dropSortOptions
-    val sortedOtherDrops =
-        remember(filteredOtherDrops, otherDropsSortOption, otherDropsCurrentLocation) {
-            sortDrops(filteredOtherDrops, otherDropsSortOption, otherDropsCurrentLocation)
-        }
+    val dropSortOptions = remember { DropSortOption.entries }
+    val sortedOtherDrops = remember(filteredOtherDrops, otherDropsSortOption, otherDropsCurrentLocation) {
+        sortDrops(filteredOtherDrops, otherDropsSortOption, otherDropsCurrentLocation)
+    }
     val myDropsSortOption = remember(myDropsSortKey) {
         runCatching { DropSortOption.valueOf(myDropsSortKey) }
             .getOrDefault(DropSortOption.NEWEST)
     }
     val filteredMyDrops = remember(selectedExplorerGroupCode, myDrops, explorerGroups) {
-        selectedExplorerGroupCode?.takeIf { code -> explorerGroups.any { it.code == code } }
-            ?.let { code ->
-                myDrops.filter { drop -> drop.groupCode == code }
-            } ?: myDrops
+        selectedExplorerGroupCode?.takeIf { code -> explorerGroups.any { it.code == code } }?.let { code ->
+            myDrops.filter { drop -> drop.groupCode == code }
+        } ?: myDrops
     }
     val sortedMyDrops = remember(filteredMyDrops, myDropsSortOption, myDropsCurrentLocation) {
         sortDrops(filteredMyDrops, myDropsSortOption, myDropsCurrentLocation)
@@ -2810,10 +2308,9 @@ fun DropHereScreen(
     }
     var collectedCurrentLocation by remember { mutableStateOf<LatLng?>(null) }
     val filteredCollected = remember(selectedExplorerGroupCode, collectedNotes, explorerGroups) {
-        selectedExplorerGroupCode?.takeIf { code -> explorerGroups.any { it.code == code } }
-            ?.let { code ->
-                collectedNotes.filter { note -> note.groupCode == code }
-            } ?: collectedNotes
+        selectedExplorerGroupCode?.takeIf { code -> explorerGroups.any { it.code == code } }?.let { code ->
+            collectedNotes.filter { note -> note.groupCode == code }
+        } ?: collectedNotes
     }
     val canViewNsfw = userProfile?.canViewNsfw() == true
     val visibleCollectedNotes = if (canViewNsfw) {
@@ -2822,10 +2319,9 @@ fun DropHereScreen(
         filteredCollected.filterNot { note -> note.isNsfw || note.nsfwLabels.isNotEmpty() }
     }
     val hiddenNsfwCollectedCount = filteredCollected.size - visibleCollectedNotes.size
-    val sortedCollectedNotes =
-        remember(visibleCollectedNotes, collectedSortOption, collectedCurrentLocation) {
-            sortCollectedNotes(visibleCollectedNotes, collectedSortOption, collectedCurrentLocation)
-        }
+    val sortedCollectedNotes = remember(visibleCollectedNotes, collectedSortOption, collectedCurrentLocation) {
+        sortCollectedNotes(visibleCollectedNotes, collectedSortOption, collectedCurrentLocation)
+    }
 
     LaunchedEffect(selectedExplorerGroupCode, sortedOtherDrops) {
         val current = otherDropsSelectedId
@@ -2872,8 +2368,7 @@ fun DropHereScreen(
                 businessDrops = repo.getBusinessDrops(userId!!)
             } catch (error: Exception) {
                 if (showBusinessDashboard) {
-                    businessDashboardError =
-                        error.localizedMessage ?: "Couldn't load your dashboard."
+                    businessDashboardError = error.localizedMessage ?: "Couldn't load your dashboard."
                 }
             } finally {
                 if (showBusinessDashboard) {
@@ -2911,180 +2406,85 @@ fun DropHereScreen(
         }
     }
 
-    var largeTopAppBarHeight by remember { mutableStateOf(0) }
-
-    val handleOtherDropClick: (Drop) -> Unit = { drop ->
-        otherDropsSelectedId = if (otherDropsSelectedId == drop.id) {
-            null
-        } else {
-            drop.id
-        }
-    }
-    val handleMyDropClick: (Drop) -> Unit = { drop ->
-        myDropsSelectedId = if (myDropsSelectedId == drop.id) {
-            null
-        } else {
-            drop.id
-        }
-    }
-    val handleCollectedNoteClick: (CollectedNote) -> Unit = { note ->
-        collectedHighlightedId = if (collectedHighlightedId == note.id) {
-            null
-        } else {
-            note.id
-        }
-    }
+    var topBarHeightPx by remember { mutableStateOf(0) }
+    var explorerNavigationHeightPx by remember { mutableStateOf(0) }
+    val density = LocalDensity.current
 
     Box(modifier = Modifier.fillMaxSize()) {
-        if (explorerHomeVisible) {
-            ExplorerDestinationMap(
-                modifier = Modifier.fillMaxSize(),
-                destination = effectiveExplorerDestination,
-                otherDrops = sortedOtherDrops,
-                otherDropSelectedId = otherDropsSelectedId,
-                otherDropLocation = otherDropsCurrentLocation,
-                notificationRadiusMeters = notificationRadius,
-                onOtherDropClick = handleOtherDropClick,
-                myDrops = sortedMyDrops,
-                myDropSelectedId = myDropsSelectedId,
-                myDropLocation = myDropsCurrentLocation,
-                onMyDropClick = handleMyDropClick,
-                collectedNotes = sortedCollectedNotes,
-                collectedHighlightedId = collectedHighlightedId,
-                collectedLocation = collectedCurrentLocation,
-                onCollectedNoteClick = handleCollectedNoteClick
-            )
-        }
-
-        Scaffold(
-            modifier = Modifier.fillMaxSize(),
-            containerColor = Color.Transparent,
-            topBar = {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(MaterialTheme.colorScheme.surface)
-                ) {
-                    LargeTopAppBar(
-                        modifier = Modifier.onGloballyPositioned { coordinates ->
-                            largeTopAppBarHeight = coordinates.size.height
+        Column(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .onSizeChanged { size -> topBarHeightPx = size.height }
+                .zIndex(1f)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.surface)
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    TopAppBar(
+                        modifier = Modifier.fillMaxWidth(),
+                        title = {
+                            GeoDropHeader(
+                                onShowTutorial = { showOnboardingHelp = true },
+                                onShowFaq = { showFaqDialog = true },
+                                onShowTerms = { termsPrivacyDialogTab = 0 },
+                                onShowPrivacy = { termsPrivacyDialogTab = 1 }
+                            )
                         },
-                        title = { GeoDropHeader() },
-                        actions = {
-                            Box {
-                                IconButton(
-                                    onClick = { headerInfoMenuExpanded = true }
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.Info,
-                                        contentDescription = stringResource(R.string.content_description_open_info_menu)
-                                    )
-                                }
-
-                                DropdownMenu(
-                                    expanded = headerInfoMenuExpanded,
-                                    onDismissRequest = { headerInfoMenuExpanded = false }
-                                ) {
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.info_menu_tutorial)) },
-                                        leadingIcon = {
-                                            Icon(
-                                                Icons.Rounded.PlayArrow,
-                                                contentDescription = null
-                                            )
-                                        },
-                                        onClick = {
-                                            headerInfoMenuExpanded = false
-                                            showOnboardingHelp = true
-                                        }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.info_menu_faq)) },
-                                        leadingIcon = {
-                                            Icon(
-                                                Icons.Rounded.Help,
-                                                contentDescription = null
-                                            )
-                                        },
-                                        onClick = {
-                                            headerInfoMenuExpanded = false
-                                            showFaqDialog = true
-                                        }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.info_menu_terms)) },
-                                        leadingIcon = {
-                                            Icon(
-                                                Icons.Rounded.Description,
-                                                contentDescription = null
-                                            )
-                                        },
-                                        onClick = {
-                                            headerInfoMenuExpanded = false
-                                            termsPrivacyDialogTab = 0
-                                        }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.info_menu_privacy)) },
-                                        leadingIcon = {
-                                            Icon(
-                                                Icons.Rounded.Lock,
-                                                contentDescription = null
-                                            )
-                                        },
-                                        onClick = {
-                                            headerInfoMenuExpanded = false
-                                            termsPrivacyDialogTab = 1
-                                        }
-                                    )
-                                }
-                            }
-                        },
-                        colors = TopAppBarDefaults.largeTopAppBarColors(
-                            containerColor = MaterialTheme.colorScheme.surface,
-                            scrolledContainerColor = MaterialTheme.colorScheme.surface,
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = Color.Transparent,
+                            scrolledContainerColor = Color.Transparent,
                             titleContentColor = MaterialTheme.colorScheme.onBackground,
                             actionIconContentColor = MaterialTheme.colorScheme.onBackground
                         )
                     )
 
                     if (currentHomeDestination == HomeDestination.Explorer && userMode != null) {
-                        val explorerDestinations = remember(hasExplorerAccount) {
-                            buildList {
-                                add(ExplorerDestination.Discover)
-                                if (hasExplorerAccount) {
-                                    add(ExplorerDestination.MyDrops)
-                                    add(ExplorerDestination.Collected)
-                                }
-                            }
-                        }
-                        NavigationBar(
-                            modifier = Modifier.fillMaxWidth(),
-                            containerColor = MaterialTheme.colorScheme.surface,
-                            contentColor = MaterialTheme.colorScheme.onSurface
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .onSizeChanged { size -> explorerNavigationHeightPx = size.height }
                         ) {
-                            explorerDestinations.forEach { destination ->
-                                val label = destination.navigationLabel()
-                                NavigationBarItem(
-                                    selected = destination == effectiveExplorerDestination,
-                                    onClick = { openExplorerDestination(destination) },
-                                    icon = {
-                                        Icon(
-                                            imageVector = destination.navigationIcon(),
-                                            contentDescription = label
-                                        )
-                                    },
-                                    label = { Text(label) }
-                                )
-                            }
+                            ExplorerDestinationTabs(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 20.dp)
+                                    .padding(bottom = 4.dp),
+                                current = effectiveExplorerDestination,
+                                onSelect = { destination -> openExplorerDestination(destination) },
+                                showMyDrops = hasExplorerAccount,
+                                showCollected = hasExplorerAccount
+                            )
                         }
-                    }
-
-                    if (isBusinessUser) {
-                        Divider()
+                    } else {
+                        SideEffect { explorerNavigationHeightPx = 0 }
                     }
                 }
-            },
+            }
+            if (isBusinessUser) {
+                Divider()
+            }
+        }
+
+        val celebrationTopPadding = with(density) {
+            (topBarHeightPx + explorerNavigationHeightPx).toDp()
+        } + 16.dp
+        PickupCelebrationBanner(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(horizontal = 24.dp)
+                .zIndex(2f)
+                .padding(top = celebrationTopPadding),
+            visible = pickupCelebrationVisible && pickupCelebrationDrop != null,
+            dropTitle = pickupCelebrationDrop?.displayTitle()
+        )
+
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
             bottomBar = {
                 NavigationBar(
                     modifier = Modifier.height(56.dp),
@@ -3111,12 +2511,7 @@ fun DropHereScreen(
                                     contentDescription = stringResource(R.string.content_description_account_options)
                                 )
                             },
-                            label = {
-                                Text(
-                                    stringResource(R.string.bottom_nav_profile),
-                                    modifier = labelSpacingModifier
-                                )
-                            },
+                            label = { Text(stringResource(R.string.bottom_nav_profile), modifier = labelSpacingModifier) },
                             alwaysShowLabel = true
                         )
 
@@ -3129,12 +2524,7 @@ fun DropHereScreen(
                                 UserMode.GUEST -> {
                                     DropdownMenuItem(
                                         text = { Text(stringResource(R.string.menu_sign_in_full_participation)) },
-                                        leadingIcon = {
-                                            Icon(
-                                                Icons.Rounded.CheckCircle,
-                                                contentDescription = null
-                                            )
-                                        },
+                                        leadingIcon = { Icon(Icons.Rounded.CheckCircle, contentDescription = null) },
                                         onClick = {
                                             showAccountMenu = false
                                             guestModeEnabled = false
@@ -3149,8 +2539,7 @@ fun DropHereScreen(
 
                                 UserMode.SIGNED_IN -> {
                                     if (!isBusinessUser) {
-                                        val explorerUsername =
-                                            userProfile?.username?.takeIf { it.isNotBlank() }
+                                        val explorerUsername = userProfile?.username?.takeIf { it.isNotBlank() }
                                         DropdownMenuItem(
                                             text = {
                                                 Text(
@@ -3162,18 +2551,12 @@ fun DropHereScreen(
                                                     } ?: stringResource(R.string.menu_set_username)
                                                 )
                                             },
-                                            leadingIcon = {
-                                                Icon(
-                                                    Icons.Rounded.Edit,
-                                                    contentDescription = null
-                                                )
-                                            },
+                                            leadingIcon = { Icon(Icons.Rounded.Edit, contentDescription = null) },
                                             onClick = {
                                                 showAccountMenu = false
                                                 explorerProfileError = null
                                                 explorerProfileSubmitting = false
-                                                explorerUsernameField =
-                                                    TextFieldValue(explorerUsername.orEmpty())
+                                                explorerUsernameField = TextFieldValue(explorerUsername.orEmpty())
                                                 showExplorerProfile = true
                                             }
                                         )
@@ -3192,12 +2575,7 @@ fun DropHereScreen(
                                             )
                                         )
                                     },
-                                    leadingIcon = {
-                                        Icon(
-                                            Icons.Rounded.Map,
-                                            contentDescription = null
-                                        )
-                                    },
+                                    leadingIcon = { Icon(Icons.Rounded.Map, contentDescription = null) },
                                     onClick = {
                                         showAccountMenu = false
                                         showNotificationRadiusDialog = true
@@ -3216,12 +2594,7 @@ fun DropHereScreen(
                                                 )
                                             )
                                         },
-                                        leadingIcon = {
-                                            Icon(
-                                                Icons.Rounded.Flag,
-                                                contentDescription = null
-                                            )
-                                        },
+                                        leadingIcon = { Icon(Icons.Rounded.Flag, contentDescription = null) },
                                         onClick = {
                                             showAccountMenu = false
                                             nsfwUpdateError = null
@@ -3237,12 +2610,7 @@ fun DropHereScreen(
                                             )
                                         )
                                     },
-                                    leadingIcon = {
-                                        Icon(
-                                            Icons.Rounded.Logout,
-                                            contentDescription = null
-                                        )
-                                    },
+                                    leadingIcon = { Icon(Icons.Rounded.Logout, contentDescription = null) },
                                     enabled = !signingOut,
                                     onClick = { handleSignOut() }
                                 )
@@ -3286,10 +2654,7 @@ fun DropHereScreen(
                             selected = showGroupMenu,
                             onClick = {
                                 if (userMode == UserMode.GUEST) {
-                                    snackbar.showMessage(
-                                        scope,
-                                        participationRestriction("manage groups")
-                                    )
+                                    snackbar.showMessage(scope, participationRestriction("manage groups"))
                                     return@NavigationBarItem
                                 }
                                 showAccountMenu = false
@@ -3301,12 +2666,7 @@ fun DropHereScreen(
                                     contentDescription = stringResource(R.string.manage_groups)
                                 )
                             },
-                            label = {
-                                Text(
-                                    stringResource(R.string.manage_groups),
-                                    modifier = labelSpacingModifier
-                                )
-                            },
+                            label = { Text(stringResource(R.string.manage_groups), modifier = labelSpacingModifier) },
                             alwaysShowLabel = true
                         )
 
@@ -3451,183 +2811,128 @@ fun DropHereScreen(
             val bottomPadding = innerPadding.calculateBottomPadding()
             val startPadding = innerPadding.calculateStartPadding(layoutDirection)
             val endPadding = innerPadding.calculateEndPadding(layoutDirection)
-            val navAwareTopPadding = topPadding
-            val mapAwareTopPadding = topPadding
+            val density = LocalDensity.current
+            val topPaddingPx = with(density) { topPadding.toPx() }
+            val headerHeightPx = (topBarHeightPx - explorerNavigationHeightPx).coerceAtLeast(0)
+            val navAwareTopPaddingPx = max(topPaddingPx, headerHeightPx.toFloat())
+            val navAwareTopPadding = with(density) { navAwareTopPaddingPx.toDp() }
+            val mapAwareTopPaddingPx = max(navAwareTopPaddingPx, topBarHeightPx.toFloat())
+            val mapAwareTopPadding = with(density) { mapAwareTopPaddingPx.toDp() }
 
-            val largeTopAppBarHeightDp = with(LocalDensity.current) {
-                largeTopAppBarHeight.toDp()
-            }
-
-            Box(modifier = Modifier.fillMaxSize()) {
-                PickupCelebrationBanner(
+            if (isBusinessUser && currentHomeDestination == HomeDestination.Business) {
+                BusinessHomeScreen(
                     modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .zIndex(2f)
-                        .padding(horizontal = 24.dp)
-                        .padding(top = largeTopAppBarHeightDp + 16.dp),
-                    visible = pickupCelebrationVisible && pickupCelebrationDrop != null,
-                    dropTitle = pickupCelebrationDrop?.displayTitle()
+                        .fillMaxSize()
+                        .padding(
+                            start = startPadding,
+                            top = navAwareTopPadding,
+                            end = endPadding,
+                            bottom = bottomPadding
+                        ),
+                    businessName = userProfile?.businessName,
+                    businessCategories = businessCategories,
+                    metrics = businessHomeMetrics,
+                    onViewDashboard = {
+                        if (!userProfileLoading) {
+                            showBusinessDashboard = true
+                        }
+                    },
+                    onUpdateBusinessProfile = { showBusinessOnboarding = true },
+                    onViewMyDrops = { openExplorerDestination(ExplorerDestination.MyDrops) }
                 )
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(
+                            start = startPadding,
+                            end = endPadding,
+                            bottom = bottomPadding
+                        )
+                ) {
+                    when (effectiveExplorerDestination) {
+                        ExplorerDestination.Discover -> {
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(20.dp)
+                            ) {
+                                if (readOnlyParticipationMessage != null) {
+                                    Spacer(Modifier.height(navAwareTopPadding))
+                                    Box(Modifier.padding(horizontal = 20.dp)) {
+                                        ReadOnlyModeCard(message = readOnlyParticipationMessage)
+                                    }
+                                }
 
-                if (isBusinessUser && currentHomeDestination == HomeDestination.Business) {
-                    BusinessHomeScreen(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(
-                                start = startPadding,
-                                top = navAwareTopPadding,
-                                end = endPadding,
-                                bottom = bottomPadding
-                            ),
-                        businessName = userProfile?.businessName,
-                        businessCategories = businessCategories,
-                        metrics = businessHomeMetrics,
-                        onViewDashboard = {
-                            if (!userProfileLoading) {
-                                showBusinessDashboard = true
-                            }
-                        },
-                        onUpdateBusinessProfile = { showBusinessOnboarding = true },
-                        onViewMyDrops = { openExplorerDestination(ExplorerDestination.MyDrops) }
-                    )
-                } else if (currentHomeDestination == HomeDestination.Explorer) {
-                    ModalBottomSheet(
-                        onDismissRequest = {},
-                        sheetState = explorerBottomSheetState,
-                        scrimColor = Color.Transparent
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(
-                                    start = startPadding,
-                                    end = endPadding,
-                                    bottom = bottomPadding
-                                )
-                        ) {
-                            when (effectiveExplorerDestination) {
-                                ExplorerDestination.Discover -> {
-                                    val explorerSearchToggles = listOf(
-                                        ExplorerSearchToggle(
-                                            key = "map_preview",
-                                            label = "Map preview",
-                                            checked = showOtherDropsMap,
-                                            onCheckedChange = { isChecked ->
-                                                showOtherDropsMap = isChecked
-                                                if (!isChecked) {
-                                                    otherDropsMapPreviewExpanded = false
-                                                }
-                                            },
-                                            icon = Icons.Rounded.Map,
-                                            checkedDescription = "Hide map preview in search results",
-                                            uncheckedDescription = "Show map preview in search results"
-                                        )
-                                    )
-                                    Column(
+                                Column(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxWidth(),
+                                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                                ) {
+                                    Box(
                                         modifier = Modifier
                                             .weight(1f)
-                                            .fillMaxWidth(),
-                                        verticalArrangement = Arrangement.spacedBy(20.dp)
+                                            .fillMaxWidth()
                                     ) {
-                                        if (readOnlyParticipationMessage != null) {
-                                            Spacer(Modifier.height(navAwareTopPadding))
-                                            Box(Modifier.padding(horizontal = 20.dp)) {
-                                                ReadOnlyModeCard(message = readOnlyParticipationMessage)
-                                            }
-                                        }
-
-                                        Column(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .fillMaxWidth(),
-                                            verticalArrangement = Arrangement.spacedBy(16.dp)
-                                        ) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .weight(1f)
-                                                    .fillMaxWidth()
-                                            ) {
-                                                OtherDropsExplorerSection(
-                                                    modifier = Modifier.fillMaxSize(),
-                                                    topContentPadding = mapAwareTopPadding,
-                                                    loading = otherDropsLoading,
-                                                    refreshing = otherDropsRefreshing,
-                                                    drops = sortedOtherDrops,
-                                                    currentLocation = otherDropsCurrentLocation,
-                                                    notificationRadiusMeters = notificationRadius,
-                                                    error = otherDropsError,
-                                                    emptyMessage = selectedExplorerGroupCode?.let { code ->
-                                                        "No drops for $code yet."
-                                                    },
-                                                    selectedId = otherDropsSelectedId,
-                                                    onSelect = { drop ->
-                                                        otherDropsSelectedId =
-                                                            if (otherDropsSelectedId == drop.id) {
-                                                                null
-                                                            } else {
-                                                                drop.id
-                                                            }
-                                                    },
-                                                    onPickUp = { drop -> pickUpDrop(drop) },
-                                                    currentUserId = currentUserId,
-                                                    votingDropIds = votingDropIds,
-                                                    collectedDropIds = collectedDropIds,
-                                                    canCollectDrops = canParticipate,
-                                                    collectRestrictionMessage = when (userMode) {
-                                                        UserMode.GUEST -> "Preview drops nearby, then create an account to pick them up when you're ready."
-                                                        UserMode.SIGNED_IN -> null
-                                                    },
-                                                    sortOption = otherDropsSortOption,
-                                                    sortOptions = dropSortOptions,
-                                                    onSortOptionChange = { option ->
-                                                        otherDropsSortKey = option.name
-                                                    },
-                                                    explorerGroups = explorerGroups,
-                                                    selectedExplorerGroupCode = selectedExplorerGroupCode,
-                                                    onSelectExplorerGroup = { code ->
-                                                        selectedExplorerGroupCode = code
-                                                    },
-                                                    searchToggles = explorerSearchToggles,
-                                                    canLikeDrops = canParticipate,
-                                                    likeRestrictionMessage = if (canParticipate) null else participationRestriction(
-                                                        "react to drops"
-                                                    ),
-                                                    onLike = { drop, status ->
-                                                        submitLike(
-                                                            drop,
-                                                            status
-                                                        )
-                                                    },
-                                                    onReport = report@{ drop ->
-                                                        if (browseReportProcessing) return@report
-                                                        val userId = currentUserId
-                                                        if (userId.isNullOrBlank()) {
-                                                            Toast.makeText(
-                                                                ctx,
-                                                                "Sign in to report drops.",
-                                                                Toast.LENGTH_SHORT
-                                                            ).show()
-                                                            return@report
-                                                        }
-                                                        if (drop.createdBy == userId) {
-                                                            Toast.makeText(
-                                                                ctx,
-                                                                "You can't report your own drop.",
-                                                                Toast.LENGTH_SHORT
-                                                            ).show()
-                                                            return@report
-                                                        }
-                                                        val hasCollected =
-                                                            collectedDropIds.contains(drop.id)
-                                                        val withinPickupRange =
-                                                            otherDropsCurrentLocation?.let { location ->
-                                                                distanceBetweenMeters(
-                                                                    location.latitude,
-                                                                    location.longitude,
-                                                                    drop.lat,
-                                                                    drop.lng
-                                                                ) <= DROP_PICKUP_RADIUS_METERS
-                                                            } ?: false
+                                        OtherDropsExplorerSection(
+                                            modifier = Modifier.fillMaxSize(),
+                                            topContentPadding = mapAwareTopPadding,
+                                            loading = otherDropsLoading,
+                                            refreshing = otherDropsRefreshing,
+                                            drops = sortedOtherDrops,
+                                            currentLocation = otherDropsCurrentLocation,
+                                            notificationRadiusMeters = notificationRadius,
+                                            error = otherDropsError,
+                                            emptyMessage = selectedExplorerGroupCode?.let { code ->
+                                                "No drops for $code yet."
+                                            },
+                                            selectedId = otherDropsSelectedId,
+                                            onSelect = { drop ->
+                                                otherDropsSelectedId = if (otherDropsSelectedId == drop.id) {
+                                                    null
+                                                } else {
+                                                    drop.id
+                                                }
+                                            },
+                                            onPickUp = { drop -> pickUpDrop(drop) },
+                                            currentUserId = currentUserId,
+                                            votingDropIds = votingDropIds,
+                                            collectedDropIds = collectedDropIds,
+                                            canCollectDrops = canParticipate,
+                                            collectRestrictionMessage = when (userMode) {
+                                                UserMode.GUEST -> "Preview drops nearby, then create an account to pick them up when you're ready."
+                                                UserMode.SIGNED_IN -> null
+                                            },
+                                            sortOption = otherDropsSortOption,
+                                            sortOptions = dropSortOptions,
+                                            onSortOptionChange = { option ->
+                                                otherDropsSortKey = option.name
+                                            },
+                                            canLikeDrops = canParticipate,
+                                            likeRestrictionMessage = if (canParticipate) null else participationRestriction("react to drops"),
+                                            onLike = { drop, status -> submitLike(drop, status) },
+                                            onReport = report@{ drop ->
+                                                if (browseReportProcessing) return@report
+                                                val userId = currentUserId
+                                                if (userId.isNullOrBlank()) {
+                                                    Toast.makeText(ctx, "Sign in to report drops.", Toast.LENGTH_SHORT).show()
+                                                    return@report
+                                                }
+                                                if (drop.createdBy == userId) {
+                                                    Toast.makeText(ctx, "You can't report your own drop.", Toast.LENGTH_SHORT).show()
+                                                    return@report
+                                                }
+                                                val hasCollected = collectedDropIds.contains(drop.id)
+                                                val withinPickupRange = otherDropsCurrentLocation?.let { location ->
+                                                    distanceBetweenMeters(
+                                                        location.latitude,
+                                                        location.longitude,
+                                                        drop.lat,
+                                                        drop.lng
+                                                    ) <= DROP_PICKUP_RADIUS_METERS
+                                                } ?: false
 //                                            if (!hasCollected && !withinPickupRange) {
 //                                                val radiusMeters = DROP_PICKUP_RADIUS_METERS.roundToInt()
 //                                                Toast.makeText(
@@ -3637,8338 +2942,742 @@ fun DropHereScreen(
 //                                                ).show()
 //                                                return@report
 //                                            }
-                                                        if (drop.reportedBy.containsKey(userId)) {
-                                                            Toast.makeText(
-                                                                ctx,
-                                                                "You've already reported this drop.",
-                                                                Toast.LENGTH_SHORT
-                                                            ).show()
-                                                            return@report
-                                                        }
-                                                        browseReportTarget =
-                                                            drop.toReportableDrop(source = REPORT_SOURCE_BROWSE_MAP)
-                                                        browseReportSelectedReasons = emptySet()
-                                                        browseReportError = null
-                                                        browseReportDialogOpen = true
-                                                    },
-                                                    reportingDropId = browseReportingDropId,
-                                                    dismissedBrowseDropIds = dismissedBrowseDropIds,
-                                                    snackbar = snackbar,
-                                                    scope = scope,
-                                                    onRefresh = { otherDropsRefreshToken += 1 },
-                                                    listState = otherDropsListState,
-                                                    mapPreviewBitmap = otherDropsMapPreviewSnapshot,
-                                                    mapCameraPosition = otherDropsMapPreviewCamera,
-                                                    onMapSnapshotChange = { bitmap, position ->
-                                                        otherDropsMapPreviewSnapshot = bitmap
-                                                        otherDropsMapPreviewCamera = position
-                                                    },
-                                                    mapPreviewExpanded = otherDropsMapPreviewExpanded,
-                                                    onMapPreviewExpandedChange = { expanded ->
-                                                        otherDropsMapPreviewExpanded = expanded
-                                                    },
-                                                    showMapPreview = showOtherDropsMap,
-                                                    onOpenMapView = {
-                                                        otherDropsMapPreviewExpanded = true
-                                                        showDiscoverMapOverlay = true
-                                                    }
-                                                )
-                                            }
-
-                                            if (showDiscoverMapOverlay) {
-                                                ExplorerFullScreenMapDialog(
-                                                    title = "Nearby drops map",
-                                                    onDismiss = { showDiscoverMapOverlay = false }
-                                                ) {
-                                                    ExplorerDestinationMap(
-                                                        modifier = Modifier.fillMaxSize(),
-                                                        destination = ExplorerDestination.Discover,
-                                                        otherDrops = sortedOtherDrops,
-                                                        otherDropSelectedId = otherDropsSelectedId,
-                                                        otherDropLocation = otherDropsCurrentLocation,
-                                                        notificationRadiusMeters = notificationRadius,
-                                                        onOtherDropClick = { drop ->
-                                                            otherDropsSelectedId =
-                                                                if (otherDropsSelectedId == drop.id) {
-                                                                    null
-                                                                } else {
-                                                                    drop.id
-                                                                }
-                                                        },
-                                                        myDrops = sortedMyDrops,
-                                                        myDropSelectedId = myDropsSelectedId,
-                                                        myDropLocation = myDropsCurrentLocation,
-                                                        onMyDropClick = handleMyDropClick,
-                                                        collectedNotes = sortedCollectedNotes,
-                                                        collectedHighlightedId = collectedHighlightedId,
-                                                        collectedLocation = collectedCurrentLocation,
-                                                        onCollectedNoteClick = handleCollectedNoteClick,
-                                                        onSnapshotUpdate = { bitmap, position ->
-                                                            otherDropsMapPreviewSnapshot = bitmap
-                                                            otherDropsMapPreviewCamera = position
-                                                        }
-                                                    )
+                                                if (drop.reportedBy.containsKey(userId)) {
+                                                    Toast.makeText(ctx, "You've already reported this drop.", Toast.LENGTH_SHORT).show()
+                                                    return@report
+                                                }
+                                                browseReportTarget = drop.toReportableDrop(source = REPORT_SOURCE_BROWSE_MAP)
+                                                browseReportSelectedReasons = emptySet()
+                                                browseReportError = null
+                                                browseReportDialogOpen = true
+                                            },
+                                            reportingDropId = browseReportingDropId,
+                                            dismissedBrowseDropIds = dismissedBrowseDropIds,
+                                            snackbar = snackbar,
+                                            scope = scope,
+                                            onRefresh = { otherDropsRefreshToken += 1 },
+                                            listState = otherDropsListState,
+                                            mapWeight = otherDropsMapWeight,
+                                            onMapWeightChange = { weight ->
+                                                val coerced = weight.coerceIn(MAP_LIST_MIN_WEIGHT, MAP_LIST_MAX_WEIGHT)
+                                                if (coerced != otherDropsMapWeight) {
+                                                    otherDropsMapWeight = coerced
                                                 }
                                             }
-                                        }
+                                        )
                                     }
                                 }
+                            }
+                        }
 
-                                ExplorerDestination.MyDrops -> {
-                                    fun performDropDeletion(drop: Drop) {
-                                        if (drop.id.isBlank()) {
-                                            snackbar.showMessage(
-                                                scope,
-                                                "Unable to delete this drop."
-                                            )
-                                            return
+                        ExplorerDestination.MyDrops -> {
+                            fun performDropDeletion(drop: Drop) {
+                                if (drop.id.isBlank()) {
+                                    snackbar.showMessage(scope, "Unable to delete this drop.")
+                                    return
+                                }
+
+                                myDropsDeletingId = drop.id
+                                scope.launch {
+                                    try {
+                                        repo.deleteDrop(drop.id)
+                                        val updated = myDrops.filterNot { it.id == drop.id }
+                                        myDrops = updated
+                                        myDropCountHint = updated.size
+                                        myDropPendingReviewHint = updated.count { it.reportCount > 0 }
+                                        if (myDropsSelectedId == drop.id) {
+                                            myDropsSelectedId = updated.firstOrNull()?.id
                                         }
+                                        snackbar.showMessage(scope, "Drop deleted.")
+                                    } catch (e: Exception) {
+                                        snackbar.showMessage(scope, "Error: ${'$'}{e.message}")
+                                    } finally {
+                                        myDropsDeletingId = null
+                                    }
+                                }
+                            }
 
-                                        myDropsDeletingId = drop.id
-                                        scope.launch {
-                                            try {
-                                                repo.deleteDrop(drop.id)
-                                                val updated = myDrops.filterNot { it.id == drop.id }
-                                                myDrops = updated
-                                                myDropCountHint = updated.size
-                                                myDropPendingReviewHint =
-                                                    updated.count { it.reportCount > 0 }
-                                                if (myDropsSelectedId == drop.id) {
-                                                    myDropsSelectedId = updated.firstOrNull()?.id
-                                                }
-                                                snackbar.showMessage(scope, "Drop deleted.")
-                                            } catch (e: Exception) {
-                                                snackbar.showMessage(
-                                                    scope,
-                                                    "Error: ${'$'}{e.message}"
-                                                )
-                                            } finally {
-                                                myDropsDeletingId = null
+                            val pendingDeletion = myDropsPendingDelete
+                            if (pendingDeletion != null) {
+                                AlertDialog(
+                                    onDismissRequest = { myDropsPendingDelete = null },
+                                    icon = { Icon(Icons.Filled.Delete, contentDescription = null) },
+                                    title = { Text("Delete drop?") },
+                                    text = { Text("Are you sure you want to delete this drop?") },
+                                    confirmButton = {
+                                        TextButton(
+                                            onClick = {
+                                                myDropsPendingDelete = null
+                                                performDropDeletion(pendingDeletion)
                                             }
+                                        ) {
+                                            Text("Delete")
+                                        }
+                                    },
+                                    dismissButton = {
+                                        TextButton(onClick = { myDropsPendingDelete = null }) {
+                                            Text("Cancel")
                                         }
                                     }
+                                )
+                            }
 
-                                    val pendingDeletion = myDropsPendingDelete
-                                    if (pendingDeletion != null) {
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxWidth()
+                                ) {
+                                    MyDropsContent(
+                                        modifier = Modifier.fillMaxSize(),
+                                        topContentPadding = mapAwareTopPadding,
+                                        contentPadding = PaddingValues(bottom = 0.dp),
+                                        loading = myDropsLoading,
+                                        drops = sortedMyDrops,
+                                        currentLocation = myDropsCurrentLocation,
+                                        deletingId = myDropsDeletingId,
+                                        error = myDropsError,
+                                        emptyMessage = selectedExplorerGroupCode?.let { code ->
+                                            "You haven't dropped anything for $code yet."
+                                        },
+                                        selectedId = myDropsSelectedId,
+                                        sortOption = myDropsSortOption,
+                                        sortOptions = dropSortOptions,
+                                        onSortOptionChange = { option ->
+                                            myDropsSortKey = option.name
+                                        },
+                                        onSelect = { drop ->
+                                            myDropsSelectedId = if (myDropsSelectedId == drop.id) {
+                                                null
+                                            } else {
+                                                drop.id
+                                            }
+                                        },
+                                        onRetry = { myDropsRefreshToken += 1 },
+                                        onView = { drop ->
+                                            val intent = Intent(ctx, DropDetailActivity::class.java).apply {
+                                                putExtra("dropId", drop.id)
+                                                if (drop.text.isNotBlank()) putExtra("dropText", drop.text)
+                                                drop.description?.takeIf { it.isNotBlank() }?.let { putExtra("dropDescription", it) }
+                                                putExtra("dropContentType", drop.contentType.name)
+                                                putExtra("dropLat", drop.lat)
+                                                putExtra("dropLng", drop.lng)
+                                                putExtra("dropCreatedAt", drop.createdAt)
+                                                drop.groupCode?.let { putExtra("dropGroupCode", it) }
+                                                drop.mediaUrl?.let { putExtra("dropMediaUrl", it) }
+                                                drop.mediaMimeType?.let { putExtra("dropMediaMimeType", it) }
+                                                drop.mediaData?.let { putExtra("dropMediaData", it) }
+                                                putExtra("dropType", drop.dropType.name)
+                                                drop.businessName?.let { putExtra("dropBusinessName", it) }
+                                                drop.businessId?.let { putExtra("dropBusinessId", it) }
+                                                drop.redemptionLimit?.let { putExtra("dropRedemptionLimit", it) }
+                                                putExtra("dropRedemptionCount", drop.redemptionCount)
+                                                putExtra("dropLikeCount", drop.likeCount)
+                                                putExtra("dropDislikeCount", drop.dislikeCount)
+                                                val userId = currentUserId
+                                                when (drop.userLikeStatus(userId)) {
+                                                    DropLikeStatus.LIKED -> putExtra("dropIsLiked", true)
+                                                    DropLikeStatus.DISLIKED -> putExtra("dropIsDisliked", true)
+                                                    DropLikeStatus.NONE -> Unit
+                                                }
+                                                putExtra("dropIsNsfw", drop.isNsfw)
+                                                if (drop.nsfwLabels.isNotEmpty()) {
+                                                    putStringArrayListExtra("dropNsfwLabels", ArrayList(drop.nsfwLabels))
+                                                }
+                                                drop.decayDays?.let { putExtra("dropDecayDays", it) }
+                                            }
+                                            ctx.startActivity(intent)
+                                        },
+                                        onDelete = { drop ->
+                                            if (drop.id.isBlank()) {
+                                                snackbar.showMessage(scope, "Unable to delete this drop.")
+                                            } else {
+                                                myDropsPendingDelete = drop
+                                            }
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
+                        ExplorerDestination.Collected -> {
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxWidth()
+                                ) {
+                                    val isSignedIn = !currentUserId.isNullOrBlank()
+                                    val collectedLikeRestrictionMessage = when {
+                                        !isSignedIn -> "Sign in to react to drops."
+                                        !canParticipate -> participationRestriction("react to drops")
+                                        else -> null
+                                    }
+                                    val pendingRemoval = collectedPendingRemove
+                                    if (pendingRemoval != null) {
                                         AlertDialog(
-                                            onDismissRequest = { myDropsPendingDelete = null },
-                                            icon = {
-                                                Icon(
-                                                    Icons.Filled.Delete,
-                                                    contentDescription = null
-                                                )
-                                            },
-                                            title = { Text("Delete drop?") },
-                                            text = { Text("Are you sure you want to delete this drop?") },
+                                            onDismissRequest = { collectedPendingRemove = null },
+                                            icon = { Icon(Icons.Filled.Delete, contentDescription = null) },
+                                            title = { Text("Delete saved drop?") },
+                                            text = { Text("Are you sure you want to delete this saved drop?") },
                                             confirmButton = {
                                                 TextButton(
                                                     onClick = {
-                                                        myDropsPendingDelete = null
-                                                        performDropDeletion(pendingDeletion)
+                                                        noteInventory.removeCollected(pendingRemoval.id)
+                                                        collectedNotes = noteInventory.getCollectedNotes()
+                                                        collectedPendingRemove = null
                                                     }
                                                 ) {
                                                     Text("Delete")
                                                 }
                                             },
                                             dismissButton = {
-                                                TextButton(onClick = {
-                                                    myDropsPendingDelete = null
-                                                }) {
+                                                TextButton(onClick = { collectedPendingRemove = null }) {
                                                     Text("Cancel")
                                                 }
                                             }
                                         )
                                     }
 
-                                    Column(
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .fillMaxWidth(),
-                                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .fillMaxWidth()
-                                        ) {
-                                            MyDropsContent(
-                                                modifier = Modifier.fillMaxSize(),
-                                                topContentPadding = mapAwareTopPadding,
-                                                contentPadding = PaddingValues(bottom = 0.dp),
-                                                loading = myDropsLoading,
-                                                drops = sortedMyDrops,
-                                                currentLocation = myDropsCurrentLocation,
-                                                deletingId = myDropsDeletingId,
-                                                error = myDropsError,
-                                                emptyMessage = selectedExplorerGroupCode?.let { code ->
-                                                    "You haven't dropped anything for $code yet."
-                                                },
-                                                selectedId = myDropsSelectedId,
-                                                sortOption = myDropsSortOption,
-                                                sortOptions = myDropsSortOptions,
-                                                explorerGroups = explorerGroups,
-                                                selectedExplorerGroupCode = selectedExplorerGroupCode,
-                                                onSelectExplorerGroup = { code ->
-                                                    selectedExplorerGroupCode = code
-                                                },
-                                                mapPreviewBitmap = myDropsMapPreviewSnapshot,
-                                                mapPreviewExpanded = myDropsMapPreviewExpanded,
-                                                mapCameraPosition = myDropsMapPreviewCamera,
-                                                onMapSnapshotChange = { bitmap, position ->
-                                                    myDropsMapPreviewSnapshot = bitmap
-                                                    myDropsMapPreviewCamera = position
-                                                },
-                                                onMapPreviewExpandedChange = { expanded ->
-                                                    myDropsMapPreviewExpanded = expanded
-                                                },
-                                                onOpenMap = {
-                                                    myDropsMapPreviewExpanded = true
-                                                    showMyDropsMapOverlay = true
-                                                },
-                                                onSortOptionChange = { option ->
-                                                    myDropsSortKey = option.name
-                                                },
-                                                onSelect = { drop ->
-                                                    myDropsSelectedId =
-                                                        if (myDropsSelectedId == drop.id) {
-                                                            null
-                                                        } else {
-                                                            drop.id
-                                                        }
-                                                },
-                                                onRetry = { myDropsRefreshToken += 1 },
-                                                onView = { drop ->
-                                                    val intent = Intent(
-                                                        ctx,
-                                                        DropDetailActivity::class.java
-                                                    ).apply {
-                                                        putExtra("dropId", drop.id)
-                                                        if (drop.text.isNotBlank()) putExtra(
-                                                            "dropText",
-                                                            drop.text
-                                                        )
-                                                        drop.description?.takeIf { it.isNotBlank() }
-                                                            ?.let {
-                                                                putExtra(
-                                                                    "dropDescription",
-                                                                    it
-                                                                )
-                                                            }
-                                                        putExtra(
-                                                            "dropContentType",
-                                                            drop.contentType.name
-                                                        )
-                                                        putExtra("dropLat", drop.lat)
-                                                        putExtra("dropLng", drop.lng)
-                                                        putExtra("dropCreatedAt", drop.createdAt)
-                                                        drop.groupCode?.let {
-                                                            putExtra(
-                                                                "dropGroupCode",
-                                                                it
-                                                            )
-                                                        }
-                                                        drop.mediaUrl?.let {
-                                                            putExtra(
-                                                                "dropMediaUrl",
-                                                                it
-                                                            )
-                                                        }
-                                                        drop.mediaMimeType?.let {
-                                                            putExtra(
-                                                                "dropMediaMimeType",
-                                                                it
-                                                            )
-                                                        }
-                                                        drop.mediaData?.let {
-                                                            putExtra(
-                                                                "dropMediaData",
-                                                                it
-                                                            )
-                                                        }
-                                                        putExtra("dropType", drop.dropType.name)
-                                                        drop.businessName?.let {
-                                                            putExtra(
-                                                                "dropBusinessName",
-                                                                it
-                                                            )
-                                                        }
-                                                        drop.businessId?.let {
-                                                            putExtra(
-                                                                "dropBusinessId",
-                                                                it
-                                                            )
-                                                        }
-                                                        drop.redemptionLimit?.let {
-                                                            putExtra(
-                                                                "dropRedemptionLimit",
-                                                                it
-                                                            )
-                                                        }
-                                                        putExtra(
-                                                            "dropRedemptionCount",
-                                                            drop.redemptionCount
-                                                        )
-                                                        putExtra("dropLikeCount", drop.likeCount)
-                                                        putExtra(
-                                                            "dropDislikeCount",
-                                                            drop.dislikeCount
-                                                        )
-                                                        val userId = currentUserId
-                                                        when (drop.userLikeStatus(userId)) {
-                                                            DropLikeStatus.LIKED -> putExtra(
-                                                                "dropIsLiked",
-                                                                true
-                                                            )
-
-                                                            DropLikeStatus.DISLIKED -> putExtra(
-                                                                "dropIsDisliked",
-                                                                true
-                                                            )
-
-                                                            DropLikeStatus.NONE -> Unit
-                                                        }
-                                                        putExtra("dropIsNsfw", drop.isNsfw)
-                                                        if (drop.nsfwLabels.isNotEmpty()) {
-                                                            putStringArrayListExtra(
-                                                                "dropNsfwLabels",
-                                                                ArrayList(drop.nsfwLabels)
-                                                            )
-                                                        }
-                                                        drop.decayDays?.let {
-                                                            putExtra(
-                                                                "dropDecayDays",
-                                                                it
-                                                            )
-                                                        }
-                                                    }
-                                                    ctx.startActivity(intent)
-                                                },
-                                                onDelete = { drop ->
-                                                    if (drop.id.isBlank()) {
-                                                        snackbar.showMessage(
-                                                            scope,
-                                                            "Unable to delete this drop."
-                                                        )
-                                                    } else {
-                                                        myDropsPendingDelete = drop
-                                                    }
-                                                }
-                                            )
-                                        }
-
-                                        if (showMyDropsMapOverlay) {
-                                            ExplorerFullScreenMapDialog(
-                                                title = "Your drops map",
-                                                onDismiss = { showMyDropsMapOverlay = false }
-                                            ) {
-                                                ExplorerDestinationMap(
-                                                    modifier = Modifier.fillMaxSize(),
-                                                    destination = ExplorerDestination.MyDrops,
-                                                    otherDrops = sortedOtherDrops,
-                                                    otherDropSelectedId = otherDropsSelectedId,
-                                                    otherDropLocation = otherDropsCurrentLocation,
-                                                    notificationRadiusMeters = notificationRadius,
-                                                    onOtherDropClick = handleOtherDropClick,
-                                                    myDrops = sortedMyDrops,
-                                                    myDropSelectedId = myDropsSelectedId,
-                                                    myDropLocation = myDropsCurrentLocation,
-                                                    onMyDropClick = { drop ->
-                                                        myDropsSelectedId =
-                                                            if (myDropsSelectedId == drop.id) {
-                                                                null
-                                                            } else {
-                                                                drop.id
-                                                            }
-                                                    },
-                                                    collectedNotes = sortedCollectedNotes,
-                                                    collectedHighlightedId = collectedHighlightedId,
-                                                    collectedLocation = collectedCurrentLocation,
-                                                    onCollectedNoteClick = handleCollectedNoteClick,
-                                                    onSnapshotUpdate = { bitmap, position ->
-                                                        myDropsMapPreviewSnapshot = bitmap
-                                                        myDropsMapPreviewCamera = position
-                                                    }
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-
-                                ExplorerDestination.Collected -> {
-                                    LaunchedEffect(sortedCollectedNotes) {
-                                        val current = collectedHighlightedId
-                                        if (current != null && sortedCollectedNotes.none { note -> note.id == current }) {
-                                            collectedHighlightedId = null
-                                        }
-                                    }
-
-                                    Column(
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .fillMaxWidth(),
-                                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .fillMaxWidth()
-                                        ) {
-                                            val isSignedIn = !currentUserId.isNullOrBlank()
-                                            val collectedLikeRestrictionMessage = when {
-                                                !isSignedIn -> "Sign in to react to drops."
-                                                !canParticipate -> participationRestriction("react to drops")
-                                                else -> null
-                                            }
-                                            val pendingRemoval = collectedPendingRemove
-                                            if (pendingRemoval != null) {
-                                                AlertDialog(
-                                                    onDismissRequest = {
-                                                        collectedPendingRemove = null
-                                                    },
-                                                    icon = {
-                                                        Icon(
-                                                            Icons.Filled.Delete,
-                                                            contentDescription = null
-                                                        )
-                                                    },
-                                                    title = { Text("Delete saved drop?") },
-                                                    text = { Text("Are you sure you want to delete this saved drop?") },
-                                                    confirmButton = {
-                                                        TextButton(
-                                                            onClick = {
-                                                                noteInventory.removeCollected(
-                                                                    pendingRemoval.id
-                                                                )
-                                                                collectedNotes =
-                                                                    noteInventory.getCollectedNotes()
-                                                                collectedPendingRemove = null
-                                                            }
-                                                        ) {
-                                                            Text("Delete")
-                                                        }
-                                                    },
-                                                    dismissButton = {
-                                                        TextButton(onClick = {
-                                                            collectedPendingRemove = null
-                                                        }) {
-                                                            Text("Cancel")
-                                                        }
-                                                    }
-                                                )
-                                            }
-
-                                            CollectedDropsContent(
-                                                modifier = Modifier.fillMaxSize(),
-                                                topContentPadding = mapAwareTopPadding,
-                                                contentPadding = PaddingValues(bottom = 0.dp),
-                                                notes = sortedCollectedNotes,
-                                                highlightedId = collectedHighlightedId,
-                                                onHighlightedIdChange = { id ->
-                                                    collectedHighlightedId = id
-                                                },
-                                                hiddenNsfwCount = hiddenNsfwCollectedCount,
-                                                canReportDrops = !currentUserId.isNullOrBlank(),
-                                                reportedDropIds = reportedCollectedDropIds.toSet(),
-                                                reportingDropId = browseReportingDropId,
-                                                isReportProcessing = browseReportProcessing,
-                                                emptyMessage = selectedExplorerGroupCode?.let { code ->
-                                                    "You haven't collected any drops for $code yet."
-                                                },
-                                                sortOption = collectedSortOption,
-                                                sortOptions = collectedSortOptions,
-                                                explorerGroups = explorerGroups,
-                                                selectedExplorerGroupCode = selectedExplorerGroupCode,
-                                                onSelectExplorerGroup = { code ->
-                                                    selectedExplorerGroupCode = code
-                                                },
-                                                mapPreviewBitmap = collectedMapPreviewSnapshot,
-                                                mapPreviewExpanded = collectedMapPreviewExpanded,
-                                                mapPreviewCameraPosition = collectedMapPreviewCamera,
-                                                mapPreviewCurrentLocation = collectedCurrentLocation,
-                                                onMapPreviewSnapshotChange = { bitmap, position ->
-                                                    collectedMapPreviewSnapshot = bitmap
-                                                    collectedMapPreviewCamera = position
-                                                },
-                                                onMapPreviewExpandedChange = { expanded ->
-                                                    collectedMapPreviewExpanded = expanded
-                                                    if (expanded) {
-                                                        collectedMapPreviewSnapshot = null
-                                                    }
-                                                },
-                                                onMapPreviewOpenMap = {
-                                                    collectedMapPreviewExpanded = true
-                                                    showCollectedMapOverlay = true
-                                                },
-                                                onSortOptionChange = { option ->
-                                                    collectedSortKey = option.name
-                                                },
-                                                canLikeDrops = canParticipate,
-                                                isSignedIn = isSignedIn,
-                                                likeRestrictionMessage = collectedLikeRestrictionMessage,
-                                                votingDropIds = votingDropIds,
-                                                onLike = { note, status ->
-                                                    submitCollectedLike(note, status)
-                                                },
-                                                onReport = report@{ note ->
-                                                    if (browseReportProcessing) return@report
-                                                    val userId = currentUserId
-                                                    if (userId.isNullOrBlank()) {
-                                                        Toast.makeText(
-                                                            ctx,
-                                                            "Sign in to report drops.",
-                                                            Toast.LENGTH_SHORT
-                                                        ).show()
-                                                        return@report
-                                                    }
-                                                    if (reportedCollectedDropIds.contains(note.id)) {
-                                                        Toast.makeText(
-                                                            ctx,
-                                                            "You've already reported this drop.",
-                                                            Toast.LENGTH_SHORT
-                                                        ).show()
-                                                        return@report
-                                                    }
-                                                    browseReportTarget =
-                                                        note.toReportableDrop(source = REPORT_SOURCE_COLLECTED)
-                                                    browseReportSelectedReasons = emptySet()
-                                                    browseReportError = null
-                                                    browseReportDialogOpen = true
-                                                },
-                                                onView = { note ->
-                                                    collectedHighlightedId = note.id
-                                                    val intent = Intent(
-                                                        ctx,
-                                                        DropDetailActivity::class.java
-                                                    ).apply {
-                                                        putExtra("dropId", note.id)
-                                                        if (note.text.isNotBlank()) putExtra(
-                                                            "dropText",
-                                                            note.text
-                                                        )
-                                                        note.description?.takeIf { it.isNotBlank() }
-                                                            ?.let {
-                                                                putExtra("dropDescription", it)
-                                                            }
-                                                        note.lat?.let { putExtra("dropLat", it) }
-                                                        note.lng?.let { putExtra("dropLng", it) }
-                                                        note.dropCreatedAt?.let {
-                                                            putExtra(
-                                                                "dropCreatedAt",
-                                                                it
-                                                            )
-                                                        }
-                                                        note.groupCode?.let {
-                                                            putExtra(
-                                                                "dropGroupCode",
-                                                                it
-                                                            )
-                                                        }
-                                                        putExtra(
-                                                            "dropContentType",
-                                                            note.contentType.name
-                                                        )
-                                                        note.mediaUrl?.let {
-                                                            putExtra(
-                                                                "dropMediaUrl",
-                                                                it
-                                                            )
-                                                        }
-                                                        note.mediaMimeType?.let {
-                                                            putExtra(
-                                                                "dropMediaMimeType",
-                                                                it
-                                                            )
-                                                        }
-                                                        note.mediaData?.let {
-                                                            putExtra(
-                                                                "dropMediaData",
-                                                                it
-                                                            )
-                                                        }
-                                                        putExtra("dropType", note.dropType.name)
-                                                        note.businessName?.let {
-                                                            putExtra(
-                                                                "dropBusinessName",
-                                                                it
-                                                            )
-                                                        }
-                                                        note.businessId?.let {
-                                                            putExtra(
-                                                                "dropBusinessId",
-                                                                it
-                                                            )
-                                                        }
-                                                        note.redemptionLimit?.let {
-                                                            putExtra(
-                                                                "dropRedemptionLimit",
-                                                                it
-                                                            )
-                                                        }
-                                                        putExtra(
-                                                            "dropRedemptionCount",
-                                                            note.redemptionCount
-                                                        )
-                                                        putExtra(
-                                                            "dropCollectedAt",
-                                                            note.collectedAt
-                                                        )
-                                                        putExtra("dropIsRedeemed", note.isRedeemed)
-                                                        note.redeemedAt?.let {
-                                                            putExtra(
-                                                                "dropRedeemedAt",
-                                                                it
-                                                            )
-                                                        }
-                                                        putExtra("dropLikeCount", note.likeCount)
-                                                        putExtra(
-                                                            "dropDislikeCount",
-                                                            note.dislikeCount
-                                                        )
-                                                        if (note.isLiked) {
-                                                            putExtra("dropIsLiked", true)
-                                                        }
-                                                        if (note.isDisliked) {
-                                                            putExtra("dropIsDisliked", true)
-                                                        }
-                                                        putExtra("dropIsNsfw", note.isNsfw)
-                                                        if (note.nsfwLabels.isNotEmpty()) {
-                                                            putStringArrayListExtra(
-                                                                "dropNsfwLabels",
-                                                                ArrayList(note.nsfwLabels)
-                                                            )
-                                                        }
-                                                        note.decayDays?.let {
-                                                            putExtra(
-                                                                "dropDecayDays",
-                                                                it
-                                                            )
-                                                        }
-                                                    }
-                                                    ctx.startActivity(intent)
-                                                },
-                                                onRemove = { note ->
-                                                    collectedHighlightedId = null
-                                                    collectedPendingRemove = note
-                                                }
-                                            )
-                                        }
-
-                                        if (showCollectedMapOverlay) {
-                                            ExplorerFullScreenMapDialog(
-                                                title = "Collected drops map",
-                                                onDismiss = { showCollectedMapOverlay = false }
-                                            ) {
-                                                ExplorerDestinationMap(
-                                                    modifier = Modifier.fillMaxSize(),
-                                                    destination = ExplorerDestination.Collected,
-                                                    otherDrops = sortedOtherDrops,
-                                                    otherDropSelectedId = otherDropsSelectedId,
-                                                    otherDropLocation = otherDropsCurrentLocation,
-                                                    notificationRadiusMeters = notificationRadius,
-                                                    onOtherDropClick = handleOtherDropClick,
-                                                    myDrops = sortedMyDrops,
-                                                    myDropSelectedId = myDropsSelectedId,
-                                                    myDropLocation = myDropsCurrentLocation,
-                                                    onMyDropClick = handleMyDropClick,
-                                                    collectedNotes = sortedCollectedNotes,
-                                                    collectedHighlightedId = collectedHighlightedId,
-                                                    collectedLocation = collectedCurrentLocation,
-                                                    onCollectedNoteClick = { note ->
-                                                        collectedHighlightedId =
-                                                            if (collectedHighlightedId == note.id) {
-                                                                null
-                                                            } else {
-                                                                note.id
-                                                            }
-                                                    },
-                                                    onSnapshotUpdate = { bitmap, position ->
-                                                        collectedMapPreviewSnapshot = bitmap
-                                                        collectedMapPreviewCamera = position
-                                                    }
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    SnackbarHost(
-                        hostState = snackbar,
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .padding(bottom = 16.dp)
-                            .zIndex(1f)
-                    )
-                }
-
-                if (showDropComposer) {
-                    DropComposerDialog(
-                        isSubmitting = isSubmitting,
-                        isBusinessUser = userProfile?.isBusiness() == true,
-                        businessName = userProfile?.businessName,
-                        businessCategories = businessCategories,
-                        userProfileLoading = userProfileLoading,
-                        userProfileError = userProfileError,
-                        dropType = dropType,
-                        onDropTypeChange = { dropType = it },
-                        dropContentType = dropContentType,
-                        onDropContentTypeChange = { dropContentType = it },
-                        note = note,
-                        onNoteChange = { note = it },
-                        description = description,
-                        onDescriptionChange = { description = it },
-                        capturedPhotoPath = capturedPhotoPath,
-                        onCapturePhoto = { ensureCameraAndLaunch() },
-                        onClearPhoto = { clearPhoto() },
-                        capturedAudioUri = capturedAudioUri,
-                        onRecordAudio = { ensureAudioAndLaunch() },
-                        onClearAudio = { clearAudio() },
-                        capturedVideoUri = capturedVideoUri,
-                        onRecordVideo = { ensureVideoAndLaunch() },
-                        onClearVideo = { clearVideo() },
-                        dropVisibility = dropVisibility,
-                        onDropVisibilityChange = { dropVisibility = it },
-                        dropAnonymously = dropAnonymously,
-                        onDropAnonymouslyChange = { dropAnonymously = it },
-                        groupCodeInput = groupCodeInput,
-                        onGroupCodeInputChange = { groupCodeInput = it },
-                        joinedGroups = createdGroups.map { it.code },
-                        onSelectGroupCode = { code -> groupCodeInput = TextFieldValue(code) },
-                        redemptionCodeInput = redemptionCodeInput,
-                        onRedemptionCodeChange = { redemptionCodeInput = it },
-                        redemptionLimitInput = redemptionLimitInput,
-                        onRedemptionLimitChange = { redemptionLimitInput = it },
-                        decayDaysInput = decayDaysInput,
-                        onDecayDaysChange = { decayDaysInput = it },
-                        onManageGroupCodes = { showManageGroups = true },
-                        onSubmit = { submitDrop() },
-                        onDismiss = {
-                            if (!isSubmitting) {
-                                showDropComposer = false
-                            }
-                        }
-                    )
-                }
-
-                if (browseReportDialogOpen) {
-                    val targetDrop = browseReportTarget
-                    ReportDropDialog(
-                        reasons = dropReportReasons,
-                        selectedReasons = browseReportSelectedReasons,
-                        onReasonToggle = { code ->
-                            browseReportSelectedReasons =
-                                if (browseReportSelectedReasons.contains(code)) {
-                                    browseReportSelectedReasons - code
-                                } else {
-                                    browseReportSelectedReasons + code
-                                }
-                        },
-                        onDismiss = {
-                            if (!browseReportProcessing) {
-                                browseReportDialogOpen = false
-                                browseReportTarget = null
-                                browseReportSelectedReasons = emptySet()
-                                browseReportError = null
-                                browseReportingDropId = null
-                            }
-                        },
-                        onSubmit = submit@{
-                            val userId = currentUserId
-                            val target = targetDrop
-                            if (userId.isNullOrBlank()) {
-                                Toast.makeText(ctx, "Sign in to report drops.", Toast.LENGTH_SHORT)
-                                    .show()
-                                return@submit
-                            }
-                            if (target == null || target.id.isBlank()) {
-                                browseReportError = "Drop information is missing."
-                                return@submit
-                            }
-                            if (browseReportSelectedReasons.isEmpty()) {
-                                browseReportError = "Select at least one reason."
-                                return@submit
-                            }
-                            browseReportProcessing = true
-                            browseReportError = null
-                            browseReportingDropId = target.id
-                            scope.launch {
-                                try {
-                                    repo.submitDropReport(
-                                        dropId = target.id,
-                                        reporterId = userId,
-                                        reasonCodes = browseReportSelectedReasons,
-                                        additionalContext = mapOf(
-                                            "source" to target.source,
-                                            "contentType" to target.contentType.name,
-                                            "hasMedia" to target.hasMedia,
-                                            "dropType" to target.dropType.name
-                                        )
-                                    )
-                                    browseReportDialogOpen = false
-                                    browseReportTarget = null
-                                    browseReportSelectedReasons = emptySet()
-                                    browseReportError = null
-                                    val now = System.currentTimeMillis()
-                                    when (target.source) {
-                                        REPORT_SOURCE_BROWSE_MAP -> {
-                                            otherDrops = otherDrops.map { existing ->
-                                                if (existing.id == target.id) {
-                                                    val updatedReportedBy =
-                                                        existing.reportedBy.toMutableMap()
-                                                    val already =
-                                                        updatedReportedBy.containsKey(userId)
-                                                    updatedReportedBy[userId] = now
-                                                    val updatedCount = if (already) {
-                                                        existing.reportCount
-                                                    } else {
-                                                        existing.reportCount + 1
-                                                    }
-                                                    existing.copy(
-                                                        reportedBy = updatedReportedBy,
-                                                        reportCount = updatedCount
-                                                    )
-                                                } else {
-                                                    existing
-                                                }
-                                            }
-                                        }
-
-                                        REPORT_SOURCE_COLLECTED -> {
-                                            if (!reportedCollectedDropIds.contains(target.id)) {
-                                                reportedCollectedDropIds.add(target.id)
-                                            }
-                                        }
-
-                                        else -> Unit
-                                    }
-                                    Toast.makeText(ctx, "Report submitted.", Toast.LENGTH_SHORT)
-                                        .show()
-                                } catch (error: Exception) {
-                                    val message = error.localizedMessage?.takeIf { it.isNotBlank() }
-                                        ?: "Couldn't submit report. Try again."
-                                    browseReportError = message
-                                } finally {
-                                    browseReportProcessing = false
-                                    browseReportingDropId = null
-                                }
-                            }
-                        },
-                        isSubmitting = browseReportProcessing,
-                        errorMessage = browseReportError
-                    )
-                }
-
-                if (showExplorerProfile) {
-                    ExplorerProfileDialog(
-                        currentUsername = userProfile?.username,
-                        username = explorerUsernameField,
-                        onUsernameChange = { explorerUsernameField = it },
-                        isSubmitting = explorerProfileSubmitting,
-                        error = explorerProfileError,
-                        onSubmit = { saveExplorerUsername() },
-                        onDismiss = {
-                            if (!explorerProfileSubmitting) {
-                                showExplorerProfile = false
-                            }
-                        }
-                    )
-                }
-
-                if (showNotificationRadiusDialog) {
-                    NotificationRadiusDialog(
-                        initialRadius = notificationRadius,
-                        onConfirm = { newRadius ->
-                            notificationRadius = newRadius
-                            notificationPrefs.setNotificationRadiusMeters(newRadius)
-                            showNotificationRadiusDialog = false
-                            snackbar.showMessage(
-                                scope,
-                                "We'll alert you to drops within ${newRadius.roundToInt()} meters."
-                            )
-                            registrar.registerNearby(
-                                ctx,
-                                maxMeters = newRadius,
-                                groupCodes = groupPrefs.getMemberships().map { it.code }.toSet()
-                            )
-                        },
-                        onDismiss = { showNotificationRadiusDialog = false }
-                    )
-                }
-
-                termsPrivacyDialogTab?.let { tab ->
-                    TermsPrivacyDialog(
-                        initialTab = tab,
-                        onDismiss = { termsPrivacyDialogTab = null }
-                    )
-                }
-
-                if (showFaqDialog) {
-                    FaqDialog(onDismiss = { showFaqDialog = false })
-                }
-
-                if (showNsfwDialog) {
-                    NsfwPreferenceDialog(
-                        enabled = userProfile?.canViewNsfw() == true,
-                        isProcessing = nsfwUpdating,
-                        error = nsfwUpdateError,
-                        onConfirm = { enable ->
-                            val userId = currentUserId
-                            if (userId.isNullOrBlank()) {
-                                nsfwUpdateError = "Sign in again to update content settings."
-                                return@NsfwPreferenceDialog
-                            }
-                            nsfwUpdating = true
-                            nsfwUpdateError = null
-                            scope.launch {
-                                try {
-                                    val updated = repo.updateNsfwPreference(userId, enable)
-                                    userProfile = updated
-                                    otherDropsRefreshToken += 1
-                                    showNsfwDialog = false
-                                    val message = if (enable) {
-                                        "NSFW drops enabled."
-                                    } else {
-                                        "NSFW drops disabled."
-                                    }
-                                    snackbar.showMessage(scope, message)
-                                    registrar.registerNearby(
-                                        ctx,
-                                        maxMeters = notificationRadius,
-                                        groupCodes = groupPrefs.getMemberships().map { it.code }
-                                            .toSet()
-                                    )
-                                } catch (error: Exception) {
-                                    nsfwUpdateError =
-                                        error.localizedMessage ?: "Couldn't update settings."
-                                } finally {
-                                    nsfwUpdating = false
-                                }
-                            }
-                        },
-                        onDismiss = { showNsfwDialog = false }
-                    )
-                }
-
-                if (showBusinessOnboarding) {
-                    var businessNameField by rememberSaveable(
-                        userProfile?.businessName,
-                        stateSaver = TextFieldValue.Saver
-                    ) {
-                        mutableStateOf(TextFieldValue(userProfile?.businessName.orEmpty()))
-                    }
-                    var onboardingError by remember { mutableStateOf<String?>(null) }
-                    var onboardingSubmitting by remember { mutableStateOf(false) }
-                    val categoriesKey = userProfile?.businessCategories
-                        ?.joinToString(separator = ",") { it.id }
-                    var selectedCategoryIds by remember(categoriesKey) {
-                        mutableStateOf(userProfile?.businessCategories?.map { it.id }
-                            ?: emptyList())
-                    }
-
-                    BusinessOnboardingDialog(
-                        name = businessNameField,
-                        selectedCategories = selectedCategoryIds
-                            .mapNotNull { id -> BusinessCategory.fromId(id) }
-                            .toSet(),
-                        onNameChange = { businessNameField = it },
-                        onToggleCategory = { category ->
-                            selectedCategoryIds = if (selectedCategoryIds.contains(category.id)) {
-                                selectedCategoryIds.filterNot { it == category.id }
-                            } else {
-                                selectedCategoryIds + category.id
-                            }
-                        },
-                        isSubmitting = onboardingSubmitting,
-                        error = onboardingError,
-                        onSubmit = {
-                            val trimmed = businessNameField.text.trim()
-                            if (trimmed.isEmpty()) {
-                                onboardingError = "Enter your business name."
-                                return@BusinessOnboardingDialog
-                            }
-                            val selectedCategories = selectedCategoryIds
-                                .mapNotNull { id -> BusinessCategory.fromId(id) }
-                            if (selectedCategories.isEmpty()) {
-                                onboardingError = "Select at least one business category."
-                                return@BusinessOnboardingDialog
-                            }
-                            val uid = currentUserId
-                            if (uid.isNullOrBlank()) {
-                                onboardingError = "Sign-in is required."
-                                return@BusinessOnboardingDialog
-                            }
-                            onboardingSubmitting = true
-                            onboardingError = null
-                            scope.launch {
-                                try {
-                                    val updated =
-                                        repo.updateBusinessProfile(uid, trimmed, selectedCategories)
-                                    userProfile = updated
-                                    showBusinessOnboarding = false
-                                    snackbar.showMessage(scope, "Business profile saved.")
-                                } catch (error: Exception) {
-                                    onboardingError =
-                                        error.localizedMessage ?: "Couldn't save business info."
-                                } finally {
-                                    onboardingSubmitting = false
-                                }
-                            }
-                        },
-                        onDismiss = {
-                            if (!onboardingSubmitting) {
-                                showBusinessOnboarding = false
-                            }
-                        }
-                    )
-                }
-
-                if (showBusinessDashboard) {
-                    BusinessDashboardDialog(
-                        drops = businessDrops,
-                        loading = businessDashboardLoading,
-                        error = businessDashboardError,
-                        onDismiss = { showBusinessDashboard = false },
-                        onRefresh = { businessDashboardRefreshToken += 1 }
-                    )
-                }
-
-                if (showManageGroups) {
-                    ManageGroupsDialog(
-                        groups = joinedGroups,
-                        snackbarHostState = manageGroupsSnackbar,
-                        onDismiss = {
-                            showManageGroups = false
-                            showGroupMenu = false
-                        },
-                        onCreate = { code ->
-                            val uid = FirebaseAuth.getInstance().currentUser?.uid
-                            if (uid.isNullOrBlank()) {
-                                manageGroupsSnackbar.showMessage(scope, "Sign in to manage groups.")
-                                return@ManageGroupsDialog
-                            }
-                            scope.launch {
-                                val normalized =
-                                    GroupPreferences.normalizeGroupCode(code) ?: return@launch
-                                try {
-                                    val membership = repo.joinGroup(
-                                        uid,
-                                        normalized,
-                                        allowCreateIfMissing = true
-                                    )
-                                    groupPrefs.addGroup(membership)
-                                    joinedGroups = groupPrefs.getMemberships()
-                                    if (dropVisibility == DropVisibility.GroupOnly && membership.role == GroupRole.OWNER) {
-                                        groupCodeInput = TextFieldValue(normalized)
-                                    }
-                                    val message = if (membership.role == GroupRole.OWNER) {
-                                        "Created group $normalized"
-                                    } else {
-                                        "Subscribed to $normalized"
-                                    }
-                                    manageGroupsSnackbar.showMessage(scope, message)
-                                } catch (error: Exception) {
-                                    val message = when (error) {
-                                        is GroupAlreadyExistsException ->
-                                            "Group ${error.code} already exist."
-
-                                        is GroupNotFoundException ->
-                                            "Group $normalized doesn't exist. Ask the creator to share it once it's ready."
-
-                                        else -> error.localizedMessage
-                                            ?: "Couldn't save group $normalized"
-                                    }
-                                    manageGroupsSnackbar.showMessage(scope, message)
-                                }
-                            }
-                        },
-                        onSubscribe = { code ->
-                            val uid = FirebaseAuth.getInstance().currentUser?.uid
-                            if (uid.isNullOrBlank()) {
-                                manageGroupsSnackbar.showMessage(scope, "Sign in to manage groups.")
-                                return@ManageGroupsDialog
-                            }
-                            scope.launch {
-                                val normalized =
-                                    GroupPreferences.normalizeGroupCode(code) ?: return@launch
-                                try {
-                                    val membership = repo.joinGroup(
-                                        uid,
-                                        normalized,
-                                        allowCreateIfMissing = false
-                                    )
-
-                                    groupPrefs.addGroup(membership)
-                                    joinedGroups = groupPrefs.getMemberships()
-                                    if (dropVisibility == DropVisibility.GroupOnly && membership.role == GroupRole.OWNER) {
-                                        groupCodeInput = TextFieldValue(normalized)
-                                    }
-                                    val message = if (membership.role == GroupRole.OWNER) {
-                                        "Created group $normalized"
-                                    } else {
-                                        "Subscribed to $normalized"
-                                    }
-                                    manageGroupsSnackbar.showMessage(scope, message)
-                                } catch (error: Exception) {
-                                    val message = when (error) {
-                                        is GroupNotFoundException ->
-                                            "Group $normalized doesn't exist. Ask the creator to share it once it's ready."
-
-                                        else -> error.localizedMessage
-                                            ?: "Couldn't save group $normalized"
-                                    }
-                                    manageGroupsSnackbar.showMessage(scope, message)
-                                }
-                            }
-                        },
-                        onRemove = { code ->
-                            val uid = FirebaseAuth.getInstance().currentUser?.uid
-                            if (uid.isNullOrBlank()) {
-                                manageGroupsSnackbar.showMessage(scope, "Sign in to manage groups.")
-                                return@ManageGroupsDialog
-                            }
-                            scope.launch {
-                                val normalized =
-                                    GroupPreferences.normalizeGroupCode(code) ?: return@launch
-                                try {
-                                    repo.leaveGroup(uid, normalized)
-                                    groupPrefs.removeGroup(normalized)
-                                    joinedGroups = groupPrefs.getMemberships()
-                                    val currentInput =
-                                        GroupPreferences.normalizeGroupCode(groupCodeInput.text)
-                                    if (currentInput == normalized) {
-                                        groupCodeInput = TextFieldValue("")
-                                    }
-                                    manageGroupsSnackbar.showMessage(
-                                        scope,
-                                        "Removed group $normalized"
-                                    )
-                                } catch (error: Exception) {
-                                    val message = error.localizedMessage
-                                        ?: "Couldn't remove group $normalized"
-                                    manageGroupsSnackbar.showMessage(scope, message)
-                                }
-                            }
-                        }
-                    )
-                }
-            }
-        }
-    }
-
-    @Composable
-    private fun UserModeSelectionScreen(
-        onSelectGuest: () -> Unit,
-        onSelectExplorerSignIn: () -> Unit,
-        onSelectBusinessSignIn: () -> Unit
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(24.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(20.dp)
-            ) {
-                Text(
-                    text = "Choose how to explore",
-                    style = MaterialTheme.typography.headlineSmall,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Text(
-                    text = "You can browse GeoDrop without an account or sign in to participate.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    textAlign = TextAlign.Center,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                ElevatedCard(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(20.dp)
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(20.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Icon(Icons.Rounded.Public, contentDescription = null)
-                            Text(
-                                text = "Continue as guest",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-                        Text(
-                            text = "Read drop details without creating an account.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Button(
-                            onClick = onSelectGuest,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Start reading")
-                        }
-                    }
-                }
-
-                ElevatedCard(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(20.dp)
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(20.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Icon(Icons.Rounded.AccountCircle, contentDescription = null)
-                            Text(
-                                text = "Sign in or create account",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-                        Text(
-                            text = "Choose the right sign-in experience for how you plan to use GeoDrop.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Column(
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Button(
-                                onClick = onSelectExplorerSignIn,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text("Explorer sign in")
-                            }
-                            OutlinedButton(
-                                onClick = onSelectBusinessSignIn,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text("Business sign in")
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private data class BusinessHomeMetrics(
-        val liveDropCount: Int,
-        val pendingReviewCount: Int,
-        val unresolvedRedemptionCount: Int,
-        val expiringOfferCount: Int
-    ) {
-        companion object {
-            val Empty = BusinessHomeMetrics(0, 0, 0, 0)
-        }
-    }
-
-    private val BUSINESS_EXPIRING_SOON_THRESHOLD_MILLIS = TimeUnit.DAYS.toMillis(3)
-
-    private fun deriveBusinessHomeMetrics(
-        businessDrops: List<Drop>,
-        fallbackDrops: List<Drop>,
-        myDropCountHint: Int?,
-        myDropPendingReviewHint: Int?
-    ): BusinessHomeMetrics {
-        val sourceDrops = when {
-            businessDrops.isNotEmpty() -> businessDrops
-            fallbackDrops.isNotEmpty() -> fallbackDrops
-            else -> emptyList()
-        }
-
-        if (sourceDrops.isEmpty()) {
-            return BusinessHomeMetrics(
-                liveDropCount = myDropCountHint ?: 0,
-                pendingReviewCount = myDropPendingReviewHint ?: 0,
-                unresolvedRedemptionCount = 0,
-                expiringOfferCount = 0
-            )
-        }
-
-        val now = System.currentTimeMillis()
-        val businessEntries = sourceDrops
-            .filter { it.isBusinessDrop() && !it.isDeleted }
-
-        if (businessEntries.isEmpty()) {
-            return BusinessHomeMetrics(
-                liveDropCount = myDropCountHint ?: 0,
-                pendingReviewCount = myDropPendingReviewHint ?: 0,
-                unresolvedRedemptionCount = 0,
-                expiringOfferCount = 0
-            )
-        }
-
-        val liveDropCount = businessEntries.count { !it.isExpired(now) }
-        val pendingReviewCount = businessEntries.count { it.reportCount > 0 }
-        val unresolvedRedemptionCount = businessEntries.count { drop ->
-            if (drop.isExpired(now) || !drop.requiresRedemption()) return@count false
-            val remaining = drop.remainingRedemptions()
-            remaining == null || remaining > 0
-        }
-        val expiringOfferCount = businessEntries.count { drop ->
-            val remaining = drop.remainingDecayMillis(now) ?: return@count false
-            remaining in 1..BUSINESS_EXPIRING_SOON_THRESHOLD_MILLIS
-        }
-
-        return BusinessHomeMetrics(
-            liveDropCount = liveDropCount,
-            pendingReviewCount = pendingReviewCount,
-            unresolvedRedemptionCount = unresolvedRedemptionCount,
-            expiringOfferCount = expiringOfferCount
-        )
-    }
-
-    @Composable
-    private fun BusinessHomeScreen(
-        modifier: Modifier = Modifier,
-        businessName: String?,
-        businessCategories: List<BusinessCategory>,
-        metrics: BusinessHomeMetrics,
-        onViewDashboard: () -> Unit,
-        onUpdateBusinessProfile: () -> Unit,
-        onViewMyDrops: () -> Unit,
-    ) {
-        val activeDropCount = metrics.liveDropCount
-        val pendingReviewCount = metrics.pendingReviewCount
-        val unresolvedRedemptionCount = metrics.unresolvedRedemptionCount
-        val expiringOfferCount = metrics.expiringOfferCount
-        LazyColumn(
-            modifier = modifier,
-            contentPadding = PaddingValues(
-                start = 20.dp,
-                end = 20.dp,
-                top = 24.dp,
-                bottom = 128.dp
-            ),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
-        ) {
-            item {
-                BusinessHeroCard(
-                    businessName = businessName,
-                    businessCategories = businessCategories
-                )
-            }
-
-            item { SectionHeader(text = "Manage drops") }
-
-            item {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    ActionCard(
-                        icon = Icons.Rounded.Inbox,
-                        title = "Manage existing drops",
-                        description = "Review performance and make changes to the drops you've shared.",
-                        onClick = onViewMyDrops,
-                        trailingContent = {
-                            BusinessActionSummary(
-                                liveDropCount = activeDropCount,
-                                pendingReviewCount = pendingReviewCount,
-                                unresolvedRedemptionCount = unresolvedRedemptionCount,
-                                expiringOfferCount = expiringOfferCount
-                            )
-                        }
-                    )
-                }
-            }
-
-            item { SectionHeader(text = "Insights & branding") }
-
-            item {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    ActionCard(
-                        icon = Icons.Rounded.Storefront,
-                        title = "Business dashboard",
-                        description = "Track discoveries, redemptions, and engagement in one place.",
-                        onClick = onViewDashboard,
-                        trailingContent = {
-                            BusinessActionSummary(
-                                liveDropCount = activeDropCount,
-                                pendingReviewCount = pendingReviewCount,
-                                unresolvedRedemptionCount = unresolvedRedemptionCount,
-                                expiringOfferCount = expiringOfferCount
-                            )
-                        }
-                    )
-
-                    ActionCard(
-                        icon = Icons.Rounded.Edit,
-                        title = "Update business name",
-                        description = "Adjust how your brand appears across GeoDrop experiences.",
-                        onClick = onUpdateBusinessProfile
-                    )
-                }
-            }
-        }
-    }
-
-    @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
-    @Composable
-    private fun BusinessHeroCard(
-        businessName: String?,
-        businessCategories: List<BusinessCategory>,
-        brandImageUrl: String? = null
-    ) {
-        val title = businessName?.takeIf { it.isNotBlank() }?.let { "$it on GeoDrop" }
-            ?: "Welcome to GeoDrop Business"
-        val subtitle = if (businessName.isNullOrBlank()) {
-            "Share exclusive offers, stories, and tours to reach explorers right when they're nearby."
-        } else {
-            "Keep explorers engaged with timely offers and experiences from your team."
-        }
-
-        val sortedCategories = businessCategories
-            .sortedWith(compareBy({ it.group.displayName }, { it.displayName }))
-
-        val avatarBackground = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.08f)
-        val avatarBorder = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.2f)
-        val chipContainer = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-        val chipBorder = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.2f)
-
-        ElevatedCard(
-            modifier = Modifier
-                .fillMaxWidth()
-                .border(
-                    BorderStroke(
-                        width = 1.dp,
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
-                    ),
-                    shape = RoundedCornerShape(28.dp)
-                ),
-            shape = RoundedCornerShape(28.dp),
-            colors = CardDefaults.elevatedCardColors(
-                containerColor = MaterialTheme.colorScheme.primaryContainer
-            )
-        ) {
-            Column(
-                modifier = Modifier.padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(72.dp)
-                            .clip(CircleShape)
-                            .background(avatarBackground)
-                            .border(width = 1.dp, color = avatarBorder, shape = CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (!brandImageUrl.isNullOrBlank()) {
-                            val context = LocalContext.current
-                            AsyncImage(
-                                model = ImageRequest.Builder(context)
-                                    .data(brandImageUrl)
-                                    .crossfade(true)
-                                    .build(),
-                                contentDescription = businessName?.let { "$it brand logo" },
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.matchParentSize()
-                            )
-                        } else {
-                            Icon(
-                                imageVector = Icons.Rounded.Storefront,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                modifier = Modifier.size(32.dp)
-                            )
-                        }
-                    }
-
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(
-                            text = title,
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-
-                        Text(
-                            text = subtitle,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.9f)
-                        )
-                    }
-                }
-
-                if (sortedCategories.isNotEmpty()) {
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(
-                            text = "Business categories",
-                            style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            fontWeight = FontWeight.SemiBold
-                        )
-
-                        sortedCategories
-                            .groupBy { it.group }
-                            .forEach { (group, categories) ->
-                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    Text(
-                                        text = group.displayName,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(
-                                            alpha = 0.9f
-                                        ),
-                                        fontWeight = FontWeight.Medium
-                                    )
-
-                                    FlowRow(
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        categories.forEach { category ->
-                                            AssistChip(
-                                                onClick = {},
-                                                enabled = false,
-                                                label = {
-                                                    Text(
-                                                        text = category.displayName,
-                                                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                                                    )
-                                                },
-                                                colors = AssistChipDefaults.assistChipColors(
-                                                    containerColor = chipContainer,
-                                                    labelColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                                                    disabledContainerColor = chipContainer,
-                                                    disabledLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                                                ),
-                                                border = BorderStroke(
-                                                    width = 1.dp,
-                                                    color = chipBorder
-                                                )
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                    }
-                }
-            }
-        }
-    }
-
-    @Composable
-    private fun ReadOnlyModeCard(message: String) {
-        ElevatedCard(
-            modifier = Modifier
-                .fillMaxWidth()
-                .border(
-                    border = BorderStroke(
-                        width = 1.dp,
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                    ),
-                    shape = RoundedCornerShape(20.dp)
-                ),
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.elevatedCardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant
-            )
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.Info,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary
-                )
-                Text(
-                    text = message,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
-        }
-    }
-
-    @Composable
-    private fun SectionHeader(text: String) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.fillMaxWidth()
-        )
-    }
-
-    @Composable
-    private fun ActionCard(
-        icon: ImageVector,
-        title: String,
-        description: String,
-        onClick: () -> Unit,
-        trailingContent: (@Composable () -> Unit)? = null,
-    ) {
-        ElevatedCard(
-            onClick = onClick,
-            modifier = Modifier
-                .fillMaxWidth()
-                .border(
-                    BorderStroke(
-                        width = 1.dp,
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                    ),
-                    shape = RoundedCornerShape(20.dp)
-                ),
-            shape = RoundedCornerShape(20.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp)
-                    .animateContentSize(),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(44.dp)
-                            .background(
-                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-                                shape = CircleShape
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = icon,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
-
-                    Spacer(Modifier.width(16.dp))
-
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Text(
-                            text = title,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            text = description,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-
-                trailingContent?.let {
-                    Box(
-                        modifier = Modifier
-                            .wrapContentSize()
-                            .align(Alignment.Start)
-                    ) {
-                        it()
-                    }
-                }
-            }
-        }
-    }
-
-    @Composable
-    private fun CountBadge(count: Int, modifier: Modifier = Modifier) {
-        Surface(
-            modifier = modifier,
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-        ) {
-            Text(
-                text = count.toString(),
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.SemiBold
-            )
-        }
-    }
-
-    @Composable
-    private fun MetricPill(
-        label: String,
-        value: Int,
-        modifier: Modifier = Modifier
-    ) {
-        Surface(
-            modifier = modifier,
-            shape = RoundedCornerShape(50),
-            color = MaterialTheme.colorScheme.surfaceVariant,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(
-                    text = value.toString(),
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = label,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-    }
-
-    private enum class StatusChipTone { Accent, Warning }
-
-    @Composable
-    private fun StatusChip(
-        text: String,
-        tone: StatusChipTone,
-        modifier: Modifier = Modifier
-    ) {
-        val (containerColor, contentColor) = when (tone) {
-            StatusChipTone.Accent -> MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.onTertiaryContainer
-            StatusChipTone.Warning -> MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.onErrorContainer
-        }
-
-        Surface(
-            modifier = modifier,
-            shape = RoundedCornerShape(50),
-            color = containerColor
-        ) {
-            Text(
-                text = text,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                style = MaterialTheme.typography.labelMedium,
-                color = contentColor,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-    }
-
-    @OptIn(ExperimentalLayoutApi::class)
-    @Composable
-    private fun BusinessActionSummary(
-        liveDropCount: Int,
-        pendingReviewCount: Int,
-        unresolvedRedemptionCount: Int,
-        expiringOfferCount: Int
-    ) {
-        if (liveDropCount <= 0 && pendingReviewCount <= 0 && unresolvedRedemptionCount <= 0 && expiringOfferCount <= 0) {
-            return
-        }
-
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            if (liveDropCount > 0) {
-                CountBadge(count = liveDropCount)
-            }
-            if (pendingReviewCount > 0) {
-                MetricPill(
-                    label = stringResource(R.string.metric_pending_reviews),
-                    value = pendingReviewCount
-                )
-            }
-            if (unresolvedRedemptionCount > 0) {
-                MetricPill(
-                    label = stringResource(R.string.metric_open_redemptions),
-                    value = unresolvedRedemptionCount
-                )
-            }
-            if (expiringOfferCount > 0) {
-                StatusChip(
-                    text = stringResource(R.string.metric_expiring_offers, expiringOfferCount),
-                    tone = StatusChipTone.Warning
-                )
-            }
-        }
-    }
-
-    @Composable
-    private fun DropComposerDialog(
-        isSubmitting: Boolean,
-        isBusinessUser: Boolean,
-        businessName: String?,
-        businessCategories: List<BusinessCategory>,
-        userProfileLoading: Boolean,
-        userProfileError: String?,
-        dropType: DropType,
-        onDropTypeChange: (DropType) -> Unit,
-        dropContentType: DropContentType,
-        onDropContentTypeChange: (DropContentType) -> Unit,
-        note: TextFieldValue,
-        onNoteChange: (TextFieldValue) -> Unit,
-        description: TextFieldValue,
-        onDescriptionChange: (TextFieldValue) -> Unit,
-        capturedPhotoPath: String?,
-        onCapturePhoto: () -> Unit,
-        onClearPhoto: () -> Unit,
-        capturedAudioUri: String?,
-        onRecordAudio: () -> Unit,
-        onClearAudio: () -> Unit,
-        capturedVideoUri: String?,
-        onRecordVideo: () -> Unit,
-        onClearVideo: () -> Unit,
-        dropVisibility: DropVisibility,
-        onDropVisibilityChange: (DropVisibility) -> Unit,
-        dropAnonymously: Boolean,
-        onDropAnonymouslyChange: (Boolean) -> Unit,
-        groupCodeInput: TextFieldValue,
-        onGroupCodeInputChange: (TextFieldValue) -> Unit,
-        joinedGroups: List<String>,
-        onSelectGroupCode: (String) -> Unit,
-        redemptionCodeInput: TextFieldValue,
-        onRedemptionCodeChange: (TextFieldValue) -> Unit,
-        redemptionLimitInput: TextFieldValue,
-        onRedemptionLimitChange: (TextFieldValue) -> Unit,
-        decayDaysInput: TextFieldValue,
-        onDecayDaysChange: (TextFieldValue) -> Unit,
-        onManageGroupCodes: () -> Unit,
-        onSubmit: () -> Unit,
-        onDismiss: () -> Unit,
-    ) {
-        val context = LocalContext.current
-        Dialog(
-            onDismissRequest = {
-                if (!isSubmitting) {
-                    onDismiss()
-                }
-            },
-            properties = DialogProperties(
-                dismissOnBackPress = !isSubmitting,
-                dismissOnClickOutside = !isSubmitting,
-                usePlatformDefaultWidth = false
-            )
-        ) {
-            Surface(
-                shape = MaterialTheme.shapes.large,
-                tonalElevation = 6.dp,
-                modifier = Modifier
-                    .fillMaxWidth()
-//                .widthIn(min = 360.dp, max = 520.dp)
-                    .padding(16.dp)
-            ) {
-                val scrollState = rememberScrollState()
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .verticalScroll(scrollState)
-                        .padding(24.dp),
-                    verticalArrangement = Arrangement.spacedBy(20.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Create a drop",
-                            style = MaterialTheme.typography.titleLarge,
-                            modifier = Modifier.weight(1f)
-                        )
-                        TextButton(
-                            onClick = onDismiss,
-                            enabled = !isSubmitting
-                        ) {
-                            Text("Cancel")
-                        }
-                    }
-                }
-
-                Text(
-                    text = "Complete the steps below to share something new with nearby explorers.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                if (userProfileLoading) {
-                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                }
-
-                userProfileError?.let { errorMessage ->
-                        Surface(
-                            tonalElevation = 2.dp,
-                            shape = MaterialTheme.shapes.medium,
-                            color = MaterialTheme.colorScheme.errorContainer
-                        ) {
-                            Text(
-                                text = errorMessage,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onErrorContainer,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp)
-                            )
-                        }
-                }
-
-                if (isBusinessUser) {
-                    var currentStep by rememberSaveable { mutableStateOf(BusinessComposerStep.PLAN) }
-                    val availableSteps = remember(dropType) {
-                        buildList {
-                            add(BusinessComposerStep.PLAN)
-                            add(BusinessComposerStep.CONTENT)
-                            if (dropType == DropType.RESTAURANT_COUPON) {
-                                add(BusinessComposerStep.OFFER)
-                                }
-                            add(BusinessComposerStep.SETTINGS)
-                            }
-                        }
-                    LaunchedEffect(availableSteps) {
-                        if (!availableSteps.contains(currentStep)) {
-                            currentStep = availableSteps.first()
-                            }
-                    }
-                    val templateSuggestions = remember(businessCategories) {
-                        dropTemplatesFor(businessCategories)
-                            .take(MAX_BUSINESS_TEMPLATE_SUGGESTIONS)
-                    }
-
-                    BusinessComposerStepIndicator(
-                        steps = availableSteps,
-                        currentStep = currentStep,
-                        onStepSelected = { selected ->
-                            if (availableSteps.contains(selected)) {
-                                currentStep = selected
-                            }
-                        }
-                    )
-
-                    Text(
-                        text = currentStep.title,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-
-                    Text(
-                        text = currentStep.helper,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    when (currentStep) {
-                        BusinessComposerStep.PLAN -> {
-                            DropComposerSection(
-                                title = "Business goal",
-                                description = "Choose the purpose for this drop. Options are tailored to your business categories.",
-                                leadingIcon = Icons.Rounded.Storefront
-                            ) {
-                                BusinessDropTypeSection(
-                                    dropType = dropType,
-                                    onDropTypeChange = onDropTypeChange,
-                                    businessName = businessName,
-                                    businessCategories = businessCategories,
-                                    showHeader = false
-                                    )
-                            }
-
-                            if (templateSuggestions.isNotEmpty()) {
-                                DropComposerSection(
-                                    title = "Need inspiration?",
-                                    description = "Browse suggested ideas based on your business categories.",
-                                    leadingIcon = Icons.Rounded.Info
-                                ) {
-                                    BusinessDropTemplatesSection(
-                                        templates = templateSuggestions,
-                                        onApply = { template ->
-                                            onDropTypeChange(template.dropType)
-                                            onDropContentTypeChange(template.contentType)
-                                            onNoteChange(TextFieldValue(template.caption.ifBlank { "" }))
-                                            onDescriptionChange(TextFieldValue(template.note))
+                                    CollectedDropsContent(
+                                        modifier = Modifier.fillMaxSize(),
+                                        topContentPadding = mapAwareTopPadding,
+                                        contentPadding = PaddingValues(bottom = 0.dp),
+                                        notes = sortedCollectedNotes,
+                                        hiddenNsfwCount = hiddenNsfwCollectedCount,
+                                        canReportDrops = !currentUserId.isNullOrBlank(),
+                                        reportedDropIds = reportedCollectedDropIds.toSet(),
+                                        reportingDropId = browseReportingDropId,
+                                        isReportProcessing = browseReportProcessing,
+                                        emptyMessage = selectedExplorerGroupCode?.let { code ->
+                                            "You haven't collected any drops for $code yet."
                                         },
-                                        showHeader = false
-                                    )
-                                }
-                            }
-                        }
-
-                        BusinessComposerStep.CONTENT -> {
-                            DropContentFormatSection(
-                                dropContentType = dropContentType,
-                                onDropContentTypeChange = onDropContentTypeChange
-                            )
-                            DropNoteAndDescriptionSection(
-                                dropContentType = dropContentType,
-                                note = note,
-                                onNoteChange = onNoteChange,
-                                description = description,
-                                onDescriptionChange = onDescriptionChange
-                            )
-                            DropMediaAttachmentsSection(
-                                context = context,
-                                dropContentType = dropContentType,
-                                capturedPhotoPath = capturedPhotoPath,
-                                onCapturePhoto = onCapturePhoto,
-                                onClearPhoto = onClearPhoto,
-                                capturedAudioUri = capturedAudioUri,
-                                onRecordAudio = onRecordAudio,
-                                onClearAudio = onClearAudio,
-                                capturedVideoUri = capturedVideoUri,
-                                onRecordVideo = onRecordVideo,
-                                onClearVideo = onClearVideo
-                            )
-                        }
-
-                        BusinessComposerStep.OFFER -> {
-                            DropComposerSection(
-                                title = "Offer security",
-                                description = "Set a redemption code and optional limit so each guest redeems only once.",
-                                leadingIcon = Icons.Rounded.Flag
-                            ) {
-                                BusinessRedemptionSection(
-                                    redemptionCode = redemptionCodeInput,
-                                    onRedemptionCodeChange = onRedemptionCodeChange,
-                                    redemptionLimit = redemptionLimitInput,
-                                    onRedemptionLimitChange = onRedemptionLimitChange,
-                                    showHeader = false
-                                )
-                            }
-                        }
-
-                        BusinessComposerStep.SETTINGS -> {
-                            DropAutoDeleteSection(
-                                decayDaysInput = decayDaysInput,
-                                onDecayDaysChange = onDecayDaysChange
-                            )
-                            DropVisibilitySectionCard(
-                                dropVisibility = dropVisibility,
-                                onDropVisibilityChange = onDropVisibilityChange,
-                                groupCodeInput = groupCodeInput,
-                                onGroupCodeInputChange = onGroupCodeInputChange,
-                                joinedGroups = joinedGroups,
-                                onSelectGroupCode = onSelectGroupCode,
-                                onManageGroupCodes = onManageGroupCodes,
-                                isSubmitting = isSubmitting
-                            )
-                        }
-                    }
-
-                    val currentIndex = availableSteps.indexOf(currentStep).coerceAtLeast(0)
-                    val previousStep = availableSteps.getOrNull(currentIndex - 1)
-                    val nextStep = availableSteps.getOrNull(currentIndex + 1)
-
-                    BusinessComposerStepNavigation(
-                        previousStep = previousStep,
-                        nextStep = nextStep,
-                        isSubmitting = isSubmitting,
-                        onBack = { step -> currentStep = step },
-                        onNext = { step -> currentStep = step },
-                        onSubmit = onSubmit
-                    )
-                } else {
-                    DropContentFormatSection(
-                        dropContentType = dropContentType,
-                        onDropContentTypeChange = onDropContentTypeChange
-                    )
-                    DropNoteAndDescriptionSection(
-                        dropContentType = dropContentType,
-                        note = note,
-                        onNoteChange = onNoteChange,
-                        description = description,
-                        onDescriptionChange = onDescriptionChange
-                    )
-                    DropAutoDeleteSection(
-                        decayDaysInput = decayDaysInput,
-                        onDecayDaysChange = onDecayDaysChange
-                    )
-                    DropMediaAttachmentsSection(
-                        context = context,
-                        dropContentType = dropContentType,
-                        capturedPhotoPath = capturedPhotoPath,
-                        onCapturePhoto = onCapturePhoto,
-                        onClearPhoto = onClearPhoto,
-                        capturedAudioUri = capturedAudioUri,
-                        onRecordAudio = onRecordAudio,
-                        onClearAudio = onClearAudio,
-                        capturedVideoUri = capturedVideoUri,
-                        onRecordVideo = onRecordVideo,
-                        onClearVideo = onClearVideo
-                    )
-                    DropIdentitySection(
-                        dropAnonymously = dropAnonymously,
-                        onDropAnonymouslyChange = onDropAnonymouslyChange,
-                        isSubmitting = isSubmitting
-                    )
-                    DropVisibilitySectionCard(
-                        dropVisibility = dropVisibility,
-                        onDropVisibilityChange = onDropVisibilityChange,
-                        groupCodeInput = groupCodeInput,
-                        onGroupCodeInputChange = onGroupCodeInputChange,
-                        joinedGroups = joinedGroups,
-                        onSelectGroupCode = onSelectGroupCode,
-                        onManageGroupCodes = onManageGroupCodes,
-                        isSubmitting = isSubmitting
-                    )
-                    DropSubmitButton(
-                        isSubmitting = isSubmitting,
-                        onSubmit = onSubmit
-                    )
-                }
-            }
-        }
-    }
-
-    @Composable
-    private fun DropComposerSection(
-        title: String,
-        description: String?,
-        leadingIcon: ImageVector? = null,
-        modifier: Modifier = Modifier,
-        content: @Composable ColumnScope.() -> Unit
-    ) {
-        ElevatedCard(
-            modifier = modifier.fillMaxWidth(),
-            shape = MaterialTheme.shapes.large
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    leadingIcon?.let { icon ->
-                        Surface(
-                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-                            shape = CircleShape
-                        ) {
-                            Box(
-                                modifier = Modifier.padding(10.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = icon,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                        }
-                    }
-
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = title,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        description?.let { helper ->
-                            Text(
-                                text = helper,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-
-                content()
-            }
-        }
-    }
-
-    @Composable
-    private fun ColumnScope.DropContentFormatSection(
-        dropContentType: DropContentType,
-        onDropContentTypeChange: (DropContentType) -> Unit
-    ) {
-        DropComposerSection(
-            title = "Content format",
-            description = "Pick what explorers experience when they discover this drop.",
-            leadingIcon = Icons.Rounded.Edit
-        ) {
-            DropContentTypeSection(
-                selected = dropContentType,
-                onSelect = onDropContentTypeChange,
-                showHeader = false
-            )
-        }
-    }
-
-    @Composable
-    private fun ColumnScope.DropNoteAndDescriptionSection(
-        dropContentType: DropContentType,
-        note: TextFieldValue,
-        onNoteChange: (TextFieldValue) -> Unit,
-        description: TextFieldValue,
-        onDescriptionChange: (TextFieldValue) -> Unit
-    ) {
-        val noteLabel = when (dropContentType) {
-            DropContentType.TEXT -> "Your note"
-            DropContentType.PHOTO, DropContentType.AUDIO, DropContentType.VIDEO -> "Caption (optional)"
-        }
-        val noteSupporting = when (dropContentType) {
-            DropContentType.TEXT -> "Share a friendly message, hint, or story for people who find this drop."
-            DropContentType.PHOTO -> "Add a short caption to go with your photo."
-            DropContentType.AUDIO -> "Add a short caption to go with your audio clip."
-            DropContentType.VIDEO -> "Add a short caption to go with your video clip."
-        }
-        val noteMinLines = if (dropContentType == DropContentType.TEXT) 3 else 1
-
-        DropComposerSection(
-            title = noteLabel,
-            description = noteSupporting,
-            leadingIcon = Icons.Rounded.Edit
-        ) {
-            OutlinedTextField(
-                value = note,
-                onValueChange = onNoteChange,
-                label = null,
-                placeholder = { Text("Write something memorable…") },
-                minLines = noteMinLines,
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
-
-        DropComposerSection(
-            title = "Description",
-            description = "Add more context so explorers know what to expect when they find this drop.",
-            leadingIcon = Icons.Rounded.Description
-        ) {
-            OutlinedTextField(
-                value = description,
-                onValueChange = onDescriptionChange,
-                label = null,
-                placeholder = { Text("Share more details…") },
-                minLines = 2,
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
-    }
-
-    @Composable
-    private fun ColumnScope.DropAutoDeleteSection(
-        decayDaysInput: TextFieldValue,
-        onDecayDaysChange: (TextFieldValue) -> Unit
-    ) {
-        DropComposerSection(
-            title = "Auto-delete",
-            description = "Choose how long this drop should stay visible.",
-            leadingIcon = Icons.Rounded.Refresh
-        ) {
-            OutlinedTextField(
-                value = decayDaysInput,
-                onValueChange = onDecayDaysChange,
-                label = { Text("Auto-delete after (days)") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Number,
-                    imeAction = ImeAction.Next
-                ),
-                supportingText = {
-                    Text("Leave blank to keep this drop forever (max $MAX_DECAY_DAYS days).")
-                },
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
-    }
-
-    @Composable
-    private fun ColumnScope.DropMediaAttachmentsSection(
-        context: Context,
-        dropContentType: DropContentType,
-        capturedPhotoPath: String?,
-        onCapturePhoto: () -> Unit,
-        onClearPhoto: () -> Unit,
-        capturedAudioUri: String?,
-        onRecordAudio: () -> Unit,
-        onClearAudio: () -> Unit,
-        capturedVideoUri: String?,
-        onRecordVideo: () -> Unit,
-        onClearVideo: () -> Unit
-    ) {
-        when (dropContentType) {
-            DropContentType.PHOTO -> {
-                val hasPhoto = capturedPhotoPath != null
-                val photoPreview: (@Composable () -> Unit)? = capturedPhotoPath?.let { path ->
-                    {
-                        AsyncImage(
-                            model = ImageRequest.Builder(context)
-                                .data(File(path))
-                                .crossfade(true)
-                                .build(),
-                            contentDescription = "Captured photo preview",
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(min = 160.dp, max = 240.dp)
-                                .clip(RoundedCornerShape(16.dp)),
-                            contentScale = ContentScale.Crop
-                        )
-                    }
-                }
-                DropComposerSection(
-                    title = "Photo attachment",
-                    description = "Capture a shot to pair with your drop.",
-                    leadingIcon = Icons.Rounded.PhotoCamera
-                ) {
-                    MediaCaptureCard(
-                        title = "Attach a photo",
-                        description = "Snap a picture with your camera to pin at this location.",
-                        status = if (hasPhoto) "Photo ready to upload." else "No photo captured yet.",
-                        isReady = hasPhoto,
-                        primaryLabel = if (hasPhoto) "Retake photo" else "Open camera",
-                        primaryIcon = Icons.Rounded.PhotoCamera,
-                        onPrimary = {
-                            if (hasPhoto) {
-                                onClearPhoto()
-                            }
-                            onCapturePhoto()
-                        },
-                        secondaryLabel = if (hasPhoto) "Remove photo" else null,
-                        onSecondary = if (hasPhoto) {
-                            { onClearPhoto() }
-                        } else {
-                            null
-                        },
-                        previewContent = photoPreview
-                    )
-                }
-            }
-
-            DropContentType.AUDIO -> {
-                val hasAudio = capturedAudioUri != null
-                val audioPreview: (@Composable () -> Unit)? = if (hasAudio) {
-                    {
-                        Surface(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(16.dp),
-                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Start
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.PlayArrow,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                                Spacer(Modifier.width(12.dp))
-                                Column {
-                                    Text(
-                                        text = "Audio attached",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                    Text(
-                                        text = "Ready to drop your voice note.",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    null
-                }
-                DropComposerSection(
-                    title = "Audio attachment",
-                    description = "Record a quick voice message for discoverers.",
-                    leadingIcon = Icons.Rounded.Mic
-                ) {
-                    MediaCaptureCard(
-                        title = "Record audio",
-                        description = "Capture a short voice note for anyone who discovers this drop.",
-                        status = if (hasAudio) "Audio message ready to upload." else "No recording yet.",
-                        isReady = hasAudio,
-                        primaryLabel = if (hasAudio) "Record again" else "Record audio",
-                        primaryIcon = Icons.Rounded.Mic,
-                        onPrimary = {
-                            if (hasAudio) {
-                                onClearAudio()
-                            }
-                            onRecordAudio()
-                        },
-                        secondaryLabel = if (hasAudio) "Remove audio" else null,
-                        onSecondary = if (hasAudio) {
-                            { onClearAudio() }
-                        } else {
-                            null
-                        },
-                        previewContent = audioPreview
-                    )
-                }
-            }
-
-            DropContentType.VIDEO -> {
-                val hasVideo = capturedVideoUri != null
-                val videoPreview: (@Composable () -> Unit)? = if (hasVideo) {
-                    {
-                        Surface(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(16.dp),
-                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Start
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.PlayArrow,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                                Spacer(Modifier.width(12.dp))
-                                Column {
-                                    Text(
-                                        text = "Video attached",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                    Text(
-                                        text = "Ready to drop your clip.",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    null
-                }
-                DropComposerSection(
-                    title = "Video attachment",
-                    description = "Record a short clip to share at this location.",
-                    leadingIcon = Icons.Rounded.Videocam
-                ) {
-                    MediaCaptureCard(
-                        title = "Record video",
-                        description = "Capture a short clip to share at this location.",
-                        status = if (hasVideo) "Video ready to upload." else "No video recorded yet.",
-                        isReady = hasVideo,
-                        primaryLabel = if (hasVideo) "Record again" else "Record video",
-                        primaryIcon = Icons.Rounded.Videocam,
-                        onPrimary = {
-                            if (hasVideo) {
-                                onClearVideo()
-                            }
-                            onRecordVideo()
-                        },
-                        secondaryLabel = if (hasVideo) "Remove video" else null,
-                        onSecondary = if (hasVideo) {
-                            { onClearVideo() }
-                        } else {
-                            null
-                        },
-                        previewContent = videoPreview
-                    )
-                }
-            }
-
-            DropContentType.TEXT -> Unit
-        }
-    }
-
-    @Composable
-    private fun ColumnScope.DropIdentitySection(
-        dropAnonymously: Boolean,
-        onDropAnonymouslyChange: (Boolean) -> Unit,
-        isSubmitting: Boolean
-    ) {
-        DropComposerSection(
-            title = "Identity",
-            description = "Choose whether your username appears to people who collect this drop.",
-            leadingIcon = Icons.Rounded.AccountCircle
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "Drop anonymously",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        text = "Hides your username from the drop while keeping ownership in your account.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Switch(
-                    checked = dropAnonymously,
-                    onCheckedChange = onDropAnonymouslyChange,
-                    enabled = !isSubmitting
-                )
-            }
-        }
-    }
-
-    @Composable
-    private fun ColumnScope.DropVisibilitySectionCard(
-        dropVisibility: DropVisibility,
-        onDropVisibilityChange: (DropVisibility) -> Unit,
-        groupCodeInput: TextFieldValue,
-        onGroupCodeInputChange: (TextFieldValue) -> Unit,
-        joinedGroups: List<String>,
-        onSelectGroupCode: (String) -> Unit,
-        onManageGroupCodes: () -> Unit,
-        isSubmitting: Boolean
-    ) {
-        DropComposerSection(
-            title = "Visibility",
-            description = "Decide who can discover this drop.",
-            leadingIcon = Icons.Rounded.Public
-        ) {
-            DropVisibilitySection(
-                visibility = dropVisibility,
-                onVisibilityChange = onDropVisibilityChange,
-                groupCodeInput = groupCodeInput,
-                onGroupCodeInputChange = onGroupCodeInputChange,
-                joinedGroups = joinedGroups,
-                onSelectGroupCode = onSelectGroupCode,
-                showHeader = false
-            )
-
-            OutlinedButton(
-                onClick = onManageGroupCodes,
-                enabled = !isSubmitting,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.Groups,
-                    contentDescription = null
-                )
-                Spacer(Modifier.width(8.dp))
-                Text("Manage group codes")
-            }
-        }
-    }
-
-    @Composable
-    private fun DropSubmitButton(
-        isSubmitting: Boolean,
-        onSubmit: () -> Unit,
-        modifier: Modifier = Modifier.fillMaxWidth()
-    ) {
-        Button(
-            enabled = !isSubmitting,
-            onClick = onSubmit,
-            modifier = modifier
-        ) {
-            if (isSubmitting) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(18.dp),
-                    strokeWidth = 2.dp
-                )
-                Spacer(Modifier.width(12.dp))
-                Text("Dropping…")
-            } else {
-                Icon(Icons.Rounded.Place, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text("Drop content")
-            }
-        }
-    }
-
-    private enum class BusinessComposerStep(
-        val title: String,
-        val helper: String,
-        val shortLabel: String
-    ) {
-        PLAN(
-            title = "Plan your drop",
-            helper = "Choose the goal that best matches what your business wants to share.",
-            shortLabel = "Plan"
-        ),
-        CONTENT(
-            title = "Create your content",
-            helper = "Select a format and add the story that will engage nearby explorers.",
-            shortLabel = "Content"
-        ),
-        OFFER(
-            title = "Secure your offer",
-            helper = "Protect promotions with a code and limit redemptions to avoid misuse.",
-            shortLabel = "Offer"
-        ),
-        SETTINGS(
-            title = "Finalize settings",
-            helper = "Decide how long the drop lasts and who should be able to discover it.",
-            shortLabel = "Settings"
-        )
-    }
-
-    private enum class BusinessStepStatus { Completed, Active, Upcoming }
-
-
-    @Composable
-    private fun BusinessComposerStepIndicator(
-        steps: List<BusinessComposerStep>,
-        currentStep: BusinessComposerStep,
-        onStepSelected: (BusinessComposerStep) -> Unit,
-        modifier: Modifier = Modifier
-    ) {
-        val scrollState = rememberScrollState()
-        Row(
-            modifier = modifier
-                .fillMaxWidth()
-                .horizontalScroll(scrollState),
-            horizontalArrangement = Arrangement.spacedBy(24.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            val currentIndex = steps.indexOf(currentStep).coerceAtLeast(0)
-            steps.forEachIndexed { index, step ->
-                val status = when {
-                    index < currentIndex -> BusinessStepStatus.Completed
-                    index == currentIndex -> BusinessStepStatus.Active
-                    else -> BusinessStepStatus.Upcoming
-                }
-                BusinessComposerStepItem(
-                    index = index,
-                    step = step,
-                    status = status,
-                    onClick = { onStepSelected(step) }
-                )
-            }
-        }
-    }
-
-    @Composable
-    private fun BusinessComposerStepItem(
-        index: Int,
-        step: BusinessComposerStep,
-        status: BusinessStepStatus,
-        onClick: () -> Unit
-    ) {
-        val (containerColor, contentColor) = when (status) {
-            BusinessStepStatus.Active -> MaterialTheme.colorScheme.primary to MaterialTheme.colorScheme.onPrimary
-            BusinessStepStatus.Completed -> MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.onSecondaryContainer
-            BusinessStepStatus.Upcoming -> MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
-        }
-        val labelColor = if (status == BusinessStepStatus.Upcoming) {
-            MaterialTheme.colorScheme.onSurfaceVariant
-        } else {
-            MaterialTheme.colorScheme.onSurface
-        }
-
-        Column(
-            modifier = Modifier
-                .widthIn(min = 72.dp)
-                .clickable(onClick = onClick),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Surface(
-                color = containerColor,
-                contentColor = contentColor,
-                shape = CircleShape,
-                tonalElevation = if (status == BusinessStepStatus.Active) 4.dp else 0.dp
-            ) {
-                Text(
-                    text = (index + 1).toString(),
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-
-            Text(
-                text = step.title,
-                style = MaterialTheme.typography.labelMedium,
-                color = labelColor,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.widthIn(max = 160.dp)
-            )
-        }
-    }
-
-    @Composable
-    private fun BusinessComposerStepNavigation(
-        previousStep: BusinessComposerStep?,
-        nextStep: BusinessComposerStep?,
-        isSubmitting: Boolean,
-        onBack: (BusinessComposerStep) -> Unit,
-        onNext: (BusinessComposerStep) -> Unit,
-        onSubmit: () -> Unit
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (previousStep != null) {
-                OutlinedButton(
-                    onClick = { onBack(previousStep) },
-                    enabled = !isSubmitting
-                ) {
-                    Text("Back")
-                }
-            }
-
-            Spacer(Modifier.weight(1f))
-
-            if (nextStep != null) {
-                Button(
-                    onClick = { onNext(nextStep) },
-                    enabled = !isSubmitting
-                ) {
-                    Text("Next: ${nextStep.shortLabel}")
-                }
-            } else {
-                DropSubmitButton(
-                    isSubmitting = isSubmitting,
-                    onSubmit = onSubmit,
-                    modifier = Modifier
-                )
-            }
-        }
-    }
-
-    @Composable
-    private fun DialogMessageContent(
-        message: String,
-        primaryLabel: String?,
-        onPrimary: (() -> Unit)?,
-        onDismiss: (() -> Unit)? = null
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 32.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = message,
-                style = MaterialTheme.typography.bodyLarge,
-                textAlign = TextAlign.Center
-            )
-
-            Spacer(Modifier.height(16.dp))
-
-            if (primaryLabel != null && onPrimary != null) {
-                Button(onClick = onPrimary) {
-                    Text(primaryLabel)
-                }
-                Spacer(Modifier.height(8.dp))
-            }
-
-            onDismiss?.let {
-                TextButton(onClick = it) {
-                    Text("Back to main page")
-                }
-            }
-        }
-    }
-
-    @Composable
-    private fun NsfwPreferenceDialog(
-        enabled: Boolean,
-        isProcessing: Boolean,
-        error: String?,
-        onConfirm: (Boolean) -> Unit,
-        onDismiss: () -> Unit
-    ) {
-        var confirmChecked by remember(enabled) { mutableStateOf(false) }
-        var localError by remember { mutableStateOf<String?>(null) }
-
-        val description = if (enabled) {
-            "Turn off access to adult content in GeoDrop. You'll stop seeing NSFW drops and won't be able to create them."
-        } else {
-            "Enable access to adult (18+) drops. This allows you to view and share NSFW content when you are legally permitted to do so."
-        }
-
-        AlertDialog(
-            onDismissRequest = { if (!isProcessing) onDismiss() },
-            icon = { Icon(Icons.Rounded.Flag, contentDescription = null) },
-            title = { Text("18+ content") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(description)
-                    if (!enabled) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Checkbox(
-                                checked = confirmChecked,
-                                onCheckedChange = { checked ->
-                                    confirmChecked = checked
-                                    if (checked) localError = null
-                                },
-                                enabled = !isProcessing
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text("I confirm that I am at least 18 years old.")
-                        }
-                    }
-                    val message = error ?: localError
-                    if (!message.isNullOrBlank()) {
-                        Text(
-                            text = message,
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        if (!enabled && !confirmChecked) {
-                            localError = "Confirm that you are 18 or older."
-                        } else if (!isProcessing) {
-                            localError = null
-                            onConfirm(!enabled)
-                        }
-                    },
-                    enabled = !isProcessing && (enabled || confirmChecked)
-                ) {
-                    Text(if (enabled) "Disable" else "Enable")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { if (!isProcessing) onDismiss() }, enabled = !isProcessing) {
-                    Text("Cancel")
-                }
-            }
-        )
-    }
-
-    private fun visionStatusMessage(
-        assessment: DropSafetyAssessment,
-        contentType: DropContentType
-    ): String? {
-        return when (assessment.visionStatus) {
-            VisionApiStatus.NOT_CONFIGURED ->
-                "Google Vision SafeSearch isn't configured, so this drop wasn't scanned."
-
-            VisionApiStatus.NOT_ELIGIBLE -> when (contentType) {
-                DropContentType.PHOTO ->
-                    "Google Vision SafeSearch skipped this photo because it couldn't be processed."
-
-                else ->
-                    "Google Vision SafeSearch only scans photo drops, so this one was skipped."
-            }
-
-            VisionApiStatus.ERROR ->
-                "Google Vision SafeSearch couldn't be reached, so the drop was saved without a scan."
-
-            VisionApiStatus.CLEARED ->
-                "Google Vision SafeSearch scanned the drop and cleared it."
-
-            VisionApiStatus.FLAGGED -> {
-                val reason = assessment.reasons.firstOrNull()?.takeIf { it.isNotBlank() }
-                if (reason != null) {
-                    "Google Vision SafeSearch flagged this drop: $reason"
-                } else {
-                    "Google Vision SafeSearch flagged this drop as potentially unsafe content."
-                }
-            }
-        }
-    }
-
-    @Composable
-    private fun NotificationRadiusDialog(
-        initialRadius: Double,
-        onConfirm: (Double) -> Unit,
-        onDismiss: () -> Unit
-    ) {
-        val minRadius = NotificationPreferences.MIN_RADIUS_METERS.toFloat()
-        val maxRadius = NotificationPreferences.MAX_RADIUS_METERS.toFloat()
-        val step = NOTIFICATION_RADIUS_STEP_METERS
-        val rawSteps = ((maxRadius - minRadius) / step).roundToInt()
-        val steps = (rawSteps - 1).coerceAtLeast(0)
-        var sliderValue by remember(initialRadius) {
-            mutableStateOf(initialRadius.toFloat().coerceIn(minRadius, maxRadius))
-        }
-
-        AlertDialog(
-            onDismissRequest = onDismiss,
-            icon = { Icon(Icons.Rounded.Map, contentDescription = null) },
-            title = { Text("Nearby notification radius") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Text("Choose how close a drop should be before we alert you.")
-                    Text(
-                        text = "${sliderValue.roundToInt()} meters",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Medium
-                    )
-                    Slider(
-                        value = sliderValue,
-                        onValueChange = { value ->
-                            val snapped = (value / step).roundToInt() * step
-                            sliderValue = snapped.coerceIn(minRadius, maxRadius)
-                        },
-                        valueRange = minRadius..maxRadius,
-                        steps = steps,
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { onConfirm(sliderValue.toDouble()) }) {
-                    Text("Save")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = onDismiss) {
-                    Text("Cancel")
-                }
-            }
-        )
-    }
-
-    @Composable
-    private fun FaqDialog(
-        onDismiss: () -> Unit
-    ) {
-        val scrollState = rememberScrollState()
-        val faqEntries = remember {
-            listOf(
-                FaqEntry(
-                    question = R.string.faq_question_core_features,
-                    answer = R.string.faq_answer_core_features
-                ),
-                FaqEntry(
-                    question = R.string.faq_question_drop_contents,
-                    answer = R.string.faq_answer_drop_contents
-                ),
-                FaqEntry(
-                    question = R.string.faq_question_explorer_usage,
-                    answer = R.string.faq_answer_explorer_usage
-                ),
-                FaqEntry(
-                    question = R.string.faq_question_groups,
-                    answer = R.string.faq_answer_groups
-                )
-            )
-        }
-
-        Dialog(onDismissRequest = onDismiss) {
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .widthIn(max = 480.dp),
-                shape = RoundedCornerShape(28.dp),
-                tonalElevation = 6.dp
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(24.dp)
-                        .verticalScroll(scrollState),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Text(
-                        text = stringResource(R.string.faq_title),
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        text = stringResource(R.string.faq_intro),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    faqEntries.forEach { entry ->
-                        FaqEntryContent(
-                            question = stringResource(entry.question),
-                            answer = stringResource(entry.answer)
-                        )
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End
-                    ) {
-                        TextButton(onClick = onDismiss) {
-                            Text(stringResource(R.string.faq_close))
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private data class FaqEntry(
-        val question: Int,
-        val answer: Int
-    )
-
-    @Composable
-    private fun FaqEntryContent(
-        question: String,
-        answer: String
-    ) {
-        Column(
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Text(
-                text = question,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-            Text(
-                text = answer,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-
-    @Composable
-    private fun TermsPrivacyDialog(
-        initialTab: Int,
-        onDismiss: () -> Unit
-    ) {
-        val tabCount = TERMS_PRIVACY_TABS.size
-        var selectedTab by remember { mutableStateOf(initialTab.coerceIn(0, tabCount - 1)) }
-        val scrollState = rememberScrollState()
-        val agreementText = remember(selectedTab) {
-            if (selectedTab == 0) TERMS_OF_SERVICE_TEXT else PRIVACY_POLICY_TEXT
-        }
-
-        LaunchedEffect(initialTab) {
-            val clamped = initialTab.coerceIn(0, tabCount - 1)
-            selectedTab = clamped
-        }
-
-        LaunchedEffect(selectedTab) {
-            scrollState.scrollTo(0)
-        }
-
-        Dialog(onDismissRequest = onDismiss) {
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .widthIn(max = 560.dp),
-                shape = RoundedCornerShape(28.dp),
-                tonalElevation = 6.dp
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(24.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Text(
-                        text = stringResource(R.string.terms_privacy_dialog_title),
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        text = TERMS_PRIVACY_SUMMARY,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Divider()
-                    TabRow(
-                        selectedTabIndex = selectedTab,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        TERMS_PRIVACY_TABS.forEachIndexed { index, title ->
-                            Tab(
-                                selected = selectedTab == index,
-                                onClick = { selectedTab = index },
-                                text = { Text(title) }
-                            )
-                        }
-                    }
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 200.dp, max = 360.dp)
-                            .verticalScroll(scrollState)
-                            .border(
-                                BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                                RoundedCornerShape(12.dp)
-                            )
-                            .padding(16.dp)
-                    ) {
-                        Text(
-                            text = agreementText,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            lineHeight = MaterialTheme.typography.bodySmall.lineHeight
-                        )
-                    }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End
-                    ) {
-                        TextButton(onClick = onDismiss) {
-                            Text(stringResource(R.string.terms_privacy_dialog_close))
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private const val NOTIFICATION_RADIUS_STEP_METERS = 50f
-    private const val DROP_PICKUP_RADIUS_METERS = 30.0
-    private const val MAX_BUSINESS_TEMPLATE_SUGGESTIONS = 6
-
-    private fun formatCoordinate(value: Double): String {
-        return String.format(Locale.US, "%.5f", value)
-    }
-
-
-    @Composable
-    private fun CollectedDropsContent(
-        modifier: Modifier = Modifier,
-        notes: List<CollectedNote>,
-        highlightedId: String?,
-        onHighlightedIdChange: (String?) -> Unit,
-        hiddenNsfwCount: Int,
-        canReportDrops: Boolean,
-        reportedDropIds: Set<String>,
-        reportingDropId: String?,
-        isReportProcessing: Boolean,
-        sortOption: DropSortOption,
-        sortOptions: List<DropSortOption>,
-        explorerGroups: List<GroupMembership>,
-        selectedExplorerGroupCode: String?,
-        onSelectExplorerGroup: (String?) -> Unit,
-        mapPreviewBitmap: Bitmap?,
-        mapPreviewExpanded: Boolean,
-        mapPreviewCameraPosition: CameraPosition?,
-        mapPreviewCurrentLocation: LatLng?,
-        onMapPreviewSnapshotChange: (Bitmap?, CameraPosition) -> Unit,
-        onMapPreviewExpandedChange: (Boolean) -> Unit,
-        onMapPreviewOpenMap: () -> Unit,
-        onSortOptionChange: (DropSortOption) -> Unit,
-        canLikeDrops: Boolean,
-        isSignedIn: Boolean,
-        likeRestrictionMessage: String?,
-        votingDropIds: Set<String>,
-        onLike: (CollectedNote, DropLikeStatus) -> Unit,
-        onReport: (CollectedNote) -> Unit,
-        onView: (CollectedNote) -> Unit,
-        onRemove: (CollectedNote) -> Unit,
-        emptyMessage: String? = null,
-        topContentPadding: Dp = 0.dp,
-        contentPadding: PaddingValues = PaddingValues(vertical = 16.dp)
-    ) {
-        if (notes.isEmpty()) {
-            val message = if (hiddenNsfwCount > 0) {
-                val plural = if (hiddenNsfwCount == 1) "drop" else "drops"
-                "Your NSFW settings are hiding $hiddenNsfwCount collected $plural."
-            } else {
-                emptyMessage ?: "You haven't collected any drops yet."
-            }
-            Box(
-                modifier = modifier
-                    .fillMaxSize()
-                    .padding(contentPadding)
-                    .padding(top = topContentPadding)
-            ) {
-                DialogMessageContent(
-                    message = message,
-                    primaryLabel = null,
-                    onPrimary = null,
-                    onDismiss = null
-                )
-            }
-            return
-        }
-
-        val highlightedNote =
-            remember(notes, highlightedId) { notes.firstOrNull { it.id == highlightedId } }
-
-        val listState = rememberLazyListState()
-        var lastSortOption by remember { mutableStateOf(sortOption) }
-        var skipScrollForSortChange by remember { mutableStateOf(false) }
-
-        LaunchedEffect(sortOption) {
-            if (lastSortOption != sortOption) {
-                skipScrollForSortChange = true
-                listState.scrollToItem(0)
-                lastSortOption = sortOption
-            }
-        }
-
-        LaunchedEffect(highlightedId, notes) {
-            if (skipScrollForSortChange) {
-                skipScrollForSortChange = false
-                return@LaunchedEffect
-            }
-            val targetId = highlightedId ?: return@LaunchedEffect
-            val index = notes.indexOfFirst { it.id == targetId }
-            if (index >= 0) {
-                listState.animateScrollToItem(index)
-            }
-        }
-
-        Column(
-            modifier = modifier
-                .fillMaxSize()
-                .padding(contentPadding)
-                .padding(top = topContentPadding)
-        ) {
-            CollectedDropsMapPreviewHeader(
-                notes = notes,
-                highlightedId = highlightedId,
-                currentLocation = mapPreviewCurrentLocation,
-                expanded = mapPreviewExpanded,
-                snapshot = mapPreviewBitmap,
-                cameraPosition = mapPreviewCameraPosition,
-                canReportDrops = canReportDrops,
-                reportedDropIds = reportedDropIds,
-                reportingDropId = reportingDropId,
-                isReportProcessing = isReportProcessing,
-                canLikeDrops = canLikeDrops,
-                isSignedIn = isSignedIn,
-                likeRestrictionMessage = likeRestrictionMessage,
-                votingDropIds = votingDropIds,
-                onSnapshotChange = onMapPreviewSnapshotChange,
-                onExpandedChange = onMapPreviewExpandedChange,
-                onOpenMap = onMapPreviewOpenMap,
-                onHighlightedIdChange = onHighlightedIdChange,
-                onLike = onLike,
-                onReport = onReport,
-                onView = onView,
-                onRemove = onRemove
-            )
-            Spacer(Modifier.height(16.dp))
-
-            ExplorerSharedChipRow(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                sortOption = sortOption,
-                sortOptions = sortOptions,
-                onSortOptionChange = onSortOptionChange,
-                explorerGroups = explorerGroups,
-                selectedExplorerGroupCode = selectedExplorerGroupCode,
-                onSelectExplorerGroup = onSelectExplorerGroup,
-                itemCount = notes.size
-            )
-
-            Spacer(Modifier.height(12.dp))
-
-            if (hiddenNsfwCount > 0) {
-                val plural = if (hiddenNsfwCount == 1) "drop" else "drops"
-                Surface(
-                    color = MaterialTheme.colorScheme.surfaceVariant,
-                    tonalElevation = 2.dp,
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                ) {
-                    Text(
-                        text = "Your NSFW settings are hiding $hiddenNsfwCount collected $plural.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
-                    )
-                }
-                Spacer(Modifier.height(12.dp))
-            }
-
-            AnimatedVisibility(
-                visible = highlightedNote != null && (highlightedNote.lat == null || highlightedNote.lng == null)
-            ) {
-                Surface(
-                    color = MaterialTheme.colorScheme.surfaceVariant,
-                    shape = RoundedCornerShape(12.dp),
-                    tonalElevation = 2.dp,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp)
-                ) {
-                    Text(
-                        text = "Location unavailable for the selected drop.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
-                    )
-                }
-                Spacer(Modifier.height(12.dp))
-            }
-
-            LazyColumn(
-                state = listState,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(notes, key = { it.id }) { note ->
-                    val isHighlighted = note.id == highlightedId
-                    val alreadyReported = reportedDropIds.contains(note.id)
-                    val restrictionMessage = when {
-                        alreadyReported -> "Thanks for your report. We'll review it soon."
-                        !canReportDrops -> "Sign in to report drops."
-                        else -> null
-                    }
-                    val isReporting = isReportProcessing && reportingDropId == note.id
-                    val canReact = canLikeDrops && isSignedIn
-                    val isVoting = votingDropIds.contains(note.id)
-                    CollectedNoteCard(
-                        note = note,
-                        selected = isHighlighted,
-                        expanded = isHighlighted,
-                        onSelect = {
-                            onHighlightedIdChange(if (isHighlighted) null else note.id)
-                        },
-                        likeCount = note.likeCount,
-                        dislikeCount = note.dislikeCount,
-                        userLike = note.likeStatus(),
-                        canLike = canReact,
-                        likeRestrictionMessage = likeRestrictionMessage,
-                        isVoting = isVoting,
-                        onLike = { status -> onLike(note, status) },
-                        canReport = canReportDrops,
-                        alreadyReported = alreadyReported,
-                        reportRestrictionMessage = restrictionMessage,
-                        isReporting = isReporting,
-                        onReport = { onReport(note) },
-                        onView = {
-                            onHighlightedIdChange(note.id)
-                            onView(note)
-                        },
-                        onRemove = {
-                            onHighlightedIdChange(null)
-                            onRemove(note)
-                        }
-                    )
-                }
-            }
-        }
-    }
-
-    @Composable
-    private fun GeoDropHeader(
-        modifier: Modifier = Modifier
-    ) {
-        Text(
-            modifier = modifier,
-            text = stringResource(R.string.app_name),
-            style = MaterialTheme.typography.titleLarge.copy(
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 1.5.sp
-            ),
-            color = MaterialTheme.colorScheme.primary
-        )
-    }
-
-    @Composable
-    private fun ExplorerProfileDialog(
-        currentUsername: String?,
-        username: TextFieldValue,
-        onUsernameChange: (TextFieldValue) -> Unit,
-        isSubmitting: Boolean,
-        error: String?,
-        onSubmit: () -> Unit,
-        onDismiss: () -> Unit
-    ) {
-        Dialog(
-            onDismissRequest = {
-                if (!isSubmitting) onDismiss()
-            }
-        ) {
-            Surface(
-                shape = MaterialTheme.shapes.large,
-                tonalElevation = 6.dp,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp)
-            ) {
-                val scrollState = rememberScrollState()
-                Column(
-                    modifier = Modifier
-                        .padding(24.dp)
-                        .verticalScroll(scrollState),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Text(
-                        text = stringResource(R.string.explorer_profile_title),
-                        style = MaterialTheme.typography.titleLarge
-                    )
-
-                    Text(
-                        text = stringResource(R.string.explorer_profile_description),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    currentUsername?.takeIf { it.isNotBlank() }?.let { existing ->
-                        Text(
-                            text = stringResource(
-                                R.string.explorer_profile_current_username,
-                                "@$existing"
-                            ),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
-                    OutlinedTextField(
-                        value = username,
-                        onValueChange = onUsernameChange,
-                        label = { Text(stringResource(R.string.explorer_profile_username_label)) },
-                        placeholder = { Text(stringResource(R.string.explorer_profile_username_placeholder)) },
-                        singleLine = true,
-                        enabled = !isSubmitting,
-                        keyboardOptions = KeyboardOptions(
-                            capitalization = KeyboardCapitalization.None,
-                            autoCorrect = false,
-                            keyboardType = KeyboardType.Ascii,
-                            imeAction = ImeAction.Done
-                        ),
-                        keyboardActions = KeyboardActions(onDone = { onSubmit() }),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Text(
-                        text = stringResource(R.string.explorer_profile_hint),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    error?.let { message ->
-                        Text(
-                            text = message,
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        OutlinedButton(
-                            onClick = onDismiss,
-                            enabled = !isSubmitting,
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text("Cancel")
-                        }
-
-                        Button(
-                            onClick = onSubmit,
-                            enabled = !isSubmitting,
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            if (isSubmitting) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(18.dp),
-                                    strokeWidth = 2.dp
-                                )
-                            } else {
-                                Text(stringResource(R.string.explorer_profile_save))
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    @Composable
-    private fun BusinessOnboardingDialog(
-        name: TextFieldValue,
-        selectedCategories: Set<BusinessCategory>,
-        onNameChange: (TextFieldValue) -> Unit,
-        onToggleCategory: (BusinessCategory) -> Unit,
-        isSubmitting: Boolean,
-        error: String?,
-        onSubmit: () -> Unit,
-        onDismiss: () -> Unit
-    ) {
-        Dialog(
-            onDismissRequest = {
-                if (!isSubmitting) onDismiss()
-            }
-        ) {
-            Surface(
-                shape = MaterialTheme.shapes.large,
-                tonalElevation = 6.dp,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp)
-            ) {
-                val scrollState = rememberScrollState()
-                Column(
-                    modifier = Modifier
-                        .padding(24.dp)
-                        .verticalScroll(scrollState),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Text(
-                        text = "Business profile",
-                        style = MaterialTheme.typography.titleLarge
-                    )
-
-                    Text(
-                        text = "Add a display name so explorers know which business dropped this content.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    OutlinedTextField(
-                        value = name,
-                        onValueChange = onNameChange,
-                        label = { Text("Business or brand name") },
-                        enabled = !isSubmitting,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Text(
-                        text = "Select the categories that best describe your business.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    val groupedEntries = remember {
-                        BusinessCategory.entries.groupBy { it.group }.entries.toList()
-                    }
-
-                    groupedEntries.forEachIndexed { index, (group, options) ->
-                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Text(
-                                text = group.displayName,
-                                style = MaterialTheme.typography.titleSmall,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-
-                            options.forEach { category ->
-                                BusinessCategoryOptionRow(
-                                    category = category,
-                                    selected = selectedCategories.contains(category),
-                                    enabled = !isSubmitting,
-                                    onToggle = { onToggleCategory(category) }
-                                )
-                            }
-                        }
-
-                        if (index != groupedEntries.lastIndex) {
-                            Spacer(Modifier.height(8.dp))
-                        }
-                    }
-
-                    error?.let { message ->
-                        Text(
-                            text = message,
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        OutlinedButton(
-                            onClick = onDismiss,
-                            enabled = !isSubmitting,
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text("Cancel")
-                        }
-
-                        Button(
-                            onClick = onSubmit,
-                            enabled = !isSubmitting,
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            if (isSubmitting) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(18.dp),
-                                    strokeWidth = 2.dp
-                                )
-                                Spacer(Modifier.width(8.dp))
-                                Text("Saving…")
-                            } else {
-                                Text("Save")
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    @Composable
-    private fun BusinessCategoryOptionRow(
-        category: BusinessCategory,
-        selected: Boolean,
-        enabled: Boolean,
-        onToggle: () -> Unit
-    ) {
-        val shape = RoundedCornerShape(16.dp)
-        val backgroundColor = if (selected) {
-            MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-        } else {
-            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-        }
-        val borderColor = if (selected) {
-            MaterialTheme.colorScheme.primary
-        } else {
-            MaterialTheme.colorScheme.outlineVariant
-        }
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(shape)
-                .background(backgroundColor)
-                .border(BorderStroke(1.dp, borderColor), shape)
-                .clickable(enabled = enabled, role = Role.Checkbox) { onToggle() }
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Checkbox(
-                checked = selected,
-                onCheckedChange = null,
-                enabled = enabled
-            )
-
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(
-                    text = category.displayName,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = category.description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-    }
-
-    @Composable
-    @OptIn(ExperimentalLayoutApi::class)
-    private fun BusinessDashboardDialog(
-        drops: List<Drop>,
-        loading: Boolean,
-        error: String?,
-        onDismiss: () -> Unit,
-        onRefresh: () -> Unit
-    ) {
-        Dialog(onDismissRequest = onDismiss) {
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                shape = MaterialTheme.shapes.large,
-                tonalElevation = 6.dp
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(24.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Business dashboard",
-                            style = MaterialTheme.typography.titleLarge,
-                            modifier = Modifier.weight(1f)
-                        )
-                        IconButton(onClick = onDismiss) {
-                            Icon(Icons.Rounded.Close, contentDescription = "Close dashboard")
-                        }
-                    }
-
-                    Button(
-                        onClick = onRefresh,
-                        enabled = !loading,
-                        modifier = Modifier.align(Alignment.End)
-                    ) {
-                        if (loading) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(18.dp),
-                                strokeWidth = 2.dp
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text("Refreshing…")
-                        } else {
-                            Icon(Icons.Rounded.Refresh, contentDescription = null)
-                            Spacer(Modifier.width(8.dp))
-                            Text("Refresh")
-                        }
-                    }
-
-                    when {
-                        loading -> {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 32.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                CircularProgressIndicator()
-                            }
-                        }
-
-                        error != null -> {
-                            Text(
-                                text = error,
-                                color = MaterialTheme.colorScheme.error,
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                        }
-
-                        drops.isEmpty() -> {
-                            Text(
-                                text = "You haven't shared any business drops yet. Create one to see analytics here.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-
-                        else -> {
-                            val sorted = drops.sortedByDescending { it.createdAt }
-                            val totalRedemptions = sorted.sumOf { it.redemptionCount }
-                            val uniqueRedeemers = sorted.flatMap { it.redeemedBy.keys }.toSet().size
-                            val activeOffers =
-                                sorted.count { it.dropType == DropType.RESTAURANT_COUPON }
-
-                            FlowRow(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                verticalArrangement = Arrangement.spacedBy(12.dp),
-                                maxItemsInEachRow = 2
-                            ) {
-                                DashboardMetricCard(
-                                    value = sorted.size.toString(),
-                                    label = "Live drops",
-                                    modifier = Modifier.weight(1f)
-                                )
-                                DashboardMetricCard(
-                                    value = totalRedemptions.toString(),
-                                    label = "Total redemptions",
-                                    modifier = Modifier.weight(1f)
-                                )
-                                DashboardMetricCard(
-                                    value = uniqueRedeemers.toString(),
-                                    label = "Unique redeemers",
-                                    modifier = Modifier.weight(1f)
-                                )
-                                DashboardMetricCard(
-                                    value = activeOffers.toString(),
-                                    label = "Active offers",
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-
-                            LazyColumn(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .heightIn(max = 360.dp),
-                                verticalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                items(sorted, key = { it.id }) { drop ->
-                                    BusinessDropAnalyticsCard(drop = drop)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    @Composable
-    private fun DashboardMetricCard(value: String, label: String, modifier: Modifier = Modifier) {
-        Surface(
-            modifier = modifier,
-            tonalElevation = 3.dp,
-            shape = RoundedCornerShape(16.dp),
-            border = BorderStroke(
-                width = 1.dp,
-                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
-            )
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Text(
-                    text = value,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = label,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-    }
-
-    @Composable
-    private fun BusinessDropAnalyticsCard(drop: Drop) {
-        ElevatedCard(
-            modifier = Modifier
-                .fillMaxWidth()
-                .border(
-                    BorderStroke(
-                        width = 1.dp,
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                    ),
-                    shape = RoundedCornerShape(16.dp)
-                ),
-            shape = RoundedCornerShape(16.dp)
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    DropTitleText(
-                        drop = drop,
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.weight(1f),
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-
-                    if (drop.isNsfw) {
-                        DropNsfwBadge()
-                    }
-                }
-
-                Text(
-                    text = when (drop.dropType) {
-                        DropType.RESTAURANT_COUPON -> "Offer · ${drop.businessName ?: "Your business"}"
-                        DropType.TOUR_STOP -> "Tour stop"
-                        DropType.COMMUNITY -> "Community drop"
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                val redemptionStatus = if (drop.dropType == DropType.RESTAURANT_COUPON) {
-                    val remaining = drop.remainingRedemptions()
-                    buildString {
-                        append("Redemptions: ${drop.redemptionCount}")
-                        drop.redemptionLimit?.let { limit ->
-                            append(" / $limit")
-                            remaining?.let { append(" · $it left") }
-                        }
-                    }
-                } else {
-                    "Redemptions: n/a"
-                }
-
-                Text(
-                    text = redemptionStatus,
-                    style = MaterialTheme.typography.bodyMedium
-                )
-
-                val expirationLabel = drop.decayAtMillis()?.let { expireAt ->
-                    val now = System.currentTimeMillis()
-                    if (expireAt <= now) {
-                        "Auto-deleted"
-                    } else {
-                        val remainingMillis = expireAt - now
-                        val remainingDays = ceil(
-                            remainingMillis.toDouble() /
-                                    TimeUnit.DAYS.toMillis(1).toDouble()
-                        ).toInt().coerceAtLeast(1)
-                        if (remainingDays == 1) "Expires in 1 day" else "Expires in $remainingDays days"
-                    }
-                }
-                expirationLabel?.let { label ->
-                    Text(
-                        text = label,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                val reactionSummary = "Likes: ${drop.likeCount} · Dislikes: ${drop.dislikeCount}"
-                Text(
-                    text = reactionSummary,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-    }
-
-    private enum class DropSortOption(val displayName: String) {
-        NEAREST("Nearest"),
-        MOST_POPULAR("Most popular"),
-        NEWEST("Newest"),
-        ENDING_SOON("Ending soon")
-    }
-
-    @Stable
-    private class ExplorerSearchToggle(
-        val key: String,
-        val label: String,
-        val checked: Boolean,
-        val onCheckedChange: (Boolean) -> Unit,
-        val icon: ImageVector? = null,
-        val checkedDescription: String? = null,
-        val uncheckedDescription: String? = null
-    )
-
-    @OptIn(ExperimentalLayoutApi::class)
-    @Composable
-    private fun ExplorerSharedChipRow(
-        modifier: Modifier = Modifier,
-        sortOption: DropSortOption,
-        sortOptions: List<DropSortOption>,
-        onSortOptionChange: (DropSortOption) -> Unit,
-        explorerGroups: List<GroupMembership>,
-        selectedExplorerGroupCode: String?,
-        onSelectExplorerGroup: (String?) -> Unit,
-        searchToggles: List<ExplorerSearchToggle> = emptyList(),
-        itemCount: Int? = null
-    ) {
-        Column(
-            modifier = modifier,
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                sortOptions.forEach { option ->
-                    val isSelected = option == sortOption
-                    val semanticsDescription = if (isSelected) {
-                        "Sorting by ${option.displayName}"
-                    } else {
-                        "Sort drops by ${option.displayName}"
-                    }
-                    FilterChip(
-                        selected = isSelected,
-                        onClick = {
-                            if (!isSelected) {
-                                onSortOptionChange(option)
-                            }
-                        },
-                        label = { Text(option.displayName) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                            selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
-                            selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                            labelColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        ),
-                        modifier = Modifier.semantics {
-                            role = Role.RadioButton
-                            contentDescription = semanticsDescription
-                        }
-                    )
-                }
-
-                itemCount?.let { count ->
-                    CountBadge(count = count)
-                }
-            }
-
-            if (explorerGroups.isNotEmpty()) {
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    val showAllSelected = selectedExplorerGroupCode == null
-                    AssistChip(
-                        onClick = {
-                            if (!showAllSelected) {
-                                onSelectExplorerGroup(null)
-                            }
-                        },
-                        label = { Text("All groups") },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Rounded.Public,
-                                contentDescription = null
-                            )
-                        },
-                        colors = AssistChipDefaults.assistChipColors(
-                            containerColor = if (showAllSelected) {
-                                MaterialTheme.colorScheme.secondaryContainer
-                            } else {
-                                MaterialTheme.colorScheme.surfaceVariant
-                            },
-                            labelColor = if (showAllSelected) {
-                                MaterialTheme.colorScheme.onSecondaryContainer
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            },
-                            leadingIconContentColor = if (showAllSelected) {
-                                MaterialTheme.colorScheme.onSecondaryContainer
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            }
-                        ),
-                        modifier = Modifier.semantics {
-                            role = Role.RadioButton
-                            contentDescription = if (showAllSelected) {
-                                "Showing drops from all groups"
-                            } else {
-                                "Show drops from all groups"
-                            }
-                        }
-                    )
-
-                    explorerGroups.forEach { membership ->
-                        val isSelected = membership.code == selectedExplorerGroupCode
-                        AssistChip(
-                            onClick = {
-                                if (!isSelected) {
-                                    onSelectExplorerGroup(membership.code)
-                                }
-                            },
-                            label = { Text(membership.code) },
-                            colors = AssistChipDefaults.assistChipColors(
-                                containerColor = if (isSelected) {
-                                    MaterialTheme.colorScheme.secondaryContainer
-                                } else {
-                                    MaterialTheme.colorScheme.surfaceVariant
-                                },
-                                labelColor = if (isSelected) {
-                                    MaterialTheme.colorScheme.onSecondaryContainer
-                                } else {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                }
-                            ),
-                            modifier = Modifier.semantics {
-                                role = Role.RadioButton
-                                contentDescription = if (isSelected) {
-                                    "Filtering drops for group ${membership.code}"
-                                } else {
-                                    "Filter drops to group ${membership.code}"
-                                }
-                            }
-                        )
-                    }
-                }
-            }
-
-            if (searchToggles.isNotEmpty()) {
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    searchToggles.forEach { toggle ->
-                        val semanticsDescription = if (toggle.checked) {
-                            toggle.checkedDescription
-                                ?: "Disable ${toggle.label.lowercase()} filter"
-                        } else {
-                            toggle.uncheckedDescription
-                                ?: "Enable ${toggle.label.lowercase()} filter"
-                        }
-                        FilterChip(
-                            selected = toggle.checked,
-                            onClick = { toggle.onCheckedChange(!toggle.checked) },
-                            label = { Text(toggle.label) },
-                            leadingIcon = toggle.icon?.let { icon ->
-                                {
-                                    Icon(imageVector = icon, contentDescription = null)
-                                }
-                            },
-                            colors = FilterChipDefaults.filterChipColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                                selectedContainerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                                selectedLabelColor = MaterialTheme.colorScheme.onTertiaryContainer,
-                                labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                iconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                selectedLeadingIconColor = MaterialTheme.colorScheme.onTertiaryContainer
-                            ),
-                            modifier = Modifier.semantics {
-                                role = Role.Switch
-                                contentDescription = semanticsDescription
-                            }
-                        )
-                    }
-                }
-            }
-        }
-    }
-
-    private fun sortDrops(
-        drops: List<Drop>,
-        option: DropSortOption,
-        currentLocation: LatLng?
-    ): List<Drop> {
-        return when (option) {
-            DropSortOption.NEAREST -> {
-                val location = currentLocation ?: return drops
-                drops.sortedBy { drop ->
-                    distanceBetweenMeters(
-                        location.latitude,
-                        location.longitude,
-                        drop.lat,
-                        drop.lng
-                    )
-                }
-            }
-
-            DropSortOption.MOST_POPULAR -> drops.sortedWith(
-                compareByDescending<Drop> { it.likeCount - it.dislikeCount }
-                    .thenByDescending { it.createdAt }
-            )
-
-            DropSortOption.NEWEST -> drops.sortedByDescending { it.createdAt }
-
-            DropSortOption.ENDING_SOON -> drops.sortedWith(
-                compareBy<Drop> { drop -> drop.decayAtMillis() ?: Long.MAX_VALUE }
-                    .thenByDescending { it.createdAt }
-            )
-        }
-    }
-
-    private fun sortCollectedNotes(
-        notes: List<CollectedNote>,
-        option: DropSortOption,
-        currentLocation: LatLng?
-    ): List<CollectedNote> {
-        return when (option) {
-            DropSortOption.NEAREST -> {
-                val location = currentLocation ?: return notes
-                notes.sortedWith(
-                    compareBy<CollectedNote> { note ->
-                        val lat = note.lat
-                        val lng = note.lng
-                        if (lat == null || lng == null) {
-                            Double.MAX_VALUE
-                        } else {
-                            distanceBetweenMeters(
-                                location.latitude,
-                                location.longitude,
-                                lat,
-                                lng
-                            )
-                        }
-                    }.thenByDescending { it.collectedAt }
-                )
-            }
-
-            DropSortOption.MOST_POPULAR -> notes.sortedWith(
-                compareByDescending<CollectedNote> { it.likeCount - it.dislikeCount }
-                    .thenByDescending { it.collectedAt }
-            )
-
-            DropSortOption.NEWEST -> notes.sortedByDescending { note ->
-                note.dropCreatedAt ?: note.collectedAt
-            }
-
-            DropSortOption.ENDING_SOON -> notes.sortedWith(
-                compareBy<CollectedNote> { note -> note.decayAtMillis() ?: Long.MAX_VALUE }
-                    .thenByDescending { note -> note.dropCreatedAt ?: note.collectedAt }
-            )
-        }
-    }
-
-    @Composable
-    private fun CollectedNoteCard(
-        note: CollectedNote,
-        selected: Boolean,
-        expanded: Boolean,
-        onSelect: () -> Unit,
-        likeCount: Long,
-        dislikeCount: Long,
-        userLike: DropLikeStatus,
-        canLike: Boolean,
-        likeRestrictionMessage: String?,
-        isVoting: Boolean,
-        onLike: (DropLikeStatus) -> Unit,
-        canReport: Boolean,
-        alreadyReported: Boolean,
-        reportRestrictionMessage: String?,
-        isReporting: Boolean,
-        onReport: () -> Unit,
-        onView: () -> Unit,
-        onRemove: () -> Unit
-    ) {
-        val containerColor = if (selected) {
-            MaterialTheme.colorScheme.primaryContainer
-        } else {
-            MaterialTheme.colorScheme.surfaceVariant
-        }
-        val contentColor = if (selected) {
-            MaterialTheme.colorScheme.onPrimaryContainer
-        } else {
-            MaterialTheme.colorScheme.onSurface
-        }
-        val supportingColor = if (selected) {
-            MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
-        } else {
-            MaterialTheme.colorScheme.onSurfaceVariant
-        }
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            onClick = onSelect,
-            colors = CardDefaults.cardColors(
-                containerColor = containerColor,
-                contentColor = contentColor
-            ),
-            border = BorderStroke(
-                width = 1.dp,
-                color = if (selected) {
-                    MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
-                } else {
-                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
-                }
-            )
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                val typeLabel = when (note.contentType) {
-                    DropContentType.TEXT -> "Text note"
-                    DropContentType.PHOTO -> "Photo drop"
-                    DropContentType.AUDIO -> "Audio drop"
-                    DropContentType.VIDEO -> "Video drop"
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = typeLabel,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.weight(1f)
-                    )
-
-                    if (note.isNsfw) {
-                        DropNsfwBadge()
-                        Spacer(modifier = Modifier.width(8.dp))
-                    }
-
-                    Icon(
-                        imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                        contentDescription = if (expanded) {
-                            "Collapse drop details"
-                        } else {
-                            "Expand drop details"
-                        }
-                    )
-                }
-
-                val preview = note.description?.takeIf { it.isNotBlank() }
-                    ?: note.text.takeIf { it.isNotBlank() }
-                    ?: when (note.contentType) {
-                        DropContentType.TEXT -> "(No message)"
-                        DropContentType.PHOTO -> "Photo drop"
-                        DropContentType.AUDIO -> "Audio drop"
-                        DropContentType.VIDEO -> "Video drop"
-                    }
-                Text(
-                    text = preview,
-                    style = MaterialTheme.typography.bodyLarge,
-                    maxLines = if (expanded) Int.MAX_VALUE else 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                AnimatedVisibility(visible = expanded) {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        val mediaUrl = note.mediaUrl?.takeIf { it.isNotBlank() }
-                        when {
-                            note.contentType == DropContentType.PHOTO && mediaUrl != null -> {
-                                val context = LocalContext.current
-                                val imageRequest = remember(mediaUrl) {
-                                    ImageRequest.Builder(context)
-                                        .data(mediaUrl)
-                                        .crossfade(true)
-                                        .build()
-                                }
-
-                                AsyncImage(
-                                    model = imageRequest,
-                                    contentDescription = preview,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .heightIn(min = 160.dp, max = 280.dp)
-                                        .clip(RoundedCornerShape(12.dp)),
-                                    contentScale = ContentScale.Crop
-                                )
-                            }
-
-                            note.contentType == DropContentType.VIDEO && mediaUrl != null -> {
-                                val videoUri = remember(mediaUrl) { Uri.parse(mediaUrl) }
-
-                                DropVideoPlayer(
-                                    videoUri = videoUri,
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-
-                                Spacer(Modifier.height(8.dp))
-
-                                Text(
-                                    text = "Tap play to watch this clip.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = supportingColor
-                                )
-                            }
-                        }
-
-//                    Text(
-//                        text = "Collected: ${formatTimestamp(note.collectedAt)}",
-//                        style = MaterialTheme.typography.bodyMedium,
-//                        color = supportingColor
-//                    )
-//
-//                    note.dropCreatedAt?.let {
-//                        Text(
-//                            text = "Dropped: ${formatTimestamp(it)}",
-//                            style = MaterialTheme.typography.bodyMedium,
-//                            color = supportingColor
-//                        )
-//                    }
-
-                        note.dropperUsername?.takeIf { it.isNotBlank() }?.let { username ->
-                            Text(
-                                text = "Dropped by @${username}",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = supportingColor
-                            )
-                        }
-
-                        note.groupCode?.let { group ->
-                            Text(
-                                text = "Group: $group",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = supportingColor
-                            )
-                        }
-
-//                    if (note.lat != null && note.lng != null) {
-//                        Text(
-//                            text = "Location: ${formatCoordinate(note.lat)}, ${formatCoordinate(note.lng)}",
-//                            style = MaterialTheme.typography.bodyMedium,
-//                            color = supportingColor
-//                        )
-//                    } else {
-//                        Text(
-//                            text = "Location: Unknown",
-//                            style = MaterialTheme.typography.bodyMedium,
-//                            color = supportingColor
-//                        )
-//                    }
-
-                        Spacer(Modifier.height(12.dp))
-
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(
-                                    modifier = Modifier.weight(1f),
-                                    horizontalArrangement = Arrangement.spacedBy(18.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Row(
-                                        horizontalArrangement = Arrangement.spacedBy(5.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        LikeToggleButton(
-                                            icon = Icons.Rounded.ThumbUp,
-                                            selected = userLike == DropLikeStatus.LIKED,
-                                            enabled = canLike && !isVoting,
-                                            onClick = {
-                                                val nextStatus =
-                                                    if (userLike == DropLikeStatus.LIKED) {
-                                                        DropLikeStatus.NONE
-                                                    } else {
-                                                        DropLikeStatus.LIKED
-                                                    }
-                                                onLike(nextStatus)
-                                            },
-                                            contentDescription = if (userLike == DropLikeStatus.LIKED) {
-                                                "Unlike drop"
-                                            } else {
-                                                "Like drop"
+                                        sortOption = collectedSortOption,
+                                        sortOptions = dropSortOptions,
+                                        onSortOptionChange = { option ->
+                                            collectedSortKey = option.name
+                                        },
+                                        canLikeDrops = canParticipate,
+                                        isSignedIn = isSignedIn,
+                                        likeRestrictionMessage = collectedLikeRestrictionMessage,
+                                        votingDropIds = votingDropIds,
+                                        onLike = { note, status ->
+                                            submitCollectedLike(note, status)
+                                        },
+                                        onReport = report@{ note ->
+                                            if (browseReportProcessing) return@report
+                                            val userId = currentUserId
+                                            if (userId.isNullOrBlank()) {
+                                                Toast.makeText(ctx, "Sign in to report drops.", Toast.LENGTH_SHORT).show()
+                                                return@report
                                             }
-                                        )
-
-                                        Text(
-                                            text = likeCount.toString(),
-                                            style = MaterialTheme.typography.bodyMedium
-                                        )
-                                    }
-
-                                    Row(
-                                        horizontalArrangement = Arrangement.spacedBy(5.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        LikeToggleButton(
-                                            icon = Icons.Rounded.ThumbDown,
-                                            selected = userLike == DropLikeStatus.DISLIKED,
-                                            enabled = canLike && !isVoting,
-                                            onClick = {
-                                                val nextStatus =
-                                                    if (userLike == DropLikeStatus.DISLIKED) {
-                                                        DropLikeStatus.NONE
-                                                    } else {
-                                                        DropLikeStatus.DISLIKED
-                                                    }
-                                                onLike(nextStatus)
-                                            },
-                                            contentDescription = if (userLike == DropLikeStatus.DISLIKED) {
-                                                "Remove dislike"
-                                            } else {
-                                                "Dislike drop"
+                                            if (reportedCollectedDropIds.contains(note.id)) {
+                                                Toast.makeText(ctx, "You've already reported this drop.", Toast.LENGTH_SHORT).show()
+                                                return@report
                                             }
-                                        )
-
-                                        Text(
-                                            text = dislikeCount.toString(),
-                                            style = MaterialTheme.typography.bodyMedium
-                                        )
-                                    }
-
-                                    if (canReport) {
-                                        Row(
-                                            horizontalArrangement = Arrangement.spacedBy(5.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            OutlinedButton(
-                                                onClick = onReport,
-                                                enabled = !alreadyReported && !isReporting
-                                            ) {
-                                                if (isReporting) {
-                                                    CircularProgressIndicator(
-                                                        modifier = Modifier.size(16.dp),
-                                                        strokeWidth = 2.dp
-                                                    )
-                                                } else {
-                                                    Icon(
-                                                        Icons.Rounded.Report,
-                                                        contentDescription = null
-                                                    )
+                                            browseReportTarget = note.toReportableDrop(source = REPORT_SOURCE_COLLECTED)
+                                            browseReportSelectedReasons = emptySet()
+                                            browseReportError = null
+                                            browseReportDialogOpen = true
+                                        },
+                                        onView = { note ->
+                                            val intent = Intent(ctx, DropDetailActivity::class.java).apply {
+                                                putExtra("dropId", note.id)
+                                                if (note.text.isNotBlank()) putExtra("dropText", note.text)
+                                                note.description?.takeIf { it.isNotBlank() }?.let {
+                                                    putExtra("dropDescription", it)
                                                 }
-                                                Spacer(Modifier.width(8.dp))
-                                                Text(
-                                                    text = when {
-                                                        isReporting -> "Reporting..."
-                                                        alreadyReported -> "Reported"
-                                                        else -> "Report"
-                                                    }
-                                                )
+                                                note.lat?.let { putExtra("dropLat", it) }
+                                                note.lng?.let { putExtra("dropLng", it) }
+                                                note.dropCreatedAt?.let { putExtra("dropCreatedAt", it) }
+                                                note.groupCode?.let { putExtra("dropGroupCode", it) }
+                                                putExtra("dropContentType", note.contentType.name)
+                                                note.mediaUrl?.let { putExtra("dropMediaUrl", it) }
+                                                note.mediaMimeType?.let { putExtra("dropMediaMimeType", it) }
+                                                note.mediaData?.let { putExtra("dropMediaData", it) }
+                                                putExtra("dropType", note.dropType.name)
+                                                note.businessName?.let { putExtra("dropBusinessName", it) }
+                                                note.businessId?.let { putExtra("dropBusinessId", it) }
+                                                note.redemptionLimit?.let { putExtra("dropRedemptionLimit", it) }
+                                                putExtra("dropRedemptionCount", note.redemptionCount)
+                                                putExtra("dropCollectedAt", note.collectedAt)
+                                                putExtra("dropIsRedeemed", note.isRedeemed)
+                                                note.redeemedAt?.let { putExtra("dropRedeemedAt", it) }
+                                                putExtra("dropLikeCount", note.likeCount)
+                                                putExtra("dropDislikeCount", note.dislikeCount)
+                                                if (note.isLiked) {
+                                                    putExtra("dropIsLiked", true)
+                                                }
+                                                if (note.isDisliked) {
+                                                    putExtra("dropIsDisliked", true)
+                                                }
+                                                putExtra("dropIsNsfw", note.isNsfw)
+                                                if (note.nsfwLabels.isNotEmpty()) {
+                                                    putStringArrayListExtra("dropNsfwLabels", ArrayList(note.nsfwLabels))
+                                                }
+                                                note.decayDays?.let { putExtra("dropDecayDays", it) }
                                             }
+                                            ctx.startActivity(intent)
+                                        },
+                                        onRemove = { note ->
+                                            collectedPendingRemove = note
                                         }
-                                    }
-                                }
-
-                                if (isVoting) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(20.dp),
-                                        strokeWidth = 2.dp
                                     )
-                                }
-                            }
-
-                            if (likeRestrictionMessage != null) {
-                                Text(
-                                    text = likeRestrictionMessage,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = supportingColor
-                                )
-                            }
-
-                            reportRestrictionMessage?.let { message ->
-                                Text(
-                                    text = message,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = supportingColor
-                                )
-                            }
-                        }
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            TextButton(onClick = onView) {
-                                Text("View details")
-                            }
-                            IconButton(onClick = onRemove) {
-                                Icon(
-                                    Icons.Filled.Delete,
-                                    contentDescription = "Remove from inventory"
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-
-    @Composable
-    private fun ManageGroupsDialog(
-        groups: List<GroupMembership>,
-        snackbarHostState: SnackbarHostState,
-        onDismiss: () -> Unit,
-        onCreate: (String) -> Unit,
-        onSubscribe: (String) -> Unit,
-        onRemove: (String) -> Unit
-    ) {
-        Dialog(
-            onDismissRequest = onDismiss,
-            properties = DialogProperties(usePlatformDefaultWidth = false)
-        ) {
-            Surface(
-                modifier = Modifier.fillMaxSize(),
-                color = MaterialTheme.colorScheme.background
-            ) {
-                @OptIn(ExperimentalMaterial3Api::class)
-                Scaffold(
-                    topBar = {
-                        TopAppBar(
-                            title = { Text("Manage group codes") },
-                            colors = TopAppBarDefaults.topAppBarColors(
-                                containerColor = MaterialTheme.colorScheme.background,
-                                scrolledContainerColor = MaterialTheme.colorScheme.background,
-                                navigationIconContentColor = MaterialTheme.colorScheme.onBackground,
-                                titleContentColor = MaterialTheme.colorScheme.onBackground,
-                                actionIconContentColor = MaterialTheme.colorScheme.onBackground
-                            ),
-                            navigationIcon = {
-                                IconButton(onClick = onDismiss) {
-                                    Icon(
-                                        Icons.Filled.ArrowBack,
-                                        contentDescription = "Back to main page"
-                                    )
-                                }
-                            }
-                        )
-                    },
-                    snackbarHost = {
-                        SnackbarHost(
-                            hostState = snackbarHostState,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp)
-                        )
-                    }
-                ) { padding ->
-                    var createCode by rememberSaveable(stateSaver = TextFieldValue.Saver) {
-                        mutableStateOf(TextFieldValue(""))
-                    }
-                    var subscribeCode by rememberSaveable(stateSaver = TextFieldValue.Saver) {
-                        mutableStateOf(TextFieldValue(""))
-                    }
-
-                    val ownedGroups = groups.filter { it.role == GroupRole.OWNER }
-                    val subscribedGroups = groups.filter { it.role == GroupRole.SUBSCRIBER }
-                    val createNormalized = GroupPreferences.normalizeGroupCode(createCode.text)
-                    val subscribeNormalized =
-                        GroupPreferences.normalizeGroupCode(subscribeCode.text)
-
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(padding)
-                            .padding(horizontal = 16.dp),
-                        contentPadding = PaddingValues(vertical = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(24.dp)
-                    ) {
-                        item {
-                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                Text(
-                                    text = "Create a group",
-                                    style = MaterialTheme.typography.titleMedium
-                                )
-                                Text(
-                                    text = "Pick a code to share with your crew. Only you can add or remove drops.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                OutlinedTextField(
-                                    value = createCode,
-                                    onValueChange = { createCode = it },
-                                    label = { Text("Group code") },
-                                    supportingText = {
-                                        Text("Codes stay on this device. Share with people you trust.")
-                                    },
-                                    singleLine = true,
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                                Button(
-                                    onClick = {
-                                        createNormalized?.let {
-                                            onCreate(it)
-                                            createCode = TextFieldValue("")
-                                        }
-                                    },
-                                    enabled = createNormalized != null,
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Text("Create group")
-                                }
-                            }
-                        }
-
-                        item {
-                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                Text(
-                                    text = "Groups you created",
-                                    style = MaterialTheme.typography.titleMedium
-                                )
-                                if (ownedGroups.isEmpty()) {
-                                    Text(
-                                        text = "You haven't created any groups yet.",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                } else {
-                                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        ownedGroups.forEach { membership ->
-                                            GroupCodeRow(
-                                                membership = membership,
-                                                onRemove = onRemove
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        item {
-                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                Text(
-                                    text = "Subscribe to a group",
-                                    style = MaterialTheme.typography.titleMedium
-                                )
-                                Text(
-                                    text = "Enter a code you received to follow drops from others.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                OutlinedTextField(
-                                    value = subscribeCode,
-                                    onValueChange = { subscribeCode = it },
-                                    label = { Text("Group code") },
-                                    supportingText = {
-                                        Text("Codes stay on this device. You can leave anytime.")
-                                    },
-                                    singleLine = true,
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                                Button(
-                                    onClick = {
-                                        subscribeNormalized?.let {
-                                            onSubscribe(it)
-                                            subscribeCode = TextFieldValue("")
-                                        }
-                                    },
-                                    enabled = subscribeNormalized != null,
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Text("Subscribe")
-                                }
-                            }
-                        }
-
-                        item {
-                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                Text(
-                                    text = "Groups you're subscribed to",
-                                    style = MaterialTheme.typography.titleMedium
-                                )
-                                if (subscribedGroups.isEmpty()) {
-                                    Text(
-                                        text = "You haven't subscribed to any groups yet.",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                } else {
-                                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        subscribedGroups.forEach { membership ->
-                                            GroupCodeRow(
-                                                membership = membership,
-                                                onRemove = onRemove
-                                            )
-                                        }
-                                    }
                                 }
                             }
                         }
                     }
                 }
             }
-        }
-    }
 
-    @Composable
-    private fun MyDropsContent(
-        modifier: Modifier = Modifier,
-        loading: Boolean,
-        drops: List<Drop>,
-        currentLocation: LatLng?,
-        deletingId: String?,
-        error: String?,
-        emptyMessage: String? = null,
-        selectedId: String?,
-        sortOption: DropSortOption,
-        sortOptions: List<DropSortOption>,
-        explorerGroups: List<GroupMembership>,
-        selectedExplorerGroupCode: String?,
-        onSelectExplorerGroup: (String?) -> Unit,
-        mapPreviewBitmap: Bitmap?,
-        mapPreviewExpanded: Boolean,
-        mapCameraPosition: CameraPosition?,
-        onMapSnapshotChange: (Bitmap?, CameraPosition) -> Unit,
-        onMapPreviewExpandedChange: (Boolean) -> Unit,
-        onOpenMap: () -> Unit,
-        onSortOptionChange: (DropSortOption) -> Unit,
-        onSelect: (Drop) -> Unit,
-        onRetry: () -> Unit,
-        onView: (Drop) -> Unit,
-        onDelete: (Drop) -> Unit,
-        topContentPadding: Dp = 0.dp,
-        contentPadding: PaddingValues = PaddingValues(vertical = 16.dp)
-    ) {
-        Box(
-            modifier = modifier
-                .fillMaxSize()
-                .padding(contentPadding)
-        ) {
-            when {
-                loading -> {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(top = topContentPadding),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator()
-                    }
-                }
-
-                error != null -> {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(top = topContentPadding)
-                    ) {
-                        DialogMessageContent(
-                            message = error,
-                            primaryLabel = "Retry",
-                            onPrimary = onRetry,
-                            onDismiss = null
-                        )
-                    }
-                }
-
-                drops.isEmpty() -> {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(top = topContentPadding)
-                    ) {
-                        DialogMessageContent(
-                            message = emptyMessage ?: "You haven't dropped any notes yet.",
-                            primaryLabel = null,
-                            onPrimary = null,
-                            onDismiss = null
-                        )
-                    }
-                }
-
-                else -> {
-                    val listState = rememberLazyListState()
-                    var lastSortOption by remember { mutableStateOf(sortOption) }
-                    var skipSelectionScroll by remember { mutableStateOf(false) }
-
-                    LaunchedEffect(sortOption) {
-                        if (lastSortOption != sortOption) {
-                            skipSelectionScroll = true
-                            listState.scrollToItem(0)
-                            lastSortOption = sortOption
-                        }
-                    }
-
-                    LaunchedEffect(selectedId, drops) {
-                        if (skipSelectionScroll) {
-                            skipSelectionScroll = false
-                            return@LaunchedEffect
-                        }
-                        val targetId = selectedId ?: return@LaunchedEffect
-                        val index = drops.indexOfFirst { it.id == targetId }
-                        if (index >= 0) {
-                            listState.animateScrollToItem(index)
-                        }
-                    }
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(top = topContentPadding)
-                    ) {
-                        MyDropsMapPreviewHeader(
-                            drops = drops,
-                            selectedId = selectedId,
-                            currentLocation = currentLocation,
-                            previewBitmap = mapPreviewBitmap,
-                            expanded = mapPreviewExpanded,
-                            cameraPosition = mapCameraPosition,
-                            onSnapshotChange = onMapSnapshotChange,
-                            onExpandedChange = onMapPreviewExpandedChange,
-                            onOpenMap = onOpenMap,
-                            onDropClick = onSelect
-                        )
-
-                        Spacer(Modifier.height(16.dp))
-
-                        ExplorerSharedChipRow(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 20.dp),
-                            sortOption = sortOption,
-                            sortOptions = sortOptions,
-                            onSortOptionChange = onSortOptionChange,
-                            explorerGroups = explorerGroups,
-                            selectedExplorerGroupCode = selectedExplorerGroupCode,
-                            onSelectExplorerGroup = onSelectExplorerGroup,
-                            itemCount = drops.size
-                        )
-
-                        Spacer(Modifier.height(12.dp))
-
-                        LazyColumn(
-                            state = listState,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .weight(1f),
-                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            items(drops, key = { it.id }) { drop ->
-                                ManageDropRow(
-                                    drop = drop,
-                                    isDeleting = deletingId == drop.id,
-                                    isSelected = drop.id == selectedId,
-                                    onSelect = { onSelect(drop) },
-                                    onView = { onView(drop) },
-                                    onDelete = { onDelete(drop) }
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    @Composable
-    private fun MyDropsMapPreviewHeader(
-        drops: List<Drop>,
-        selectedId: String?,
-        currentLocation: LatLng?,
-        previewBitmap: Bitmap?,
-        expanded: Boolean,
-        cameraPosition: CameraPosition?,
-        onSnapshotChange: (Bitmap?, CameraPosition) -> Unit,
-        onExpandedChange: (Boolean) -> Unit,
-        onOpenMap: () -> Unit,
-        onDropClick: (Drop) -> Unit,
-        modifier: Modifier = Modifier
-    ) {
-        val previewHeight by animateDpAsState(
-            targetValue = if (expanded) 320.dp else 160.dp,
-            label = "myDropsMapPreviewHeight"
-        )
-        val selectedDrop = remember(drops, selectedId) { drops.firstOrNull { it.id == selectedId } }
-
-        val overlayAlpha = if (expanded) 0.35f else 0.6f
-        val headerTitle = selectedDrop?.displayTitle() ?: "Your drops overview"
-        val subtitle = remember(selectedDrop, currentLocation, cameraPosition, drops.size) {
-            when {
-                selectedDrop != null && currentLocation != null -> {
-                    val distance = distanceBetweenMeters(
-                        currentLocation.latitude,
-                        currentLocation.longitude,
-                        selectedDrop.lat,
-                        selectedDrop.lng
-                    )
-                    "Selected • ${formatDistanceMeters(distance)} away"
-                }
-
-                cameraPosition != null ->
-                    "Zoom ${"%.1f".format(cameraPosition.zoom)} • ${drops.size} drops"
-
-                else -> "${drops.size} drops total"
-            }
-        }
-
-        Surface(
-            modifier = modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp),
-            shape = RoundedCornerShape(24.dp),
-            tonalElevation = 6.dp
-        ) {
-            Box(
+            SnackbarHost(
+                hostState = snackbar,
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(previewHeight)
-            ) {
-                if (expanded) {
-                    ExplorerDestinationMap(
-                        modifier = Modifier.fillMaxSize(),
-                        destination = ExplorerDestination.MyDrops,
-                        otherDrops = emptyList(),
-                        otherDropSelectedId = null,
-                        otherDropLocation = null,
-                        notificationRadiusMeters = 0.0,
-                        onOtherDropClick = {},
-                        myDrops = drops,
-                        myDropSelectedId = selectedId,
-                        myDropLocation = currentLocation,
-                        onMyDropClick = onDropClick,
-                        collectedNotes = emptyList(),
-                        collectedHighlightedId = null,
-                        collectedLocation = null,
-                        onCollectedNoteClick = {},
-                        onSnapshotUpdate = onSnapshotChange
-                    )
-                } else {
-                    if (previewBitmap != null) {
-                        Image(
-                            bitmap = previewBitmap.asImageBitmap(),
-                            contentDescription = "Map preview",
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
-                        )
-                    } else {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(MaterialTheme.colorScheme.surfaceVariant)
-                        )
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .matchParentSize()
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null
-                            ) { onExpandedChange(true) }
-                    )
-                }
-
-                Box(
-                    modifier = Modifier
-                        .matchParentSize()
-                        .background(
-                            Brush.verticalGradient(
-                                colors = listOf(
-                                    Color.Black.copy(alpha = overlayAlpha),
-                                    Color.Transparent
-                                )
-                            )
-                        )
-                )
-
-                CompositionLocalProvider(LocalContentColor provides Color.White) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .align(Alignment.TopStart)
-                            .padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Column(
-                                modifier = Modifier.weight(1f),
-                                verticalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Text(
-                                    text = "Map preview",
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = Color.White.copy(alpha = 0.9f)
-                                )
-                                Text(
-                                    text = headerTitle,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = Color.White,
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Text(
-                                    text = subtitle,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = Color.White.copy(alpha = 0.85f)
-                                )
-                            }
-
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                MapPreviewActionButton(
-                                    onClick = { onExpandedChange(!expanded) },
-                                    icon = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                                    contentDescription = if (expanded) {
-                                        "Collapse map preview"
-                                    } else {
-                                        "Expand map preview"
-                                    }
-                                )
-                                MapPreviewActionButton(
-                                    onClick = onOpenMap,
-                                    icon = Icons.Rounded.OpenInFull,
-                                    contentDescription = "Open map in full screen"
-                                )
-                            }
-                        }
-                    }
-                }
-            }
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 16.dp)
+                    .zIndex(1f)
+            )
         }
-    }
 
-    @Composable
-    private fun CollectedDropsMapPreviewHeader(
-        notes: List<CollectedNote>,
-        highlightedId: String?,
-        currentLocation: LatLng?,
-        expanded: Boolean,
-        snapshot: Bitmap?,
-        cameraPosition: CameraPosition?,
-        canReportDrops: Boolean,
-        reportedDropIds: Set<String>,
-        reportingDropId: String?,
-        isReportProcessing: Boolean,
-        canLikeDrops: Boolean,
-        isSignedIn: Boolean,
-        likeRestrictionMessage: String?,
-        votingDropIds: Set<String>,
-        onSnapshotChange: (Bitmap?, CameraPosition) -> Unit,
-        onExpandedChange: (Boolean) -> Unit,
-        onOpenMap: () -> Unit,
-        onHighlightedIdChange: (String?) -> Unit,
-        onLike: (CollectedNote, DropLikeStatus) -> Unit,
-        onReport: (CollectedNote) -> Unit,
-        onView: (CollectedNote) -> Unit,
-        onRemove: (CollectedNote) -> Unit,
-        modifier: Modifier = Modifier
-    ) {
-        val previewHeight by animateDpAsState(
-            targetValue = if (expanded) 320.dp else 180.dp,
-            label = "collectedMapPreviewHeight"
-        )
-        val highlightedNote =
-            remember(notes, highlightedId) { notes.firstOrNull { it.id == highlightedId } }
-        val mappedCount = remember(notes) { notes.count { it.lat != null && it.lng != null } }
-        val headerTitle = remember(highlightedNote) {
-            highlightedNote?.text?.ifBlank { highlightedNote.contentType.mediaLabel() }
-                ?: "Collected drops overview"
-        }
-        val subtitle =
-            remember(highlightedNote, currentLocation, cameraPosition, mappedCount, notes.size) {
-                when {
-                    highlightedNote != null && (highlightedNote.lat == null || highlightedNote.lng == null) ->
-                        "Selected drop has no map location"
-
-                    highlightedNote != null && highlightedNote.lat != null && highlightedNote.lng != null && currentLocation != null -> {
-                        val distance = distanceBetweenMeters(
-                            currentLocation.latitude,
-                            currentLocation.longitude,
-                            highlightedNote.lat,
-                            highlightedNote.lng
-                        )
-                        "Selected • ${formatDistanceMeters(distance)} away"
+        if (showDropComposer) {
+            DropComposerDialog(
+                isSubmitting = isSubmitting,
+                isBusinessUser = userProfile?.isBusiness() == true,
+                businessName = userProfile?.businessName,
+                businessCategories = businessCategories,
+                userProfileLoading = userProfileLoading,
+                userProfileError = userProfileError,
+                dropType = dropType,
+                onDropTypeChange = { dropType = it },
+                dropContentType = dropContentType,
+                onDropContentTypeChange = { dropContentType = it },
+                note = note,
+                onNoteChange = { note = it },
+                description = description,
+                onDescriptionChange = { description = it },
+                capturedPhotoPath = capturedPhotoPath,
+                onCapturePhoto = { ensureCameraAndLaunch() },
+                onClearPhoto = { clearPhoto() },
+                capturedAudioUri = capturedAudioUri,
+                onRecordAudio = { ensureAudioAndLaunch() },
+                onClearAudio = { clearAudio() },
+                capturedVideoUri = capturedVideoUri,
+                onRecordVideo = { ensureVideoAndLaunch() },
+                onClearVideo = { clearVideo() },
+                dropVisibility = dropVisibility,
+                onDropVisibilityChange = { dropVisibility = it },
+                dropAnonymously = dropAnonymously,
+                onDropAnonymouslyChange = { dropAnonymously = it },
+                groupCodeInput = groupCodeInput,
+                onGroupCodeInputChange = { groupCodeInput = it },
+                joinedGroups = createdGroups.map { it.code },
+                onSelectGroupCode = { code -> groupCodeInput = TextFieldValue(code) },
+                redemptionCodeInput = redemptionCodeInput,
+                onRedemptionCodeChange = { redemptionCodeInput = it },
+                redemptionLimitInput = redemptionLimitInput,
+                onRedemptionLimitChange = { redemptionLimitInput = it },
+                decayDaysInput = decayDaysInput,
+                onDecayDaysChange = { decayDaysInput = it },
+                onManageGroupCodes = { showManageGroups = true },
+                onSubmit = { submitDrop() },
+                onDismiss = {
+                    if (!isSubmitting) {
+                        showDropComposer = false
                     }
-
-                    cameraPosition != null -> {
-                        val countLabel = when (mappedCount) {
-                            0 -> "No mapped drops"
-                            1 -> "1 mapped drop"
-                            else -> "$mappedCount mapped drops"
-                        }
-                        "Zoom ${"%.1f".format(cameraPosition.zoom)} • $countLabel"
-                    }
-
-                    mappedCount > 0 -> when (mappedCount) {
-                        1 -> "1 mapped drop"
-                        else -> "$mappedCount mapped drops"
-                    }
-
-                    else -> when (notes.size) {
-                        1 -> "1 collected drop"
-                        else -> "${notes.size} collected drops"
-                    }
-                }
-            }
-
-        val canReact = canLikeDrops && isSignedIn
-
-        Surface(
-            modifier = modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            shape = RoundedCornerShape(24.dp),
-            tonalElevation = 6.dp
-        ) {
-            Column {
-                Surface(
-                    tonalElevation = 2.dp,
-                    color = MaterialTheme.colorScheme.surface
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 20.dp, vertical = 16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(
-                            modifier = Modifier.weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Text(
-                                text = "Map preview",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = headerTitle,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Text(
-                                text = subtitle,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            FilledTonalIconButton(onClick = { onExpandedChange(!expanded) }) {
-                                Icon(
-                                    imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                                    contentDescription = if (expanded) {
-                                        "Collapse map preview"
-                                    } else {
-                                        "Expand map preview"
-                                    }
-                                )
-                            }
-                            FilledTonalIconButton(onClick = onOpenMap) {
-                                Icon(
-                                    imageVector = Icons.Rounded.OpenInFull,
-                                    contentDescription = "Open map view"
-                                )
-                            }
-                        }
-                    }
-                }
-
-                Divider()
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(previewHeight)
-                        .clip(RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp))
-                ) {
-                    if (expanded) {
-                        ExplorerDestinationMap(
-                            modifier = Modifier.fillMaxSize(),
-                            destination = ExplorerDestination.Collected,
-                            otherDrops = emptyList(),
-                            otherDropSelectedId = null,
-                            otherDropLocation = null,
-                            notificationRadiusMeters = 0.0,
-                            onOtherDropClick = {},
-                            myDrops = emptyList(),
-                            myDropSelectedId = null,
-                            myDropLocation = null,
-                            onMyDropClick = {},
-                            collectedNotes = notes,
-                            collectedHighlightedId = highlightedId,
-                            collectedLocation = currentLocation,
-                            onCollectedNoteClick = { note -> onHighlightedIdChange(note.id) },
-                            onSnapshotUpdate = onSnapshotChange
-                        )
-                    } else {
-                        if (snapshot != null) {
-                            Image(
-                                bitmap = snapshot.asImageBitmap(),
-                                contentDescription = "Map preview",
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Crop
-                            )
-                        } else {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .background(MaterialTheme.colorScheme.surfaceVariant),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.Map,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    Text(
-                                        text = "Expand map preview",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                        }
-                        Box(
-                            modifier = Modifier
-                                .matchParentSize()
-                                .clickable { onExpandedChange(true) }
-                                .semantics { role = Role.Button }
-                        )
-                    }
-                }
-
-                if (expanded) {
-                    Divider()
-                    highlightedNote?.let { note ->
-                        val alreadyReported = reportedDropIds.contains(note.id)
-                        val restrictionMessage = when {
-                            alreadyReported -> "Thanks for your report. We'll review it soon."
-                            !canReportDrops -> "Sign in to report drops."
-                            else -> null
-                        }
-                        val isReporting = isReportProcessing && reportingDropId == note.id
-                        val isVoting = votingDropIds.contains(note.id)
-
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 12.dp)
-                        ) {
-                            CollectedNoteCard(
-                                note = note,
-                                selected = true,
-                                expanded = true,
-                                onSelect = {
-                                    onHighlightedIdChange(
-                                        if (highlightedId == note.id) null else note.id
-                                    )
-                                },
-                                likeCount = note.likeCount,
-                                dislikeCount = note.dislikeCount,
-                                userLike = note.likeStatus(),
-                                canLike = canReact,
-                                likeRestrictionMessage = likeRestrictionMessage,
-                                isVoting = isVoting,
-                                onLike = { status -> onLike(note, status) },
-                                canReport = canReportDrops,
-                                alreadyReported = alreadyReported,
-                                reportRestrictionMessage = restrictionMessage,
-                                isReporting = isReporting,
-                                onReport = { onReport(note) },
-                                onView = {
-                                    onHighlightedIdChange(note.id)
-                                    onView(note)
-                                },
-                                onRemove = {
-                                    onHighlightedIdChange(null)
-                                    onRemove(note)
-                                }
-                            )
-                        }
-                    } ?: Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 24.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "Select a drop to view details",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center
-                        )
-                    }
-                }
-            }
-        }
-    }
-
-    @Composable
-    private fun MapPreviewActionButton(
-        onClick: () -> Unit,
-        icon: ImageVector,
-        contentDescription: String,
-        modifier: Modifier = Modifier
-    ) {
-        Surface(
-            modifier = modifier.size(40.dp),
-            shape = CircleShape,
-            color = Color.Black.copy(alpha = 0.35f)
-        ) {
-            IconButton(onClick = onClick) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = contentDescription,
-                    tint = Color.White
-                )
-            }
-        }
-    }
-
-    @Composable
-    private fun GroupCodeRow(
-        membership: GroupMembership,
-        onRemove: (String) -> Unit
-    ) {
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                val code = membership.code
-                val isOwner = membership.role == GroupRole.OWNER
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = code,
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        text = if (isOwner) {
-                            "You created this group. Only you can add or remove drops."
-                        } else {
-                            "Subscribed to this group's drops and updates."
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                Spacer(Modifier.width(8.dp))
-
-                IconButton(onClick = { onRemove(code) }) {
-                    Icon(
-                        imageVector = Icons.Filled.Delete,
-                        contentDescription = "Remove group code"
-                    )
-                }
-            }
-        }
-    }
-
-    @Composable
-    private fun MediaCaptureCard(
-        title: String,
-        description: String,
-        status: String,
-        isReady: Boolean,
-        primaryLabel: String,
-        primaryIcon: ImageVector? = null,
-        onPrimary: () -> Unit,
-        secondaryLabel: String? = null,
-        onSecondary: (() -> Unit)? = null,
-        previewContent: (@Composable () -> Unit)? = null
-    ) {
-        val containerColor by animateColorAsState(
-            targetValue = if (isReady) {
-                MaterialTheme.colorScheme.primaryContainer
-            } else {
-                MaterialTheme.colorScheme.surfaceVariant
-            },
-            label = "mediaContainer"
-        )
-        val contentColor = if (isReady) {
-            MaterialTheme.colorScheme.onPrimaryContainer
-        } else {
-            MaterialTheme.colorScheme.onSurface
-        }
-        val supportingColor = if (isReady) {
-            MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
-        } else {
-            MaterialTheme.colorScheme.onSurfaceVariant
-        }
-        val statusIcon = if (isReady) Icons.Rounded.CheckCircle else Icons.Rounded.Info
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = containerColor,
-                contentColor = contentColor
-            ),
-            border = BorderStroke(
-                width = 1.dp,
-                color = if (isReady) {
-                    MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)
-                } else {
-                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
                 }
             )
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(title, style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        text = description,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = supportingColor
-                    )
-                }
+        }
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        imageVector = statusIcon,
-                        contentDescription = null,
-                        tint = if (isReady) MaterialTheme.colorScheme.primary else supportingColor
-                    )
-                    Text(
-                        text = status,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = supportingColor,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-
-                previewContent?.let {
-                    it()
-                }
-
-                Button(
-                    onClick = onPrimary,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    if (primaryIcon != null) {
-                        Icon(primaryIcon, contentDescription = null)
-                        Spacer(Modifier.width(8.dp))
+        if (browseReportDialogOpen) {
+            val targetDrop = browseReportTarget
+            ReportDropDialog(
+                reasons = dropReportReasons,
+                selectedReasons = browseReportSelectedReasons,
+                onReasonToggle = { code ->
+                    browseReportSelectedReasons = if (browseReportSelectedReasons.contains(code)) {
+                        browseReportSelectedReasons - code
+                    } else {
+                        browseReportSelectedReasons + code
                     }
-                    Text(primaryLabel)
-                }
-                if (secondaryLabel != null && onSecondary != null) {
-                    OutlinedButton(
-                        onClick = onSecondary,
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = contentColor
-                        )
-                    ) {
-                        Text(secondaryLabel)
+                },
+                onDismiss = {
+                    if (!browseReportProcessing) {
+                        browseReportDialogOpen = false
+                        browseReportTarget = null
+                        browseReportSelectedReasons = emptySet()
+                        browseReportError = null
+                        browseReportingDropId = null
                     }
-                }
-            }
-        }
-    }
-
-    @Composable
-    private fun DropNsfwBadge(
-        modifier: Modifier = Modifier,
-        containerColor: Color = MaterialTheme.colorScheme.errorContainer,
-        contentColor: Color = MaterialTheme.colorScheme.onErrorContainer
-    ) {
-        Surface(
-            modifier = modifier,
-            color = containerColor,
-            contentColor = contentColor,
-            shape = RoundedCornerShape(999.dp)
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.Block,
-                    contentDescription = "Adult content",
-                    modifier = Modifier.size(16.dp)
-                )
-                Text(
-                    text = "18+",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-        }
-    }
-
-    @Composable
-    private fun DropTitleText(
-        drop: Drop,
-        modifier: Modifier = Modifier,
-        style: TextStyle = MaterialTheme.typography.bodyLarge,
-        maxLines: Int = Int.MAX_VALUE,
-        overflow: TextOverflow = TextOverflow.Clip
-    ) {
-        val (handle, baseTitle) = drop.displayTitleParts()
-        val annotatedTitle = remember(handle, baseTitle) {
-            if (handle != null) {
-                buildAnnotatedString {
-                    withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
-                        append(handle)
+                },
+                onSubmit = submit@{
+                    val userId = currentUserId
+                    val target = targetDrop
+                    if (userId.isNullOrBlank()) {
+                        Toast.makeText(ctx, "Sign in to report drops.", Toast.LENGTH_SHORT).show()
+                        return@submit
                     }
-                    append(" dropped ")
-                    append(baseTitle)
-                }
-            } else {
-                AnnotatedString(baseTitle)
-            }
-        }
-
-        Text(
-            text = annotatedTitle,
-            style = style,
-            modifier = modifier,
-            maxLines = maxLines,
-            overflow = overflow
-        )
-    }
-
-    @Composable
-    private fun PickupCelebrationBanner(
-        modifier: Modifier = Modifier,
-        visible: Boolean,
-        dropTitle: String?
-    ) {
-        if (dropTitle.isNullOrBlank()) return
-        val infiniteTransition = rememberInfiniteTransition(label = "pickupCelebration")
-        val sparkleOffset by infiniteTransition.animateFloat(
-            initialValue = -4f,
-            targetValue = 4f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = 900, easing = FastOutSlowInEasing),
-                repeatMode = RepeatMode.Reverse
-            ),
-            label = "pickupSparkleOffset"
-        )
-        val shimmerAlpha by infiniteTransition.animateFloat(
-            initialValue = 0.65f,
-            targetValue = 1f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = 1200, easing = FastOutSlowInEasing),
-                repeatMode = RepeatMode.Reverse
-            ),
-            label = "pickupShimmerAlpha"
-        )
-
-        AnimatedVisibility(
-            visible = visible,
-            enter = fadeIn(animationSpec = tween(durationMillis = 200)) + scaleIn(
-                initialScale = 0.9f,
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                    stiffness = Spring.StiffnessLow
-                )
-            ),
-            exit = fadeOut(animationSpec = tween(durationMillis = 250)) + scaleOut(
-                targetScale = 0.95f,
-                animationSpec = tween(durationMillis = 250)
-            ),
-            modifier = modifier
-        ) {
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                ),
-                shape = RoundedCornerShape(24.dp),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-            ) {
-                Row(
-                    modifier = Modifier
-                        .padding(horizontal = 20.dp, vertical = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Star,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.secondary,
-                        modifier = Modifier
-                            .size(36.dp)
-                            .graphicsLayer { translationY = sparkleOffset }
-                    )
-
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Drop collected!",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            text = dropTitle,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                    if (target == null || target.id.isBlank()) {
+                        browseReportError = "Drop information is missing."
+                        return@submit
                     }
-
-                    Icon(
-                        imageVector = Icons.Rounded.CheckCircle,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.secondary.copy(alpha = shimmerAlpha),
-                        modifier = Modifier.size(28.dp)
-                    )
-                }
-            }
-        }
-    }
-
-    @Composable
-    private fun OtherDropRow(
-        drop: Drop,
-        isSelected: Boolean,
-        currentLocation: LatLng?,
-        userLike: DropLikeStatus,
-        canPickUp: Boolean,
-        pickupRestrictionMessage: String?,
-        showReport: Boolean,
-        canReport: Boolean,
-        alreadyReported: Boolean,
-        reportRestrictionMessage: String?,
-        isReporting: Boolean,
-        canIgnoreForNow: Boolean,
-        onIgnoreForNow: () -> Unit,
-        onSelect: () -> Unit,
-        onPickUp: () -> Unit,
-        onReport: () -> Unit
-    ) {
-        val containerColor = if (isSelected) {
-            MaterialTheme.colorScheme.primaryContainer
-        } else {
-            MaterialTheme.colorScheme.surfaceVariant
-        }
-        val contentColor = if (isSelected) {
-            MaterialTheme.colorScheme.onPrimaryContainer
-        } else {
-            MaterialTheme.colorScheme.onSurface
-        }
-        val supportingColor = if (isSelected) {
-            MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
-        } else {
-            MaterialTheme.colorScheme.onSurfaceVariant
-        }
-        val distanceMeters = currentLocation?.let { location ->
-            distanceBetweenMeters(location.latitude, location.longitude, drop.lat, drop.lng)
-        }
-        val withinPickupRange =
-            distanceMeters != null && distanceMeters <= DROP_PICKUP_RADIUS_METERS
-        val canPreviewContent = withinPickupRange
-        val context = LocalContext.current
-        val mediaAttachment = remember(
-            context,
-            drop.id,
-            drop.mediaUrl,
-            drop.mediaData,
-            drop.mediaMimeType,
-            drop.contentType
-        ) {
-            if (drop.contentType == DropContentType.AUDIO || drop.contentType == DropContentType.VIDEO) {
-                resolveDropMediaAttachment(context, drop)
-            } else {
-                null
-            }
-        }
-        val previewText = drop.description?.takeIf { it.isNotBlank() }
-            ?: drop.text.takeIf { it.isNotBlank() }
-            ?: when (drop.contentType) {
-                DropContentType.PHOTO -> "Preview the photo below."
-                DropContentType.AUDIO -> "Use the player below to listen to this drop."
-                DropContentType.VIDEO -> "Use the player below to watch this drop."
-                DropContentType.TEXT -> null
-            }
-
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            onClick = onSelect,
-            colors = CardDefaults.cardColors(
-                containerColor = containerColor,
-                contentColor = contentColor
-            )
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    DropTitleText(
-                        drop = drop,
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.weight(1f),
-                        maxLines = if (isSelected) Int.MAX_VALUE else 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-
-                    if (drop.isNsfw) {
-                        DropNsfwBadge()
+                    if (browseReportSelectedReasons.isEmpty()) {
+                        browseReportError = "Select at least one reason."
+                        return@submit
                     }
-
-                    Icon(
-                        imageVector = if (isSelected) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                        contentDescription = if (isSelected) {
-                            "Collapse drop details"
-                        } else {
-                            "Expand drop details"
-                        }
-                    )
-                }
-
-                if (canPreviewContent && !previewText.isNullOrBlank()) {
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = previewText,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = supportingColor,
-                        maxLines = if (isSelected) Int.MAX_VALUE else 3,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                } else if (!canPreviewContent) {
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = "Move closer to preview this drop.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = supportingColor
-                    )
-                }
-
-                AnimatedVisibility(visible = isSelected) {
-                    Column {
-                        Spacer(Modifier.height(8.dp))
-                        val typeLabel = when (drop.contentType) {
-                            DropContentType.TEXT -> "Text note"
-                            DropContentType.PHOTO -> "Photo drop"
-                            DropContentType.AUDIO -> "Audio drop"
-                            DropContentType.VIDEO -> "Video drop"
-                        }
-
-                        formatTimestamp(drop.createdAt)?.let {
-                            Spacer(Modifier.height(4.dp))
-                            Text(
-                                text = it,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = supportingColor
-                            )
-                        }
-                        drop.groupCode?.takeIf { !it.isNullOrBlank() }?.let { groupCode ->
-                            Spacer(Modifier.height(4.dp))
-                            Text(
-                                text = "Group $groupCode",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = supportingColor
-                            )
-                        }
-
-                        if (canPreviewContent && drop.contentType == DropContentType.PHOTO) {
-                            val mediaUrl = drop.mediaLabel()
-                            if (!mediaUrl.isNullOrBlank()) {
-                                Spacer(Modifier.height(12.dp))
-                                val imageRequest = remember(mediaUrl) {
-                                    ImageRequest.Builder(context)
-                                        .data(mediaUrl)
-                                        .crossfade(true)
-                                        .build()
-                                }
-
-                                AsyncImage(
-                                    model = imageRequest,
-                                    contentDescription = drop.displayTitle(),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .heightIn(min = 160.dp, max = 280.dp)
-                                        .clip(RoundedCornerShape(12.dp)),
-                                    contentScale = ContentScale.Crop
+                    browseReportProcessing = true
+                    browseReportError = null
+                    browseReportingDropId = target.id
+                    scope.launch {
+                        try {
+                            repo.submitDropReport(
+                                dropId = target.id,
+                                reporterId = userId,
+                                reasonCodes = browseReportSelectedReasons,
+                                additionalContext = mapOf(
+                                    "source" to target.source,
+                                    "contentType" to target.contentType.name,
+                                    "hasMedia" to target.hasMedia,
+                                    "dropType" to target.dropType.name
                                 )
-                            }
-                        }
-
-                        if (canPreviewContent && (drop.contentType == DropContentType.AUDIO || drop.contentType == DropContentType.VIDEO)) {
-                            Spacer(Modifier.height(12.dp))
-                            AttachmentPreviewSection(
-                                contentType = drop.contentType,
-                                attachment = mediaAttachment,
-                                onOpen = { attachment ->
-                                    openDropMediaAttachment(
-                                        context,
-                                        attachment
-                                    )
-                                }
                             )
-                        }
-
-                        Spacer(Modifier.height(4.dp))
-
-                        distanceMeters?.let { distance ->
-                            Spacer(Modifier.height(4.dp))
-                            Text(
-                                text = "You're ${formatDistanceMeters(distance)} away.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = supportingColor
-                            )
-                        }
-
-                        Spacer(Modifier.height(12.dp))
-
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(
-                                    modifier = Modifier.weight(1f),
-                                    horizontalArrangement = Arrangement.spacedBy(18.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    ReactionCount(
-                                        icon = Icons.Rounded.ThumbUp,
-                                        count = drop.likeCount,
-                                        isHighlighted = userLike == DropLikeStatus.LIKED
-                                    )
-
-                                    ReactionCount(
-                                        icon = Icons.Rounded.ThumbDown,
-                                        count = drop.dislikeCount,
-                                        isHighlighted = userLike == DropLikeStatus.DISLIKED
-                                    )
-                                }
-
-                                if (showReport) {
-                                    OutlinedButton(
-                                        onClick = onReport,
-                                        enabled = canReport && !alreadyReported && !isReporting
-                                    ) {
-                                        if (isReporting) {
-                                            CircularProgressIndicator(
-                                                modifier = Modifier.size(16.dp),
-                                                strokeWidth = 2.dp
+                            browseReportDialogOpen = false
+                            browseReportTarget = null
+                            browseReportSelectedReasons = emptySet()
+                            browseReportError = null
+                            val now = System.currentTimeMillis()
+                            when (target.source) {
+                                REPORT_SOURCE_BROWSE_MAP -> {
+                                    otherDrops = otherDrops.map { existing ->
+                                        if (existing.id == target.id) {
+                                            val updatedReportedBy = existing.reportedBy.toMutableMap()
+                                            val already = updatedReportedBy.containsKey(userId)
+                                            updatedReportedBy[userId] = now
+                                            val updatedCount = if (already) {
+                                                existing.reportCount
+                                            } else {
+                                                existing.reportCount + 1
+                                            }
+                                            existing.copy(
+                                                reportedBy = updatedReportedBy,
+                                                reportCount = updatedCount
                                             )
                                         } else {
-                                            Icon(
-                                                Icons.Rounded.Report,
-                                                contentDescription = null
-                                            )
+                                            existing
                                         }
-                                        Spacer(Modifier.width(8.dp))
-                                        Text(
-                                            text = when {
-                                                isReporting -> "Reporting..."
-                                                alreadyReported -> "Reported"
-                                                else -> "Report"
-                                            }
-                                        )
                                     }
                                 }
-                            }
-                        }
-                        if (showReport) {
-                            reportRestrictionMessage?.let { message ->
-                                Spacer(Modifier.height(4.dp))
-                                Text(
-                                    text = message,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = supportingColor
-                                )
-                            }
-                        }
-                        if (withinPickupRange) {
-                            Spacer(Modifier.height(12.dp))
-                            if (canPickUp) {
-                                Button(
-                                    onClick = onPickUp,
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Text("Pick up drop")
-                                }
-                            } else {
-                                Text(
-                                    text = pickupRestrictionMessage
-                                        ?: "Preview this drop while browsing as a guest. Sign in to pick it up nearby.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = supportingColor
-                                )
-                            }
-                        }
-                        if (withinPickupRange && canIgnoreForNow) {
-                            Spacer(Modifier.height(12.dp))
-                            OutlinedButton(
-                                onClick = onIgnoreForNow,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Icon(Icons.Rounded.Close, contentDescription = null)
-                                Spacer(Modifier.width(8.dp))
-                                Text(stringResource(R.string.action_ignore_drop_for_now))
-                            }
-                            Spacer(Modifier.height(4.dp))
-                            Text(
-                                text = stringResource(R.string.browse_ignore_drop_explainer),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = supportingColor
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
 
-    @Composable
-    private fun ReactionCount(
-        icon: ImageVector,
-        count: Long,
-        isHighlighted: Boolean,
-        modifier: Modifier = Modifier
-    ) {
-        val highlightColor = MaterialTheme.colorScheme.primary
-        val iconColor = if (isHighlighted) {
-            highlightColor
-        } else {
-            MaterialTheme.colorScheme.onSurfaceVariant
-        }
-        val textColor = if (isHighlighted) {
-            highlightColor
-        } else {
-            LocalContentColor.current
-        }
-
-        Row(
-            modifier = modifier,
-            horizontalArrangement = Arrangement.spacedBy(5.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = iconColor
-            )
-
-            Text(
-                text = count.toString(),
-                style = MaterialTheme.typography.bodyMedium,
-                color = textColor
-            )
-        }
-    }
-
-    private const val REPORT_SOURCE_BROWSE_MAP = "browse_map"
-    private const val REPORT_SOURCE_COLLECTED = "collected_inventory"
-
-    private data class ReportableDrop(
-        val id: String,
-        val contentType: DropContentType,
-        val dropType: DropType,
-        val hasMedia: Boolean,
-        val source: String
-    )
-
-    private fun Drop.toReportableDrop(source: String): ReportableDrop {
-        return ReportableDrop(
-            id = id,
-            contentType = contentType,
-            dropType = dropType,
-            hasMedia = !mediaUrl.isNullOrBlank() || !mediaData.isNullOrBlank(),
-            source = source
-        )
-    }
-
-    private fun CollectedNote.toReportableDrop(source: String): ReportableDrop {
-        return ReportableDrop(
-            id = id,
-            contentType = contentType,
-            dropType = dropType,
-            hasMedia = !mediaUrl.isNullOrBlank() || !mediaData.isNullOrBlank(),
-            source = source
-        )
-    }
-
-    @Composable
-    private fun AttachmentPreviewSection(
-        contentType: DropContentType,
-        attachment: DropMediaAttachment?,
-        onOpen: (DropMediaAttachment) -> Unit
-    ) {
-        when (contentType) {
-            DropContentType.AUDIO -> {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.GraphicEq,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        Column {
-                            Text(
-                                text = "Audio clip",
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Text(
-                                text = "Tap to listen to this recording.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-
-                Spacer(Modifier.height(8.dp))
-
-                Button(
-                    onClick = { attachment?.let(onOpen) },
-                    enabled = attachment != null,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Play audio")
-                }
-
-                if (attachment == null) {
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = "Attachment unavailable.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-            }
-
-            DropContentType.VIDEO -> {
-                val videoUri = attachment?.asUriOrNull()
-
-                if (videoUri != null) {
-                    DropVideoPlayer(
-                        videoUri = videoUri,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-//                Spacer(Modifier.height(8.dp))
-
-//                Text(
-//                    text = "Tap play to watch this clip.",
-//                    style = MaterialTheme.typography.bodySmall,
-//                    color = MaterialTheme.colorScheme.onSurfaceVariant
-//                )
-
-                    Spacer(Modifier.height(8.dp))
-                }
-
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.PlayArrow,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        Column {
-                            Text(
-                                text = "Video clip",
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Text(
-                                text = if (videoUri != null) {
-                                    "Watch here or open it in another app."
-                                } else {
-                                    "Attachment unavailable."
-                                },
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-
-                Spacer(Modifier.height(8.dp))
-
-                Button(
-                    onClick = { attachment?.let(onOpen) },
-                    enabled = attachment != null,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(if (videoUri != null) "Open video externally" else "Play video")
-                }
-            }
-
-            else -> return
-        }
-    }
-
-    @Composable
-    private fun ExplorerDestinationMap(
-        destination: ExplorerDestination,
-        otherDrops: List<Drop>,
-        otherDropSelectedId: String?,
-        otherDropLocation: LatLng?,
-        notificationRadiusMeters: Double,
-        onOtherDropClick: (Drop) -> Unit,
-        myDrops: List<Drop>,
-        myDropSelectedId: String?,
-        myDropLocation: LatLng?,
-        onMyDropClick: (Drop) -> Unit,
-        collectedNotes: List<CollectedNote>,
-        collectedHighlightedId: String?,
-        collectedLocation: LatLng?,
-        onCollectedNoteClick: (CollectedNote) -> Unit,
-        modifier: Modifier = Modifier,
-        onSnapshotUpdate: ((Bitmap?, CameraPosition) -> Unit)? = null
-    ) {
-        val context = LocalContext.current
-        val baseMarkerBitmap = remember {
-            BitmapFactory.decodeResource(
-                context.resources,
-                R.drawable.explorer_drop_marker
-            )?.let { bitmap ->
-                if (bitmap.config == Bitmap.Config.ARGB_8888) {
-                    bitmap
-                } else {
-                    bitmap.copy(Bitmap.Config.ARGB_8888, false)
-                }
-            }
-        }
-        val businessMarkerDescriptor = remember {
-            runCatching {
-                BitmapFactory.decodeResource(
-                    context.resources,
-                    R.drawable.business_drop_marker
-                )?.let { bitmap ->
-                    val argbBitmap = if (bitmap.config == Bitmap.Config.ARGB_8888) {
-                        bitmap
-                    } else {
-                        bitmap.copy(Bitmap.Config.ARGB_8888, false)
-                    }
-                    BitmapDescriptorFactory.fromBitmap(argbBitmap)
-                }
-            }.getOrElse { error ->
-                Log.e("GeoDrop", "Failed to load business drop marker", error)
-                null
-            }
-        }
-        val markerDescriptorCache =
-            remember(baseMarkerBitmap) { mutableMapOf<Float, BitmapDescriptor>() }
-
-        fun descriptorForHue(hue: Float): BitmapDescriptor {
-            markerDescriptorCache[hue]?.let { return it }
-            val descriptor = baseMarkerBitmap?.let { base ->
-                val tinted = Bitmap.createBitmap(base.width, base.height, Bitmap.Config.ARGB_8888)
-                val canvas = Canvas(tinted)
-                canvas.drawBitmap(base, 0f, 0f, null)
-                val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    colorFilter = PorterDuffColorFilter(
-                        android.graphics.Color.HSVToColor(floatArrayOf(hue, 0.8f, 1f)),
-                        PorterDuff.Mode.SRC_ATOP
-                    )
-                    alpha = 200
-                }
-                canvas.drawBitmap(base, 0f, 0f, paint)
-                BitmapDescriptorFactory.fromBitmap(tinted)
-            } ?: BitmapDescriptorFactory.defaultMarker(hue)
-            markerDescriptorCache[hue] = descriptor
-            return descriptor
-        }
-
-        val notesWithLocation =
-            remember(collectedNotes) { collectedNotes.filter { it.lat != null && it.lng != null } }
-        val highlightedNote = remember(notesWithLocation, collectedHighlightedId) {
-            notesWithLocation.firstOrNull { it.id == collectedHighlightedId }
-        }
-        val fallbackNote = remember(notesWithLocation) { notesWithLocation.firstOrNull() }
-
-        val cameraPositionState = rememberCameraPositionState()
-        val uiSettings = remember { MapUiSettings(zoomControlsEnabled = true) }
-        var googleMap by remember { mutableStateOf<com.google.android.gms.maps.GoogleMap?>(null) }
-        var mapReady by remember { mutableStateOf(false) }
-
-        val collectedMapIsEmpty =
-            destination == ExplorerDestination.Collected && notesWithLocation.isEmpty()
-
-        LaunchedEffect(
-            destination,
-            otherDrops,
-            otherDropSelectedId,
-            otherDropLocation,
-            myDrops,
-            myDropSelectedId,
-            myDropLocation,
-            notesWithLocation,
-            highlightedNote?.id,
-            fallbackNote?.id,
-            collectedLocation
-        ) {
-            when (destination) {
-                ExplorerDestination.Discover -> {
-                    val targetDrop = otherDrops.firstOrNull { it.id == otherDropSelectedId }
-                    val target = targetDrop?.let { LatLng(it.lat, it.lng) }
-                        ?: otherDropLocation
-                        ?: otherDrops.firstOrNull()?.let { LatLng(it.lat, it.lng) }
-                    if (target != null) {
-                        val zoomLevel = if (targetDrop != null) 18f else 15f
-                        val update = CameraUpdateFactory.newLatLngZoom(target, zoomLevel)
-                        cameraPositionState.animate(update)
-                    }
-                }
-
-                ExplorerDestination.MyDrops -> {
-                    val targetDrop = myDrops.firstOrNull { it.id == myDropSelectedId }
-                    val target = targetDrop?.let { LatLng(it.lat, it.lng) }
-                        ?: myDropLocation
-                        ?: myDrops.firstOrNull()?.let { LatLng(it.lat, it.lng) }
-                    if (target != null) {
-                        val zoomLevel = if (targetDrop != null) 18f else 15f
-                        val update = CameraUpdateFactory.newLatLngZoom(target, zoomLevel)
-                        cameraPositionState.animate(update)
-                    }
-                }
-
-                ExplorerDestination.Collected -> {
-                    val targetNote = when {
-                        highlightedNote != null -> highlightedNote
-                        fallbackNote != null -> fallbackNote
-                        else -> null
-                    }
-                    if (targetNote != null) {
-                        val lat = targetNote.lat ?: return@LaunchedEffect
-                        val lng = targetNote.lng ?: return@LaunchedEffect
-                        val zoom = if (highlightedNote != null) 15f else 12f
-                        val update = CameraUpdateFactory.newLatLngZoom(LatLng(lat, lng), zoom)
-                        cameraPositionState.animate(update)
-                    } else if (collectedLocation != null) {
-                        val update = CameraUpdateFactory.newLatLngZoom(collectedLocation, 12f)
-                        cameraPositionState.animate(update)
-                    }
-                }
-            }
-        }
-
-        LaunchedEffect(destination, collectedMapIsEmpty, onSnapshotUpdate) {
-            if (destination == ExplorerDestination.Collected && collectedMapIsEmpty) {
-                onSnapshotUpdate?.invoke(null, cameraPositionState.position)
-            }
-        }
-
-        fun requestSnapshot() {
-            val callback = onSnapshotUpdate ?: return
-            val map = googleMap ?: return
-            if (destination == ExplorerDestination.Collected && collectedMapIsEmpty) {
-                callback(null, cameraPositionState.position)
-                return
-            }
-            map.snapshot { bitmap ->
-                callback(bitmap, cameraPositionState.position)
-            }
-        }
-
-        LaunchedEffect(
-            mapReady,
-            destination,
-            otherDrops,
-            otherDropSelectedId,
-            otherDropLocation,
-            myDrops,
-            myDropSelectedId,
-            myDropLocation,
-            notesWithLocation,
-            highlightedNote?.id
-        ) {
-            if (mapReady && !(destination == ExplorerDestination.Collected && collectedMapIsEmpty)) {
-                requestSnapshot()
-            }
-        }
-
-        LaunchedEffect(mapReady, destination) {
-            if (!mapReady || onSnapshotUpdate == null || (destination == ExplorerDestination.Collected && collectedMapIsEmpty)) return@LaunchedEffect
-            snapshotFlow { cameraPositionState.isMoving }
-                .distinctUntilChanged()
-                .filter { moving -> !moving }
-                .collectLatest {
-                    requestSnapshot()
-                }
-        }
-
-        if (collectedMapIsEmpty) {
-            Box(modifier.fillMaxSize()) {
-                Text(
-                    text = "No location data for collected drops yet.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.align(Alignment.Center)
-                )
-            }
-            return
-        }
-
-        GoogleMap(
-            modifier = modifier
-                .fillMaxSize()
-                .consumeMapGesturesInParent(),
-            cameraPositionState = cameraPositionState,
-            uiSettings = uiSettings,
-            onMapLoaded = {
-                mapReady = true
-                requestSnapshot()
-            }
-        ) {
-            MapEffect(Unit) { map ->
-                googleMap = map
-                if (mapReady) {
-                    requestSnapshot()
-                }
-            }
-
-            when (destination) {
-                ExplorerDestination.Discover -> {
-                    otherDropLocation?.let { location ->
-                        if (notificationRadiusMeters > 0.0) {
-                            Circle(
-                                center = location,
-                                radius = notificationRadiusMeters,
-                                strokeColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
-                                strokeWidth = 2f,
-                                fillColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
-                                zIndex = 0f
-                            )
-                        }
-
-                        Marker(
-                            state = MarkerState(location),
-                            title = "Your current location",
-                            icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE),
-                            zIndex = 1f
-                        )
-                    }
-
-                    val selectedDrop =
-                        otherDropSelectedId?.let { id -> otherDrops.firstOrNull { it.id == id } }
-                    selectedDrop?.let { drop ->
-                        val dropPosition = LatLng(drop.lat, drop.lng)
-                        Circle(
-                            center = dropPosition,
-                            radius = DROP_PICKUP_RADIUS_METERS,
-                            strokeColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.6f),
-                            strokeWidth = 2f,
-                            fillColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f),
-                            zIndex = 1f
-                        )
-                    }
-
-                    otherDrops.forEach { drop ->
-                        val position = LatLng(drop.lat, drop.lng)
-                        val snippetParts = mutableListOf<String>()
-                        val snippetDescription = drop.description?.takeIf { it.isNotBlank() }
-                            ?: drop.text.takeIf { it.isNotBlank() }
-                            ?: when (drop.contentType) {
-                                DropContentType.PHOTO -> "Preview the photo in the drop list."
-                                DropContentType.AUDIO -> "Open the drop list to play this recording."
-                                DropContentType.VIDEO -> "Open the drop list to watch this clip."
-                                DropContentType.TEXT -> ""
-                            }
-                        if (!snippetDescription.isNullOrBlank()) {
-                            snippetParts.add(snippetDescription)
-                        }
-                        formatTimestamp(drop.createdAt)?.let { snippetParts.add("Dropped $it") }
-                        drop.groupCode?.takeIf { !it.isNullOrBlank() }
-                            ?.let { snippetParts.add("Group $it") }
-                        snippetParts.add("Lat: %.5f, Lng: %.5f".format(drop.lat, drop.lng))
-                        snippetParts.add("Likes: ${drop.likeCount}")
-                        if (drop.isNsfw) {
-                            snippetParts.add("Marked as adult content")
-                        }
-
-                        val isSelected = drop.id == otherDropSelectedId
-
-                        val markerIcon = when {
-                            drop.isBusinessDrop() && businessMarkerDescriptor != null -> businessMarkerDescriptor
-                            isSelected -> descriptorForHue(BitmapDescriptorFactory.HUE_BLUE)
-                            drop.isNsfw -> descriptorForHue(BitmapDescriptorFactory.HUE_MAGENTA)
-                            else -> descriptorForHue(likeHueFor(drop.likeCount))
-                        }
-
-                        Marker(
-                            state = MarkerState(position),
-                            title = drop.displayTitle(),
-                            snippet = snippetParts.joinToString("\n"),
-                            icon = markerIcon,
-                            alpha = if (isSelected) 1f else 0.9f,
-                            zIndex = if (isSelected) 2f else 0f,
-                            onClick = {
-                                onOtherDropClick(drop)
-                                false
-                            }
-                        )
-                    }
-                }
-
-                ExplorerDestination.MyDrops -> {
-                    myDropLocation?.let { location ->
-                        Marker(
-                            state = MarkerState(location),
-                            title = "Your current location",
-                            icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE),
-                            zIndex = 1f
-                        )
-                    }
-
-                    val selectedDrop =
-                        myDropSelectedId?.let { id -> myDrops.firstOrNull { it.id == id } }
-                    selectedDrop?.let { drop ->
-                        val dropPosition = LatLng(drop.lat, drop.lng)
-                        Circle(
-                            center = dropPosition,
-                            radius = DROP_PICKUP_RADIUS_METERS,
-                            strokeColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.6f),
-                            strokeWidth = 2f,
-                            fillColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f),
-                            zIndex = 1f
-                        )
-                    }
-
-                    myDrops.forEach { drop ->
-                        val position = LatLng(drop.lat, drop.lng)
-                        val snippetParts = mutableListOf<String>()
-                        val typeLabel = when (drop.contentType) {
-                            DropContentType.TEXT -> "Text note"
-                            DropContentType.PHOTO -> "Photo drop"
-                            DropContentType.AUDIO -> "Audio drop"
-                            DropContentType.VIDEO -> "Video drop"
-                        }
-                        snippetParts.add("Type: $typeLabel")
-                        formatTimestamp(drop.createdAt)?.let { snippetParts.add("Dropped $it") }
-                        drop.groupCode?.takeIf { !it.isNullOrBlank() }
-                            ?.let { snippetParts.add("Group $it") }
-                        snippetParts.add("Lat: %.5f, Lng: %.5f".format(drop.lat, drop.lng))
-                        snippetParts.add("Likes: ${drop.likeCount}")
-                        snippetParts.add("Dislikes: ${drop.dislikeCount}")
-                        if (drop.isNsfw) {
-                            snippetParts.add("Marked as adult content")
-                        }
-
-                        val isSelected = drop.id == myDropSelectedId
-                        val markerIcon = when {
-                            isSelected -> BitmapDescriptorFactory.defaultMarker(
-                                BitmapDescriptorFactory.HUE_BLUE
-                            )
-
-                            drop.isNsfw -> BitmapDescriptorFactory.defaultMarker(
-                                BitmapDescriptorFactory.HUE_MAGENTA
-                            )
-
-                            else -> BitmapDescriptorFactory.defaultMarker(likeHueFor(drop.likeCount))
-                        }
-
-                        Marker(
-                            state = MarkerState(position),
-                            title = drop.displayTitle(),
-                            snippet = snippetParts.joinToString("\n"),
-                            icon = markerIcon,
-                            alpha = if (isSelected) 1f else 0.9f,
-                            zIndex = if (isSelected) 2f else 0f,
-                            onClick = {
-                                onMyDropClick(drop)
-                                false
-                            }
-                        )
-                    }
-                }
-
-                ExplorerDestination.Collected -> {
-                    collectedLocation?.let { location ->
-                        Marker(
-                            state = MarkerState(location),
-                            title = "Your current location",
-                            icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE),
-                            zIndex = 1f
-                        )
-                    }
-                    notesWithLocation.forEach { note ->
-                        val lat = note.lat ?: return@forEach
-                        val lng = note.lng ?: return@forEach
-                        val position = LatLng(lat, lng)
-                        val typeLabel = when (note.contentType) {
-                            DropContentType.TEXT -> "Text note"
-                            DropContentType.PHOTO -> "Photo drop"
-                            DropContentType.AUDIO -> "Audio drop"
-                            DropContentType.VIDEO -> "Video drop"
-                        }
-                        val snippetParts = mutableListOf<String>()
-                        snippetParts.add("Type: $typeLabel")
-                        note.dropCreatedAt?.let { created ->
-                            formatTimestamp(created)?.let { snippetParts.add("Dropped $it") }
-                        }
-                        snippetParts.add("Lat: ${formatCoordinate(lat)}, Lng: ${formatCoordinate(lng)}")
-                        note.groupCode?.let { snippetParts.add("Group $it") }
-                        if (note.isNsfw) {
-                            snippetParts.add("Marked as adult content")
-                        }
-
-                        val title = note.text.ifBlank {
-                            when (note.contentType) {
-                                DropContentType.TEXT -> "Collected text drop"
-                                DropContentType.PHOTO -> "Collected photo drop"
-                                DropContentType.AUDIO -> "Collected audio drop"
-                                DropContentType.VIDEO -> "Collected video drop"
-                            }
-                        }
-
-                        val markerIcon = when {
-                            note.isNsfw -> BitmapDescriptorFactory.defaultMarker(
-                                BitmapDescriptorFactory.HUE_MAGENTA
-                            )
-
-                            note.id == collectedHighlightedId -> BitmapDescriptorFactory.defaultMarker(
-                                BitmapDescriptorFactory.HUE_ORANGE
-                            )
-
-                            else -> BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN)
-                        }
-
-                        Marker(
-                            state = MarkerState(position),
-                            title = title,
-                            snippet = snippetParts.joinToString("\n"),
-                            icon = markerIcon,
-                            zIndex = if (note.id == collectedHighlightedId) 1f else 0f,
-                            onClick = {
-                                onCollectedNoteClick(note)
-                                false
-                            }
-                        )
-                    }
-                }
-            }
-        }
-    }
-
-    @OptIn(ExperimentalComposeUiApi::class)
-    @Composable
-    private fun Modifier.consumeMapGesturesInParent(): Modifier {
-        val view = LocalView.current
-        return pointerInteropFilter { event ->
-            when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN,
-                MotionEvent.ACTION_MOVE,
-                MotionEvent.ACTION_POINTER_DOWN -> {
-                    view.parent?.requestDisallowInterceptTouchEvent(true)
-                }
-
-                MotionEvent.ACTION_UP,
-                MotionEvent.ACTION_CANCEL,
-                MotionEvent.ACTION_POINTER_UP -> {
-                    view.parent?.requestDisallowInterceptTouchEvent(false)
-                }
-            }
-            false
-        }
-    }
-
-    private fun distanceBetweenMeters(
-        startLat: Double,
-        startLng: Double,
-        endLat: Double,
-        endLng: Double
-    ): Double {
-        val radius = 6371000.0
-        val dLat = Math.toRadians(endLat - startLat)
-        val dLng = Math.toRadians(endLng - startLng)
-        val originLat = Math.toRadians(startLat)
-        val targetLat = Math.toRadians(endLat)
-        val sinLat = sin(dLat / 2)
-        val sinLng = sin(dLng / 2)
-        val h = sinLat * sinLat + cos(originLat) * cos(targetLat) * sinLng * sinLng
-        return 2 * radius * asin(min(1.0, sqrt(h)))
-    }
-
-    private fun formatDistanceMeters(distance: Double): String {
-        return if (distance >= 1000) {
-            String.format(Locale.getDefault(), "%.2f km", distance / 1000.0)
-        } else {
-            "${distance.roundToInt()} m"
-        }
-    }
-
-    private fun likeHueFor(likes: Long): Float {
-        return when {
-            likes >= 25 -> BitmapDescriptorFactory.HUE_AZURE
-            likes >= 10 -> BitmapDescriptorFactory.HUE_GREEN
-            likes >= 5 -> BitmapDescriptorFactory.HUE_YELLOW
-            likes >= 1 -> BitmapDescriptorFactory.HUE_ORANGE
-            else -> BitmapDescriptorFactory.HUE_RED
-        }
-    }
-
-    private fun resolveDropMediaAttachment(context: Context, drop: Drop): DropMediaAttachment? {
-        val data = drop.mediaData?.takeIf { it.isNotBlank() }
-        val preferredMime = drop.mediaMimeType?.takeIf { it.isNotBlank() }
-        if (data != null) {
-            val (subDir, defaultMime, defaultExtension) = when (drop.contentType) {
-                DropContentType.AUDIO -> Triple("audio", preferredMime ?: "audio/mpeg", "m4a")
-                DropContentType.VIDEO -> Triple("video", preferredMime ?: "video/mp4", "mp4")
-                else -> Triple("media", preferredMime ?: "application/octet-stream", "bin")
-            }
-
-            decodeDropMediaToTempFile(
-                context = context,
-                base64Data = data,
-                mimeType = preferredMime,
-                subDir = subDir,
-                defaultMime = defaultMime,
-                defaultExtension = defaultExtension
-            )?.let { decoded ->
-                return DropMediaAttachment.Local(decoded.uri, decoded.mimeType)
-            }
-        }
-
-        val url = drop.mediaUrl?.takeIf { it.isNotBlank() } ?: return null
-        return DropMediaAttachment.Link(url)
-    }
-
-    private fun decodeDropMediaToTempFile(
-        context: Context,
-        base64Data: String,
-        mimeType: String?,
-        subDir: String,
-        defaultMime: String,
-        defaultExtension: String
-    ): DropDecodedMedia? {
-        return try {
-            val bytes = Base64.decode(base64Data, Base64.DEFAULT)
-            val resolvedMime = mimeType?.takeIf { it.isNotBlank() } ?: defaultMime
-            val extension = MimeTypeMap.getSingleton()
-                .getExtensionFromMimeType(resolvedMime)
-                ?.takeIf { it.isNotBlank() }
-                ?: defaultExtension
-            val directory = File(context.cacheDir, subDir).apply { if (!exists()) mkdirs() }
-            val file = File.createTempFile("geodrop_media_", ".${extension}", directory)
-            FileOutputStream(file).use { output -> output.write(bytes) }
-            val uri =
-                FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-            DropDecodedMedia(uri, resolvedMime)
-        } catch (error: Exception) {
-            Log.e("GeoDrop", "Failed to decode drop media", error)
-            null
-        }
-    }
-
-    private fun openDropMediaAttachment(context: Context, attachment: DropMediaAttachment) {
-        when (attachment) {
-            is DropMediaAttachment.Link -> {
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(attachment.url))
-                runCatching { context.startActivity(intent) }
-                    .onFailure {
-                        Toast.makeText(
-                            context,
-                            "No app found to open this media.",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    }
-            }
-
-            is DropMediaAttachment.Local -> {
-                val intent = Intent(Intent.ACTION_VIEW).apply {
-                    setDataAndType(attachment.uri, attachment.mimeType)
-                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                }
-                context.grantUriPermission(
-                    context.packageName,
-                    attachment.uri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION
-                )
-                runCatching { context.startActivity(intent) }
-                    .onFailure {
-                        Toast.makeText(
-                            context,
-                            "No app found to open this media.",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    }
-            }
-        }
-    }
-
-    private data class DropDecodedMedia(val uri: Uri, val mimeType: String)
-
-    private sealed class DropMediaAttachment {
-        data class Link(val url: String) : DropMediaAttachment()
-        data class Local(val uri: Uri, val mimeType: String) : DropMediaAttachment()
-    }
-
-    private fun DropMediaAttachment.asUriOrNull(): Uri? = when (this) {
-        is DropMediaAttachment.Link -> url.takeIf { it.isNotBlank() }?.let { Uri.parse(it) }
-        is DropMediaAttachment.Local -> uri
-    }
-
-    @Composable
-    private fun LikeToggleButton(
-        icon: ImageVector,
-        selected: Boolean,
-        enabled: Boolean,
-        onClick: () -> Unit,
-        modifier: Modifier = Modifier,
-        contentDescription: String? = null
-    ) {
-        val buttonModifier = modifier.heightIn(min = 40.dp)
-        if (selected) {
-            FilledTonalButton(
-                onClick = onClick,
-                enabled = enabled,
-                modifier = buttonModifier
-            ) {
-                Icon(icon, contentDescription = contentDescription)
-            }
-        } else {
-            OutlinedButton(
-                onClick = onClick,
-                enabled = enabled,
-                modifier = buttonModifier
-            ) {
-                Icon(icon, contentDescription = contentDescription)
-            }
-        }
-    }
-
-    @Composable
-    private fun ManageDropRow(
-        drop: Drop,
-        isDeleting: Boolean,
-        isSelected: Boolean,
-        onSelect: () -> Unit,
-        onView: () -> Unit,
-        onDelete: () -> Unit
-    ) {
-        val containerColor = if (isSelected) {
-            MaterialTheme.colorScheme.primaryContainer
-        } else {
-            MaterialTheme.colorScheme.surfaceVariant
-        }
-        val contentColor = if (isSelected) {
-            MaterialTheme.colorScheme.onPrimaryContainer
-        } else {
-            MaterialTheme.colorScheme.onSurface
-        }
-        val supportingColor = if (isSelected) {
-            MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
-        } else {
-            MaterialTheme.colorScheme.onSurfaceVariant
-        }
-
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            onClick = onSelect,
-            colors = CardDefaults.cardColors(
-                containerColor = containerColor,
-                contentColor = contentColor
-            )
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    DropTitleText(
-                        drop = drop,
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.weight(1f)
-                    )
-
-                    if (drop.isNsfw) {
-                        DropNsfwBadge()
-                    }
-
-                    Icon(
-                        imageVector = if (isSelected) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                        contentDescription = if (isSelected) {
-                            "Collapse drop details"
-                        } else {
-                            "Expand drop details"
-                        }
-                    )
-                }
-
-                AnimatedVisibility(visible = isSelected) {
-                    val context = LocalContext.current
-                    val mediaAttachment = remember(
-                        drop.id,
-                        drop.mediaUrl,
-                        drop.mediaData,
-                        drop.mediaMimeType
-                    ) {
-                        resolveDropMediaAttachment(context, drop)
-                    }
-
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Spacer(Modifier.height(4.dp))
-
-                        val typeLabel = when (drop.contentType) {
-                            DropContentType.TEXT -> "Text note"
-                            DropContentType.PHOTO -> "Photo drop"
-                            DropContentType.AUDIO -> "Audio drop"
-                            DropContentType.VIDEO -> "Video drop"
-                        }
-
-                        val descriptionText = drop.description?.takeIf { it.isNotBlank() }
-                        descriptionText?.let {
-                            Text(
-                                text = it,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = supportingColor
-                            )
-                        }
-
-                        when (drop.contentType) {
-                            DropContentType.PHOTO -> {
-                                val imageData = when (mediaAttachment) {
-                                    is DropMediaAttachment.Link -> mediaAttachment.url
-                                    is DropMediaAttachment.Local -> mediaAttachment.uri
-                                    else -> drop.mediaLabel()
-                                }
-                                if (imageData != null) {
-                                    val imageRequest = remember(imageData) {
-                                        ImageRequest.Builder(context)
-                                            .data(imageData)
-                                            .crossfade(true)
-                                            .build()
+                                REPORT_SOURCE_COLLECTED -> {
+                                    if (!reportedCollectedDropIds.contains(target.id)) {
+                                        reportedCollectedDropIds.add(target.id)
                                     }
-
-                                    AsyncImage(
-                                        model = imageRequest,
-                                        contentDescription = drop.displayTitle(),
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .heightIn(min = 160.dp, max = 280.dp)
-                                            .clip(RoundedCornerShape(12.dp)),
-                                        contentScale = ContentScale.Crop
-                                    )
                                 }
+
+                                else -> Unit
                             }
-
-                            DropContentType.VIDEO -> {
-                                val videoUri = mediaAttachment?.asUriOrNull()
-                                    ?: drop.mediaLabel()?.let { Uri.parse(it) }
-                                if (videoUri != null) {
-                                    DropVideoPlayer(
-                                        videoUri = videoUri,
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                }
-                            }
-
-                            DropContentType.AUDIO -> {
-                                val audioUri = mediaAttachment?.asUriOrNull()
-                                    ?: drop.mediaLabel()?.let { Uri.parse(it) }
-                                if (audioUri != null) {
-                                    DropAudioPlayer(
-                                        audioUri = audioUri,
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                }
-                            }
-
-                            DropContentType.TEXT -> Unit
-                        }
-
-                        formatTimestamp(drop.createdAt)?.let {
-                            Text(
-                                text = it,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = supportingColor
-                            )
-                        }
-
-                        CompositionLocalProvider(LocalContentColor provides supportingColor) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(18.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                ReactionCount(
-                                    icon = Icons.Rounded.ThumbUp,
-                                    count = drop.likeCount,
-                                    isHighlighted = false
-                                )
-
-                                ReactionCount(
-                                    icon = Icons.Rounded.ThumbDown,
-                                    count = drop.dislikeCount,
-                                    isHighlighted = false
-                                )
-                            }
-                        }
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            TextButton(
-                                onClick = onView,
-                                enabled = !isDeleting
-                            ) {
-                                Text("View details")
-                            }
-
-                            TextButton(
-                                onClick = onDelete,
-                                enabled = !isDeleting
-                            ) {
-                                if (isDeleting) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(18.dp),
-                                        strokeWidth = 2.dp
-                                    )
-                                    Spacer(Modifier.width(8.dp))
-                                    Text("Deleting…")
-                                } else {
-                                    Icon(
-                                        imageVector = Icons.Filled.Delete,
-                                        contentDescription = "Delete drop"
-                                    )
-                                    Spacer(Modifier.width(4.dp))
-                                    Text("Delete")
-                                }
-                            }
+                            Toast.makeText(ctx, "Report submitted.", Toast.LENGTH_SHORT).show()
+                        } catch (error: Exception) {
+                            val message = error.localizedMessage?.takeIf { it.isNotBlank() }
+                                ?: "Couldn't submit report. Try again."
+                            browseReportError = message
+                        } finally {
+                            browseReportProcessing = false
+                            browseReportingDropId = null
                         }
                     }
-                }
-            }
-        }
-    }
-
-    @Composable
-    private fun DropAudioPlayer(
-        audioUri: Uri,
-        modifier: Modifier = Modifier
-    ) {
-        val context = LocalContext.current
-        val mediaItem = remember(audioUri) { MediaItem.fromUri(audioUri) }
-        val exoPlayer = remember(mediaItem) {
-            ExoPlayer.Builder(context).build().apply {
-                setMediaItem(mediaItem)
-                playWhenReady = false
-                repeatMode = Player.REPEAT_MODE_OFF
-                prepare()
-            }
-        }
-
-        DisposableEffect(exoPlayer) {
-            onDispose { exoPlayer.release() }
-        }
-
-        Surface(
-            modifier = modifier,
-            shape = RoundedCornerShape(12.dp),
-            color = MaterialTheme.colorScheme.surfaceVariant
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.GraphicEq,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                    Text(
-                        text = "Audio clip",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-
-                AndroidView(
-                    modifier = Modifier.fillMaxWidth(),
-                    factory = { ctx ->
-                        PlayerControlView(ctx).apply {
-                            layoutParams = FrameLayout.LayoutParams(
-                                ViewGroup.LayoutParams.MATCH_PARENT,
-                                ViewGroup.LayoutParams.WRAP_CONTENT
-                            )
-                            player = exoPlayer
-                            setShowTimeoutMs(0)
-                        }
-                    },
-                    update = { controlView ->
-                        if (controlView.player !== exoPlayer) {
-                            controlView.player = exoPlayer
-                        }
-                    }
-                )
-            }
-        }
-    }
-
-    @OptIn(ExperimentalMaterial3Api::class)
-    @Composable
-    private fun DropContentTypeSection(
-        selected: DropContentType,
-        onSelect: (DropContentType) -> Unit,
-        showHeader: Boolean = true
-    ) {
-        val options = remember {
-            listOf(
-                DropContentTypeOption(
-                    type = DropContentType.TEXT,
-                    title = "Text",
-                    description = "Share a written message for people nearby.",
-                    icon = Icons.Rounded.Edit
-                ),
-                DropContentTypeOption(
-                    type = DropContentType.PHOTO,
-                    title = "Photo",
-                    description = "Capture a photo with your camera that others can open.",
-                    icon = Icons.Rounded.PhotoCamera
-                ),
-                DropContentTypeOption(
-                    type = DropContentType.VIDEO,
-                    title = "Video",
-                    description = "Record a short clip for nearby explorers to watch.",
-                    icon = Icons.Rounded.Videocam
-                ),
-                DropContentTypeOption(
-                    type = DropContentType.AUDIO,
-                    title = "Audio",
-                    description = "Record a quick voice message for nearby explorers.",
-                    icon = Icons.Rounded.Mic
-                )
-            )
-        }
-
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            if (showHeader) {
-                Text("Drop content", style = MaterialTheme.typography.titleSmall)
-            }
-
-            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                options.forEachIndexed { index, option ->
-                    SegmentedButton(
-                        shape = SegmentedButtonDefaults.itemShape(
-                            index = index,
-                            count = options.size
-                        ),
-                        onClick = { onSelect(option.type) },
-                        selected = option.type == selected,
-                        label = { Text(option.title) },
-                        icon = {
-                            Icon(
-                                imageVector = option.icon,
-                                contentDescription = null
-                            )
-                        }
-                    )
-                }
-            }
-
-            Crossfade(targetState = selected, label = "dropContentDescription") { type ->
-                val message = options.firstOrNull { it.type == type }?.description ?: ""
-                Text(
-                    text = message,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-    }
-
-    @OptIn(ExperimentalMaterial3Api::class)
-    @Composable
-    private fun BusinessDropTypeSection(
-        dropType: DropType,
-        onDropTypeChange: (DropType) -> Unit,
-        businessName: String?,
-        businessCategories: List<BusinessCategory>,
-        showHeader: Boolean = true
-    ) {
-        val options = remember(businessCategories) {
-            businessDropTypeOptionsFor(businessCategories).map { optionCopy ->
-                BusinessDropTypeOption(
-                    type = optionCopy.type,
-                    title = optionCopy.title,
-                    description = optionCopy.description,
-                    icon = when (optionCopy.type) {
-                        DropType.RESTAURANT_COUPON -> Icons.Rounded.Storefront
-                        DropType.TOUR_STOP -> Icons.Rounded.Flag
-                        DropType.COMMUNITY -> Icons.Rounded.Public
-                    }
-                )
-            }
-        }
-
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            val header = businessName?.takeIf { it.isNotBlank() }?.let { "Business tools for $it" }
-                ?: "Business tools"
-            if (showHeader) {
-                Text(header, style = MaterialTheme.typography.titleSmall)
-            }
-
-            val selectedOption =
-                options.firstOrNull { it.type == dropType } ?: options.firstOrNull()
-
-            if (options.size > 1) {
-                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                    options.forEachIndexed { index, option ->
-                        SegmentedButton(
-                            shape = SegmentedButtonDefaults.itemShape(
-                                index = index,
-                                count = options.size
-                            ),
-                            onClick = { onDropTypeChange(option.type) },
-                            selected = option.type == dropType,
-                            modifier = Modifier.weight(1f),
-                            label = { Text(option.title) },
-                            icon = { Icon(option.icon, contentDescription = null) }
-                        )
-                    }
-                }
-
-                Crossfade(
-                    targetState = selectedOption,
-                    label = "businessDropTypeDescription"
-                ) { option ->
-                    val message = option?.description.orEmpty()
-                    Text(
-                        text = message,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            } else if (selectedOption != null) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = selectedOption.icon,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                    Text(
-                        text = "Based on your categories, we'll publish this as ${selectedOption.title}.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-
-                Text(
-                    text = selectedOption.description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-    }
-
-    @Composable
-    private fun BusinessDropTemplatesSection(
-        templates: List<BusinessDropTemplate>,
-        onApply: (BusinessDropTemplate) -> Unit,
-        showHeader: Boolean = true
-    ) {
-        var showSuggestions by remember(templates) { mutableStateOf(false) }
-
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            if (showHeader) {
-                Text("Drop ideas for your categories", style = MaterialTheme.typography.titleSmall)
-                Text(
-                    text = "Use a template to pre-fill your drop with a ready-made idea.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            OutlinedButton(
-                onClick = { showSuggestions = true },
-                modifier = Modifier.fillMaxWidth(),
-                contentPadding = PaddingValues(vertical = 16.dp, horizontal = 20.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Lightbulb,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(2.dp)
-                    ) {
-                        Text(
-                            text = "Explore personalized ideas",
-                            style = MaterialTheme.typography.titleSmall
-                        )
-                        Text(
-                            text = "Preview templates curated for your business categories.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-        }
-
-        if (showSuggestions) {
-            BusinessDropTemplatesDialog(
-                templates = templates,
-                onApply = onApply,
-                onDismiss = { showSuggestions = false }
-            )
-        }
-    }
-
-    @OptIn(ExperimentalLayoutApi::class)
-    @Composable
-    private fun BusinessDropTemplatesDialog(
-        templates: List<BusinessDropTemplate>,
-        onApply: (BusinessDropTemplate) -> Unit,
-        onDismiss: () -> Unit
-    ) {
-        Dialog(onDismissRequest = onDismiss) {
-            Surface(
-                shape = MaterialTheme.shapes.large,
-                tonalElevation = 6.dp,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp)
-            ) {
-                val scrollState = rememberScrollState()
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .verticalScroll(scrollState)
-                        .padding(24.dp),
-                    verticalArrangement = Arrangement.spacedBy(20.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.Top
-                    ) {
-                        Column(
-                            modifier = Modifier.weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Text(
-                                text = "Personalized drop ideas",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-                        IconButton(onClick = onDismiss) {
-                            Icon(
-                                imageVector = Icons.Rounded.Close,
-                                contentDescription = "Close drop ideas"
-                            )
-                        }
-                    }
-
-                    var currentTemplateIndex by remember(templates) { mutableStateOf(0) }
-                    LaunchedEffect(templates) {
-                        currentTemplateIndex = 0
-                    }
-                    val activeTemplate = templates.getOrNull(currentTemplateIndex)
-
-                    if (activeTemplate != null) {
-                        Crossfade(
-                            targetState = activeTemplate,
-                            label = "activeBusinessTemplate"
-                        ) { template ->
-                            BusinessDropTemplateCard(
-                                template = template,
-                                onApply = { chosenTemplate ->
-                                    onApply(chosenTemplate)
-                                    onDismiss()
-                                }
-                            )
-                        }
-
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Text(
-                                text = "Idea ${currentTemplateIndex + 1} of ${templates.size}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Button(
-                                onClick = {
-                                    currentTemplateIndex =
-                                        (currentTemplateIndex + 1) % templates.size
-                                },
-                                enabled = templates.size > 1,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text("Next idea")
-                            }
-                        }
-                    } else {
-                        Surface(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = MaterialTheme.shapes.medium,
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
-                        ) {
-                            Text(
-                                text = "No ideas available yet.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(16.dp)
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    @OptIn(ExperimentalLayoutApi::class)
-    @Composable
-    private fun BusinessDropTemplateCard(
-        template: BusinessDropTemplate,
-        onApply: (BusinessDropTemplate) -> Unit
-    ) {
-        ElevatedCard(
-            modifier = Modifier
-                .fillMaxWidth()
-                .border(
-                    BorderStroke(
-                        width = 1.dp,
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
-                    ),
-                    shape = RoundedCornerShape(16.dp)
-                ),
-            shape = RoundedCornerShape(16.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
-                        text = template.title,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        text = "Inspired by ${template.category.displayName}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                val dropTypeIcon = when (template.dropType) {
-                    DropType.COMMUNITY -> Icons.Rounded.Public
-                    DropType.RESTAURANT_COUPON -> Icons.Rounded.Storefront
-                    DropType.TOUR_STOP -> Icons.Rounded.Flag
-                }
-                val dropTypeLabel = when (template.dropType) {
-                    DropType.COMMUNITY -> "Community drop"
-                    DropType.RESTAURANT_COUPON -> "Business offer"
-                    DropType.TOUR_STOP -> "Tour stop"
-                }
-                val contentTypeIcon = when (template.contentType) {
-                    DropContentType.TEXT -> Icons.Rounded.Edit
-                    DropContentType.PHOTO -> Icons.Rounded.PhotoCamera
-                    DropContentType.AUDIO -> Icons.Rounded.Mic
-                    DropContentType.VIDEO -> Icons.Rounded.Videocam
-                }
-                val contentTypeLabel = when (template.contentType) {
-                    DropContentType.TEXT -> "Text"
-                    DropContentType.PHOTO -> "Photo"
-                    DropContentType.AUDIO -> "Audio"
-                    DropContentType.VIDEO -> "Video"
-                }
-
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    TemplateTag(
-                        text = dropTypeLabel,
-                        icon = dropTypeIcon,
-                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f),
-                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                    TemplateTag(
-                        text = "$contentTypeLabel content",
-                        icon = contentTypeIcon,
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.45f),
-                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
-                }
-
-                Text(
-                    text = template.description,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-
-                template.callToAction?.let { message ->
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Star,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                            Text(
-                                text = message,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                        }
-                    }
-                }
-
-                if (template.caption.isNotBlank()) {
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f)
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Text(
-                                text = "Suggested caption",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer
-                            )
-                            Text(
-                                text = template.caption,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                maxLines = 3,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                    }
-                }
-
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Text(
-                            text = "Suggested message",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = template.note,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 4,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.CheckCircle,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                    Text(
-                        text = "Applies the drop type, format, and copy automatically.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-
-                FilledTonalButton(
-                    onClick = { onApply(template) },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Use this idea")
-                }
-            }
-        }
-    }
-
-    @Composable
-    private fun TemplateTag(
-        text: String,
-        icon: ImageVector? = null,
-        containerColor: Color = MaterialTheme.colorScheme.surfaceVariant,
-        contentColor: Color = MaterialTheme.colorScheme.onSurfaceVariant
-    ) {
-        Surface(
-            shape = RoundedCornerShape(18.dp),
-            color = containerColor,
-            tonalElevation = 1.dp
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                if (icon != null) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = contentColor,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-                Text(
-                    text = text,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = contentColor
-                )
-            }
-        }
-    }
-
-    @Composable
-    private fun BusinessRedemptionSection(
-        redemptionCode: TextFieldValue,
-        onRedemptionCodeChange: (TextFieldValue) -> Unit,
-        redemptionLimit: TextFieldValue,
-        onRedemptionLimitChange: (TextFieldValue) -> Unit,
-        showHeader: Boolean = true
-    ) {
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            if (showHeader) {
-                Text("Offer security", style = MaterialTheme.typography.titleSmall)
-            }
-
-            OutlinedTextField(
-                value = redemptionCode,
-                onValueChange = onRedemptionCodeChange,
-                label = { Text("Redemption code") },
-                supportingText = {
-                    Text("Share this code in person so each guest redeems only once.")
                 },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            OutlinedTextField(
-                value = redemptionLimit,
-                onValueChange = onRedemptionLimitChange,
-                label = { Text("Optional redemption limit") },
-                supportingText = {
-                    Text("Set a maximum number of redemptions (leave blank for unlimited).")
-                },
-                modifier = Modifier.fillMaxWidth()
+                isSubmitting = browseReportProcessing,
+                errorMessage = browseReportError
             )
         }
-    }
 
-    private const val MAX_DECAY_DAYS = 365
-
-    @Composable
-    private fun DropVisibilitySection(
-        visibility: DropVisibility,
-        onVisibilityChange: (DropVisibility) -> Unit,
-        groupCodeInput: TextFieldValue,
-        onGroupCodeInputChange: (TextFieldValue) -> Unit,
-        joinedGroups: List<String>,
-        onSelectGroupCode: (String) -> Unit,
-        showHeader: Boolean = true
-    ) {
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            if (showHeader) {
-                Text("Drop visibility", style = MaterialTheme.typography.titleSmall)
-            }
-
-            DropVisibilityOptionCard(
-                title = "Public drop",
-                description = "Anyone nearby can discover this note.",
-                icon = Icons.Rounded.Public,
-                selected = visibility == DropVisibility.Public,
-                onClick = { onVisibilityChange(DropVisibility.Public) }
-            )
-
-            DropVisibilityOptionCard(
-                title = "Group-only drop",
-                description = "Limit discovery to people who share your group code.",
-                icon = Icons.Rounded.Lock,
-                selected = visibility == DropVisibility.GroupOnly,
-                onClick = { onVisibilityChange(DropVisibility.GroupOnly) }
-            )
-
-            if (visibility == DropVisibility.GroupOnly) {
-                OutlinedTextField(
-                    value = groupCodeInput,
-                    onValueChange = onGroupCodeInputChange,
-                    label = { Text("Group code") },
-                    modifier = Modifier.fillMaxWidth(),
-                    supportingText = {
-                        Text("Only groups you created appear here. Create and manage codes from the menu.")
+        if (showExplorerProfile) {
+            ExplorerProfileDialog(
+                currentUsername = userProfile?.username,
+                username = explorerUsernameField,
+                onUsernameChange = { explorerUsernameField = it },
+                isSubmitting = explorerProfileSubmitting,
+                error = explorerProfileError,
+                onSubmit = { saveExplorerUsername() },
+                onDismiss = {
+                    if (!explorerProfileSubmitting) {
+                        showExplorerProfile = false
                     }
-                )
+                }
+            )
+        }
 
-                if (joinedGroups.isNotEmpty()) {
-                    Text(
-                        text = "Tap a saved code to reuse it:",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+        if (showNotificationRadiusDialog) {
+            NotificationRadiusDialog(
+                initialRadius = notificationRadius,
+                onConfirm = { newRadius ->
+                    notificationRadius = newRadius
+                    notificationPrefs.setNotificationRadiusMeters(newRadius)
+                    showNotificationRadiusDialog = false
+                    snackbar.showMessage(
+                        scope,
+                        "We'll alert you to drops within ${newRadius.roundToInt()} meters."
                     )
+                    registrar.registerNearby(
+                        ctx,
+                        maxMeters = newRadius,
+                        groupCodes = groupPrefs.getMemberships().map { it.code }.toSet()
+                    )
+                },
+                onDismiss = { showNotificationRadiusDialog = false }
+            )
+        }
 
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        joinedGroups.forEach { code ->
-                            AssistChip(
-                                onClick = { onSelectGroupCode(code) },
-                                label = { Text(code) }
-                            )
-                        }
+        termsPrivacyDialogTab?.let { tab ->
+            TermsPrivacyDialog(
+                initialTab = tab,
+                onDismiss = { termsPrivacyDialogTab = null }
+            )
+        }
+
+        if (showFaqDialog) {
+            FaqDialog(onDismiss = { showFaqDialog = false })
+        }
+
+        if (showNsfwDialog) {
+            NsfwPreferenceDialog(
+                enabled = userProfile?.canViewNsfw() == true,
+                isProcessing = nsfwUpdating,
+                error = nsfwUpdateError,
+                onConfirm = { enable ->
+                    val userId = currentUserId
+                    if (userId.isNullOrBlank()) {
+                        nsfwUpdateError = "Sign in again to update content settings."
+                        return@NsfwPreferenceDialog
                     }
-                }
-            } else {
-                val visibilityMessage = if (joinedGroups.isEmpty()) {
-                    "Create a group in Manage group codes to share private drops with your crew."
-                } else {
-                    "Groups you created: ${joinedGroups.joinToString()}."
-                }
-                Text(
-                    text = visibilityMessage,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-    }
-
-    @OptIn(ExperimentalMaterial3Api::class)
-    @Composable
-    private fun DropVisibilityOptionCard(
-        title: String,
-        description: String,
-        icon: ImageVector,
-        selected: Boolean,
-        onClick: () -> Unit
-    ) {
-        val containerColor by animateColorAsState(
-            targetValue = if (selected) {
-                MaterialTheme.colorScheme.primaryContainer
-            } else {
-                MaterialTheme.colorScheme.surfaceVariant
-            },
-            label = "visibilityContainer"
-        )
-        val contentColor = if (selected) {
-            MaterialTheme.colorScheme.onPrimaryContainer
-        } else {
-            MaterialTheme.colorScheme.onSurface
-        }
-        val supportingColor = if (selected) {
-            MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
-        } else {
-            MaterialTheme.colorScheme.onSurfaceVariant
-        }
-        val cardShape = CardDefaults.elevatedShape
-        val borderColor = if (selected) {
-            MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
-        } else {
-            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-        }
-        val borderWidth = if (selected) 2.dp else 1.dp
-
-        ElevatedCard(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(role = Role.RadioButton, onClick = onClick)
-                .border(BorderStroke(borderWidth, borderColor), cardShape),
-            colors = CardDefaults.elevatedCardColors(
-                containerColor = containerColor,
-                contentColor = contentColor
-            ),
-            shape = cardShape
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Surface(
-                    modifier = Modifier.size(40.dp),
-                    shape = CircleShape,
-                    color = if (selected) {
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
-                    } else {
-                        MaterialTheme.colorScheme.surface
-                    }
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = icon,
-                            contentDescription = null,
-                            tint = if (selected) {
-                                MaterialTheme.colorScheme.primary
+                    nsfwUpdating = true
+                    nsfwUpdateError = null
+                    scope.launch {
+                        try {
+                            val updated = repo.updateNsfwPreference(userId, enable)
+                            userProfile = updated
+                            otherDropsRefreshToken += 1
+                            showNsfwDialog = false
+                            val message = if (enable) {
+                                "NSFW drops enabled."
                             } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
+                                "NSFW drops disabled."
                             }
-                        )
-                    }
-                }
-
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium
-                    )
-                    Text(
-                        text = description,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = supportingColor
-                    )
-                }
-
-                Icon(
-                    imageVector = if (selected) Icons.Rounded.CheckCircle else Icons.Rounded.Info,
-                    contentDescription = null,
-                    tint = if (selected) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    }
-                )
-            }
-        }
-    }
-
-    private data class DropContentTypeOption(
-        val type: DropContentType,
-        val title: String,
-        val description: String,
-        val icon: ImageVector
-    )
-
-    private data class BusinessDropTypeOption(
-        val type: DropType,
-        val title: String,
-        val description: String,
-        val icon: ImageVector
-    )
-
-    @Composable
-    private fun ExplorerDestination.navigationLabel(): String = when (this) {
-        ExplorerDestination.Discover -> stringResource(R.string.action_browse_map_title)
-        ExplorerDestination.MyDrops -> stringResource(R.string.action_my_drops_title)
-        ExplorerDestination.Collected -> stringResource(R.string.action_collected_drops_title)
-    }
-
-    private fun ExplorerDestination.navigationIcon(): ImageVector = when (this) {
-        ExplorerDestination.Discover -> Icons.Rounded.Map
-        ExplorerDestination.MyDrops -> Icons.Rounded.Inbox
-        ExplorerDestination.Collected -> Icons.Rounded.Bookmark
-    }
-
-    /** Tiny helper to show snackbars from non-suspend places. */
-    private fun SnackbarHostState.showMessage(
-        scope: kotlinx.coroutines.CoroutineScope,
-        msg: String
-    ) {
-        scope.launch { showSnackbar(msg) }
-
-    }
-
-    @Composable
-    private fun OtherDropsMapPreviewHeader(
-        drops: List<Drop>,
-        selectedId: String?,
-        currentLocation: LatLng?,
-        notificationRadiusMeters: Double,
-        expanded: Boolean,
-        snapshot: Bitmap?,
-        cameraPosition: CameraPosition?,
-        onSnapshotChange: (Bitmap?, CameraPosition) -> Unit,
-        onExpandedChange: (Boolean) -> Unit,
-        onOpenMapView: () -> Unit,
-        onDropClick: (Drop) -> Unit,
-        modifier: Modifier = Modifier
-    ) {
-        val previewHeight by animateDpAsState(
-            targetValue = if (expanded) 320.dp else 160.dp,
-            label = "mapPreviewHeight"
-        )
-        val selectedDrop = remember(drops, selectedId) { drops.firstOrNull { it.id == selectedId } }
-
-        val overlayAlpha = if (expanded) 0.45f else 0.65f
-        val headerTitle = selectedDrop?.displayTitle() ?: "Explore drops nearby"
-        val subtitle = remember(selectedDrop, currentLocation, cameraPosition, drops.size) {
-            when {
-                selectedDrop != null && currentLocation != null -> {
-                    val distance = distanceBetweenMeters(
-                        currentLocation.latitude,
-                        currentLocation.longitude,
-                        selectedDrop.lat,
-                        selectedDrop.lng
-                    )
-                    "Selected • ${formatDistanceMeters(distance)} away"
-                }
-
-                cameraPosition != null ->
-                    "Zoom ${"%.1f".format(cameraPosition.zoom)} • ${drops.size} drops"
-
-                else -> "${drops.size} drops nearby"
-            }
-        }
-
-        Surface(
-            modifier = modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp),
-            shape = RoundedCornerShape(24.dp),
-            tonalElevation = 6.dp
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(previewHeight)
-            ) {
-                ExplorerDestinationMap(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .graphicsLayer { alpha = if (expanded) 1f else 0f },
-                    destination = ExplorerDestination.Discover,
-                    otherDrops = drops,
-                    otherDropSelectedId = selectedId,
-                    otherDropLocation = currentLocation,
-                    notificationRadiusMeters = notificationRadiusMeters,
-                    onOtherDropClick = onDropClick,
-                    myDrops = emptyList(),
-                    myDropSelectedId = null,
-                    myDropLocation = null,
-                    onMyDropClick = {},
-                    collectedNotes = emptyList(),
-                    collectedHighlightedId = null,
-                    collectedLocation = null,
-                    onCollectedNoteClick = {},
-                    onSnapshotUpdate = onSnapshotChange
-                )
-
-                if (!expanded) {
-                    if (snapshot != null) {
-                        Image(
-                            bitmap = snapshot.asImageBitmap(),
-                            contentDescription = "Map preview",
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
-                        )
-                    } else {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(MaterialTheme.colorScheme.surfaceVariant)
-                        )
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .matchParentSize()
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null
-                            ) { onExpandedChange(true) }
-                    )
-                }
-
-                Box(
-                    modifier = Modifier
-                        .matchParentSize()
-                        .background(
-                            Brush.verticalGradient(
-                                colors = listOf(
-                                    Color.Black.copy(alpha = overlayAlpha),
-                                    Color.Transparent
-                                )
+                            snackbar.showMessage(scope, message)
+                            registrar.registerNearby(
+                                ctx,
+                                maxMeters = notificationRadius,
+                                groupCodes = groupPrefs.getMemberships().map { it.code }.toSet()
                             )
-                        )
-                )
-
-                CompositionLocalProvider(LocalContentColor provides Color.White) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .align(Alignment.TopStart)
-                            .padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(
-                                modifier = Modifier.weight(1f),
-                                verticalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Text(
-                                    text = "Map preview",
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = Color.White.copy(alpha = 0.9f)
-                                )
-                                Text(
-                                    text = headerTitle,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = Color.White,
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Text(
-                                    text = subtitle,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = Color.White.copy(alpha = 0.85f)
-                                )
-                            }
-
-                            Surface(
-                                modifier = Modifier.size(36.dp),
-                                shape = CircleShape,
-                                color = Color.White.copy(alpha = 0.2f)
-                            ) {
-                                IconButton(onClick = { onExpandedChange(!expanded) }) {
-                                    Icon(
-                                        imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                                        contentDescription = if (expanded) "Collapse map preview" else "Expand map preview",
-                                        tint = Color.White
-                                    )
-                                }
-                            }
-                        }
-                        TextButton(
-                            onClick = onOpenMapView,
-                            colors = ButtonDefaults.textButtonColors(contentColor = Color.White)
-                        ) {
-                            Icon(Icons.Rounded.Map, contentDescription = null)
-                            Spacer(Modifier.width(6.dp))
-                            Text("Open map view")
+                        } catch (error: Exception) {
+                            nsfwUpdateError = error.localizedMessage ?: "Couldn't update settings."
+                        } finally {
+                            nsfwUpdating = false
                         }
                     }
-                }
-            }
+                },
+                onDismiss = { showNsfwDialog = false }
+            )
         }
-    }
 
-    @OptIn(ExperimentalMaterial3Api::class)
-    @Composable
-    private fun ExplorerFullScreenMapDialog(
-        title: String,
-        onDismiss: () -> Unit,
-        content: @Composable BoxScope.() -> Unit
-    ) {
-        Dialog(
-            onDismissRequest = onDismiss,
-            properties = DialogProperties(usePlatformDefaultWidth = false)
-        ) {
-            Surface(
-                modifier = Modifier.fillMaxSize(),
-                color = MaterialTheme.colorScheme.surface
+        if (showBusinessOnboarding) {
+            var businessNameField by rememberSaveable(
+                userProfile?.businessName,
+                stateSaver = TextFieldValue.Saver
             ) {
-                BackHandler(onBack = onDismiss)
-                Box(modifier = Modifier.fillMaxSize()) {
-                    content()
-
-                    TopAppBar(
-                        title = { Text(title) },
-                        navigationIcon = {
-                            IconButton(onClick = onDismiss) {
-                                Icon(
-                                    imageVector = Icons.Filled.ArrowBack,
-                                    contentDescription = "Close map view"
-                                )
-                            }
-                        },
-                        colors = TopAppBarDefaults.topAppBarColors(
-                            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
-                            navigationIconContentColor = MaterialTheme.colorScheme.onSurface,
-                            titleContentColor = MaterialTheme.colorScheme.onSurface
-                        ),
-                        modifier = Modifier.align(Alignment.TopCenter)
-                    )
-                }
+                mutableStateOf(TextFieldValue(userProfile?.businessName.orEmpty()))
             }
+            var onboardingError by remember { mutableStateOf<String?>(null) }
+            var onboardingSubmitting by remember { mutableStateOf(false) }
+            val categoriesKey = userProfile?.businessCategories
+                ?.joinToString(separator = ",") { it.id }
+            var selectedCategoryIds by remember(categoriesKey) {
+                mutableStateOf(userProfile?.businessCategories?.map { it.id } ?: emptyList())
+            }
+
+            BusinessOnboardingDialog(
+                name = businessNameField,
+                selectedCategories = selectedCategoryIds
+                    .mapNotNull { id -> BusinessCategory.fromId(id) }
+                    .toSet(),
+                onNameChange = { businessNameField = it },
+                onToggleCategory = { category ->
+                    selectedCategoryIds = if (selectedCategoryIds.contains(category.id)) {
+                        selectedCategoryIds.filterNot { it == category.id }
+                    } else {
+                        selectedCategoryIds + category.id
+                    }
+                },
+                isSubmitting = onboardingSubmitting,
+                error = onboardingError,
+                onSubmit = {
+                    val trimmed = businessNameField.text.trim()
+                    if (trimmed.isEmpty()) {
+                        onboardingError = "Enter your business name."
+                        return@BusinessOnboardingDialog
+                    }
+                    val selectedCategories = selectedCategoryIds
+                        .mapNotNull { id -> BusinessCategory.fromId(id) }
+                    if (selectedCategories.isEmpty()) {
+                        onboardingError = "Select at least one business category."
+                        return@BusinessOnboardingDialog
+                    }
+                    val uid = currentUserId
+                    if (uid.isNullOrBlank()) {
+                        onboardingError = "Sign-in is required."
+                        return@BusinessOnboardingDialog
+                    }
+                    onboardingSubmitting = true
+                    onboardingError = null
+                    scope.launch {
+                        try {
+                            val updated = repo.updateBusinessProfile(uid, trimmed, selectedCategories)
+                            userProfile = updated
+                            showBusinessOnboarding = false
+                            snackbar.showMessage(scope, "Business profile saved.")
+                        } catch (error: Exception) {
+                            onboardingError = error.localizedMessage ?: "Couldn't save business info."
+                        } finally {
+                            onboardingSubmitting = false
+                        }
+                    }
+                },
+                onDismiss = {
+                    if (!onboardingSubmitting) {
+                        showBusinessOnboarding = false
+                    }
+                }
+            )
         }
-    }
 
-    @Composable
-    private fun OtherDropsExplorerSection(
-        modifier: Modifier = Modifier,
-        topContentPadding: Dp = 0.dp,
-        loading: Boolean,
-        refreshing: Boolean,
-        drops: List<Drop>,
-        currentLocation: LatLng?,
-        notificationRadiusMeters: Double,
-        error: String?,
-        emptyMessage: String? = null,
-        selectedId: String?,
-        onSelect: (Drop) -> Unit,
-        onPickUp: (Drop) -> Unit,
-        currentUserId: String?,
-        votingDropIds: Set<String>,
-        collectedDropIds: Set<String>,
-        canCollectDrops: Boolean,
-        collectRestrictionMessage: String?,
-        sortOption: DropSortOption,
-        sortOptions: List<DropSortOption>,
-        onSortOptionChange: (DropSortOption) -> Unit,
-        explorerGroups: List<GroupMembership>,
-        selectedExplorerGroupCode: String?,
-        onSelectExplorerGroup: (String?) -> Unit,
-        searchToggles: List<ExplorerSearchToggle>,
-        canLikeDrops: Boolean,
-        likeRestrictionMessage: String?,
-        onLike: (Drop, DropLikeStatus) -> Unit,
-        onReport: (Drop) -> Unit,
-        reportingDropId: String?,
-        dismissedBrowseDropIds: SnapshotStateList<String>,
-        snackbar: SnackbarHostState,
-        scope: CoroutineScope,
-        onRefresh: () -> Unit,
-        listState: LazyListState,
-        mapPreviewBitmap: Bitmap?,
-        mapCameraPosition: CameraPosition?,
-        onMapSnapshotChange: (Bitmap?, CameraPosition) -> Unit,
-        mapPreviewExpanded: Boolean,
-        onMapPreviewExpandedChange: (Boolean) -> Unit,
-        showMapPreview: Boolean,
-        onOpenMapView: () -> Unit
-    ) {
-        val context = LocalContext.current
+        if (showBusinessDashboard) {
+            BusinessDashboardDialog(
+                drops = businessDrops,
+                loading = businessDashboardLoading,
+                error = businessDashboardError,
+                onDismiss = { showBusinessDashboard = false },
+                onRefresh = { businessDashboardRefreshToken += 1 }
+            )
+        }
 
-        Column(
-            modifier = modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            if (refreshing && !loading) {
-                LinearProgressIndicator(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp)
-                )
-            }
-            when {
-                loading -> {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(top = topContentPadding),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator()
+        if (showManageGroups) {
+            ManageGroupsDialog(
+                groups = joinedGroups,
+                snackbarHostState = manageGroupsSnackbar,
+                onDismiss = {
+                    showManageGroups = false
+                    showGroupMenu = false
+                },
+                onCreate = { code ->
+                    val uid = FirebaseAuth.getInstance().currentUser?.uid
+                    if (uid.isNullOrBlank()) {
+                        manageGroupsSnackbar.showMessage(scope, "Sign in to manage groups.")
+                        return@ManageGroupsDialog
                     }
-                }
-
-                error != null -> {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 20.dp)
-                            .padding(top = topContentPadding),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Text(
-                            text = error,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.error
-                        )
-                        OutlinedButton(onClick = onRefresh) {
-                            Icon(Icons.Rounded.Refresh, contentDescription = null)
-                            Spacer(Modifier.width(8.dp))
-                            Text(stringResource(R.string.action_retry_generic))
-                        }
-                    }
-                }
-
-                drops.isEmpty() -> {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 20.dp)
-                            .padding(top = topContentPadding),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Text(
-                            text = emptyMessage
-                                ?: "No drops from other users are available right now.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        OutlinedButton(onClick = onRefresh) {
-                            Icon(Icons.Rounded.Refresh, contentDescription = null)
-                            Spacer(Modifier.width(8.dp))
-                            Text(stringResource(R.string.action_retry_generic))
-                        }
-                    }
-                }
-
-                else -> {
-                    var lastSortOption by remember { mutableStateOf(sortOption) }
-                    var skipSelectionScroll by remember { mutableStateOf(false) }
-
-                    LaunchedEffect(sortOption) {
-                        if (lastSortOption != sortOption) {
-                            skipSelectionScroll = true
-                            listState.scrollToItem(0)
-                            lastSortOption = sortOption
-                        }
-                    }
-
-                    LaunchedEffect(selectedId, drops) {
-                        if (skipSelectionScroll) {
-                            skipSelectionScroll = false
-                            return@LaunchedEffect
-                        }
-                        val targetId = selectedId ?: return@LaunchedEffect
-                        val index = drops.indexOfFirst { it.id == targetId }
-                        if (index >= 0) {
-                            listState.animateScrollToItem(index)
-                        }
-                    }
-
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(top = topContentPadding)
-                    ) {
-                        if (showMapPreview) {
-                            OtherDropsMapPreviewHeader(
-                                drops = drops,
-                                selectedId = selectedId,
-                                currentLocation = currentLocation,
-                                notificationRadiusMeters = notificationRadiusMeters,
-                                expanded = mapPreviewExpanded,
-                                snapshot = mapPreviewBitmap,
-                                cameraPosition = mapCameraPosition,
-                                onSnapshotChange = onMapSnapshotChange,
-                                onExpandedChange = onMapPreviewExpandedChange,
-                                onOpenMapView = onOpenMapView,
-                                onDropClick = onSelect
+                    scope.launch {
+                        val normalized = GroupPreferences.normalizeGroupCode(code) ?: return@launch
+                        try {
+                            val membership = repo.joinGroup(
+                                uid,
+                                normalized,
+                                allowCreateIfMissing = true
                             )
-
-                            Spacer(Modifier.height(16.dp))
-                        }
-
-                        ExplorerSharedChipRow(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 20.dp),
-                            sortOption = sortOption,
-                            sortOptions = sortOptions,
-                            onSortOptionChange = onSortOptionChange,
-                            explorerGroups = explorerGroups,
-                            selectedExplorerGroupCode = selectedExplorerGroupCode,
-                            onSelectExplorerGroup = onSelectExplorerGroup,
-                            searchToggles = searchToggles,
-                            itemCount = drops.size
-                        )
-
-                        Spacer(Modifier.height(12.dp))
-
-                        val isSignedIn = !currentUserId.isNullOrBlank()
-
-                        LazyColumn(
-                            state = listState,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .weight(1f),
-                            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            items(drops, key = { it.id }) { drop ->
-                                val hasCollected = collectedDropIds.contains(drop.id)
-                                val withinPickupRange = currentLocation?.let { location ->
-                                    distanceBetweenMeters(
-                                        location.latitude,
-                                        location.longitude,
-                                        drop.lat,
-                                        drop.lng
-                                    ) <= DROP_PICKUP_RADIUS_METERS
-                                } ?: false
-                                val isOwnDrop =
-                                    currentUserId != null && drop.createdBy == currentUserId
-                                val alreadyReported =
-                                    currentUserId?.let { drop.reportedBy.containsKey(it) } == true
-                                val canReport =
-                                    isSignedIn && !isOwnDrop && (hasCollected || withinPickupRange)
-                                val reportMessage = when {
-                                    isOwnDrop -> "You created this drop."
-                                    !isSignedIn -> "Sign in to report drops."
-                                    alreadyReported -> "Thanks for your report. We'll review it soon."
-//                                        !hasCollected && !withinPickupRange ->
-//                                            "Move within ${DROP_PICKUP_RADIUS_METERS.roundToInt()} meters to report this drop, or collect it first."
-                                    else -> null
-                                }
-                                val showReportButton = !isOwnDrop
-                                val isReporting = reportingDropId == drop.id
-                                val canIgnoreForNow = !withinPickupRange
-                                OtherDropRow(
-                                    drop = drop,
-                                    isSelected = drop.id == selectedId,
-                                    currentLocation = currentLocation,
-                                    userLike = drop.userLikeStatus(currentUserId),
-                                    canPickUp = canCollectDrops,
-                                    pickupRestrictionMessage = collectRestrictionMessage,
-                                    showReport = showReportButton,
-                                    canReport = canReport,
-                                    alreadyReported = alreadyReported,
-                                    reportRestrictionMessage = reportMessage,
-                                    isReporting = isReporting,
-                                    canIgnoreForNow = canIgnoreForNow,
-                                    onIgnoreForNow = {
-                                        if (!dismissedBrowseDropIds.contains(drop.id)) {
-                                            dismissedBrowseDropIds.add(drop.id)
-                                            snackbar.showMessage(
-                                                scope,
-                                                context.getString(R.string.browse_ignore_drop_snackbar)
-                                            )
-                                        }
-                                    },
-                                    onSelect = { onSelect(drop) },
-                                    onPickUp = { onPickUp(drop) },
-                                    onReport = { onReport(drop) }
-                                )
+                            groupPrefs.addGroup(membership)
+                            joinedGroups = groupPrefs.getMemberships()
+                            if (dropVisibility == DropVisibility.GroupOnly && membership.role == GroupRole.OWNER) {
+                                groupCodeInput = TextFieldValue(normalized)
                             }
+                            val message = if (membership.role == GroupRole.OWNER) {
+                                "Created group $normalized"
+                            } else {
+                                "Subscribed to $normalized"
+                            }
+                            manageGroupsSnackbar.showMessage(scope, message)
+                        } catch (error: Exception) {
+                            val message = when (error) {
+                                is GroupAlreadyExistsException ->
+                                    "Group ${error.code} already exist."
+                                is GroupNotFoundException ->
+                                    "Group $normalized doesn't exist. Ask the creator to share it once it's ready."
+                                else -> error.localizedMessage ?: "Couldn't save group $normalized"
+                            }
+                            manageGroupsSnackbar.showMessage(scope, message)
+                        }
+                    }
+                },
+                onSubscribe = { code ->
+                    val uid = FirebaseAuth.getInstance().currentUser?.uid
+                    if (uid.isNullOrBlank()) {
+                        manageGroupsSnackbar.showMessage(scope, "Sign in to manage groups.")
+                        return@ManageGroupsDialog
+                    }
+                    scope.launch {
+                        val normalized = GroupPreferences.normalizeGroupCode(code) ?: return@launch
+                        try {
+                            val membership = repo.joinGroup(
+                                uid,
+                                normalized,
+                                allowCreateIfMissing = false
+                            )
+                            groupPrefs.addGroup(membership)
+                            joinedGroups = groupPrefs.getMemberships()
+                            if (dropVisibility == DropVisibility.GroupOnly && membership.role == GroupRole.OWNER) {
+                                groupCodeInput = TextFieldValue(normalized)
+                            }
+                            val message = if (membership.role == GroupRole.OWNER) {
+                                "Created group $normalized"
+                            } else {
+                                "Subscribed to $normalized"
+                            }
+                            manageGroupsSnackbar.showMessage(scope, message)
+                        } catch (error: Exception) {
+                            val message = when (error) {
+                                is GroupNotFoundException ->
+                                    "Group $normalized doesn't exist. Ask the creator to share it once it's ready."
+                                else -> error.localizedMessage ?: "Couldn't save group $normalized"
+                            }
+                            manageGroupsSnackbar.showMessage(scope, message)
+                        }
+                    }
+                },
+                onRemove = { code ->
+                    val uid = FirebaseAuth.getInstance().currentUser?.uid
+                    if (uid.isNullOrBlank()) {
+                        manageGroupsSnackbar.showMessage(scope, "Sign in to manage groups.")
+                        return@ManageGroupsDialog
+                    }
+                    scope.launch {
+                        val normalized = GroupPreferences.normalizeGroupCode(code) ?: return@launch
+                        try {
+                            repo.leaveGroup(uid, normalized)
+                            groupPrefs.removeGroup(normalized)
+                            joinedGroups = groupPrefs.getMemberships()
+                            val currentInput = GroupPreferences.normalizeGroupCode(groupCodeInput.text)
+                            if (currentInput == normalized) {
+                                groupCodeInput = TextFieldValue("")
+                            }
+                            manageGroupsSnackbar.showMessage(scope, "Removed group $normalized")
+                        } catch (error: Exception) {
+                            val message = error.localizedMessage ?: "Couldn't remove group $normalized"
+                            manageGroupsSnackbar.showMessage(scope, message)
                         }
                     }
                 }
-            }
+            )
         }
     }
+
 }
-
 
 @Composable
 private fun TermsAcceptanceScreen(
@@ -12346,6 +4055,6885 @@ Last updated: 10/02/2025
 By accepting, you acknowledge that you have read and understood how GeoDrop handles your data.
 """.trimIndent()
 
+@Composable
+private fun UserModeSelectionScreen(
+    onSelectGuest: () -> Unit,
+    onSelectExplorerSignIn: () -> Unit,
+    onSelectBusinessSignIn: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
+        ) {
+            Text(
+                text = "Choose how to explore",
+                style = MaterialTheme.typography.headlineSmall,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Text(
+                text = "You can browse GeoDrop without an account or sign in to participate.",
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.Center,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            ElevatedCard(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(Icons.Rounded.Public, contentDescription = null)
+                        Text(
+                            text = "Continue as guest",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                    Text(
+                        text = "Read drop details without creating an account.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Button(
+                        onClick = onSelectGuest,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Start reading")
+                    }
+                }
+            }
+
+            ElevatedCard(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(Icons.Rounded.AccountCircle, contentDescription = null)
+                        Text(
+                            text = "Sign in or create account",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                    Text(
+                        text = "Choose the right sign-in experience for how you plan to use GeoDrop.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Button(
+                            onClick = onSelectExplorerSignIn,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Explorer sign in")
+                        }
+                        OutlinedButton(
+                            onClick = onSelectBusinessSignIn,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Business sign in")
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private data class BusinessHomeMetrics(
+    val liveDropCount: Int,
+    val pendingReviewCount: Int,
+    val unresolvedRedemptionCount: Int,
+    val expiringOfferCount: Int
+) {
+    companion object {
+        val Empty = BusinessHomeMetrics(0, 0, 0, 0)
+    }
+}
+
+private val BUSINESS_EXPIRING_SOON_THRESHOLD_MILLIS = TimeUnit.DAYS.toMillis(3)
+
+private fun deriveBusinessHomeMetrics(
+    businessDrops: List<Drop>,
+    fallbackDrops: List<Drop>,
+    myDropCountHint: Int?,
+    myDropPendingReviewHint: Int?
+): BusinessHomeMetrics {
+    val sourceDrops = when {
+        businessDrops.isNotEmpty() -> businessDrops
+        fallbackDrops.isNotEmpty() -> fallbackDrops
+        else -> emptyList()
+    }
+
+    if (sourceDrops.isEmpty()) {
+        return BusinessHomeMetrics(
+            liveDropCount = myDropCountHint ?: 0,
+            pendingReviewCount = myDropPendingReviewHint ?: 0,
+            unresolvedRedemptionCount = 0,
+            expiringOfferCount = 0
+        )
+    }
+
+    val now = System.currentTimeMillis()
+    val businessEntries = sourceDrops
+        .filter { it.isBusinessDrop() && !it.isDeleted }
+
+    if (businessEntries.isEmpty()) {
+        return BusinessHomeMetrics(
+            liveDropCount = myDropCountHint ?: 0,
+            pendingReviewCount = myDropPendingReviewHint ?: 0,
+            unresolvedRedemptionCount = 0,
+            expiringOfferCount = 0
+        )
+    }
+
+    val liveDropCount = businessEntries.count { !it.isExpired(now) }
+    val pendingReviewCount = businessEntries.count { it.reportCount > 0 }
+    val unresolvedRedemptionCount = businessEntries.count { drop ->
+        if (drop.isExpired(now) || !drop.requiresRedemption()) return@count false
+        val remaining = drop.remainingRedemptions()
+        remaining == null || remaining > 0
+    }
+    val expiringOfferCount = businessEntries.count { drop ->
+        val remaining = drop.remainingDecayMillis(now) ?: return@count false
+        remaining in 1..BUSINESS_EXPIRING_SOON_THRESHOLD_MILLIS
+    }
+
+    return BusinessHomeMetrics(
+        liveDropCount = liveDropCount,
+        pendingReviewCount = pendingReviewCount,
+        unresolvedRedemptionCount = unresolvedRedemptionCount,
+        expiringOfferCount = expiringOfferCount
+    )
+}
+
+@Composable
+private fun BusinessHomeScreen(
+    modifier: Modifier = Modifier,
+    businessName: String?,
+    businessCategories: List<BusinessCategory>,
+    metrics: BusinessHomeMetrics,
+    onViewDashboard: () -> Unit,
+    onUpdateBusinessProfile: () -> Unit,
+    onViewMyDrops: () -> Unit,
+) {
+    val activeDropCount = metrics.liveDropCount
+    val pendingReviewCount = metrics.pendingReviewCount
+    val unresolvedRedemptionCount = metrics.unresolvedRedemptionCount
+    val expiringOfferCount = metrics.expiringOfferCount
+    LazyColumn(
+        modifier = modifier,
+        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 24.dp, bottom = 128.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp)
+    ) {
+        item {
+            BusinessHeroCard(
+                businessName = businessName,
+                businessCategories = businessCategories
+            )
+        }
+
+        item { SectionHeader(text = "Manage drops") }
+
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                ActionCard(
+                    icon = Icons.Rounded.Inbox,
+                    title = "Manage existing drops",
+                    description = "Review performance and make changes to the drops you've shared.",
+                    onClick = onViewMyDrops,
+                    trailingContent = {
+                        BusinessActionSummary(
+                            liveDropCount = activeDropCount,
+                            pendingReviewCount = pendingReviewCount,
+                            unresolvedRedemptionCount = unresolvedRedemptionCount,
+                            expiringOfferCount = expiringOfferCount
+                        )
+                    }
+                )
+            }
+        }
+
+        item { SectionHeader(text = "Insights & branding") }
+
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                ActionCard(
+                    icon = Icons.Rounded.Storefront,
+                    title = "Business dashboard",
+                    description = "Track discoveries, redemptions, and engagement in one place.",
+                    onClick = onViewDashboard,
+                    trailingContent = {
+                        BusinessActionSummary(
+                            liveDropCount = activeDropCount,
+                            pendingReviewCount = pendingReviewCount,
+                            unresolvedRedemptionCount = unresolvedRedemptionCount,
+                            expiringOfferCount = expiringOfferCount
+                        )
+                    }
+                )
+
+                ActionCard(
+                    icon = Icons.Rounded.Edit,
+                    title = "Update business name",
+                    description = "Adjust how your brand appears across GeoDrop experiences.",
+                    onClick = onUpdateBusinessProfile
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
+@Composable
+private fun BusinessHeroCard(
+    businessName: String?,
+    businessCategories: List<BusinessCategory>,
+    brandImageUrl: String? = null
+) {
+    val title = businessName?.takeIf { it.isNotBlank() }?.let { "$it on GeoDrop" }
+        ?: "Welcome to GeoDrop Business"
+    val subtitle = if (businessName.isNullOrBlank()) {
+        "Share exclusive offers, stories, and tours to reach explorers right when they're nearby."
+    } else {
+        "Keep explorers engaged with timely offers and experiences from your team."
+    }
+
+    val sortedCategories = businessCategories
+        .sortedWith(compareBy({ it.group.displayName }, { it.displayName }))
+
+    val avatarBackground = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.08f)
+    val avatarBorder = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.2f)
+    val chipContainer = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+    val chipBorder = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.2f)
+
+    ElevatedCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(
+                BorderStroke(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+                ),
+                shape = RoundedCornerShape(28.dp)
+            ),
+        shape = RoundedCornerShape(28.dp),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(72.dp)
+                        .clip(CircleShape)
+                        .background(avatarBackground)
+                        .border(width = 1.dp, color = avatarBorder, shape = CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (!brandImageUrl.isNullOrBlank()) {
+                        val context = LocalContext.current
+                        AsyncImage(
+                            model = ImageRequest.Builder(context)
+                                .data(brandImageUrl)
+                                .crossfade(true)
+                                .build(),
+                            contentDescription = businessName?.let { "$it brand logo" },
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.matchParentSize()
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Rounded.Storefront,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.size(32.dp)
+                        )
+                    }
+                }
+
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.9f)
+                    )
+                }
+            }
+
+            if (sortedCategories.isNotEmpty()) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        text = "Business categories",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        fontWeight = FontWeight.SemiBold
+                    )
+
+                    sortedCategories
+                        .groupBy { it.group }
+                        .forEach { (group, categories) ->
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(
+                                    text = group.displayName,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.9f),
+                                    fontWeight = FontWeight.Medium
+                                )
+
+                                FlowRow(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    categories.forEach { category ->
+                                        AssistChip(
+                                            onClick = {},
+                                            enabled = false,
+                                            label = {
+                                                Text(
+                                                    text = category.displayName,
+                                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                                )
+                                            },
+                                            colors = AssistChipDefaults.assistChipColors(
+                                                containerColor = chipContainer,
+                                                labelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                                disabledContainerColor = chipContainer,
+                                                disabledLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                            ),
+                                            border = BorderStroke(
+                                                width = 1.dp,
+                                                color = chipBorder
+                                            )
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReadOnlyModeCard(message: String) {
+    ElevatedCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(
+                border = BorderStroke(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                ),
+                shape = RoundedCornerShape(20.dp)
+            ),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Info,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary
+            )
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+    }
+}
+
+@Composable
+private fun SectionHeader(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.titleMedium,
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier.fillMaxWidth()
+    )
+}
+
+@Composable
+private fun ActionCard(
+    icon: ImageVector,
+    title: String,
+    description: String,
+    onClick: () -> Unit,
+    trailingContent: (@Composable () -> Unit)? = null,
+) {
+    ElevatedCard(
+        onClick = onClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(
+                BorderStroke(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                ),
+                shape = RoundedCornerShape(20.dp)
+            ),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp)
+                .animateContentSize(),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .background(
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                            shape = CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+
+                Spacer(Modifier.width(16.dp))
+
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = description,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            trailingContent?.let {
+                Box(
+                    modifier = Modifier
+                        .wrapContentSize()
+                        .align(Alignment.Start)
+                ) {
+                    it()
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CountBadge(count: Int) {
+    Surface(
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+    ) {
+        Text(
+            text = count.toString(),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.primary,
+            fontWeight = FontWeight.SemiBold
+        )
+    }
+}
+
+@Composable
+private fun MetricPill(
+    label: String,
+    value: Int,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(50),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = value.toString(),
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+private enum class StatusChipTone { Accent, Warning }
+
+@Composable
+private fun StatusChip(
+    text: String,
+    tone: StatusChipTone,
+    modifier: Modifier = Modifier
+) {
+    val (containerColor, contentColor) = when (tone) {
+        StatusChipTone.Accent -> MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.onTertiaryContainer
+        StatusChipTone.Warning -> MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.onErrorContainer
+    }
+
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(50),
+        color = containerColor
+    ) {
+        Text(
+            text = text,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            style = MaterialTheme.typography.labelMedium,
+            color = contentColor,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun BusinessActionSummary(
+    liveDropCount: Int,
+    pendingReviewCount: Int,
+    unresolvedRedemptionCount: Int,
+    expiringOfferCount: Int
+) {
+    if (liveDropCount <= 0 && pendingReviewCount <= 0 && unresolvedRedemptionCount <= 0 && expiringOfferCount <= 0) {
+        return
+    }
+
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        if (liveDropCount > 0) {
+            CountBadge(count = liveDropCount)
+        }
+        if (pendingReviewCount > 0) {
+            MetricPill(
+                label = stringResource(R.string.metric_pending_reviews),
+                value = pendingReviewCount
+            )
+        }
+        if (unresolvedRedemptionCount > 0) {
+            MetricPill(
+                label = stringResource(R.string.metric_open_redemptions),
+                value = unresolvedRedemptionCount
+            )
+        }
+        if (expiringOfferCount > 0) {
+            StatusChip(
+                text = stringResource(R.string.metric_expiring_offers, expiringOfferCount),
+                tone = StatusChipTone.Warning
+            )
+        }
+    }
+}
+
+@Composable
+private fun DropComposerDialog(
+    isSubmitting: Boolean,
+    isBusinessUser: Boolean,
+    businessName: String?,
+    businessCategories: List<BusinessCategory>,
+    userProfileLoading: Boolean,
+    userProfileError: String?,
+    dropType: DropType,
+    onDropTypeChange: (DropType) -> Unit,
+    dropContentType: DropContentType,
+    onDropContentTypeChange: (DropContentType) -> Unit,
+    note: TextFieldValue,
+    onNoteChange: (TextFieldValue) -> Unit,
+    description: TextFieldValue,
+    onDescriptionChange: (TextFieldValue) -> Unit,
+    capturedPhotoPath: String?,
+    onCapturePhoto: () -> Unit,
+    onClearPhoto: () -> Unit,
+    capturedAudioUri: String?,
+    onRecordAudio: () -> Unit,
+    onClearAudio: () -> Unit,
+    capturedVideoUri: String?,
+    onRecordVideo: () -> Unit,
+    onClearVideo: () -> Unit,
+    dropVisibility: DropVisibility,
+    onDropVisibilityChange: (DropVisibility) -> Unit,
+    dropAnonymously: Boolean,
+    onDropAnonymouslyChange: (Boolean) -> Unit,
+    groupCodeInput: TextFieldValue,
+    onGroupCodeInputChange: (TextFieldValue) -> Unit,
+    joinedGroups: List<String>,
+    onSelectGroupCode: (String) -> Unit,
+    redemptionCodeInput: TextFieldValue,
+    onRedemptionCodeChange: (TextFieldValue) -> Unit,
+    redemptionLimitInput: TextFieldValue,
+    onRedemptionLimitChange: (TextFieldValue) -> Unit,
+    decayDaysInput: TextFieldValue,
+    onDecayDaysChange: (TextFieldValue) -> Unit,
+    onManageGroupCodes: () -> Unit,
+    onSubmit: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val context = LocalContext.current
+    Dialog(
+        onDismissRequest = {
+            if (!isSubmitting) {
+                onDismiss()
+            }
+        },
+        properties = DialogProperties(
+            dismissOnBackPress = !isSubmitting,
+            dismissOnClickOutside = !isSubmitting,
+            usePlatformDefaultWidth = false
+        )
+    ) {
+        Surface(
+            shape = MaterialTheme.shapes.large,
+            tonalElevation = 6.dp,
+            modifier = Modifier
+                .fillMaxWidth()
+//                .widthIn(min = 360.dp, max = 520.dp)
+                .padding(16.dp)
+        ) {
+            val scrollState = rememberScrollState()
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(scrollState)
+                    .padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Create a drop",
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(
+                        onClick = onDismiss,
+                        enabled = !isSubmitting
+                    ) {
+                        Text("Cancel")
+                    }
+                }
+
+                Text(
+                    text = "Complete the steps below to share something new with nearby explorers.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                if (userProfileLoading) {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                }
+
+                userProfileError?.let { errorMessage ->
+                    Surface(
+                        tonalElevation = 2.dp,
+                        shape = MaterialTheme.shapes.medium,
+                        color = MaterialTheme.colorScheme.errorContainer
+                    ) {
+                        Text(
+                            text = errorMessage,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp)
+                        )
+                    }
+                }
+
+                if (isBusinessUser) {
+                    var currentStep by rememberSaveable { mutableStateOf(BusinessComposerStep.PLAN) }
+                    val availableSteps = remember(dropType) {
+                        buildList {
+                            add(BusinessComposerStep.PLAN)
+                            add(BusinessComposerStep.CONTENT)
+                            if (dropType == DropType.RESTAURANT_COUPON) {
+                                add(BusinessComposerStep.OFFER)
+                            }
+                            add(BusinessComposerStep.SETTINGS)
+                        }
+                    }
+                    LaunchedEffect(availableSteps) {
+                        if (!availableSteps.contains(currentStep)) {
+                            currentStep = availableSteps.first()
+                        }
+                    }
+                    val templateSuggestions = remember(businessCategories) {
+                        dropTemplatesFor(businessCategories)
+                            .take(MAX_BUSINESS_TEMPLATE_SUGGESTIONS)
+                    }
+
+                    BusinessComposerStepIndicator(
+                        steps = availableSteps,
+                        currentStep = currentStep,
+                        onStepSelected = { selected ->
+                            if (availableSteps.contains(selected)) {
+                                currentStep = selected
+                            }
+                        }
+                    )
+
+                    Text(
+                        text = currentStep.title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+
+                    Text(
+                        text = currentStep.helper,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    when (currentStep) {
+                        BusinessComposerStep.PLAN -> {
+                            DropComposerSection(
+                                title = "Business goal",
+                                description = "Choose the purpose for this drop. Options are tailored to your business categories.",
+                                leadingIcon = Icons.Rounded.Storefront
+                            ) {
+                                BusinessDropTypeSection(
+                                    dropType = dropType,
+                                    onDropTypeChange = onDropTypeChange,
+                                    businessName = businessName,
+                                    businessCategories = businessCategories,
+                                    showHeader = false
+                                )
+                            }
+
+                            if (templateSuggestions.isNotEmpty()) {
+                                DropComposerSection(
+                                    title = "Need inspiration?",
+                                    description = "Browse suggested ideas based on your business categories.",
+                                    leadingIcon = Icons.Rounded.Info
+                                ) {
+                                    BusinessDropTemplatesSection(
+                                        templates = templateSuggestions,
+                                        onApply = { template ->
+                                            onDropTypeChange(template.dropType)
+                                            onDropContentTypeChange(template.contentType)
+                                            onNoteChange(TextFieldValue(template.caption.ifBlank { "" }))
+                                            onDescriptionChange(TextFieldValue(template.note))
+                                        },
+                                        showHeader = false
+                                    )
+                                }
+                            }
+                        }
+
+                        BusinessComposerStep.CONTENT -> {
+                            DropContentFormatSection(
+                                dropContentType = dropContentType,
+                                onDropContentTypeChange = onDropContentTypeChange
+                            )
+                            DropNoteAndDescriptionSection(
+                                dropContentType = dropContentType,
+                                note = note,
+                                onNoteChange = onNoteChange,
+                                description = description,
+                                onDescriptionChange = onDescriptionChange
+                            )
+                            DropMediaAttachmentsSection(
+                                context = context,
+                                dropContentType = dropContentType,
+                                capturedPhotoPath = capturedPhotoPath,
+                                onCapturePhoto = onCapturePhoto,
+                                onClearPhoto = onClearPhoto,
+                                capturedAudioUri = capturedAudioUri,
+                                onRecordAudio = onRecordAudio,
+                                onClearAudio = onClearAudio,
+                                capturedVideoUri = capturedVideoUri,
+                                onRecordVideo = onRecordVideo,
+                                onClearVideo = onClearVideo
+                            )
+                        }
+
+                        BusinessComposerStep.OFFER -> {
+                            DropComposerSection(
+                                title = "Offer security",
+                                description = "Set a redemption code and optional limit so each guest redeems only once.",
+                                leadingIcon = Icons.Rounded.Flag
+                            ) {
+                                BusinessRedemptionSection(
+                                    redemptionCode = redemptionCodeInput,
+                                    onRedemptionCodeChange = onRedemptionCodeChange,
+                                    redemptionLimit = redemptionLimitInput,
+                                    onRedemptionLimitChange = onRedemptionLimitChange,
+                                    showHeader = false
+                                )
+                            }
+                        }
+
+                        BusinessComposerStep.SETTINGS -> {
+                            DropAutoDeleteSection(
+                                decayDaysInput = decayDaysInput,
+                                onDecayDaysChange = onDecayDaysChange
+                            )
+                            DropVisibilitySectionCard(
+                                dropVisibility = dropVisibility,
+                                onDropVisibilityChange = onDropVisibilityChange,
+                                groupCodeInput = groupCodeInput,
+                                onGroupCodeInputChange = onGroupCodeInputChange,
+                                joinedGroups = joinedGroups,
+                                onSelectGroupCode = onSelectGroupCode,
+                                onManageGroupCodes = onManageGroupCodes,
+                                isSubmitting = isSubmitting
+                            )
+                        }
+                    }
+
+                    val currentIndex = availableSteps.indexOf(currentStep).coerceAtLeast(0)
+                    val previousStep = availableSteps.getOrNull(currentIndex - 1)
+                    val nextStep = availableSteps.getOrNull(currentIndex + 1)
+
+                    BusinessComposerStepNavigation(
+                        previousStep = previousStep,
+                        nextStep = nextStep,
+                        isSubmitting = isSubmitting,
+                        onBack = { step -> currentStep = step },
+                        onNext = { step -> currentStep = step },
+                        onSubmit = onSubmit
+                    )
+                } else {
+                    DropContentFormatSection(
+                        dropContentType = dropContentType,
+                        onDropContentTypeChange = onDropContentTypeChange
+                    )
+                    DropNoteAndDescriptionSection(
+                        dropContentType = dropContentType,
+                        note = note,
+                        onNoteChange = onNoteChange,
+                        description = description,
+                        onDescriptionChange = onDescriptionChange
+                    )
+                    DropAutoDeleteSection(
+                        decayDaysInput = decayDaysInput,
+                        onDecayDaysChange = onDecayDaysChange
+                    )
+                    DropMediaAttachmentsSection(
+                        context = context,
+                        dropContentType = dropContentType,
+                        capturedPhotoPath = capturedPhotoPath,
+                        onCapturePhoto = onCapturePhoto,
+                        onClearPhoto = onClearPhoto,
+                        capturedAudioUri = capturedAudioUri,
+                        onRecordAudio = onRecordAudio,
+                        onClearAudio = onClearAudio,
+                        capturedVideoUri = capturedVideoUri,
+                        onRecordVideo = onRecordVideo,
+                        onClearVideo = onClearVideo
+                    )
+                    DropIdentitySection(
+                        dropAnonymously = dropAnonymously,
+                        onDropAnonymouslyChange = onDropAnonymouslyChange,
+                        isSubmitting = isSubmitting
+                    )
+                    DropVisibilitySectionCard(
+                        dropVisibility = dropVisibility,
+                        onDropVisibilityChange = onDropVisibilityChange,
+                        groupCodeInput = groupCodeInput,
+                        onGroupCodeInputChange = onGroupCodeInputChange,
+                        joinedGroups = joinedGroups,
+                        onSelectGroupCode = onSelectGroupCode,
+                        onManageGroupCodes = onManageGroupCodes,
+                        isSubmitting = isSubmitting
+                    )
+                    DropSubmitButton(
+                        isSubmitting = isSubmitting,
+                        onSubmit = onSubmit
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DropComposerSection(
+    title: String,
+    description: String?,
+    leadingIcon: ImageVector? = null,
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    ElevatedCard(
+        modifier = modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                leadingIcon?.let { icon ->
+                    Surface(
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                        shape = CircleShape
+                    ) {
+                        Box(
+                            modifier = Modifier.padding(10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = icon,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                }
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    description?.let { helper ->
+                        Text(
+                            text = helper,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+            content()
+        }
+    }
+}
+
+@Composable
+private fun ColumnScope.DropContentFormatSection(
+    dropContentType: DropContentType,
+    onDropContentTypeChange: (DropContentType) -> Unit
+) {
+    DropComposerSection(
+        title = "Content format",
+        description = "Pick what explorers experience when they discover this drop.",
+        leadingIcon = Icons.Rounded.Edit
+    ) {
+        DropContentTypeSection(
+            selected = dropContentType,
+            onSelect = onDropContentTypeChange,
+            showHeader = false
+        )
+    }
+}
+
+@Composable
+private fun ColumnScope.DropNoteAndDescriptionSection(
+    dropContentType: DropContentType,
+    note: TextFieldValue,
+    onNoteChange: (TextFieldValue) -> Unit,
+    description: TextFieldValue,
+    onDescriptionChange: (TextFieldValue) -> Unit
+) {
+    val noteLabel = when (dropContentType) {
+        DropContentType.TEXT -> "Your note"
+        DropContentType.PHOTO, DropContentType.AUDIO, DropContentType.VIDEO -> "Caption (optional)"
+    }
+    val noteSupporting = when (dropContentType) {
+        DropContentType.TEXT -> "Share a friendly message, hint, or story for people who find this drop."
+        DropContentType.PHOTO -> "Add a short caption to go with your photo."
+        DropContentType.AUDIO -> "Add a short caption to go with your audio clip."
+        DropContentType.VIDEO -> "Add a short caption to go with your video clip."
+    }
+    val noteMinLines = if (dropContentType == DropContentType.TEXT) 3 else 1
+
+    DropComposerSection(
+        title = noteLabel,
+        description = noteSupporting,
+        leadingIcon = Icons.Rounded.Edit
+    ) {
+        OutlinedTextField(
+            value = note,
+            onValueChange = onNoteChange,
+            label = null,
+            placeholder = { Text("Write something memorable…") },
+            minLines = noteMinLines,
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+
+    DropComposerSection(
+        title = "Description",
+        description = "Add more context so explorers know what to expect when they find this drop.",
+        leadingIcon = Icons.Rounded.Description
+    ) {
+        OutlinedTextField(
+            value = description,
+            onValueChange = onDescriptionChange,
+            label = null,
+            placeholder = { Text("Share more details…") },
+            minLines = 2,
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
+@Composable
+private fun ColumnScope.DropAutoDeleteSection(
+    decayDaysInput: TextFieldValue,
+    onDecayDaysChange: (TextFieldValue) -> Unit
+) {
+    DropComposerSection(
+        title = "Auto-delete",
+        description = "Choose how long this drop should stay visible.",
+        leadingIcon = Icons.Rounded.Refresh
+    ) {
+        OutlinedTextField(
+            value = decayDaysInput,
+            onValueChange = onDecayDaysChange,
+            label = { Text("Auto-delete after (days)") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Number,
+                imeAction = ImeAction.Next
+            ),
+            supportingText = {
+                Text("Leave blank to keep this drop forever (max $MAX_DECAY_DAYS days).")
+            },
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
+@Composable
+private fun ColumnScope.DropMediaAttachmentsSection(
+    context: Context,
+    dropContentType: DropContentType,
+    capturedPhotoPath: String?,
+    onCapturePhoto: () -> Unit,
+    onClearPhoto: () -> Unit,
+    capturedAudioUri: String?,
+    onRecordAudio: () -> Unit,
+    onClearAudio: () -> Unit,
+    capturedVideoUri: String?,
+    onRecordVideo: () -> Unit,
+    onClearVideo: () -> Unit
+) {
+    when (dropContentType) {
+        DropContentType.PHOTO -> {
+            val hasPhoto = capturedPhotoPath != null
+            val photoPreview: (@Composable () -> Unit)? = capturedPhotoPath?.let { path ->
+                {
+                    AsyncImage(
+                        model = ImageRequest.Builder(context)
+                            .data(File(path))
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = "Captured photo preview",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 160.dp, max = 240.dp)
+                            .clip(RoundedCornerShape(16.dp)),
+                        contentScale = ContentScale.Crop
+                    )
+                }
+            }
+            DropComposerSection(
+                title = "Photo attachment",
+                description = "Capture a shot to pair with your drop.",
+                leadingIcon = Icons.Rounded.PhotoCamera
+            ) {
+                MediaCaptureCard(
+                    title = "Attach a photo",
+                    description = "Snap a picture with your camera to pin at this location.",
+                    status = if (hasPhoto) "Photo ready to upload." else "No photo captured yet.",
+                    isReady = hasPhoto,
+                    primaryLabel = if (hasPhoto) "Retake photo" else "Open camera",
+                    primaryIcon = Icons.Rounded.PhotoCamera,
+                    onPrimary = {
+                        if (hasPhoto) {
+                            onClearPhoto()
+                        }
+                        onCapturePhoto()
+                    },
+                    secondaryLabel = if (hasPhoto) "Remove photo" else null,
+                    onSecondary = if (hasPhoto) {
+                        { onClearPhoto() }
+                    } else {
+                        null
+                    },
+                    previewContent = photoPreview
+                )
+            }
+        }
+
+        DropContentType.AUDIO -> {
+            val hasAudio = capturedAudioUri != null
+            val audioPreview: (@Composable () -> Unit)? = if (hasAudio) {
+                {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Start
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.PlayArrow,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    text = "Audio attached",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    text = "Ready to drop your voice note.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            } else {
+                null
+            }
+            DropComposerSection(
+                title = "Audio attachment",
+                description = "Record a quick voice message for discoverers.",
+                leadingIcon = Icons.Rounded.Mic
+            ) {
+                MediaCaptureCard(
+                    title = "Record audio",
+                    description = "Capture a short voice note for anyone who discovers this drop.",
+                    status = if (hasAudio) "Audio message ready to upload." else "No recording yet.",
+                    isReady = hasAudio,
+                    primaryLabel = if (hasAudio) "Record again" else "Record audio",
+                    primaryIcon = Icons.Rounded.Mic,
+                    onPrimary = {
+                        if (hasAudio) {
+                            onClearAudio()
+                        }
+                        onRecordAudio()
+                    },
+                    secondaryLabel = if (hasAudio) "Remove audio" else null,
+                    onSecondary = if (hasAudio) {
+                        { onClearAudio() }
+                    } else {
+                        null
+                    },
+                    previewContent = audioPreview
+                )
+            }
+        }
+
+        DropContentType.VIDEO -> {
+            val hasVideo = capturedVideoUri != null
+            val videoPreview: (@Composable () -> Unit)? = if (hasVideo) {
+                {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Start
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.PlayArrow,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    text = "Video attached",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    text = "Ready to drop your clip.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            } else {
+                null
+            }
+            DropComposerSection(
+                title = "Video attachment",
+                description = "Record a short clip to share at this location.",
+                leadingIcon = Icons.Rounded.Videocam
+            ) {
+                MediaCaptureCard(
+                    title = "Record video",
+                    description = "Capture a short clip to share at this location.",
+                    status = if (hasVideo) "Video ready to upload." else "No video recorded yet.",
+                    isReady = hasVideo,
+                    primaryLabel = if (hasVideo) "Record again" else "Record video",
+                    primaryIcon = Icons.Rounded.Videocam,
+                    onPrimary = {
+                        if (hasVideo) {
+                            onClearVideo()
+                        }
+                        onRecordVideo()
+                    },
+                    secondaryLabel = if (hasVideo) "Remove video" else null,
+                    onSecondary = if (hasVideo) {
+                        { onClearVideo() }
+                    } else {
+                        null
+                    },
+                    previewContent = videoPreview
+                )
+            }
+        }
+
+        DropContentType.TEXT -> Unit
+    }
+}
+
+@Composable
+private fun ColumnScope.DropIdentitySection(
+    dropAnonymously: Boolean,
+    onDropAnonymouslyChange: (Boolean) -> Unit,
+    isSubmitting: Boolean
+) {
+    DropComposerSection(
+        title = "Identity",
+        description = "Choose whether your username appears to people who collect this drop.",
+        leadingIcon = Icons.Rounded.AccountCircle
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Drop anonymously",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = "Hides your username from the drop while keeping ownership in your account.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Switch(
+                checked = dropAnonymously,
+                onCheckedChange = onDropAnonymouslyChange,
+                enabled = !isSubmitting
+            )
+        }
+    }
+}
+
+@Composable
+private fun ColumnScope.DropVisibilitySectionCard(
+    dropVisibility: DropVisibility,
+    onDropVisibilityChange: (DropVisibility) -> Unit,
+    groupCodeInput: TextFieldValue,
+    onGroupCodeInputChange: (TextFieldValue) -> Unit,
+    joinedGroups: List<String>,
+    onSelectGroupCode: (String) -> Unit,
+    onManageGroupCodes: () -> Unit,
+    isSubmitting: Boolean
+) {
+    DropComposerSection(
+        title = "Visibility",
+        description = "Decide who can discover this drop.",
+        leadingIcon = Icons.Rounded.Public
+    ) {
+        DropVisibilitySection(
+            visibility = dropVisibility,
+            onVisibilityChange = onDropVisibilityChange,
+            groupCodeInput = groupCodeInput,
+            onGroupCodeInputChange = onGroupCodeInputChange,
+            joinedGroups = joinedGroups,
+            onSelectGroupCode = onSelectGroupCode,
+            showHeader = false
+        )
+
+        OutlinedButton(
+            onClick = onManageGroupCodes,
+            enabled = !isSubmitting,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Groups,
+                contentDescription = null
+            )
+            Spacer(Modifier.width(8.dp))
+            Text("Manage group codes")
+        }
+    }
+}
+
+@Composable
+private fun DropSubmitButton(
+    isSubmitting: Boolean,
+    onSubmit: () -> Unit,
+    modifier: Modifier = Modifier.fillMaxWidth()
+) {
+    Button(
+        enabled = !isSubmitting,
+        onClick = onSubmit,
+        modifier = modifier
+    ) {
+        if (isSubmitting) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(18.dp),
+                strokeWidth = 2.dp
+            )
+            Spacer(Modifier.width(12.dp))
+            Text("Dropping…")
+        } else {
+            Icon(Icons.Rounded.Place, contentDescription = null)
+            Spacer(Modifier.width(8.dp))
+            Text("Drop content")
+        }
+    }
+}
+
+private enum class BusinessComposerStep(
+    val title: String,
+    val helper: String,
+    val shortLabel: String
+) {
+    PLAN(
+        title = "Plan your drop",
+        helper = "Choose the goal that best matches what your business wants to share.",
+        shortLabel = "Plan"
+    ),
+    CONTENT(
+        title = "Create your content",
+        helper = "Select a format and add the story that will engage nearby explorers.",
+        shortLabel = "Content"
+    ),
+    OFFER(
+        title = "Secure your offer",
+        helper = "Protect promotions with a code and limit redemptions to avoid misuse.",
+        shortLabel = "Offer"
+    ),
+    SETTINGS(
+        title = "Finalize settings",
+        helper = "Decide how long the drop lasts and who should be able to discover it.",
+        shortLabel = "Settings"
+    )
+}
+
+private enum class BusinessStepStatus { Completed, Active, Upcoming }
+
+@Composable
+private fun BusinessComposerStepIndicator(
+    steps: List<BusinessComposerStep>,
+    currentStep: BusinessComposerStep,
+    onStepSelected: (BusinessComposerStep) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val scrollState = rememberScrollState()
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .horizontalScroll(scrollState),
+        horizontalArrangement = Arrangement.spacedBy(24.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        val currentIndex = steps.indexOf(currentStep).coerceAtLeast(0)
+        steps.forEachIndexed { index, step ->
+            val status = when {
+                index < currentIndex -> BusinessStepStatus.Completed
+                index == currentIndex -> BusinessStepStatus.Active
+                else -> BusinessStepStatus.Upcoming
+            }
+            BusinessComposerStepItem(
+                index = index,
+                step = step,
+                status = status,
+                onClick = { onStepSelected(step) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun BusinessComposerStepItem(
+    index: Int,
+    step: BusinessComposerStep,
+    status: BusinessStepStatus,
+    onClick: () -> Unit
+) {
+    val (containerColor, contentColor) = when (status) {
+        BusinessStepStatus.Active -> MaterialTheme.colorScheme.primary to MaterialTheme.colorScheme.onPrimary
+        BusinessStepStatus.Completed -> MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.onSecondaryContainer
+        BusinessStepStatus.Upcoming -> MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    val labelColor = if (status == BusinessStepStatus.Upcoming) {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    } else {
+        MaterialTheme.colorScheme.onSurface
+    }
+
+    Column(
+        modifier = Modifier
+            .widthIn(min = 72.dp)
+            .clickable(onClick = onClick),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Surface(
+            color = containerColor,
+            contentColor = contentColor,
+            shape = CircleShape,
+            tonalElevation = if (status == BusinessStepStatus.Active) 4.dp else 0.dp
+        ) {
+            Text(
+                text = (index + 1).toString(),
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+
+        Text(
+            text = step.title,
+            style = MaterialTheme.typography.labelMedium,
+            color = labelColor,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.widthIn(max = 160.dp)
+        )
+    }
+}
+
+@Composable
+private fun BusinessComposerStepNavigation(
+    previousStep: BusinessComposerStep?,
+    nextStep: BusinessComposerStep?,
+    isSubmitting: Boolean,
+    onBack: (BusinessComposerStep) -> Unit,
+    onNext: (BusinessComposerStep) -> Unit,
+    onSubmit: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (previousStep != null) {
+            OutlinedButton(
+                onClick = { onBack(previousStep) },
+                enabled = !isSubmitting
+            ) {
+                Text("Back")
+            }
+        }
+
+        Spacer(Modifier.weight(1f))
+
+        if (nextStep != null) {
+            Button(
+                onClick = { onNext(nextStep) },
+                enabled = !isSubmitting
+            ) {
+                Text("Next: ${nextStep.shortLabel}")
+            }
+        } else {
+            DropSubmitButton(
+                isSubmitting = isSubmitting,
+                onSubmit = onSubmit,
+                modifier = Modifier
+            )
+        }
+    }
+}
+
+@Composable
+private fun DialogMessageContent(
+    message: String,
+    primaryLabel: String?,
+    onPrimary: (() -> Unit)?,
+    onDismiss: (() -> Unit)? = null
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 32.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = message,
+            style = MaterialTheme.typography.bodyLarge,
+            textAlign = TextAlign.Center
+        )
+
+        Spacer(Modifier.height(16.dp))
+
+        if (primaryLabel != null && onPrimary != null) {
+            Button(onClick = onPrimary) {
+                Text(primaryLabel)
+            }
+            Spacer(Modifier.height(8.dp))
+        }
+
+        onDismiss?.let {
+            TextButton(onClick = it) {
+                Text("Back to main page")
+            }
+        }
+    }
+}
+
+@Composable
+private fun NsfwPreferenceDialog(
+    enabled: Boolean,
+    isProcessing: Boolean,
+    error: String?,
+    onConfirm: (Boolean) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var confirmChecked by remember(enabled) { mutableStateOf(false) }
+    var localError by remember { mutableStateOf<String?>(null) }
+
+    val description = if (enabled) {
+        "Turn off access to adult content in GeoDrop. You'll stop seeing NSFW drops and won't be able to create them."
+    } else {
+        "Enable access to adult (18+) drops. This allows you to view and share NSFW content when you are legally permitted to do so."
+    }
+
+    AlertDialog(
+        onDismissRequest = { if (!isProcessing) onDismiss() },
+        icon = { Icon(Icons.Rounded.Flag, contentDescription = null) },
+        title = { Text("18+ content") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(description)
+                if (!enabled) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(
+                            checked = confirmChecked,
+                            onCheckedChange = { checked ->
+                                confirmChecked = checked
+                                if (checked) localError = null
+                            },
+                            enabled = !isProcessing
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text("I confirm that I am at least 18 years old.")
+                    }
+                }
+                val message = error ?: localError
+                if (!message.isNullOrBlank()) {
+                    Text(
+                        text = message,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    if (!enabled && !confirmChecked) {
+                        localError = "Confirm that you are 18 or older."
+                    } else if (!isProcessing) {
+                        localError = null
+                        onConfirm(!enabled)
+                    }
+                },
+                enabled = !isProcessing && (enabled || confirmChecked)
+            ) {
+                Text(if (enabled) "Disable" else "Enable")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = { if (!isProcessing) onDismiss() }, enabled = !isProcessing) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+private fun visionStatusMessage(
+    assessment: DropSafetyAssessment,
+    contentType: DropContentType
+): String? {
+    return when (assessment.visionStatus) {
+        VisionApiStatus.NOT_CONFIGURED ->
+            "Google Vision SafeSearch isn't configured, so this drop wasn't scanned."
+
+        VisionApiStatus.NOT_ELIGIBLE -> when (contentType) {
+            DropContentType.PHOTO ->
+                "Google Vision SafeSearch skipped this photo because it couldn't be processed."
+
+            else ->
+                "Google Vision SafeSearch only scans photo drops, so this one was skipped."
+        }
+
+        VisionApiStatus.ERROR ->
+            "Google Vision SafeSearch couldn't be reached, so the drop was saved without a scan."
+
+        VisionApiStatus.CLEARED ->
+            "Google Vision SafeSearch scanned the drop and cleared it."
+
+        VisionApiStatus.FLAGGED -> {
+            val reason = assessment.reasons.firstOrNull()?.takeIf { it.isNotBlank() }
+            if (reason != null) {
+                "Google Vision SafeSearch flagged this drop: $reason"
+            } else {
+                "Google Vision SafeSearch flagged this drop as potentially unsafe content."
+            }
+        }
+    }
+}
+
+@Composable
+private fun NotificationRadiusDialog(
+    initialRadius: Double,
+    onConfirm: (Double) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val minRadius = NotificationPreferences.MIN_RADIUS_METERS.toFloat()
+    val maxRadius = NotificationPreferences.MAX_RADIUS_METERS.toFloat()
+    val step = NOTIFICATION_RADIUS_STEP_METERS
+    val rawSteps = ((maxRadius - minRadius) / step).roundToInt()
+    val steps = (rawSteps - 1).coerceAtLeast(0)
+    var sliderValue by remember(initialRadius) {
+        mutableStateOf(initialRadius.toFloat().coerceIn(minRadius, maxRadius))
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Rounded.Map, contentDescription = null) },
+        title = { Text("Nearby notification radius") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Text("Choose how close a drop should be before we alert you.")
+                Text(
+                    text = "${sliderValue.roundToInt()} meters",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Medium
+                )
+                Slider(
+                    value = sliderValue,
+                    onValueChange = { value ->
+                        val snapped = (value / step).roundToInt() * step
+                        sliderValue = snapped.coerceIn(minRadius, maxRadius)
+                    },
+                    valueRange = minRadius..maxRadius,
+                    steps = steps,
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(sliderValue.toDouble()) }) {
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+private fun FaqDialog(
+    onDismiss: () -> Unit
+) {
+    val scrollState = rememberScrollState()
+    val faqEntries = remember {
+        listOf(
+            FaqEntry(
+                question = R.string.faq_question_core_features,
+                answer = R.string.faq_answer_core_features
+            ),
+            FaqEntry(
+                question = R.string.faq_question_drop_contents,
+                answer = R.string.faq_answer_drop_contents
+            ),
+            FaqEntry(
+                question = R.string.faq_question_explorer_usage,
+                answer = R.string.faq_answer_explorer_usage
+            ),
+            FaqEntry(
+                question = R.string.faq_question_groups,
+                answer = R.string.faq_answer_groups
+            )
+        )
+    }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .widthIn(max = 480.dp),
+            shape = RoundedCornerShape(28.dp),
+            tonalElevation = 6.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp)
+                    .verticalScroll(scrollState),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = stringResource(R.string.faq_title),
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = stringResource(R.string.faq_intro),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                faqEntries.forEach { entry ->
+                    FaqEntryContent(
+                        question = stringResource(entry.question),
+                        answer = stringResource(entry.answer)
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text(stringResource(R.string.faq_close))
+                    }
+                }
+            }
+        }
+    }
+}
+
+private data class FaqEntry(
+    val question: Int,
+    val answer: Int
+)
+
+@Composable
+private fun FaqEntryContent(
+    question: String,
+    answer: String
+) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = question,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold
+        )
+        Text(
+            text = answer,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+private fun TermsPrivacyDialog(
+    initialTab: Int,
+    onDismiss: () -> Unit
+) {
+    val tabCount = TERMS_PRIVACY_TABS.size
+    var selectedTab by remember { mutableStateOf(initialTab.coerceIn(0, tabCount - 1)) }
+    val scrollState = rememberScrollState()
+    val agreementText = remember(selectedTab) {
+        if (selectedTab == 0) TERMS_OF_SERVICE_TEXT else PRIVACY_POLICY_TEXT
+    }
+
+    LaunchedEffect(initialTab) {
+        val clamped = initialTab.coerceIn(0, tabCount - 1)
+        selectedTab = clamped
+    }
+
+    LaunchedEffect(selectedTab) {
+        scrollState.scrollTo(0)
+    }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .widthIn(max = 560.dp),
+            shape = RoundedCornerShape(28.dp),
+            tonalElevation = 6.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = stringResource(R.string.terms_privacy_dialog_title),
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = TERMS_PRIVACY_SUMMARY,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Divider()
+                TabRow(
+                    selectedTabIndex = selectedTab,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    TERMS_PRIVACY_TABS.forEachIndexed { index, title ->
+                        Tab(
+                            selected = selectedTab == index,
+                            onClick = { selectedTab = index },
+                            text = { Text(title) }
+                        )
+                    }
+                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 200.dp, max = 360.dp)
+                        .verticalScroll(scrollState)
+                        .border(
+                            BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                            RoundedCornerShape(12.dp)
+                        )
+                        .padding(16.dp)
+                ) {
+                    Text(
+                        text = agreementText,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        lineHeight = MaterialTheme.typography.bodySmall.lineHeight
+                    )
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text(stringResource(R.string.terms_privacy_dialog_close))
+                    }
+                }
+            }
+        }
+    }
+}
+
+private const val NOTIFICATION_RADIUS_STEP_METERS = 50f
+private const val DROP_PICKUP_RADIUS_METERS = 30.0
+private const val MAX_BUSINESS_TEMPLATE_SUGGESTIONS = 6
+
+private fun formatCoordinate(value: Double): String {
+    return String.format(Locale.US, "%.5f", value)
+}
+
+
+@Composable
+private fun CollectedDropsContent(
+    modifier: Modifier = Modifier,
+    notes: List<CollectedNote>,
+    hiddenNsfwCount: Int,
+    canReportDrops: Boolean,
+    reportedDropIds: Set<String>,
+    reportingDropId: String?,
+    isReportProcessing: Boolean,
+    sortOption: DropSortOption,
+    sortOptions: List<DropSortOption>,
+    onSortOptionChange: (DropSortOption) -> Unit,
+    canLikeDrops: Boolean,
+    isSignedIn: Boolean,
+    likeRestrictionMessage: String?,
+    votingDropIds: Set<String>,
+    onLike: (CollectedNote, DropLikeStatus) -> Unit,
+    onReport: (CollectedNote) -> Unit,
+    onView: (CollectedNote) -> Unit,
+    onRemove: (CollectedNote) -> Unit,
+    emptyMessage: String? = null,
+    topContentPadding: Dp = 0.dp,
+    contentPadding: PaddingValues = PaddingValues(vertical = 16.dp)
+) {
+    if (notes.isEmpty()) {
+        val message = if (hiddenNsfwCount > 0) {
+            val plural = if (hiddenNsfwCount == 1) "drop" else "drops"
+            "Your NSFW settings are hiding $hiddenNsfwCount collected $plural."
+        } else {
+            emptyMessage ?: "You haven't collected any drops yet."
+        }
+        Box(
+            modifier = modifier
+                .fillMaxSize()
+                .padding(contentPadding)
+                .padding(top = topContentPadding)
+        ) {
+            DialogMessageContent(
+                message = message,
+                primaryLabel = null,
+                onPrimary = null,
+                onDismiss = null
+            )
+        }
+        return
+    }
+
+    var highlightedId by rememberSaveable { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(notes) {
+        highlightedId = highlightedId?.takeIf { id -> notes.any { it.id == id } }
+    }
+
+    val highlightedNote = notes.firstOrNull { it.id == highlightedId }
+
+    val listState = rememberLazyListState()
+    var lastSortOption by remember { mutableStateOf(sortOption) }
+    var skipScrollForSortChange by remember { mutableStateOf(false) }
+
+    LaunchedEffect(sortOption) {
+        if (lastSortOption != sortOption) {
+            skipScrollForSortChange = true
+            listState.scrollToItem(0)
+            lastSortOption = sortOption
+        }
+    }
+
+    LaunchedEffect(highlightedId, notes) {
+        if (skipScrollForSortChange) {
+            skipScrollForSortChange = false
+            return@LaunchedEffect
+        }
+        val targetId = highlightedId ?: return@LaunchedEffect
+        val index = notes.indexOfFirst { it.id == targetId }
+        if (index >= 0) {
+            listState.animateScrollToItem(index)
+        }
+    }
+    val minMapWeight = MAP_LIST_MIN_WEIGHT
+    val maxMapWeight = MAP_LIST_MAX_WEIGHT
+    var containerHeight by remember { mutableStateOf(0) }
+    var mapWeight by rememberSaveable {
+        mutableStateOf(DEFAULT_MAP_WEIGHT.coerceIn(minMapWeight, maxMapWeight))
+    }
+
+    val listWeight = 1f - mapWeight
+    val dividerDragState = rememberDraggableState { delta ->
+        val height = containerHeight.takeIf { it > 0 }?.toFloat()
+            ?: return@rememberDraggableState
+        val deltaWeight = delta / height
+        val updated = (mapWeight + deltaWeight).coerceIn(minMapWeight, maxMapWeight)
+        if (updated != mapWeight) {
+            mapWeight = updated
+        }
+    }
+    val dividerInteraction = remember { MutableInteractionSource() }
+    val dividerModifier = Modifier
+        .fillMaxWidth()
+        .height(DIVIDER_DRAG_HANDLE_HEIGHT)
+        .draggable(
+            state = dividerDragState,
+            orientation = Orientation.Vertical,
+            interactionSource = dividerInteraction
+        )
+        .semantics(mergeDescendants = true) {
+            progressBarRangeInfo = ProgressBarRangeInfo(
+                current = mapWeight,
+                range = minMapWeight..maxMapWeight
+            )
+            stateDescription =
+                "Map occupies ${(mapWeight * 100).roundToInt()} percent of the available height"
+            setProgress { target ->
+                val coerced = target.coerceIn(minMapWeight, maxMapWeight)
+                if (coerced != mapWeight) {
+                    mapWeight = coerced
+                }
+                true
+            }
+        }
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(contentPadding)
+            .onSizeChanged { containerHeight = it.height }
+            .padding(top = topContentPadding)
+    ) {
+        if (hiddenNsfwCount > 0) {
+            val plural = if (hiddenNsfwCount == 1) "drop" else "drops"
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                tonalElevation = 2.dp,
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                Text(
+                    text = "Your NSFW settings are hiding $hiddenNsfwCount collected $plural.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                )
+            }
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(mapWeight)
+        ) {
+            CollectedDropsMap(
+                notes = notes,
+                highlightedId = highlightedId,
+                onNoteClick = { note ->
+                    highlightedId = if (highlightedId == note.id) null else note.id
+                }
+            )
+
+            if (highlightedNote != null && (highlightedNote.lat == null || highlightedNote.lng == null)) {
+                Text(
+                    text = "Location unavailable for the selected drop.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(16.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.9f))
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+            }
+        }
+
+        Box(modifier = dividerModifier) {
+            Divider(modifier = Modifier.align(Alignment.Center))
+            DividerDragHandleHint(
+                modifier = Modifier.align(Alignment.Center),
+                text = stringResource(R.string.drag_to_resize)
+            )
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(listWeight)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                DropSortMenu(
+                    modifier = Modifier.weight(1f),
+                    current = sortOption,
+                    options = sortOptions,
+                    onSelect = onSortOptionChange
+                )
+
+                Spacer(Modifier.width(12.dp))
+                CountBadge(count = notes.size)
+            }
+
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(notes, key = { it.id }) { note ->
+                    val isHighlighted = note.id == highlightedId
+                    val alreadyReported = reportedDropIds.contains(note.id)
+                    val restrictionMessage = when {
+                        alreadyReported -> "Thanks for your report. We'll review it soon."
+                        !canReportDrops -> "Sign in to report drops."
+                        else -> null
+                    }
+                    val isReporting = isReportProcessing && reportingDropId == note.id
+                    val canReact = canLikeDrops && isSignedIn
+                    val isVoting = votingDropIds.contains(note.id)
+                    CollectedNoteCard(
+                        note = note,
+                        selected = isHighlighted,
+                        expanded = isHighlighted,
+                        onSelect = {
+                            highlightedId = if (isHighlighted) null else note.id
+                        },
+                        likeCount = note.likeCount,
+                        dislikeCount = note.dislikeCount,
+                        userLike = note.likeStatus(),
+                        canLike = canReact,
+                        likeRestrictionMessage = likeRestrictionMessage,
+                        isVoting = isVoting,
+                        onLike = { status -> onLike(note, status) },
+                        canReport = canReportDrops,
+                        alreadyReported = alreadyReported,
+                        reportRestrictionMessage = restrictionMessage,
+                        isReporting = isReporting,
+                        onReport = { onReport(note) },
+                        onView = {
+                            highlightedId = note.id
+                            onView(note)
+                        },
+                        onRemove = {
+                            highlightedId = null
+                            onRemove(note)
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun GeoDropHeader(
+    modifier: Modifier = Modifier,
+    onShowTutorial: () -> Unit = {},
+    onShowFaq: () -> Unit = {},
+    onShowTerms: () -> Unit = {},
+    onShowPrivacy: () -> Unit = {},
+) {
+    var infoMenuExpanded by remember { mutableStateOf(false) }
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 12.dp),
+        contentAlignment = Alignment.CenterStart
+    ) {
+        Text(
+            text = stringResource(R.string.app_name),
+            style = MaterialTheme.typography.titleLarge.copy(
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.5.sp
+            ),
+            color = MaterialTheme.colorScheme.primary
+        )
+
+        Box(modifier = Modifier.align(Alignment.CenterEnd)) {
+            IconButton(
+                onClick = { infoMenuExpanded = true }
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Info,
+                    contentDescription = stringResource(R.string.content_description_open_info_menu)
+                )
+            }
+
+            DropdownMenu(
+                expanded = infoMenuExpanded,
+                onDismissRequest = { infoMenuExpanded = false }
+            ) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.info_menu_tutorial)) },
+                    leadingIcon = { Icon(Icons.Rounded.PlayArrow, contentDescription = null) },
+                    onClick = {
+                        infoMenuExpanded = false
+                        onShowTutorial()
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.info_menu_faq)) },
+                    leadingIcon = { Icon(Icons.Rounded.Help, contentDescription = null) },
+                    onClick = {
+                        infoMenuExpanded = false
+                        onShowFaq()
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.info_menu_terms)) },
+                    leadingIcon = { Icon(Icons.Rounded.Description, contentDescription = null) },
+                    onClick = {
+                        infoMenuExpanded = false
+                        onShowTerms()
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.info_menu_privacy)) },
+                    leadingIcon = { Icon(Icons.Rounded.Lock, contentDescription = null) },
+                    onClick = {
+                        infoMenuExpanded = false
+                        onShowPrivacy()
+                    }
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ExplorerDestinationTabs(
+    modifier: Modifier = Modifier,
+    current: ExplorerDestination,
+    onSelect: (ExplorerDestination) -> Unit,
+    showMyDrops: Boolean,
+    showCollected: Boolean
+) {
+    val destinations = remember(showMyDrops, showCollected) {
+        ExplorerDestination.values().filter { destination ->
+            when (destination) {
+                ExplorerDestination.MyDrops -> showMyDrops
+                ExplorerDestination.Collected -> showCollected
+                ExplorerDestination.Discover -> true
+            }
+        }
+    }
+    SingleChoiceSegmentedButtonRow(modifier = modifier) {
+        destinations.forEachIndexed { index, destination ->
+            val selected = destination == current
+            val shape = SegmentedButtonDefaults.itemShape(index, destinations.size)
+            val (label, icon) = when (destination) {
+                ExplorerDestination.Discover -> Pair(
+                    stringResource(R.string.action_browse_map_title),
+                    Icons.Rounded.Map
+                )
+
+                ExplorerDestination.MyDrops -> Pair(
+                    stringResource(R.string.action_my_drops_title),
+                    Icons.Rounded.Inbox
+                )
+
+                ExplorerDestination.Collected -> Pair(
+                    stringResource(R.string.action_collected_drops_title),
+                    Icons.Rounded.Bookmark
+                )
+            }
+            SegmentedButton(
+                selected = selected,
+                onClick = { onSelect(destination) },
+                shape = shape,
+                icon = {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null
+                    )
+                },
+                label = { Text(label) }
+            )
+        }
+    }
+}
+
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AccountSignInDialog(
+    accountType: AccountType,
+    canChangeAccountType: Boolean,
+    onAccountTypeChange: (AccountType) -> Unit,
+    mode: AccountAuthMode,
+    onModeChange: (AccountAuthMode) -> Unit,
+    email: TextFieldValue,
+    onEmailChange: (TextFieldValue) -> Unit,
+    password: TextFieldValue,
+    onPasswordChange: (TextFieldValue) -> Unit,
+    confirmPassword: TextFieldValue,
+    onConfirmPasswordChange: (TextFieldValue) -> Unit,
+    username: TextFieldValue,
+    onUsernameChange: (TextFieldValue) -> Unit,
+    isSubmitting: Boolean,
+    isGoogleSigningIn: Boolean,
+    error: String?,
+    status: String?,
+    onSubmit: () -> Unit,
+    onDismiss: () -> Unit,
+    onForgotPassword: () -> Unit,
+    onGoogleSignIn: () -> Unit
+) {
+    val isBusy = isSubmitting || isGoogleSigningIn
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    val scrollState = rememberScrollState()
+    val configuration = LocalConfiguration.current
+    val maxDialogHeight = remember(configuration) {
+        (configuration.screenHeightDp.dp * 0.9f).coerceAtLeast(0.dp)
+    }
+
+    val hideKeyboardAndClearFocus = {
+        keyboardController?.hide()
+        focusManager.clearFocus(force = true)
+    }
+    val submitWithKeyboardDismiss = {
+        hideKeyboardAndClearFocus()
+        onSubmit()
+    }
+    val dismissWithKeyboardDismiss = {
+        hideKeyboardAndClearFocus()
+        onDismiss()
+    }
+    val forgotPasswordWithKeyboardDismiss = {
+        hideKeyboardAndClearFocus()
+        onForgotPassword()
+    }
+    val googleSignInWithKeyboardDismiss = {
+        hideKeyboardAndClearFocus()
+        onGoogleSignIn()
+    }
+
+    Dialog(
+        onDismissRequest = {
+            if (!isBusy) {
+                dismissWithKeyboardDismiss()
+            }
+        },
+        properties = DialogProperties(
+            dismissOnBackPress = !isBusy,
+            dismissOnClickOutside = !isBusy
+        )
+    ) {
+        Surface(
+            shape = MaterialTheme.shapes.large,
+            tonalElevation = 6.dp,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(24.dp)
+                    .imePadding()
+                    .heightIn(max = maxDialogHeight)
+                    .verticalScroll(scrollState),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = when (accountType) {
+                        AccountType.EXPLORER -> "Explorer account"
+                        AccountType.BUSINESS -> "Business account"
+                    },
+                    style = MaterialTheme.typography.titleLarge
+                )
+
+                if (canChangeAccountType) {
+                    SingleChoiceSegmentedButtonRow {
+                        AccountType.entries.forEachIndexed { index, type ->
+                            SegmentedButton(
+                                shape = SegmentedButtonDefaults.itemShape(index, AccountType.entries.size),
+                                selected = accountType == type,
+                                onClick = { onAccountTypeChange(type) }
+                            ) {
+                                Text(
+                                    text = when (type) {
+                                        AccountType.EXPLORER -> "Explorer"
+                                        AccountType.BUSINESS -> "Business"
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Text(
+                    text = when (accountType) {
+                        AccountType.EXPLORER -> "Explorer accounts let you drop, like, and collect rewards."
+                        AccountType.BUSINESS -> "Business accounts can publish offers and require business details."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                BoxWithConstraints {
+                    val shouldStackVertically = maxWidth < 360.dp
+
+                    if (shouldStackVertically) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            AccountAuthMode.entries.forEach { option ->
+                                val selected = mode == option
+                                val buttonColors = if (selected) {
+                                    ButtonDefaults.filledTonalButtonColors()
+                                } else {
+                                    ButtonDefaults.filledTonalButtonColors(
+                                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                        contentColor = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+
+                                FilledTonalButton(
+                                    onClick = { onModeChange(option) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    enabled = !isBusy,
+                                    colors = buttonColors,
+                                    shape = MaterialTheme.shapes.large
+                                ) {
+                                    Text(
+                                        text = when (option) {
+                                            AccountAuthMode.SIGN_IN -> "Sign in"
+                                            AccountAuthMode.REGISTER -> "Create account"
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        SingleChoiceSegmentedButtonRow {
+                            AccountAuthMode.entries.forEachIndexed { index, option ->
+                                SegmentedButton(
+                                    shape = SegmentedButtonDefaults.itemShape(index, AccountAuthMode.entries.size),
+                                    selected = mode == option,
+                                    onClick = { onModeChange(option) }
+                                ) {
+                                    Text(
+                                        text = when (option) {
+                                            AccountAuthMode.SIGN_IN -> "Sign in"
+                                            AccountAuthMode.REGISTER -> "Create account"
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                val isRegister = mode == AccountAuthMode.REGISTER
+                val requiresExplorerUsername = isRegister && accountType == AccountType.EXPLORER
+
+                if (requiresExplorerUsername) {
+                    OutlinedTextField(
+                        value = username,
+                        onValueChange = onUsernameChange,
+                        label = { Text(stringResource(R.string.explorer_profile_username_label)) },
+                        placeholder = { Text(stringResource(R.string.explorer_profile_username_placeholder)) },
+                        enabled = !isBusy,
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(
+                            capitalization = KeyboardCapitalization.None,
+                            autoCorrect = false,
+                            keyboardType = KeyboardType.Ascii,
+                            imeAction = ImeAction.Next
+                        ),
+                        keyboardActions = KeyboardActions(
+                            onNext = { focusManager.moveFocus(FocusDirection.Next) }
+                        )
+                    )
+
+                    Text(
+                        text = stringResource(R.string.explorer_profile_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                OutlinedTextField(
+                    value = email,
+                    onValueChange = onEmailChange,
+                    label = { Text("Email address") },
+                    enabled = !isBusy,
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Email,
+                        imeAction = ImeAction.Next
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onNext = { focusManager.moveFocus(FocusDirection.Next) }
+                    )
+                )
+
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = onPasswordChange,
+                    label = { Text("Password") },
+                    enabled = !isBusy,
+                    modifier = Modifier.fillMaxWidth(),
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Password,
+                        imeAction = if (isRegister) ImeAction.Next else ImeAction.Done
+                    ),
+                    keyboardActions = if (isRegister) {
+                        KeyboardActions(
+                            onNext = { focusManager.moveFocus(FocusDirection.Next) }
+                        )
+                    } else {
+                        KeyboardActions(
+                            onDone = { submitWithKeyboardDismiss() }
+                        )
+                    }
+                )
+
+                if (isRegister) {
+                    OutlinedTextField(
+                        value = confirmPassword,
+                        onValueChange = onConfirmPasswordChange,
+                        label = { Text("Confirm password") },
+                        enabled = !isBusy,
+                        modifier = Modifier.fillMaxWidth(),
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Password,
+                            imeAction = ImeAction.Done
+                        ),
+                        keyboardActions = KeyboardActions(
+                            onDone = { submitWithKeyboardDismiss() }
+                        )
+                    )
+                }
+
+                error?.let { message ->
+                    Text(
+                        text = message,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+
+                status?.let { message ->
+                    Text(
+                        text = message,
+                        color = MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+
+                if (!isRegister) {
+                    TextButton(
+                        onClick = forgotPasswordWithKeyboardDismiss,
+                        enabled = !isBusy,
+                        modifier = Modifier.align(Alignment.End)
+                    ) {
+                        Text("Forgot password?")
+                    }
+                }
+
+                if (isRegister) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Button(
+                            onClick = submitWithKeyboardDismiss,
+                            enabled = !isBusy,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            if (isSubmitting) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text("Working…")
+                            } else {
+                                Text(
+                                    text = when (mode) {
+                                        AccountAuthMode.SIGN_IN -> "Sign in"
+                                        AccountAuthMode.REGISTER -> "Create account"
+                                    }
+                                )
+                            }
+                        }
+
+                        OutlinedButton(
+                            onClick = dismissWithKeyboardDismiss,
+                            enabled = !isBusy,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Cancel")
+                        }
+                    }
+                } else {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedButton(
+                            onClick = dismissWithKeyboardDismiss,
+                            enabled = !isBusy,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Cancel")
+                        }
+
+                        Button(
+                            onClick = submitWithKeyboardDismiss,
+                            enabled = !isBusy,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            if (isSubmitting) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text("Working…")
+                            } else {
+                                Text(
+                                    text = when (mode) {
+                                        AccountAuthMode.SIGN_IN -> "Sign in"
+                                        AccountAuthMode.REGISTER -> "Create account"
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(12.dp))
+                Divider()
+                Text(
+                    text = "Or continue with",
+                    modifier = Modifier.fillMaxWidth(),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+                OutlinedButton(
+                    onClick = googleSignInWithKeyboardDismiss,
+                    enabled = !isBusy,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    if (isGoogleSigningIn) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text("Connecting to Google…")
+                    } else {
+                        Text("Sign in with Google")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ExplorerProfileDialog(
+    currentUsername: String?,
+    username: TextFieldValue,
+    onUsernameChange: (TextFieldValue) -> Unit,
+    isSubmitting: Boolean,
+    error: String?,
+    onSubmit: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    Dialog(
+        onDismissRequest = {
+            if (!isSubmitting) onDismiss()
+        }
+    ) {
+        Surface(
+            shape = MaterialTheme.shapes.large,
+            tonalElevation = 6.dp,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            val scrollState = rememberScrollState()
+            Column(
+                modifier = Modifier
+                    .padding(24.dp)
+                    .verticalScroll(scrollState),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = stringResource(R.string.explorer_profile_title),
+                    style = MaterialTheme.typography.titleLarge
+                )
+
+                Text(
+                    text = stringResource(R.string.explorer_profile_description),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                currentUsername?.takeIf { it.isNotBlank() }?.let { existing ->
+                    Text(
+                        text = stringResource(R.string.explorer_profile_current_username, "@$existing"),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                OutlinedTextField(
+                    value = username,
+                    onValueChange = onUsernameChange,
+                    label = { Text(stringResource(R.string.explorer_profile_username_label)) },
+                    placeholder = { Text(stringResource(R.string.explorer_profile_username_placeholder)) },
+                    singleLine = true,
+                    enabled = !isSubmitting,
+                    keyboardOptions = KeyboardOptions(
+                        capitalization = KeyboardCapitalization.None,
+                        autoCorrect = false,
+                        keyboardType = KeyboardType.Ascii,
+                        imeAction = ImeAction.Done
+                    ),
+                    keyboardActions = KeyboardActions(onDone = { onSubmit() }),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Text(
+                    text = stringResource(R.string.explorer_profile_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                error?.let { message ->
+                    Text(
+                        text = message,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        enabled = !isSubmitting,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Cancel")
+                    }
+
+                    Button(
+                        onClick = onSubmit,
+                        enabled = !isSubmitting,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        if (isSubmitting) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Text(stringResource(R.string.explorer_profile_save))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BusinessOnboardingDialog(
+    name: TextFieldValue,
+    selectedCategories: Set<BusinessCategory>,
+    onNameChange: (TextFieldValue) -> Unit,
+    onToggleCategory: (BusinessCategory) -> Unit,
+    isSubmitting: Boolean,
+    error: String?,
+    onSubmit: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    Dialog(
+        onDismissRequest = {
+            if (!isSubmitting) onDismiss()
+        }
+    ) {
+        Surface(
+            shape = MaterialTheme.shapes.large,
+            tonalElevation = 6.dp,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            val scrollState = rememberScrollState()
+            Column(
+                modifier = Modifier
+                    .padding(24.dp)
+                    .verticalScroll(scrollState),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = "Business profile",
+                    style = MaterialTheme.typography.titleLarge
+                )
+
+                Text(
+                    text = "Add a display name so explorers know which business dropped this content.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = onNameChange,
+                    label = { Text("Business or brand name") },
+                    enabled = !isSubmitting,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Text(
+                    text = "Select the categories that best describe your business.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                val groupedEntries = remember {
+                    BusinessCategory.entries.groupBy { it.group }.entries.toList()
+                }
+
+                groupedEntries.forEachIndexed { index, (group, options) ->
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text(
+                            text = group.displayName,
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+
+                        options.forEach { category ->
+                            BusinessCategoryOptionRow(
+                                category = category,
+                                selected = selectedCategories.contains(category),
+                                enabled = !isSubmitting,
+                                onToggle = { onToggleCategory(category) }
+                            )
+                        }
+                    }
+
+                    if (index != groupedEntries.lastIndex) {
+                        Spacer(Modifier.height(8.dp))
+                    }
+                }
+
+                error?.let { message ->
+                    Text(
+                        text = message,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        enabled = !isSubmitting,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Cancel")
+                    }
+
+                    Button(
+                        onClick = onSubmit,
+                        enabled = !isSubmitting,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        if (isSubmitting) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text("Saving…")
+                        } else {
+                            Text("Save")
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BusinessCategoryOptionRow(
+    category: BusinessCategory,
+    selected: Boolean,
+    enabled: Boolean,
+    onToggle: () -> Unit
+) {
+    val shape = RoundedCornerShape(16.dp)
+    val backgroundColor = if (selected) {
+        MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+    }
+    val borderColor = if (selected) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        MaterialTheme.colorScheme.outlineVariant
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(backgroundColor)
+            .border(BorderStroke(1.dp, borderColor), shape)
+            .clickable(enabled = enabled, role = Role.Checkbox) { onToggle() }
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Checkbox(
+            checked = selected,
+            onCheckedChange = null,
+            enabled = enabled
+        )
+
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                text = category.displayName,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = category.description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+@OptIn(ExperimentalLayoutApi::class)
+private fun BusinessDashboardDialog(
+    drops: List<Drop>,
+    loading: Boolean,
+    error: String?,
+    onDismiss: () -> Unit,
+    onRefresh: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            shape = MaterialTheme.shapes.large,
+            tonalElevation = 6.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Business dashboard",
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Rounded.Close, contentDescription = "Close dashboard")
+                    }
+                }
+
+                Button(
+                    onClick = onRefresh,
+                    enabled = !loading,
+                    modifier = Modifier.align(Alignment.End)
+                ) {
+                    if (loading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text("Refreshing…")
+                    } else {
+                        Icon(Icons.Rounded.Refresh, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Refresh")
+                    }
+                }
+
+                when {
+                    loading -> {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 32.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator()
+                        }
+                    }
+
+                    error != null -> {
+                        Text(
+                            text = error,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+
+                    drops.isEmpty() -> {
+                        Text(
+                            text = "You haven't shared any business drops yet. Create one to see analytics here.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    else -> {
+                        val sorted = drops.sortedByDescending { it.createdAt }
+                        val totalRedemptions = sorted.sumOf { it.redemptionCount }
+                        val uniqueRedeemers = sorted.flatMap { it.redeemedBy.keys }.toSet().size
+                        val activeOffers = sorted.count { it.dropType == DropType.RESTAURANT_COUPON }
+
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                            maxItemsInEachRow = 2
+                        ) {
+                            DashboardMetricCard(
+                                value = sorted.size.toString(),
+                                label = "Live drops",
+                                modifier = Modifier.weight(1f)
+                            )
+                            DashboardMetricCard(
+                                value = totalRedemptions.toString(),
+                                label = "Total redemptions",
+                                modifier = Modifier.weight(1f)
+                            )
+                            DashboardMetricCard(
+                                value = uniqueRedeemers.toString(),
+                                label = "Unique redeemers",
+                                modifier = Modifier.weight(1f)
+                            )
+                            DashboardMetricCard(
+                                value = activeOffers.toString(),
+                                label = "Active offers",
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 360.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            items(sorted, key = { it.id }) { drop ->
+                                BusinessDropAnalyticsCard(drop = drop)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DashboardMetricCard(value: String, label: String, modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier,
+        tonalElevation = 3.dp,
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                text = value,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun BusinessDropAnalyticsCard(drop: Drop) {
+    ElevatedCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(
+                BorderStroke(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                ),
+                shape = RoundedCornerShape(16.dp)
+            ),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                DropTitleText(
+                    drop = drop,
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                if (drop.isNsfw) {
+                    DropNsfwBadge()
+                }
+            }
+
+            Text(
+                text = when (drop.dropType) {
+                    DropType.RESTAURANT_COUPON -> "Offer · ${drop.businessName ?: "Your business"}"
+                    DropType.TOUR_STOP -> "Tour stop"
+                    DropType.COMMUNITY -> "Community drop"
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            val redemptionStatus = if (drop.dropType == DropType.RESTAURANT_COUPON) {
+                val remaining = drop.remainingRedemptions()
+                buildString {
+                    append("Redemptions: ${drop.redemptionCount}")
+                    drop.redemptionLimit?.let { limit ->
+                        append(" / $limit")
+                        remaining?.let { append(" · $it left") }
+                    }
+                }
+            } else {
+                "Redemptions: n/a"
+            }
+
+            Text(
+                text = redemptionStatus,
+                style = MaterialTheme.typography.bodyMedium
+            )
+
+            val expirationLabel = drop.decayAtMillis()?.let { expireAt ->
+                val now = System.currentTimeMillis()
+                if (expireAt <= now) {
+                    "Auto-deleted"
+                } else {
+                    val remainingMillis = expireAt - now
+                    val remainingDays = ceil(
+                        remainingMillis.toDouble() /
+                                TimeUnit.DAYS.toMillis(1).toDouble()
+                    ).toInt().coerceAtLeast(1)
+                    if (remainingDays == 1) "Expires in 1 day" else "Expires in $remainingDays days"
+                }
+            }
+            expirationLabel?.let { label ->
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            val reactionSummary = "Likes: ${drop.likeCount} · Dislikes: ${drop.dislikeCount}"
+            Text(
+                text = reactionSummary,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalComposeUiApi::class)
+@Composable
+private fun OtherDropsExplorerSection(
+    modifier: Modifier = Modifier,
+    topContentPadding: Dp = 0.dp,
+    loading: Boolean,
+    refreshing: Boolean,
+    drops: List<Drop>,
+    currentLocation: LatLng?,
+    notificationRadiusMeters: Double,
+    error: String?,
+    emptyMessage: String? = null,
+    selectedId: String?,
+    onSelect: (Drop) -> Unit,
+    onPickUp: (Drop) -> Unit,
+    currentUserId: String?,
+    votingDropIds: Set<String>,
+    collectedDropIds: Set<String>,
+    canCollectDrops: Boolean,
+    collectRestrictionMessage: String?,
+    sortOption: DropSortOption,
+    sortOptions: List<DropSortOption>,
+    onSortOptionChange: (DropSortOption) -> Unit,
+    canLikeDrops: Boolean,
+    likeRestrictionMessage: String?,
+    onLike: (Drop, DropLikeStatus) -> Unit,
+    onReport: (Drop) -> Unit,
+    reportingDropId: String?,
+    dismissedBrowseDropIds: SnapshotStateList<String>,
+    snackbar: SnackbarHostState,
+    scope: CoroutineScope,
+    onRefresh: () -> Unit,
+    listState: LazyListState,
+    mapWeight: Float,
+    onMapWeightChange: (Float) -> Unit
+) {
+    val context = LocalContext.current
+    val clampedMapWeight = mapWeight.coerceIn(MAP_LIST_MIN_WEIGHT, MAP_LIST_MAX_WEIGHT)
+    var internalWeight by remember { mutableStateOf(clampedMapWeight) }
+    internalWeight = clampedMapWeight
+    val listWeight = 1f - internalWeight
+    var containerHeight by remember { mutableStateOf(0) }
+    val dividerInteraction = remember { MutableInteractionSource() }
+    val dividerDragState = rememberDraggableState { delta ->
+        val height = containerHeight.takeIf { it > 0 }?.toFloat() ?: return@rememberDraggableState
+        val deltaWeight = delta / height
+        val updated = (internalWeight + deltaWeight).coerceIn(MAP_LIST_MIN_WEIGHT, MAP_LIST_MAX_WEIGHT)
+        if (updated != internalWeight) {
+            internalWeight = updated
+            onMapWeightChange(updated)
+        }
+    }
+    val dividerModifier = Modifier
+        .fillMaxWidth()
+        .height(DIVIDER_DRAG_HANDLE_HEIGHT)
+        .draggable(
+            state = dividerDragState,
+            orientation = Orientation.Vertical,
+            interactionSource = dividerInteraction
+        )
+        .semantics(mergeDescendants = true) {
+            progressBarRangeInfo = ProgressBarRangeInfo(
+                current = internalWeight,
+                range = MAP_LIST_MIN_WEIGHT..MAP_LIST_MAX_WEIGHT
+            )
+            stateDescription =
+                "Map occupies ${'$'}{(internalWeight * 100).roundToInt()} percent of the available height"
+            setProgress { target ->
+                val coerced = target.coerceIn(MAP_LIST_MIN_WEIGHT, MAP_LIST_MAX_WEIGHT)
+                if (coerced != internalWeight) {
+                    internalWeight = coerced
+                    onMapWeightChange(coerced)
+                    true
+                } else {
+                    false
+                }
+            }
+        }
+
+    Column(
+        modifier = modifier
+            .fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        if (refreshing && !loading) {
+            LinearProgressIndicator(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+            )
+        }
+        when {
+            loading -> {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(top = topContentPadding),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            }
+
+            error != null -> {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp)
+                        .padding(top = topContentPadding),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = error,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                    OutlinedButton(onClick = onRefresh) {
+                        Icon(Icons.Rounded.Refresh, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.action_retry_generic))
+                    }
+                }
+            }
+
+            drops.isEmpty() -> {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp)
+                        .padding(top = topContentPadding),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = emptyMessage ?: "No drops from other users are available right now.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    OutlinedButton(onClick = onRefresh) {
+                        Icon(Icons.Rounded.Refresh, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.action_retry_generic))
+                    }
+                }
+            }
+
+            else -> {
+                var lastSortOption by remember { mutableStateOf(sortOption) }
+                var skipSelectionScroll by remember { mutableStateOf(false) }
+
+                LaunchedEffect(sortOption) {
+                    if (lastSortOption != sortOption) {
+                        skipSelectionScroll = true
+                        listState.scrollToItem(0)
+                        lastSortOption = sortOption
+                    }
+                }
+
+                LaunchedEffect(selectedId, drops) {
+                    if (skipSelectionScroll) {
+                        skipSelectionScroll = false
+                        return@LaunchedEffect
+                    }
+                    val targetId = selectedId ?: return@LaunchedEffect
+                    val index = drops.indexOfFirst { it.id == targetId }
+                    if (index >= 0) {
+                        listState.animateScrollToItem(index)
+                    }
+                }
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .onSizeChanged { containerHeight = it.height }
+                        .padding(top = topContentPadding)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(internalWeight)
+                    ) {
+                        OtherDropsMap(
+                            drops = drops,
+                            selectedDropId = selectedId,
+                            currentLocation = currentLocation,
+                            notificationRadiusMeters = notificationRadiusMeters,
+                            onDropClick = onSelect
+                        )
+                    }
+
+                    Box(modifier = dividerModifier) {
+                        Divider(modifier = Modifier.align(Alignment.Center))
+                        DividerDragHandleHint(
+                            modifier = Modifier.align(Alignment.Center),
+                            text = stringResource(R.string.drag_to_resize)
+                        )
+                    }
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(listWeight)
+                    ) {
+                        val isSignedIn = !currentUserId.isNullOrBlank()
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            DropSortMenu(
+                                modifier = Modifier.weight(1f),
+                                current = sortOption,
+                                options = sortOptions,
+                                onSelect = onSortOptionChange
+                            )
+
+                            if (drops.isNotEmpty()) {
+                                Spacer(Modifier.width(12.dp))
+                                CountBadge(count = drops.size)
+                            }
+                        }
+
+                        LazyColumn(
+                            state = listState,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f),
+                            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            items(drops, key = { it.id }) { drop ->
+                                val hasCollected = collectedDropIds.contains(drop.id)
+                                val withinPickupRange = currentLocation?.let { location ->
+                                    distanceBetweenMeters(
+                                        location.latitude,
+                                        location.longitude,
+                                        drop.lat,
+                                        drop.lng
+                                    ) <= DROP_PICKUP_RADIUS_METERS
+                                } ?: false
+                                val isOwnDrop = currentUserId != null && drop.createdBy == currentUserId
+                                val alreadyReported = currentUserId?.let { drop.reportedBy.containsKey(it) } == true
+                                val canReport = isSignedIn && !isOwnDrop && (hasCollected || withinPickupRange)
+                                val reportMessage = when {
+                                    isOwnDrop -> "You created this drop."
+                                    !isSignedIn -> "Sign in to report drops."
+                                    alreadyReported -> "Thanks for your report. We'll review it soon."
+//                                        !hasCollected && !withinPickupRange ->
+//                                            "Move within ${DROP_PICKUP_RADIUS_METERS.roundToInt()} meters to report this drop, or collect it first."
+                                    else -> null
+                                }
+                                val showReportButton = !isOwnDrop
+                                val isReporting = reportingDropId == drop.id
+                                val canIgnoreForNow = !withinPickupRange
+                                OtherDropRow(
+                                    drop = drop,
+                                    isSelected = drop.id == selectedId,
+                                    currentLocation = currentLocation,
+                                    userLike = drop.userLikeStatus(currentUserId),
+                                    canPickUp = canCollectDrops,
+                                    pickupRestrictionMessage = collectRestrictionMessage,
+                                    showReport = showReportButton,
+                                    canReport = canReport,
+                                    alreadyReported = alreadyReported,
+                                    reportRestrictionMessage = reportMessage,
+                                    isReporting = isReporting,
+                                    canIgnoreForNow = canIgnoreForNow,
+                                    onIgnoreForNow = {
+                                        if (!dismissedBrowseDropIds.contains(drop.id)) {
+                                            dismissedBrowseDropIds.add(drop.id)
+                                            snackbar.showMessage(
+                                                scope,
+                                                context.getString(R.string.browse_ignore_drop_snackbar)
+                                            )
+                                        }
+                                    },
+                                    onSelect = { onSelect(drop) },
+                                    onPickUp = { onPickUp(drop) },
+                                    onReport = { onReport(drop) }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private enum class DropSortOption(val displayName: String) {
+    NEAREST("Nearest"),
+    MOST_POPULAR("Most popular"),
+    NEWEST("Newest"),
+    ENDING_SOON("Ending soon")
+}
+
+private fun sortDrops(
+    drops: List<Drop>,
+    option: DropSortOption,
+    currentLocation: LatLng?
+): List<Drop> {
+    return when (option) {
+        DropSortOption.NEAREST -> {
+            val location = currentLocation ?: return drops
+            drops.sortedBy { drop ->
+                distanceBetweenMeters(
+                    location.latitude,
+                    location.longitude,
+                    drop.lat,
+                    drop.lng
+                )
+            }
+        }
+
+        DropSortOption.MOST_POPULAR -> drops.sortedWith(
+            compareByDescending<Drop> { it.likeCount - it.dislikeCount }
+                .thenByDescending { it.createdAt }
+        )
+
+        DropSortOption.NEWEST -> drops.sortedByDescending { it.createdAt }
+
+        DropSortOption.ENDING_SOON -> drops.sortedWith(
+            compareBy<Drop> { drop -> drop.decayAtMillis() ?: Long.MAX_VALUE }
+                .thenByDescending { it.createdAt }
+        )
+    }
+}
+
+private fun sortCollectedNotes(
+    notes: List<CollectedNote>,
+    option: DropSortOption,
+    currentLocation: LatLng?
+): List<CollectedNote> {
+    return when (option) {
+        DropSortOption.NEAREST -> {
+            val location = currentLocation ?: return notes
+            notes.sortedWith(
+                compareBy<CollectedNote> { note ->
+                    val lat = note.lat
+                    val lng = note.lng
+                    if (lat == null || lng == null) {
+                        Double.MAX_VALUE
+                    } else {
+                        distanceBetweenMeters(
+                            location.latitude,
+                            location.longitude,
+                            lat,
+                            lng
+                        )
+                    }
+                }.thenByDescending { it.collectedAt }
+            )
+        }
+
+        DropSortOption.MOST_POPULAR -> notes.sortedWith(
+            compareByDescending<CollectedNote> { it.likeCount - it.dislikeCount }
+                .thenByDescending { it.collectedAt }
+        )
+
+        DropSortOption.NEWEST -> notes.sortedByDescending { note ->
+            note.dropCreatedAt ?: note.collectedAt
+        }
+
+        DropSortOption.ENDING_SOON -> notes.sortedWith(
+            compareBy<CollectedNote> { note -> note.decayAtMillis() ?: Long.MAX_VALUE }
+                .thenByDescending { note -> note.dropCreatedAt ?: note.collectedAt }
+        )
+    }
+}
+
+@Composable
+private fun DropSortMenu(
+    modifier: Modifier = Modifier,
+    current: DropSortOption,
+    options: List<DropSortOption>,
+    onSelect: (DropSortOption) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Box(
+        modifier = modifier,
+        contentAlignment = Alignment.CenterStart
+    ) {
+        AssistChip(
+            onClick = { expanded = true },
+            label = { Text("Sort: ${current.displayName}") },
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Rounded.Sort,
+                    contentDescription = null
+                )
+            }
+        )
+
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(option.displayName) },
+                    onClick = {
+                        expanded = false
+                        onSelect(option)
+                    },
+                    trailingIcon = if (option == current) {
+                        {
+                            Icon(
+                                imageVector = Icons.Rounded.Check,
+                                contentDescription = null
+                            )
+                        }
+                    } else {
+                        null
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CollectedDropsMap(
+    notes: List<CollectedNote>,
+    highlightedId: String?,
+    modifier: Modifier = Modifier,
+    onNoteClick: (CollectedNote) -> Unit
+) {
+    val notesWithLocation = remember(notes) { notes.filter { it.lat != null && it.lng != null } }
+    val cameraPositionState = rememberCameraPositionState()
+    val uiSettings = remember { MapUiSettings(zoomControlsEnabled = true) }
+
+    val highlightedNote = notesWithLocation.firstOrNull { it.id == highlightedId }
+    val fallbackNote = notesWithLocation.firstOrNull()
+
+    LaunchedEffect(notesWithLocation, highlightedNote?.id) {
+        val target = highlightedNote ?: fallbackNote
+        if (target != null) {
+            val lat = target.lat ?: return@LaunchedEffect
+            val lng = target.lng ?: return@LaunchedEffect
+            val zoom = if (highlightedNote != null) 15f else 12f
+            val update = CameraUpdateFactory.newLatLngZoom(LatLng(lat, lng), zoom)
+            cameraPositionState.animate(update)
+        }
+    }
+
+    if (notesWithLocation.isEmpty()) {
+        Box(modifier.fillMaxSize()) {
+            Text(
+                text = "No location data for collected drops yet.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.align(Alignment.Center)
+            )
+        }
+    } else {
+        GoogleMap(
+            modifier = modifier
+                .fillMaxSize()
+                .consumeMapGesturesInParent(),
+            cameraPositionState = cameraPositionState,
+            uiSettings = uiSettings
+        ) {
+            notesWithLocation.forEach { note ->
+                val lat = note.lat ?: return@forEach
+                val lng = note.lng ?: return@forEach
+                val position = LatLng(lat, lng)
+                val typeLabel = when (note.contentType) {
+                    DropContentType.TEXT -> "Text note"
+                    DropContentType.PHOTO -> "Photo drop"
+                    DropContentType.AUDIO -> "Audio drop"
+                    DropContentType.VIDEO -> "Video drop"
+                }
+                val snippetParts = mutableListOf<String>()
+                snippetParts.add("Type: $typeLabel")
+                note.dropCreatedAt?.let { created ->
+                    formatTimestamp(created)?.let { snippetParts.add("Dropped $it") }
+                }
+                snippetParts.add("Lat: ${formatCoordinate(lat)}, Lng: ${formatCoordinate(lng)}")
+                note.groupCode?.let { snippetParts.add("Group $it") }
+                if (note.isNsfw) {
+                    snippetParts.add("Marked as adult content")
+                }
+
+                val title = note.text.ifBlank {
+                    when (note.contentType) {
+                        DropContentType.TEXT -> "Collected text drop"
+                        DropContentType.PHOTO -> "Collected photo drop"
+                        DropContentType.AUDIO -> "Collected audio drop"
+                        DropContentType.VIDEO -> "Collected video drop"
+                    }
+                }
+
+                val markerIcon = when {
+                    note.isNsfw -> BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_MAGENTA)
+                    note.id == highlightedId -> BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ORANGE)
+                    else -> BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN)
+                }
+
+                Marker(
+                    state = MarkerState(position),
+                    title = title,
+                    snippet = snippetParts.joinToString("\n"),
+                    icon = markerIcon,
+                    zIndex = if (note.id == highlightedId) 1f else 0f,
+                    onClick = {
+                        onNoteClick(note)
+                        false
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CollectedNoteCard(
+    note: CollectedNote,
+    selected: Boolean,
+    expanded: Boolean,
+    onSelect: () -> Unit,
+    likeCount: Long,
+    dislikeCount: Long,
+    userLike: DropLikeStatus,
+    canLike: Boolean,
+    likeRestrictionMessage: String?,
+    isVoting: Boolean,
+    onLike: (DropLikeStatus) -> Unit,
+    canReport: Boolean,
+    alreadyReported: Boolean,
+    reportRestrictionMessage: String?,
+    isReporting: Boolean,
+    onReport: () -> Unit,
+    onView: () -> Unit,
+    onRemove: () -> Unit
+) {
+    val containerColor = if (selected) {
+        MaterialTheme.colorScheme.primaryContainer
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant
+    }
+    val contentColor = if (selected) {
+        MaterialTheme.colorScheme.onPrimaryContainer
+    } else {
+        MaterialTheme.colorScheme.onSurface
+    }
+    val supportingColor = if (selected) {
+        MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        onClick = onSelect,
+        colors = CardDefaults.cardColors(
+            containerColor = containerColor,
+            contentColor = contentColor
+        ),
+        border = BorderStroke(
+            width = 1.dp,
+            color = if (selected) {
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+            } else {
+                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+            }
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            val typeLabel = when (note.contentType) {
+                DropContentType.TEXT -> "Text note"
+                DropContentType.PHOTO -> "Photo drop"
+                DropContentType.AUDIO -> "Audio drop"
+                DropContentType.VIDEO -> "Video drop"
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = typeLabel,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f)
+                )
+
+                if (note.isNsfw) {
+                    DropNsfwBadge()
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
+
+                Icon(
+                    imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                    contentDescription = if (expanded) {
+                        "Collapse drop details"
+                    } else {
+                        "Expand drop details"
+                    }
+                )
+            }
+
+            val preview = note.description?.takeIf { it.isNotBlank() }
+                ?: note.text.takeIf { it.isNotBlank() }
+                ?: when (note.contentType) {
+                    DropContentType.TEXT -> "(No message)"
+                    DropContentType.PHOTO -> "Photo drop"
+                    DropContentType.AUDIO -> "Audio drop"
+                    DropContentType.VIDEO -> "Video drop"
+                }
+            Text(
+                text = preview,
+                style = MaterialTheme.typography.bodyLarge,
+                maxLines = if (expanded) Int.MAX_VALUE else 2,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            AnimatedVisibility(visible = expanded) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    val mediaUrl = note.mediaUrl?.takeIf { it.isNotBlank() }
+                    when {
+                        note.contentType == DropContentType.PHOTO && mediaUrl != null -> {
+                            val context = LocalContext.current
+                            val imageRequest = remember(mediaUrl) {
+                                ImageRequest.Builder(context)
+                                    .data(mediaUrl)
+                                    .crossfade(true)
+                                    .build()
+                            }
+
+                            AsyncImage(
+                                model = imageRequest,
+                                contentDescription = preview,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(min = 160.dp, max = 280.dp)
+                                    .clip(RoundedCornerShape(12.dp)),
+                                contentScale = ContentScale.Crop
+                            )
+                        }
+
+                        note.contentType == DropContentType.VIDEO && mediaUrl != null -> {
+                            val videoUri = remember(mediaUrl) { Uri.parse(mediaUrl) }
+
+                            DropVideoPlayer(
+                                videoUri = videoUri,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+
+                            Spacer(Modifier.height(8.dp))
+
+                            Text(
+                                text = "Tap play to watch this clip.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = supportingColor
+                            )
+                        }
+                    }
+
+//                    Text(
+//                        text = "Collected: ${formatTimestamp(note.collectedAt)}",
+//                        style = MaterialTheme.typography.bodyMedium,
+//                        color = supportingColor
+//                    )
+//
+//                    note.dropCreatedAt?.let {
+//                        Text(
+//                            text = "Dropped: ${formatTimestamp(it)}",
+//                            style = MaterialTheme.typography.bodyMedium,
+//                            color = supportingColor
+//                        )
+//                    }
+
+                    note.dropperUsername?.takeIf { it.isNotBlank() }?.let { username ->
+                        Text(
+                            text = "Dropped by @${username}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = supportingColor
+                        )
+                    }
+
+                    note.groupCode?.let { group ->
+                        Text(
+                            text = "Group: $group",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = supportingColor
+                        )
+                    }
+
+//                    if (note.lat != null && note.lng != null) {
+//                        Text(
+//                            text = "Location: ${formatCoordinate(note.lat)}, ${formatCoordinate(note.lng)}",
+//                            style = MaterialTheme.typography.bodyMedium,
+//                            color = supportingColor
+//                        )
+//                    } else {
+//                        Text(
+//                            text = "Location: Unknown",
+//                            style = MaterialTheme.typography.bodyMedium,
+//                            color = supportingColor
+//                        )
+//                    }
+
+                    Spacer(Modifier.height(12.dp))
+
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                modifier = Modifier.weight(1f),
+                                horizontalArrangement = Arrangement.spacedBy(18.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    LikeToggleButton(
+                                        icon = Icons.Rounded.ThumbUp,
+                                        selected = userLike == DropLikeStatus.LIKED,
+                                        enabled = canLike && !isVoting,
+                                        onClick = {
+                                            val nextStatus = if (userLike == DropLikeStatus.LIKED) {
+                                                DropLikeStatus.NONE
+                                            } else {
+                                                DropLikeStatus.LIKED
+                                            }
+                                            onLike(nextStatus)
+                                        },
+                                        contentDescription = if (userLike == DropLikeStatus.LIKED) {
+                                            "Unlike drop"
+                                        } else {
+                                            "Like drop"
+                                        }
+                                    )
+
+                                    Text(
+                                        text = likeCount.toString(),
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                }
+
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    LikeToggleButton(
+                                        icon = Icons.Rounded.ThumbDown,
+                                        selected = userLike == DropLikeStatus.DISLIKED,
+                                        enabled = canLike && !isVoting,
+                                        onClick = {
+                                            val nextStatus = if (userLike == DropLikeStatus.DISLIKED) {
+                                                DropLikeStatus.NONE
+                                            } else {
+                                                DropLikeStatus.DISLIKED
+                                            }
+                                            onLike(nextStatus)
+                                        },
+                                        contentDescription = if (userLike == DropLikeStatus.DISLIKED) {
+                                            "Remove dislike"
+                                        } else {
+                                            "Dislike drop"
+                                        }
+                                    )
+
+                                    Text(
+                                        text = dislikeCount.toString(),
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                }
+
+                                if (canReport) {
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(5.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        OutlinedButton(
+                                            onClick = onReport,
+                                            enabled = !alreadyReported && !isReporting
+                                        ) {
+                                            if (isReporting) {
+                                                CircularProgressIndicator(
+                                                    modifier = Modifier.size(16.dp),
+                                                    strokeWidth = 2.dp
+                                                )
+                                            } else {
+                                                Icon(Icons.Rounded.Report, contentDescription = null)
+                                            }
+                                            Spacer(Modifier.width(8.dp))
+                                            Text(
+                                                text = when {
+                                                    isReporting -> "Reporting..."
+                                                    alreadyReported -> "Reported"
+                                                    else -> "Report"
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            if (isVoting) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            }
+                        }
+
+                        if (likeRestrictionMessage != null) {
+                            Text(
+                                text = likeRestrictionMessage,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = supportingColor
+                            )
+                        }
+
+                        reportRestrictionMessage?.let { message ->
+                            Text(
+                                text = message,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = supportingColor
+                            )
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextButton(onClick = onView) {
+                            Text("View details")
+                        }
+                        IconButton(onClick = onRemove) {
+                            Icon(Icons.Filled.Delete, contentDescription = "Remove from inventory")
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+@Composable
+private fun ManageGroupsDialog(
+    groups: List<GroupMembership>,
+    snackbarHostState: SnackbarHostState,
+    onDismiss: () -> Unit,
+    onCreate: (String) -> Unit,
+    onSubscribe: (String) -> Unit,
+    onRemove: (String) -> Unit
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background
+        ) {
+            @OptIn(ExperimentalMaterial3Api::class)
+            Scaffold(
+                topBar = {
+                    TopAppBar(
+                        title = { Text("Manage group codes") },
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = MaterialTheme.colorScheme.background,
+                            scrolledContainerColor = MaterialTheme.colorScheme.background,
+                            navigationIconContentColor = MaterialTheme.colorScheme.onBackground,
+                            titleContentColor = MaterialTheme.colorScheme.onBackground,
+                            actionIconContentColor = MaterialTheme.colorScheme.onBackground
+                        ),
+                        navigationIcon = {
+                            IconButton(onClick = onDismiss) {
+                                Icon(
+                                    Icons.Filled.ArrowBack,
+                                    contentDescription = "Back to main page"
+                                )
+                            }
+                        }
+                    )
+                },
+                snackbarHost = {
+                    SnackbarHost(
+                        hostState = snackbarHostState,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp)
+                    )
+                }
+            ) { padding ->
+                var createCode by rememberSaveable(stateSaver = TextFieldValue.Saver) {
+                    mutableStateOf(TextFieldValue(""))
+                }
+                var subscribeCode by rememberSaveable(stateSaver = TextFieldValue.Saver) {
+                    mutableStateOf(TextFieldValue(""))
+                }
+
+                val ownedGroups = groups.filter { it.role == GroupRole.OWNER }
+                val subscribedGroups = groups.filter { it.role == GroupRole.SUBSCRIBER }
+                val createNormalized = GroupPreferences.normalizeGroupCode(createCode.text)
+                val subscribeNormalized = GroupPreferences.normalizeGroupCode(subscribeCode.text)
+
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                        .padding(horizontal = 16.dp),
+                    contentPadding = PaddingValues(vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(24.dp)
+                ) {
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text(
+                                text = "Create a group",
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                            Text(
+                                text = "Pick a code to share with your crew. Only you can add or remove drops.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            OutlinedTextField(
+                                value = createCode,
+                                onValueChange = { createCode = it },
+                                label = { Text("Group code") },
+                                supportingText = {
+                                    Text("Codes stay on this device. Share with people you trust.")
+                                },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Button(
+                                onClick = {
+                                    createNormalized?.let {
+                                        onCreate(it)
+                                        createCode = TextFieldValue("")
+                                    }
+                                },
+                                enabled = createNormalized != null,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Create group")
+                            }
+                        }
+                    }
+
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text(
+                                text = "Groups you created",
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                            if (ownedGroups.isEmpty()) {
+                                Text(
+                                    text = "You haven't created any groups yet.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            } else {
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    ownedGroups.forEach { membership ->
+                                        GroupCodeRow(
+                                            membership = membership,
+                                            onRemove = onRemove
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text(
+                                text = "Subscribe to a group",
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                            Text(
+                                text = "Enter a code you received to follow drops from others.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            OutlinedTextField(
+                                value = subscribeCode,
+                                onValueChange = { subscribeCode = it },
+                                label = { Text("Group code") },
+                                supportingText = {
+                                    Text("Codes stay on this device. You can leave anytime.")
+                                },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Button(
+                                onClick = {
+                                    subscribeNormalized?.let {
+                                        onSubscribe(it)
+                                        subscribeCode = TextFieldValue("")
+                                    }
+                                },
+                                enabled = subscribeNormalized != null,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Subscribe")
+                            }
+                        }
+                    }
+
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text(
+                                text = "Groups you're subscribed to",
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                            if (subscribedGroups.isEmpty()) {
+                                Text(
+                                    text = "You haven't subscribed to any groups yet.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            } else {
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    subscribedGroups.forEach { membership ->
+                                        GroupCodeRow(
+                                            membership = membership,
+                                            onRemove = onRemove
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MyDropsContent(
+    modifier: Modifier = Modifier,
+    loading: Boolean,
+    drops: List<Drop>,
+    currentLocation: LatLng?,
+    deletingId: String?,
+    error: String?,
+    emptyMessage: String? = null,
+    selectedId: String?,
+    sortOption: DropSortOption,
+    sortOptions: List<DropSortOption>,
+    onSortOptionChange: (DropSortOption) -> Unit,
+    onSelect: (Drop) -> Unit,
+    onRetry: () -> Unit,
+    onView: (Drop) -> Unit,
+    onDelete: (Drop) -> Unit,
+    topContentPadding: Dp = 0.dp,
+    contentPadding: PaddingValues = PaddingValues(vertical = 16.dp)
+) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(contentPadding)
+    ) {
+        when {
+            loading -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(top = topContentPadding),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            }
+
+            error != null -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(top = topContentPadding)
+                ) {
+                    DialogMessageContent(
+                        message = error,
+                        primaryLabel = "Retry",
+                        onPrimary = onRetry,
+                        onDismiss = null
+                    )
+                }
+            }
+
+            drops.isEmpty() -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(top = topContentPadding)
+                ) {
+                    DialogMessageContent(
+                        message = emptyMessage ?: "You haven't dropped any notes yet.",
+                        primaryLabel = null,
+                        onPrimary = null,
+                        onDismiss = null
+                    )
+                }
+            }
+
+            else -> {
+                val listState = rememberLazyListState()
+                var lastSortOption by remember { mutableStateOf(sortOption) }
+                var skipSelectionScroll by remember { mutableStateOf(false) }
+
+                LaunchedEffect(sortOption) {
+                    if (lastSortOption != sortOption) {
+                        skipSelectionScroll = true
+                        listState.scrollToItem(0)
+                        lastSortOption = sortOption
+                    }
+                }
+
+                LaunchedEffect(selectedId, drops) {
+                    if (skipSelectionScroll) {
+                        skipSelectionScroll = false
+                        return@LaunchedEffect
+                    }
+                    val targetId = selectedId ?: return@LaunchedEffect
+                    val index = drops.indexOfFirst { it.id == targetId }
+                    if (index >= 0) {
+                        listState.animateScrollToItem(index)
+                    }
+                }
+                val minMapWeight = MAP_LIST_MIN_WEIGHT
+                val maxMapWeight = MAP_LIST_MAX_WEIGHT
+                var containerHeight by remember { mutableStateOf(0) }
+                var mapWeight by rememberSaveable {
+                    mutableStateOf(DEFAULT_MAP_WEIGHT.coerceIn(minMapWeight, maxMapWeight))
+                }
+
+                val listWeight = 1f - mapWeight
+                val dividerDragState = rememberDraggableState { delta ->
+                    val height = containerHeight.takeIf { it > 0 }?.toFloat()
+                        ?: return@rememberDraggableState
+                    val deltaWeight = delta / height
+                    val updated = (mapWeight + deltaWeight).coerceIn(minMapWeight, maxMapWeight)
+                    if (updated != mapWeight) {
+                        mapWeight = updated
+                    }
+                }
+                val dividerInteraction = remember { MutableInteractionSource() }
+                val dividerModifier = Modifier
+                    .fillMaxWidth()
+                    .height(DIVIDER_DRAG_HANDLE_HEIGHT)
+                    .draggable(
+                        state = dividerDragState,
+                        orientation = Orientation.Vertical,
+                        interactionSource = dividerInteraction
+                    )
+                    .semantics(mergeDescendants = true) {
+                        progressBarRangeInfo = ProgressBarRangeInfo(
+                            current = mapWeight,
+                            range = minMapWeight..maxMapWeight
+                        )
+                        stateDescription =
+                            "Map occupies ${(mapWeight * 100).roundToInt()} percent of the available height"
+                        setProgress { target ->
+                            val coerced = target.coerceIn(minMapWeight, maxMapWeight)
+                            if (coerced != mapWeight) {
+                                mapWeight = coerced
+                            }
+                            true
+                        }
+                    }
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .onSizeChanged { containerHeight = it.height }
+                        .padding(top = topContentPadding)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(mapWeight)
+                    ) {
+                        MyDropsMap(
+                            drops = drops,
+                            selectedDropId = selectedId,
+                            currentLocation = currentLocation,
+                            onDropClick = onSelect
+                        )
+                    }
+
+                    Box(modifier = dividerModifier) {
+                        Divider(modifier = Modifier.align(Alignment.Center))
+                        DividerDragHandleHint(
+                            modifier = Modifier.align(Alignment.Center),
+                            text = stringResource(R.string.drag_to_resize)
+                        )
+                    }
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(listWeight)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            DropSortMenu(
+                                modifier = Modifier.weight(1f),
+                                current = sortOption,
+                                options = sortOptions,
+                                onSelect = onSortOptionChange
+                            )
+
+                            Spacer(Modifier.width(12.dp))
+                            CountBadge(count = drops.size)
+                        }
+
+                        LazyColumn(
+                            state = listState,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            items(drops, key = { it.id }) { drop ->
+                                ManageDropRow(
+                                    drop = drop,
+                                    isDeleting = deletingId == drop.id,
+                                    isSelected = drop.id == selectedId,
+                                    onSelect = { onSelect(drop) },
+                                    onView = { onView(drop) },
+                                    onDelete = { onDelete(drop) }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+@Composable
+private fun DividerDragHandleHint(
+    modifier: Modifier = Modifier,
+    text: String
+) {
+    Surface(
+        modifier = modifier,
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.surfaceColorAtElevation(6.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)),
+        tonalElevation = 2.dp,
+        shadowElevation = 0.dp
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.DragHandle,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+    }
+}
+
+@Composable
+private fun GroupCodeRow(
+    membership: GroupMembership,
+    onRemove: (String) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            val code = membership.code
+            val isOwner = membership.role == GroupRole.OWNER
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = code,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = if (isOwner) {
+                        "You created this group. Only you can add or remove drops."
+                    } else {
+                        "Subscribed to this group's drops and updates."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            Spacer(Modifier.width(8.dp))
+
+            IconButton(onClick = { onRemove(code) }) {
+                Icon(
+                    imageVector = Icons.Filled.Delete,
+                    contentDescription = "Remove group code"
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MediaCaptureCard(
+    title: String,
+    description: String,
+    status: String,
+    isReady: Boolean,
+    primaryLabel: String,
+    primaryIcon: ImageVector? = null,
+    onPrimary: () -> Unit,
+    secondaryLabel: String? = null,
+    onSecondary: (() -> Unit)? = null,
+    previewContent: (@Composable () -> Unit)? = null
+) {
+    val containerColor by animateColorAsState(
+        targetValue = if (isReady) {
+            MaterialTheme.colorScheme.primaryContainer
+        } else {
+            MaterialTheme.colorScheme.surfaceVariant
+        },
+        label = "mediaContainer"
+    )
+    val contentColor = if (isReady) {
+        MaterialTheme.colorScheme.onPrimaryContainer
+    } else {
+        MaterialTheme.colorScheme.onSurface
+    }
+    val supportingColor = if (isReady) {
+        MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    val statusIcon = if (isReady) Icons.Rounded.CheckCircle else Icons.Rounded.Info
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = containerColor,
+            contentColor = contentColor
+        ),
+        border = BorderStroke(
+            width = 1.dp,
+            color = if (isReady) {
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)
+            } else {
+                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+            }
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(title, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = supportingColor
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = statusIcon,
+                    contentDescription = null,
+                    tint = if (isReady) MaterialTheme.colorScheme.primary else supportingColor
+                )
+                Text(
+                    text = status,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = supportingColor,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            previewContent?.let {
+                it()
+            }
+
+            Button(
+                onClick = onPrimary,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                if (primaryIcon != null) {
+                    Icon(primaryIcon, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                }
+                Text(primaryLabel)
+            }
+            if (secondaryLabel != null && onSecondary != null) {
+                OutlinedButton(
+                    onClick = onSecondary,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = contentColor
+                    )
+                ) {
+                    Text(secondaryLabel)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MyDropsMap(
+    drops: List<Drop>,
+    selectedDropId: String?,
+    currentLocation: LatLng?,
+    onDropClick: (Drop) -> Unit
+) {
+    val cameraPositionState = rememberCameraPositionState()
+    val uiSettings = remember { MapUiSettings(zoomControlsEnabled = true) }
+
+    LaunchedEffect(drops, selectedDropId, currentLocation) {
+        val targetDrop = drops.firstOrNull { it.id == selectedDropId }
+        val target = targetDrop?.let { LatLng(it.lat, it.lng) }
+            ?: currentLocation
+            ?: drops.firstOrNull()?.let { LatLng(it.lat, it.lng) }
+        if (target != null) {
+            val zoomLevel = if (targetDrop != null) 18f else 15f
+            val update = CameraUpdateFactory.newLatLngZoom(target, zoomLevel)
+            cameraPositionState.animate(update)
+        }
+    }
+
+    GoogleMap(
+        modifier = Modifier
+            .fillMaxSize()
+            .consumeMapGesturesInParent(),
+        cameraPositionState = cameraPositionState,
+        uiSettings = uiSettings
+    ) {
+        currentLocation?.let { location ->
+            Marker(
+                state = MarkerState(location),
+                title = "Your current location",
+                icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE),
+                zIndex = 1f
+            )
+        }
+
+        drops.forEach { drop ->
+            val position = LatLng(drop.lat, drop.lng)
+            val snippetParts = mutableListOf<String>()
+            val typeLabel = when (drop.contentType) {
+                DropContentType.TEXT -> "Text note"
+                DropContentType.PHOTO -> "Photo drop"
+                DropContentType.AUDIO -> "Audio drop"
+                DropContentType.VIDEO -> "Video drop"
+            }
+            snippetParts.add("Type: $typeLabel")
+            formatTimestamp(drop.createdAt)?.let { snippetParts.add("Dropped $it") }
+            drop.groupCode?.takeIf { !it.isNullOrBlank() }?.let { snippetParts.add("Group $it") }
+            snippetParts.add("Lat: %.5f, Lng: %.5f".format(drop.lat, drop.lng))
+            snippetParts.add("Likes: ${drop.likeCount}")
+            snippetParts.add("Dislikes: ${drop.dislikeCount}")
+            if (drop.isNsfw) {
+                snippetParts.add("Marked as adult content")
+            }
+
+            val isSelected = drop.id == selectedDropId
+            val markerIcon = when {
+                isSelected -> BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE)
+                drop.isNsfw -> BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_MAGENTA)
+                else -> BitmapDescriptorFactory.defaultMarker(likeHueFor(drop.likeCount))
+            }
+
+            Marker(
+                state = MarkerState(position),
+                title = drop.displayTitle(),
+                snippet = snippetParts.joinToString("\n"),
+                icon = markerIcon,
+                alpha = if (isSelected) 1f else 0.9f,
+                zIndex = if (isSelected) 2f else 0f,
+                onClick = {
+                    onDropClick(drop)
+                    false
+                }
+            )
+        }
+    }
+}
+
+@Composable
+private fun DropNsfwBadge(
+    modifier: Modifier = Modifier,
+    containerColor: Color = MaterialTheme.colorScheme.errorContainer,
+    contentColor: Color = MaterialTheme.colorScheme.onErrorContainer
+) {
+    Surface(
+        modifier = modifier,
+        color = containerColor,
+        contentColor = contentColor,
+        shape = RoundedCornerShape(999.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Block,
+                contentDescription = "Adult content",
+                modifier = Modifier.size(16.dp)
+            )
+            Text(
+                text = "18+",
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+    }
+}
+
+@Composable
+private fun DropTitleText(
+    drop: Drop,
+    modifier: Modifier = Modifier,
+    style: TextStyle = MaterialTheme.typography.bodyLarge,
+    maxLines: Int = Int.MAX_VALUE,
+    overflow: TextOverflow = TextOverflow.Clip
+) {
+    val (handle, baseTitle) = drop.displayTitleParts()
+    val annotatedTitle = remember(handle, baseTitle) {
+        if (handle != null) {
+            buildAnnotatedString {
+                withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
+                    append(handle)
+                }
+                append(" dropped ")
+                append(baseTitle)
+            }
+        } else {
+            AnnotatedString(baseTitle)
+        }
+    }
+
+    Text(
+        text = annotatedTitle,
+        style = style,
+        modifier = modifier,
+        maxLines = maxLines,
+        overflow = overflow
+    )
+}
+
+@Composable
+private fun PickupCelebrationBanner(
+    modifier: Modifier = Modifier,
+    visible: Boolean,
+    dropTitle: String?
+) {
+    if (dropTitle.isNullOrBlank()) return
+    val infiniteTransition = rememberInfiniteTransition(label = "pickupCelebration")
+    val sparkleOffset by infiniteTransition.animateFloat(
+        initialValue = -4f,
+        targetValue = 4f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 900, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pickupSparkleOffset"
+    )
+    val shimmerAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.65f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pickupShimmerAlpha"
+    )
+
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(animationSpec = tween(durationMillis = 200)) + scaleIn(
+            initialScale = 0.9f,
+            animationSpec = spring(
+                dampingRatio = Spring.DampingRatioMediumBouncy,
+                stiffness = Spring.StiffnessLow
+            )
+        ),
+        exit = fadeOut(animationSpec = tween(durationMillis = 250)) + scaleOut(
+            targetScale = 0.95f,
+            animationSpec = tween(durationMillis = 250)
+        ),
+        modifier = modifier
+    ) {
+        Card(
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+            ),
+            shape = RoundedCornerShape(24.dp),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+        ) {
+            Row(
+                modifier = Modifier
+                    .padding(horizontal = 20.dp, vertical = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Star,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier
+                        .size(36.dp)
+                        .graphicsLayer { translationY = sparkleOffset }
+                )
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Drop collected!",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = dropTitle,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Icon(
+                    imageVector = Icons.Rounded.CheckCircle,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.secondary.copy(alpha = shimmerAlpha),
+                    modifier = Modifier.size(28.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun OtherDropRow(
+    drop: Drop,
+    isSelected: Boolean,
+    currentLocation: LatLng?,
+    userLike: DropLikeStatus,
+    canPickUp: Boolean,
+    pickupRestrictionMessage: String?,
+    showReport: Boolean,
+    canReport: Boolean,
+    alreadyReported: Boolean,
+    reportRestrictionMessage: String?,
+    isReporting: Boolean,
+    canIgnoreForNow: Boolean,
+    onIgnoreForNow: () -> Unit,
+    onSelect: () -> Unit,
+    onPickUp: () -> Unit,
+    onReport: () -> Unit
+) {
+    val containerColor = if (isSelected) {
+        MaterialTheme.colorScheme.primaryContainer
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant
+    }
+    val contentColor = if (isSelected) {
+        MaterialTheme.colorScheme.onPrimaryContainer
+    } else {
+        MaterialTheme.colorScheme.onSurface
+    }
+    val supportingColor = if (isSelected) {
+        MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    val distanceMeters = currentLocation?.let { location ->
+        distanceBetweenMeters(location.latitude, location.longitude, drop.lat, drop.lng)
+    }
+    val withinPickupRange =
+        distanceMeters != null && distanceMeters <= DROP_PICKUP_RADIUS_METERS
+    val canPreviewContent = withinPickupRange
+    val context = LocalContext.current
+    val mediaAttachment = remember(
+        context,
+        drop.id,
+        drop.mediaUrl,
+        drop.mediaData,
+        drop.mediaMimeType,
+        drop.contentType
+    ) {
+        if (drop.contentType == DropContentType.AUDIO || drop.contentType == DropContentType.VIDEO) {
+            resolveDropMediaAttachment(context, drop)
+        } else {
+            null
+        }
+    }
+    val previewText = drop.description?.takeIf { it.isNotBlank() }
+        ?: drop.text.takeIf { it.isNotBlank() }
+        ?: when (drop.contentType) {
+            DropContentType.PHOTO -> "Preview the photo below."
+            DropContentType.AUDIO -> "Use the player below to listen to this drop."
+            DropContentType.VIDEO -> "Use the player below to watch this drop."
+            DropContentType.TEXT -> null
+        }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        onClick = onSelect,
+        colors = CardDefaults.cardColors(
+            containerColor = containerColor,
+            contentColor = contentColor
+        )
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                DropTitleText(
+                    drop = drop,
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.weight(1f),
+                    maxLines = if (isSelected) Int.MAX_VALUE else 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                if (drop.isNsfw) {
+                    DropNsfwBadge()
+                }
+
+                Icon(
+                    imageVector = if (isSelected) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                    contentDescription = if (isSelected) {
+                        "Collapse drop details"
+                    } else {
+                        "Expand drop details"
+                    }
+                )
+            }
+
+            if (canPreviewContent && !previewText.isNullOrBlank()) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = previewText,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = supportingColor,
+                    maxLines = if (isSelected) Int.MAX_VALUE else 3,
+                    overflow = TextOverflow.Ellipsis
+                )
+            } else if (!canPreviewContent) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = "Move closer to preview this drop.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = supportingColor
+                )
+            }
+
+            AnimatedVisibility(visible = isSelected) {
+                Column {
+                    Spacer(Modifier.height(8.dp))
+                    val typeLabel = when (drop.contentType) {
+                        DropContentType.TEXT -> "Text note"
+                        DropContentType.PHOTO -> "Photo drop"
+                        DropContentType.AUDIO -> "Audio drop"
+                        DropContentType.VIDEO -> "Video drop"
+                    }
+
+                    formatTimestamp(drop.createdAt)?.let {
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = it,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = supportingColor
+                        )
+                    }
+                    drop.groupCode?.takeIf { !it.isNullOrBlank() }?.let { groupCode ->
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = "Group $groupCode",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = supportingColor
+                        )
+                    }
+
+                    if (canPreviewContent && drop.contentType == DropContentType.PHOTO) {
+                        val mediaUrl = drop.mediaLabel()
+                        if (!mediaUrl.isNullOrBlank()) {
+                            Spacer(Modifier.height(12.dp))
+                            val imageRequest = remember(mediaUrl) {
+                                ImageRequest.Builder(context)
+                                    .data(mediaUrl)
+                                    .crossfade(true)
+                                    .build()
+                            }
+
+                            AsyncImage(
+                                model = imageRequest,
+                                contentDescription = drop.displayTitle(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(min = 160.dp, max = 280.dp)
+                                    .clip(RoundedCornerShape(12.dp)),
+                                contentScale = ContentScale.Crop
+                            )
+                        }
+                    }
+
+                    if (canPreviewContent && (drop.contentType == DropContentType.AUDIO || drop.contentType == DropContentType.VIDEO)) {
+                        Spacer(Modifier.height(12.dp))
+                        AttachmentPreviewSection(
+                            contentType = drop.contentType,
+                            attachment = mediaAttachment,
+                            onOpen = { attachment -> openDropMediaAttachment(context, attachment) }
+                        )
+                    }
+
+                    Spacer(Modifier.height(4.dp))
+
+                    distanceMeters?.let { distance ->
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = "You're ${formatDistanceMeters(distance)} away.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = supportingColor
+                        )
+                    }
+
+                    Spacer(Modifier.height(12.dp))
+
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                modifier = Modifier.weight(1f),
+                                horizontalArrangement = Arrangement.spacedBy(18.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                ReactionCount(
+                                    icon = Icons.Rounded.ThumbUp,
+                                    count = drop.likeCount,
+                                    isHighlighted = userLike == DropLikeStatus.LIKED
+                                )
+
+                                ReactionCount(
+                                    icon = Icons.Rounded.ThumbDown,
+                                    count = drop.dislikeCount,
+                                    isHighlighted = userLike == DropLikeStatus.DISLIKED
+                                )
+                            }
+
+                            if (showReport) {
+                                OutlinedButton(
+                                    onClick = onReport,
+                                    enabled = canReport && !alreadyReported && !isReporting
+                                ) {
+                                    if (isReporting) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(16.dp),
+                                            strokeWidth = 2.dp
+                                        )
+                                    } else {
+                                        Icon(
+                                            Icons.Rounded.Report,
+                                            contentDescription = null
+                                        )
+                                    }
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(
+                                        text = when {
+                                            isReporting -> "Reporting..."
+                                            alreadyReported -> "Reported"
+                                            else -> "Report"
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    if (showReport) {
+                        reportRestrictionMessage?.let { message ->
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                text = message,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = supportingColor
+                            )
+                        }
+                    }
+                    if (withinPickupRange) {
+                        Spacer(Modifier.height(12.dp))
+                        if (canPickUp) {
+                            Button(
+                                onClick = onPickUp,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Pick up drop")
+                            }
+                        } else {
+                            Text(
+                                text = pickupRestrictionMessage
+                                    ?: "Preview this drop while browsing as a guest. Sign in to pick it up nearby.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = supportingColor
+                            )
+                        }
+                    }
+                    if (withinPickupRange && canIgnoreForNow) {
+                        Spacer(Modifier.height(12.dp))
+                        OutlinedButton(
+                            onClick = onIgnoreForNow,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Rounded.Close, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text(stringResource(R.string.action_ignore_drop_for_now))
+                        }
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = stringResource(R.string.browse_ignore_drop_explainer),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = supportingColor
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReactionCount(
+    icon: ImageVector,
+    count: Long,
+    isHighlighted: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val highlightColor = MaterialTheme.colorScheme.primary
+    val iconColor = if (isHighlighted) {
+        highlightColor
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    val textColor = if (isHighlighted) {
+        highlightColor
+    } else {
+        LocalContentColor.current
+    }
+
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(5.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = iconColor
+        )
+
+        Text(
+            text = count.toString(),
+            style = MaterialTheme.typography.bodyMedium,
+            color = textColor
+        )
+    }
+}
+
+private const val REPORT_SOURCE_BROWSE_MAP = "browse_map"
+private const val REPORT_SOURCE_COLLECTED = "collected_inventory"
+
+private data class ReportableDrop(
+    val id: String,
+    val contentType: DropContentType,
+    val dropType: DropType,
+    val hasMedia: Boolean,
+    val source: String
+)
+
+private fun Drop.toReportableDrop(source: String): ReportableDrop {
+    return ReportableDrop(
+        id = id,
+        contentType = contentType,
+        dropType = dropType,
+        hasMedia = !mediaUrl.isNullOrBlank() || !mediaData.isNullOrBlank(),
+        source = source
+    )
+}
+
+private fun CollectedNote.toReportableDrop(source: String): ReportableDrop {
+    return ReportableDrop(
+        id = id,
+        contentType = contentType,
+        dropType = dropType,
+        hasMedia = !mediaUrl.isNullOrBlank() || !mediaData.isNullOrBlank(),
+        source = source
+    )
+}
+
+@Composable
+private fun AttachmentPreviewSection(
+    contentType: DropContentType,
+    attachment: DropMediaAttachment?,
+    onOpen: (DropMediaAttachment) -> Unit
+) {
+    when (contentType) {
+        DropContentType.AUDIO -> {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.GraphicEq,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Column {
+                        Text(
+                            text = "Audio clip",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = "Tap to listen to this recording.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            Button(
+                onClick = { attachment?.let(onOpen) },
+                enabled = attachment != null,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Play audio")
+            }
+
+            if (attachment == null) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = "Attachment unavailable.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+
+        DropContentType.VIDEO -> {
+            val videoUri = attachment?.asUriOrNull()
+
+            if (videoUri != null) {
+                DropVideoPlayer(
+                    videoUri = videoUri,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+//                Spacer(Modifier.height(8.dp))
+
+//                Text(
+//                    text = "Tap play to watch this clip.",
+//                    style = MaterialTheme.typography.bodySmall,
+//                    color = MaterialTheme.colorScheme.onSurfaceVariant
+//                )
+
+                Spacer(Modifier.height(8.dp))
+            }
+
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.PlayArrow,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Column {
+                        Text(
+                            text = "Video clip",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = if (videoUri != null) {
+                                "Watch here or open it in another app."
+                            } else {
+                                "Attachment unavailable."
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            Button(
+                onClick = { attachment?.let(onOpen) },
+                enabled = attachment != null,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(if (videoUri != null) "Open video externally" else "Play video")
+            }
+        }
+
+        else -> return
+    }
+}
+
+@Composable
+private fun OtherDropsMap(
+    drops: List<Drop>,
+    selectedDropId: String?,
+    currentLocation: LatLng?,
+    notificationRadiusMeters: Double,
+    onDropClick: (Drop) -> Unit
+) {
+    val context = LocalContext.current
+    val baseMarkerBitmap = remember {
+        BitmapFactory.decodeResource(
+            context.resources,
+            R.drawable.explorer_drop_marker
+        )?.let { bitmap ->
+            if (bitmap.config == Bitmap.Config.ARGB_8888) {
+                bitmap
+            } else {
+                bitmap.copy(Bitmap.Config.ARGB_8888, false)
+            }
+        }
+    }
+    val businessMarkerDescriptor = remember {
+        runCatching {
+            BitmapFactory.decodeResource(
+                context.resources,
+                R.drawable.business_drop_marker
+            )?.let { bitmap ->
+                val argbBitmap = if (bitmap.config == Bitmap.Config.ARGB_8888) {
+                    bitmap
+                } else {
+                    bitmap.copy(Bitmap.Config.ARGB_8888, false)
+                }
+                BitmapDescriptorFactory.fromBitmap(argbBitmap)
+            }
+        }.getOrElse { error ->
+            Log.e("GeoDrop", "Failed to load business drop marker", error)
+            null
+        }
+    }
+    val markerDescriptorCache = remember(baseMarkerBitmap) { mutableMapOf<Float, BitmapDescriptor>() }
+
+    fun descriptorForHue(hue: Float): BitmapDescriptor {
+        markerDescriptorCache[hue]?.let { return it }
+        val descriptor = baseMarkerBitmap?.let { base ->
+            val tinted = Bitmap.createBitmap(base.width, base.height, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(tinted)
+            canvas.drawBitmap(base, 0f, 0f, null)
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                colorFilter = PorterDuffColorFilter(
+                    android.graphics.Color.HSVToColor(floatArrayOf(hue, 0.8f, 1f)),
+                    PorterDuff.Mode.SRC_ATOP
+                )
+                alpha = 200
+            }
+            canvas.drawBitmap(base, 0f, 0f, paint)
+            BitmapDescriptorFactory.fromBitmap(tinted)
+        } ?: BitmapDescriptorFactory.defaultMarker(hue)
+        markerDescriptorCache[hue] = descriptor
+        return descriptor
+    }
+
+    val cameraPositionState = rememberCameraPositionState()
+    val uiSettings = remember { MapUiSettings(zoomControlsEnabled = true) }
+
+    LaunchedEffect(drops, selectedDropId, currentLocation) {
+        val targetDrop = drops.firstOrNull { it.id == selectedDropId }
+        val target = targetDrop?.let { LatLng(it.lat, it.lng) }
+            ?: currentLocation
+            ?: drops.firstOrNull()?.let { LatLng(it.lat, it.lng) }
+        if (target != null) {
+            val zoomLevel = if (targetDrop != null) 18f else 15f
+            val update = CameraUpdateFactory.newLatLngZoom(target, zoomLevel)
+            cameraPositionState.animate(update)
+        }
+    }
+
+    GoogleMap(
+        modifier = Modifier
+            .fillMaxSize()
+            .consumeMapGesturesInParent(),
+        cameraPositionState = cameraPositionState,
+        uiSettings = uiSettings
+    ) {
+        currentLocation?.let { location ->
+            if (notificationRadiusMeters > 0.0) {
+                Circle(
+                    center = location,
+                    radius = notificationRadiusMeters,
+                    strokeColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
+                    strokeWidth = 2f,
+                    fillColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                    zIndex = 0f
+                )
+            }
+
+            Marker(
+                state = MarkerState(location),
+                title = "Your current location",
+                icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE),
+                zIndex = 1f
+            )
+        }
+
+        val selectedDrop = selectedDropId?.let { id -> drops.firstOrNull { it.id == id } }
+        selectedDrop?.let { drop ->
+            val dropPosition = LatLng(drop.lat, drop.lng)
+            Circle(
+                center = dropPosition,
+                radius = DROP_PICKUP_RADIUS_METERS,
+                strokeColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.6f),
+                strokeWidth = 2f,
+                fillColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f),
+                zIndex = 1f
+            )
+        }
+
+        drops.forEach { drop ->
+            val position = LatLng(drop.lat, drop.lng)
+            val snippetParts = mutableListOf<String>()
+            val snippetDescription = drop.description?.takeIf { it.isNotBlank() }
+                ?: drop.text.takeIf { it.isNotBlank() }
+                ?: when (drop.contentType) {
+                    DropContentType.PHOTO -> "Preview the photo in the drop list."
+                    DropContentType.AUDIO -> "Open the drop list to play this recording."
+                    DropContentType.VIDEO -> "Open the drop list to watch this clip."
+                    DropContentType.TEXT -> ""
+                }
+            if (!snippetDescription.isNullOrBlank()) {
+                snippetParts.add(snippetDescription)
+            }
+            formatTimestamp(drop.createdAt)?.let { snippetParts.add("Dropped $it") }
+            drop.groupCode?.takeIf { !it.isNullOrBlank() }?.let { snippetParts.add("Group $it") }
+            snippetParts.add("Lat: %.5f, Lng: %.5f".format(drop.lat, drop.lng))
+            snippetParts.add("Likes: ${drop.likeCount}")
+            if (drop.isNsfw) {
+                snippetParts.add("Marked as adult content")
+            }
+
+            val isSelected = drop.id == selectedDropId
+
+            val markerIcon = when {
+                drop.isBusinessDrop() && businessMarkerDescriptor != null -> businessMarkerDescriptor
+                isSelected -> descriptorForHue(BitmapDescriptorFactory.HUE_BLUE)
+                drop.isNsfw -> descriptorForHue(BitmapDescriptorFactory.HUE_MAGENTA)
+                else -> descriptorForHue(likeHueFor(drop.likeCount))
+            }
+
+            Marker(
+                state = MarkerState(position),
+                title = drop.displayTitle(),
+                snippet = snippetParts.joinToString("\n"),
+                icon = markerIcon,
+                alpha = if (isSelected) 1f else 0.9f,
+                zIndex = if (isSelected) 2f else 0f,
+                onClick = {
+                    onDropClick(drop)
+                    false
+                }
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalComposeUiApi::class)
+@Composable
+private fun Modifier.consumeMapGesturesInParent(): Modifier {
+    val view = LocalView.current
+    return pointerInteropFilter { event ->
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN,
+            MotionEvent.ACTION_MOVE,
+            MotionEvent.ACTION_POINTER_DOWN -> {
+                view.parent?.requestDisallowInterceptTouchEvent(true)
+            }
+
+            MotionEvent.ACTION_UP,
+            MotionEvent.ACTION_CANCEL,
+            MotionEvent.ACTION_POINTER_UP -> {
+                view.parent?.requestDisallowInterceptTouchEvent(false)
+            }
+        }
+        false
+    }
+}
+
+private fun distanceBetweenMeters(
+    startLat: Double,
+    startLng: Double,
+    endLat: Double,
+    endLng: Double
+): Double {
+    val radius = 6371000.0
+    val dLat = Math.toRadians(endLat - startLat)
+    val dLng = Math.toRadians(endLng - startLng)
+    val originLat = Math.toRadians(startLat)
+    val targetLat = Math.toRadians(endLat)
+    val sinLat = sin(dLat / 2)
+    val sinLng = sin(dLng / 2)
+    val h = sinLat * sinLat + cos(originLat) * cos(targetLat) * sinLng * sinLng
+    return 2 * radius * asin(min(1.0, sqrt(h)))
+}
+
+private fun formatDistanceMeters(distance: Double): String {
+    return if (distance >= 1000) {
+        String.format(Locale.getDefault(), "%.2f km", distance / 1000.0)
+    } else {
+        "${distance.roundToInt()} m"
+    }
+}
+
+private fun likeHueFor(likes: Long): Float {
+    return when {
+        likes >= 25 -> BitmapDescriptorFactory.HUE_AZURE
+        likes >= 10 -> BitmapDescriptorFactory.HUE_GREEN
+        likes >= 5 -> BitmapDescriptorFactory.HUE_YELLOW
+        likes >= 1 -> BitmapDescriptorFactory.HUE_ORANGE
+        else -> BitmapDescriptorFactory.HUE_RED
+    }
+}
+
+private fun resolveDropMediaAttachment(context: Context, drop: Drop): DropMediaAttachment? {
+    val data = drop.mediaData?.takeIf { it.isNotBlank() }
+    val preferredMime = drop.mediaMimeType?.takeIf { it.isNotBlank() }
+    if (data != null) {
+        val (subDir, defaultMime, defaultExtension) = when (drop.contentType) {
+            DropContentType.AUDIO -> Triple("audio", preferredMime ?: "audio/mpeg", "m4a")
+            DropContentType.VIDEO -> Triple("video", preferredMime ?: "video/mp4", "mp4")
+            else -> Triple("media", preferredMime ?: "application/octet-stream", "bin")
+        }
+
+        decodeDropMediaToTempFile(
+            context = context,
+            base64Data = data,
+            mimeType = preferredMime,
+            subDir = subDir,
+            defaultMime = defaultMime,
+            defaultExtension = defaultExtension
+        )?.let { decoded ->
+            return DropMediaAttachment.Local(decoded.uri, decoded.mimeType)
+        }
+    }
+
+    val url = drop.mediaUrl?.takeIf { it.isNotBlank() } ?: return null
+    return DropMediaAttachment.Link(url)
+}
+
+private fun decodeDropMediaToTempFile(
+    context: Context,
+    base64Data: String,
+    mimeType: String?,
+    subDir: String,
+    defaultMime: String,
+    defaultExtension: String
+): DropDecodedMedia? {
+    return try {
+        val bytes = Base64.decode(base64Data, Base64.DEFAULT)
+        val resolvedMime = mimeType?.takeIf { it.isNotBlank() } ?: defaultMime
+        val extension = MimeTypeMap.getSingleton()
+            .getExtensionFromMimeType(resolvedMime)
+            ?.takeIf { it.isNotBlank() }
+            ?: defaultExtension
+        val directory = File(context.cacheDir, subDir).apply { if (!exists()) mkdirs() }
+        val file = File.createTempFile("geodrop_media_", ".${extension}", directory)
+        FileOutputStream(file).use { output -> output.write(bytes) }
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        DropDecodedMedia(uri, resolvedMime)
+    } catch (error: Exception) {
+        Log.e("GeoDrop", "Failed to decode drop media", error)
+        null
+    }
+}
+
+private fun openDropMediaAttachment(context: Context, attachment: DropMediaAttachment) {
+    when (attachment) {
+        is DropMediaAttachment.Link -> {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(attachment.url))
+            runCatching { context.startActivity(intent) }
+                .onFailure {
+                    Toast.makeText(context, "No app found to open this media.", Toast.LENGTH_SHORT).show()
+                }
+        }
+
+        is DropMediaAttachment.Local -> {
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(attachment.uri, attachment.mimeType)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            context.grantUriPermission(
+                context.packageName,
+                attachment.uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION
+            )
+            runCatching { context.startActivity(intent) }
+                .onFailure {
+                    Toast.makeText(context, "No app found to open this media.", Toast.LENGTH_SHORT).show()
+                }
+        }
+    }
+}
+
+private data class DropDecodedMedia(val uri: Uri, val mimeType: String)
+
+private sealed class DropMediaAttachment {
+    data class Link(val url: String) : DropMediaAttachment()
+    data class Local(val uri: Uri, val mimeType: String) : DropMediaAttachment()
+}
+
+private fun DropMediaAttachment.asUriOrNull(): Uri? = when (this) {
+    is DropMediaAttachment.Link -> url.takeIf { it.isNotBlank() }?.let { Uri.parse(it) }
+    is DropMediaAttachment.Local -> uri
+}
+
+@Composable
+private fun LikeToggleButton(
+    icon: ImageVector,
+    selected: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    contentDescription: String? = null
+) {
+    val buttonModifier = modifier.heightIn(min = 40.dp)
+    if (selected) {
+        FilledTonalButton(
+            onClick = onClick,
+            enabled = enabled,
+            modifier = buttonModifier
+        ) {
+            Icon(icon, contentDescription = contentDescription)
+        }
+    } else {
+        OutlinedButton(
+            onClick = onClick,
+            enabled = enabled,
+            modifier = buttonModifier
+        ) {
+            Icon(icon, contentDescription = contentDescription)
+        }
+    }
+}
+
+@Composable
+private fun ManageDropRow(
+    drop: Drop,
+    isDeleting: Boolean,
+    isSelected: Boolean,
+    onSelect: () -> Unit,
+    onView: () -> Unit,
+    onDelete: () -> Unit
+) {
+    val containerColor = if (isSelected) {
+        MaterialTheme.colorScheme.primaryContainer
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant
+    }
+    val contentColor = if (isSelected) {
+        MaterialTheme.colorScheme.onPrimaryContainer
+    } else {
+        MaterialTheme.colorScheme.onSurface
+    }
+    val supportingColor = if (isSelected) {
+        MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        onClick = onSelect,
+        colors = CardDefaults.cardColors(
+            containerColor = containerColor,
+            contentColor = contentColor
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                DropTitleText(
+                    drop = drop,
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.weight(1f)
+                )
+
+                if (drop.isNsfw) {
+                    DropNsfwBadge()
+                }
+
+                Icon(
+                    imageVector = if (isSelected) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                    contentDescription = if (isSelected) {
+                        "Collapse drop details"
+                    } else {
+                        "Expand drop details"
+                    }
+                )
+            }
+
+            AnimatedVisibility(visible = isSelected) {
+                val context = LocalContext.current
+                val mediaAttachment = remember(
+                    drop.id,
+                    drop.mediaUrl,
+                    drop.mediaData,
+                    drop.mediaMimeType
+                ) {
+                    resolveDropMediaAttachment(context, drop)
+                }
+
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Spacer(Modifier.height(4.dp))
+
+                    val typeLabel = when (drop.contentType) {
+                        DropContentType.TEXT -> "Text note"
+                        DropContentType.PHOTO -> "Photo drop"
+                        DropContentType.AUDIO -> "Audio drop"
+                        DropContentType.VIDEO -> "Video drop"
+                    }
+
+                    val descriptionText = drop.description?.takeIf { it.isNotBlank() }
+                    descriptionText?.let {
+                        Text(
+                            text = it,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = supportingColor
+                        )
+                    }
+
+                    when (drop.contentType) {
+                        DropContentType.PHOTO -> {
+                            val imageData = when (mediaAttachment) {
+                                is DropMediaAttachment.Link -> mediaAttachment.url
+                                is DropMediaAttachment.Local -> mediaAttachment.uri
+                                else -> drop.mediaLabel()
+                            }
+                            if (imageData != null) {
+                                val imageRequest = remember(imageData) {
+                                    ImageRequest.Builder(context)
+                                        .data(imageData)
+                                        .crossfade(true)
+                                        .build()
+                                }
+
+                                AsyncImage(
+                                    model = imageRequest,
+                                    contentDescription = drop.displayTitle(),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .heightIn(min = 160.dp, max = 280.dp)
+                                        .clip(RoundedCornerShape(12.dp)),
+                                    contentScale = ContentScale.Crop
+                                )
+                            }
+                        }
+
+                        DropContentType.VIDEO -> {
+                            val videoUri = mediaAttachment?.asUriOrNull()
+                                ?: drop.mediaLabel()?.let { Uri.parse(it) }
+                            if (videoUri != null) {
+                                DropVideoPlayer(
+                                    videoUri = videoUri,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                        }
+
+                        DropContentType.AUDIO -> {
+                            val audioUri = mediaAttachment?.asUriOrNull()
+                                ?: drop.mediaLabel()?.let { Uri.parse(it) }
+                            if (audioUri != null) {
+                                DropAudioPlayer(
+                                    audioUri = audioUri,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                        }
+
+                        DropContentType.TEXT -> Unit
+                    }
+
+                    formatTimestamp(drop.createdAt)?.let {
+                        Text(
+                            text = it,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = supportingColor
+                        )
+                    }
+
+                    CompositionLocalProvider(LocalContentColor provides supportingColor) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(18.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            ReactionCount(
+                                icon = Icons.Rounded.ThumbUp,
+                                count = drop.likeCount,
+                                isHighlighted = false
+                            )
+
+                            ReactionCount(
+                                icon = Icons.Rounded.ThumbDown,
+                                count = drop.dislikeCount,
+                                isHighlighted = false
+                            )
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextButton(
+                            onClick = onView,
+                            enabled = !isDeleting
+                        ) {
+                            Text("View details")
+                        }
+
+                        TextButton(
+                            onClick = onDelete,
+                            enabled = !isDeleting
+                        ) {
+                            if (isDeleting) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text("Deleting…")
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Filled.Delete,
+                                    contentDescription = "Delete drop"
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                Text("Delete")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DropAudioPlayer(
+    audioUri: Uri,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val mediaItem = remember(audioUri) { MediaItem.fromUri(audioUri) }
+    val exoPlayer = remember(mediaItem) {
+        ExoPlayer.Builder(context).build().apply {
+            setMediaItem(mediaItem)
+            playWhenReady = false
+            repeatMode = Player.REPEAT_MODE_OFF
+            prepare()
+        }
+    }
+
+    DisposableEffect(exoPlayer) {
+        onDispose { exoPlayer.release() }
+    }
+
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.GraphicEq,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = "Audio clip",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+
+            AndroidView(
+                modifier = Modifier.fillMaxWidth(),
+                factory = { ctx ->
+                    PlayerControlView(ctx).apply {
+                        layoutParams = FrameLayout.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.WRAP_CONTENT
+                        )
+                        player = exoPlayer
+                        setShowTimeoutMs(0)
+                    }
+                },
+                update = { controlView ->
+                    if (controlView.player !== exoPlayer) {
+                        controlView.player = exoPlayer
+                    }
+                }
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DropContentTypeSection(
+    selected: DropContentType,
+    onSelect: (DropContentType) -> Unit,
+    showHeader: Boolean = true
+) {
+    val options = remember {
+        listOf(
+            DropContentTypeOption(
+                type = DropContentType.TEXT,
+                title = "Text",
+                description = "Share a written message for people nearby.",
+                icon = Icons.Rounded.Edit
+            ),
+            DropContentTypeOption(
+                type = DropContentType.PHOTO,
+                title = "Photo",
+                description = "Capture a photo with your camera that others can open.",
+                icon = Icons.Rounded.PhotoCamera
+            ),
+            DropContentTypeOption(
+                type = DropContentType.VIDEO,
+                title = "Video",
+                description = "Record a short clip for nearby explorers to watch.",
+                icon = Icons.Rounded.Videocam
+            ),
+            DropContentTypeOption(
+                type = DropContentType.AUDIO,
+                title = "Audio",
+                description = "Record a quick voice message for nearby explorers.",
+                icon = Icons.Rounded.Mic
+            )
+        )
+    }
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        if (showHeader) {
+            Text("Drop content", style = MaterialTheme.typography.titleSmall)
+        }
+
+        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+            options.forEachIndexed { index, option ->
+                SegmentedButton(
+                    shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
+                    onClick = { onSelect(option.type) },
+                    selected = option.type == selected,
+                    label = { Text(option.title) },
+                    icon = {
+                        Icon(
+                            imageVector = option.icon,
+                            contentDescription = null
+                        )
+                    }
+                )
+            }
+        }
+
+        Crossfade(targetState = selected, label = "dropContentDescription") { type ->
+            val message = options.firstOrNull { it.type == type }?.description ?: ""
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun BusinessDropTypeSection(
+    dropType: DropType,
+    onDropTypeChange: (DropType) -> Unit,
+    businessName: String?,
+    businessCategories: List<BusinessCategory>,
+    showHeader: Boolean = true
+) {
+    val options = remember(businessCategories) {
+        businessDropTypeOptionsFor(businessCategories).map { optionCopy ->
+            BusinessDropTypeOption(
+                type = optionCopy.type,
+                title = optionCopy.title,
+                description = optionCopy.description,
+                icon = when (optionCopy.type) {
+                    DropType.RESTAURANT_COUPON -> Icons.Rounded.Storefront
+                    DropType.TOUR_STOP -> Icons.Rounded.Flag
+                    DropType.COMMUNITY -> Icons.Rounded.Public
+                }
+            )
+        }
+    }
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        val header = businessName?.takeIf { it.isNotBlank() }?.let { "Business tools for $it" }
+            ?: "Business tools"
+        if (showHeader) {
+            Text(header, style = MaterialTheme.typography.titleSmall)
+        }
+
+        val selectedOption = options.firstOrNull { it.type == dropType } ?: options.firstOrNull()
+
+        if (options.size > 1) {
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                options.forEachIndexed { index, option ->
+                    SegmentedButton(
+                        shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
+                        onClick = { onDropTypeChange(option.type) },
+                        selected = option.type == dropType,
+                        modifier = Modifier.weight(1f),
+                        label = { Text(option.title) },
+                        icon = { Icon(option.icon, contentDescription = null) }
+                    )
+                }
+            }
+
+            Crossfade(targetState = selectedOption, label = "businessDropTypeDescription") { option ->
+                val message = option?.description.orEmpty()
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        } else if (selectedOption != null) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = selectedOption.icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = "Based on your categories, we'll publish this as ${selectedOption.title}.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+
+            Text(
+                text = selectedOption.description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun BusinessDropTemplatesSection(
+    templates: List<BusinessDropTemplate>,
+    onApply: (BusinessDropTemplate) -> Unit,
+    showHeader: Boolean = true
+) {
+    var showSuggestions by remember(templates) { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        if (showHeader) {
+            Text("Drop ideas for your categories", style = MaterialTheme.typography.titleSmall)
+            Text(
+                text = "Use a template to pre-fill your drop with a ready-made idea.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        OutlinedButton(
+            onClick = { showSuggestions = true },
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(vertical = 16.dp, horizontal = 20.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Lightbulb,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    Text(
+                        text = "Explore personalized ideas",
+                        style = MaterialTheme.typography.titleSmall
+                    )
+                    Text(
+                        text = "Preview templates curated for your business categories.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    }
+
+    if (showSuggestions) {
+        BusinessDropTemplatesDialog(
+            templates = templates,
+            onApply = onApply,
+            onDismiss = { showSuggestions = false }
+        )
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun BusinessDropTemplatesDialog(
+    templates: List<BusinessDropTemplate>,
+    onApply: (BusinessDropTemplate) -> Unit,
+    onDismiss: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = MaterialTheme.shapes.large,
+            tonalElevation = 6.dp,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            val scrollState = rememberScrollState()
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(scrollState)
+                    .padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = "Personalized drop ideas",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(
+                            imageVector = Icons.Rounded.Close,
+                            contentDescription = "Close drop ideas"
+                        )
+                    }
+                }
+
+                var currentTemplateIndex by remember(templates) { mutableStateOf(0) }
+                LaunchedEffect(templates) {
+                    currentTemplateIndex = 0
+                }
+                val activeTemplate = templates.getOrNull(currentTemplateIndex)
+
+                if (activeTemplate != null) {
+                    Crossfade(
+                        targetState = activeTemplate,
+                        label = "activeBusinessTemplate"
+                    ) { template ->
+                        BusinessDropTemplateCard(
+                            template = template,
+                            onApply = { chosenTemplate ->
+                                onApply(chosenTemplate)
+                                onDismiss()
+                            }
+                        )
+                    }
+
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "Idea ${currentTemplateIndex + 1} of ${templates.size}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Button(
+                            onClick = {
+                                currentTemplateIndex = (currentTemplateIndex + 1) % templates.size
+                            },
+                            enabled = templates.size > 1,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Next idea")
+                        }
+                    }
+                } else {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = MaterialTheme.shapes.medium,
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                    ) {
+                        Text(
+                            text = "No ideas available yet.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(16.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun BusinessDropTemplateCard(
+    template: BusinessDropTemplate,
+    onApply: (BusinessDropTemplate) -> Unit
+) {
+    ElevatedCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(
+                BorderStroke(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
+                ),
+                shape = RoundedCornerShape(16.dp)
+            ),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = template.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = "Inspired by ${template.category.displayName}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            val dropTypeIcon = when (template.dropType) {
+                DropType.COMMUNITY -> Icons.Rounded.Public
+                DropType.RESTAURANT_COUPON -> Icons.Rounded.Storefront
+                DropType.TOUR_STOP -> Icons.Rounded.Flag
+            }
+            val dropTypeLabel = when (template.dropType) {
+                DropType.COMMUNITY -> "Community drop"
+                DropType.RESTAURANT_COUPON -> "Business offer"
+                DropType.TOUR_STOP -> "Tour stop"
+            }
+            val contentTypeIcon = when (template.contentType) {
+                DropContentType.TEXT -> Icons.Rounded.Edit
+                DropContentType.PHOTO -> Icons.Rounded.PhotoCamera
+                DropContentType.AUDIO -> Icons.Rounded.Mic
+                DropContentType.VIDEO -> Icons.Rounded.Videocam
+            }
+            val contentTypeLabel = when (template.contentType) {
+                DropContentType.TEXT -> "Text"
+                DropContentType.PHOTO -> "Photo"
+                DropContentType.AUDIO -> "Audio"
+                DropContentType.VIDEO -> "Video"
+            }
+
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                TemplateTag(
+                    text = dropTypeLabel,
+                    icon = dropTypeIcon,
+                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f),
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+                TemplateTag(
+                    text = "$contentTypeLabel content",
+                    icon = contentTypeIcon,
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.45f),
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                )
+            }
+
+            Text(
+                text = template.description,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+
+            template.callToAction?.let { message ->
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Star,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        Text(
+                            text = message,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                }
+            }
+
+            if (template.caption.isNotBlank()) {
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = "Suggested caption",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                        Text(
+                            text = template.caption,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            maxLines = 3,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = "Suggested message",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = template.note,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 4,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.CheckCircle,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = "Applies the drop type, format, and copy automatically.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            FilledTonalButton(
+                onClick = { onApply(template) },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Use this idea")
+            }
+        }
+    }
+}
+
+@Composable
+private fun TemplateTag(
+    text: String,
+    icon: ImageVector? = null,
+    containerColor: Color = MaterialTheme.colorScheme.surfaceVariant,
+    contentColor: Color = MaterialTheme.colorScheme.onSurfaceVariant
+) {
+    Surface(
+        shape = RoundedCornerShape(18.dp),
+        color = containerColor,
+        tonalElevation = 1.dp
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = contentColor,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelMedium,
+                color = contentColor
+            )
+        }
+    }
+}
+
+@Composable
+private fun BusinessRedemptionSection(
+    redemptionCode: TextFieldValue,
+    onRedemptionCodeChange: (TextFieldValue) -> Unit,
+    redemptionLimit: TextFieldValue,
+    onRedemptionLimitChange: (TextFieldValue) -> Unit,
+    showHeader: Boolean = true
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        if (showHeader) {
+            Text("Offer security", style = MaterialTheme.typography.titleSmall)
+        }
+
+        OutlinedTextField(
+            value = redemptionCode,
+            onValueChange = onRedemptionCodeChange,
+            label = { Text("Redemption code") },
+            supportingText = {
+                Text("Share this code in person so each guest redeems only once.")
+            },
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        OutlinedTextField(
+            value = redemptionLimit,
+            onValueChange = onRedemptionLimitChange,
+            label = { Text("Optional redemption limit") },
+            supportingText = {
+                Text("Set a maximum number of redemptions (leave blank for unlimited).")
+            },
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
+private val DIVIDER_DRAG_HANDLE_HEIGHT = 24.dp
+private const val MAP_LIST_MIN_WEIGHT = 0.2f
+private const val MAP_LIST_MAX_WEIGHT = 0.8f
+private const val DEFAULT_MAP_WEIGHT = 0.5f
+private const val MAX_DECAY_DAYS = 365
+
+@Composable
+private fun DropVisibilitySection(
+    visibility: DropVisibility,
+    onVisibilityChange: (DropVisibility) -> Unit,
+    groupCodeInput: TextFieldValue,
+    onGroupCodeInputChange: (TextFieldValue) -> Unit,
+    joinedGroups: List<String>,
+    onSelectGroupCode: (String) -> Unit,
+    showHeader: Boolean = true
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        if (showHeader) {
+            Text("Drop visibility", style = MaterialTheme.typography.titleSmall)
+        }
+
+        DropVisibilityOptionCard(
+            title = "Public drop",
+            description = "Anyone nearby can discover this note.",
+            icon = Icons.Rounded.Public,
+            selected = visibility == DropVisibility.Public,
+            onClick = { onVisibilityChange(DropVisibility.Public) }
+        )
+
+        DropVisibilityOptionCard(
+            title = "Group-only drop",
+            description = "Limit discovery to people who share your group code.",
+            icon = Icons.Rounded.Lock,
+            selected = visibility == DropVisibility.GroupOnly,
+            onClick = { onVisibilityChange(DropVisibility.GroupOnly) }
+        )
+
+        if (visibility == DropVisibility.GroupOnly) {
+            OutlinedTextField(
+                value = groupCodeInput,
+                onValueChange = onGroupCodeInputChange,
+                label = { Text("Group code") },
+                modifier = Modifier.fillMaxWidth(),
+                supportingText = {
+                    Text("Only groups you created appear here. Create and manage codes from the menu.")
+                }
+            )
+
+            if (joinedGroups.isNotEmpty()) {
+                Text(
+                    text = "Tap a saved code to reuse it:",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    joinedGroups.forEach { code ->
+                        AssistChip(
+                            onClick = { onSelectGroupCode(code) },
+                            label = { Text(code) }
+                        )
+                    }
+                }
+            }
+        } else {
+            val visibilityMessage = if (joinedGroups.isEmpty()) {
+                "Create a group in Manage group codes to share private drops with your crew."
+            } else {
+                "Groups you created: ${joinedGroups.joinToString()}."
+            }
+            Text(
+                text = visibilityMessage,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DropVisibilityOptionCard(
+    title: String,
+    description: String,
+    icon: ImageVector,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    val containerColor by animateColorAsState(
+        targetValue = if (selected) {
+            MaterialTheme.colorScheme.primaryContainer
+        } else {
+            MaterialTheme.colorScheme.surfaceVariant
+        },
+        label = "visibilityContainer"
+    )
+    val contentColor = if (selected) {
+        MaterialTheme.colorScheme.onPrimaryContainer
+    } else {
+        MaterialTheme.colorScheme.onSurface
+    }
+    val supportingColor = if (selected) {
+        MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    val cardShape = CardDefaults.elevatedShape
+    val borderColor = if (selected) {
+        MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+    } else {
+        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+    }
+    val borderWidth = if (selected) 2.dp else 1.dp
+
+    ElevatedCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(role = Role.RadioButton, onClick = onClick)
+            .border(BorderStroke(borderWidth, borderColor), cardShape),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = containerColor,
+            contentColor = contentColor
+        ),
+        shape = cardShape
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Surface(
+                modifier = Modifier.size(40.dp),
+                shape = CircleShape,
+                color = if (selected) {
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                } else {
+                    MaterialTheme.colorScheme.surface
+                }
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = if (selected) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+                    )
+                }
+            }
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium
+                )
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = supportingColor
+                )
+            }
+
+            Icon(
+                imageVector = if (selected) Icons.Rounded.CheckCircle else Icons.Rounded.Info,
+                contentDescription = null,
+                tint = if (selected) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                }
+            )
+        }
+    }
+}
+
+private data class DropContentTypeOption(
+    val type: DropContentType,
+    val title: String,
+    val description: String,
+    val icon: ImageVector
+)
+
+private data class BusinessDropTypeOption(
+    val type: DropType,
+    val title: String,
+    val description: String,
+    val icon: ImageVector
+)
+
 private enum class HomeDestination { Explorer, Business }
 
 private enum class ExplorerDestination { Discover, MyDrops, Collected }
@@ -12358,3 +10946,8 @@ private enum class AccountAuthMode {
 private enum class AccountType { EXPLORER, BUSINESS }
 
 private enum class DropVisibility { Public, GroupOnly }
+
+/** Tiny helper to show snackbars from non-suspend places. */
+private fun SnackbarHostState.showMessage(scope: kotlinx.coroutines.CoroutineScope, msg: String) {
+    scope.launch { showSnackbar(msg) }
+}
