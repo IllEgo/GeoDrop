@@ -2430,8 +2430,52 @@ fun DropHereScreen(
 
     var largeTopAppBarHeight by remember { mutableStateOf(0) }
 
-    Scaffold(
-        modifier = Modifier.fillMaxSize(),
+    val handleOtherDropClick: (Drop) -> Unit = { drop ->
+        otherDropsSelectedId = if (otherDropsSelectedId == drop.id) {
+            null
+        } else {
+            drop.id
+        }
+    }
+    val handleMyDropClick: (Drop) -> Unit = { drop ->
+        myDropsSelectedId = if (myDropsSelectedId == drop.id) {
+            null
+        } else {
+            drop.id
+        }
+    }
+    val handleCollectedNoteClick: (CollectedNote) -> Unit = { note ->
+        collectedHighlightedId = if (collectedHighlightedId == note.id) {
+            null
+        } else {
+            note.id
+        }
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        if (explorerHomeVisible) {
+            ExplorerDestinationMap(
+                modifier = Modifier.fillMaxSize(),
+                destination = effectiveExplorerDestination,
+                otherDrops = sortedOtherDrops,
+                otherDropSelectedId = otherDropsSelectedId,
+                otherDropLocation = otherDropsCurrentLocation,
+                notificationRadiusMeters = notificationRadius,
+                onOtherDropClick = handleOtherDropClick,
+                myDrops = sortedMyDrops,
+                myDropSelectedId = myDropsSelectedId,
+                myDropLocation = myDropsCurrentLocation,
+                onMyDropClick = handleMyDropClick,
+                collectedNotes = sortedCollectedNotes,
+                collectedHighlightedId = collectedHighlightedId,
+                collectedLocation = collectedCurrentLocation,
+                onCollectedNoteClick = handleCollectedNoteClick
+            )
+        }
+
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            containerColor = Color.Transparent,
         topBar = {
             Column(
                 modifier = Modifier
@@ -3897,6 +3941,8 @@ fun DropHereScreen(
                 }
             )
         }
+    }
+
     }
 
 }
@@ -9898,6 +9944,58 @@ private fun AttachmentPreviewSection(
         }
 
         else -> return
+    }
+}
+
+@Composable
+private fun ExplorerDestinationMap(
+    destination: ExplorerDestination,
+    otherDrops: List<Drop>,
+    otherDropSelectedId: String?,
+    otherDropLocation: LatLng?,
+    notificationRadiusMeters: Double,
+    onOtherDropClick: (Drop) -> Unit,
+    myDrops: List<Drop>,
+    myDropSelectedId: String?,
+    myDropLocation: LatLng?,
+    onMyDropClick: (Drop) -> Unit,
+    collectedNotes: List<CollectedNote>,
+    collectedHighlightedId: String?,
+    collectedLocation: LatLng?,
+    onCollectedNoteClick: (CollectedNote) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    when (destination) {
+        ExplorerDestination.Discover -> {
+            OtherDropsMap(
+                drops = otherDrops,
+                selectedDropId = otherDropSelectedId,
+                currentLocation = otherDropLocation,
+                notificationRadiusMeters = notificationRadiusMeters,
+                onDropClick = onOtherDropClick,
+                modifier = modifier
+            )
+        }
+
+        ExplorerDestination.MyDrops -> {
+            MyDropsMap(
+                drops = myDrops,
+                selectedDropId = myDropSelectedId,
+                currentLocation = myDropLocation,
+                onDropClick = onMyDropClick,
+                modifier = modifier
+            )
+        }
+
+        ExplorerDestination.Collected -> {
+            CollectedDropsMap(
+                notes = collectedNotes,
+                highlightedId = collectedHighlightedId,
+                currentLocation = collectedLocation,
+                modifier = modifier,
+                onNoteClick = onCollectedNoteClick
+            )
+        }
     }
 }
 
