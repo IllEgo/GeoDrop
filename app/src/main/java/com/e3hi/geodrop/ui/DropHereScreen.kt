@@ -7539,11 +7539,11 @@ private fun ExplorerSearchFiltersBar(
                             }
                         },
                         colors = FilterChipDefaults.filterChipColors(
-                            backgroundColor = MaterialTheme.colorScheme.surfaceVariant,
-                            selectedBackgroundColor = MaterialTheme.colorScheme.tertiaryContainer,
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            selectedContainerColor = MaterialTheme.colorScheme.tertiaryContainer,
                             selectedLabelColor = MaterialTheme.colorScheme.onTertiaryContainer,
                             labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            iconColor = MaterialTheme.colorScheme.onSurfaceVariant,
                             selectedLeadingIconColor = MaterialTheme.colorScheme.onTertiaryContainer
                         ),
                         modifier = Modifier.semantics {
