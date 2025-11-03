@@ -11579,6 +11579,7 @@ private fun OtherDropsMapPreviewHeader(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ExplorerFullScreenMapDialog(
     title: String,
