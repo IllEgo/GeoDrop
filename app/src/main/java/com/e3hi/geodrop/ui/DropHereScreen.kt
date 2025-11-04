@@ -2743,7 +2743,7 @@ fun DropHereScreen(
             val topPadding = innerPadding.calculateTopPadding()
             val endPadding = innerPadding.calculateEndPadding(layoutDirection)
         val bottomPadding = innerPadding.calculateBottomPadding()
-        val appBarHeight = TopAppBarDefaults.LargeTopAppBarHeight
+        val appBarHeight = LargeTopAppBarExpandedHeight
 
         Column(
             modifier = Modifier
@@ -3906,6 +3906,10 @@ private data class OnboardingSlide(
 private const val TERMS_PRIVACY_SUMMARY =
     "GeoDrop uses your location and saved preferences to help you discover nearby drops. " +
             "Use the tabs below to review our Terms of Service and Privacy Policy, then accept to continue."
+
+// Matches the Material 3 large top app bar expanded height so dependent UI can align.
+private val LargeTopAppBarExpandedHeight = 152.dp
+
 
 private val TERMS_PRIVACY_TABS = listOf(
     "Terms of Service",
