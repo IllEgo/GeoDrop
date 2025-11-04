@@ -2743,6 +2743,7 @@ fun DropHereScreen(
             val topPadding = innerPadding.calculateTopPadding()
             val endPadding = innerPadding.calculateEndPadding(layoutDirection)
         val bottomPadding = innerPadding.calculateBottomPadding()
+        val appBarHeight = TopAppBarDefaults.LargeTopAppBarHeight
 
         Column(
             modifier = Modifier
@@ -2760,10 +2761,12 @@ fun DropHereScreen(
                     contentAlignment = Alignment.TopCenter
                 ) {
                     PickupCelebrationBanner(
-                        modifier = Modifier.padding(horizontal = 24.dp),
+                        modifier = Modifier
+                            .padding(top = appBarHeight)
+                            .padding(horizontal = 24.dp),
                         visible = celebrationVisible,
                         dropTitle = pickupCelebrationDrop?.displayTitle()
-                        )
+                    )
                 }
                 Spacer(Modifier.height(16.dp))
             }
