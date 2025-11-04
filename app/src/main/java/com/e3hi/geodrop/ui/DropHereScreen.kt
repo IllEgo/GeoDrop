@@ -247,7 +247,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerControlView
 import com.google.maps.android.compose.Circle
 import com.google.maps.android.compose.GoogleMap
-import com.google.maps.android.compose.MapScope
+import com.google.maps.android.compose.GoogleMapScope
 import com.google.maps.android.compose.MapUiSettings
 import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerState
@@ -6378,7 +6378,7 @@ By accepting, you acknowledge that you have read and understood how GeoDrop hand
         val cameraPositionState = rememberCameraPositionState()
         val uiSettings = remember { MapUiSettings(zoomControlsEnabled = true) }
 
-        val mapContent: @Composable MapScope.() -> Unit = when (destination) {
+        val mapContent: @Composable GoogleMapScope.() -> Unit = when (destination) {
             ExplorerDestination.Discover -> {
                 val baseMarkerBitmap = remember {
                     BitmapFactory.decodeResource(
