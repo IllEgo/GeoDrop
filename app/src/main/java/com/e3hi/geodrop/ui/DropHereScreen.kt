@@ -247,7 +247,6 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerControlView
 import com.google.maps.android.compose.Circle
 import com.google.maps.android.compose.GoogleMap
-import com.google.maps.android.compose.MapScope
 import com.google.maps.android.compose.MapUiSettings
 import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerState
@@ -6378,81 +6377,87 @@ By accepting, you acknowledge that you have read and understood how GeoDrop hand
         val cameraPositionState = rememberCameraPositionState()
         val uiSettings = remember { MapUiSettings(zoomControlsEnabled = true) }
 
-        val mapContent: @Composable MapScope.() -> Unit = when (destination) {
-            ExplorerDestination.Discover -> {
-                val baseMarkerBitmap = remember {
-                    BitmapFactory.decodeResource(
-                        context.resources,
-                        R.drawable.explorer_drop_marker
-                    )?.let { bitmap ->
-                        if (bitmap.config == Bitmap.Config.ARGB_8888) {
-                            bitmap
-                        } else {
-                            bitmap.copy(Bitmap.Config.ARGB_8888, false)
-                        }
-                    }
-                }
-                val businessMarkerDescriptor = remember {
-                    runCatching {
+        GoogleMap(
+            modifier = modifier
+                .fillMaxSize()
+                .consumeMapGesturesInParent(),
+            cameraPositionState = cameraPositionState,
+            uiSettings = uiSettings
+        ) {
+            when (destination) {
+                ExplorerDestination.Discover -> {
+                    val baseMarkerBitmap = remember {
                         BitmapFactory.decodeResource(
                             context.resources,
-                            R.drawable.business_drop_marker
+                            R.drawable.explorer_drop_marker
                         )?.let { bitmap ->
-                            val argbBitmap = if (bitmap.config == Bitmap.Config.ARGB_8888) {
+                            if (bitmap.config == Bitmap.Config.ARGB_8888) {
                                 bitmap
                             } else {
                                 bitmap.copy(Bitmap.Config.ARGB_8888, false)
                             }
-                            BitmapDescriptorFactory.fromBitmap(argbBitmap)
                         }
-                    }.getOrElse { error ->
-                        Log.e("GeoDrop", "Failed to load business drop marker", error)
-                        null
                     }
-                }
-                val markerDescriptorCache = remember(baseMarkerBitmap) {
-                    mutableMapOf<Float, BitmapDescriptor>()
-                }
-
-                fun descriptorForHue(hue: Float): BitmapDescriptor {
-                    markerDescriptorCache[hue]?.let { return it }
-                    val descriptor = baseMarkerBitmap?.let { base ->
-                        val tinted =
-                            Bitmap.createBitmap(base.width, base.height, Bitmap.Config.ARGB_8888)
-                        val canvas = Canvas(tinted)
-                        canvas.drawBitmap(base, 0f, 0f, null)
-                        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                            colorFilter = PorterDuffColorFilter(
-                                android.graphics.Color.HSVToColor(floatArrayOf(hue, 0.8f, 1f)),
-                                PorterDuff.Mode.SRC_ATOP
-                            )
-                            alpha = 200
+                    val businessMarkerDescriptor = remember {
+                        runCatching {
+                            BitmapFactory.decodeResource(
+                                context.resources,
+                                R.drawable.business_drop_marker
+                            )?.let { bitmap ->
+                                val argbBitmap = if (bitmap.config == Bitmap.Config.ARGB_8888) {
+                                    bitmap
+                                } else {
+                                    bitmap.copy(Bitmap.Config.ARGB_8888, false)
+                                }
+                                BitmapDescriptorFactory.fromBitmap(argbBitmap)
+                            }
+                        }.getOrElse { error ->
+                            Log.e("GeoDrop", "Failed to load business drop marker", error)
+                            null
                         }
-                        canvas.drawBitmap(base, 0f, 0f, paint)
-                        BitmapDescriptorFactory.fromBitmap(tinted)
-                    } ?: BitmapDescriptorFactory.defaultMarker(hue)
-                    markerDescriptorCache[hue] = descriptor
-                    return descriptor
-                }
-
-                LaunchedEffect(
-                    destination,
-                    discoverDrops,
-                    discoverSelectedId,
-                    discoverCurrentLocation
-                ) {
-                    val targetDrop = discoverDrops.firstOrNull { it.id == discoverSelectedId }
-                    val target = targetDrop?.let { LatLng(it.lat, it.lng) }
-                        ?: discoverCurrentLocation
-                        ?: discoverDrops.firstOrNull()?.let { LatLng(it.lat, it.lng) }
-                    if (target != null) {
-                        val zoomLevel = if (targetDrop != null) 18f else 15f
-                        val update = CameraUpdateFactory.newLatLngZoom(target, zoomLevel)
-                        cameraPositionState.animate(update)
                     }
-                }
+                    val markerDescriptorCache = remember(baseMarkerBitmap) {
+                        mutableMapOf<Float, BitmapDescriptor>()
+                    }
 
-                {
+                    fun descriptorForHue(hue: Float): BitmapDescriptor {
+                        markerDescriptorCache[hue]?.let { return it }
+                        val descriptor = baseMarkerBitmap?.let { base ->
+                            val tinted =
+                                Bitmap.createBitmap(base.width, base.height, Bitmap.Config.ARGB_8888)
+                            val canvas = Canvas(tinted)
+                            canvas.drawBitmap(base, 0f, 0f, null)
+                            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                                colorFilter = PorterDuffColorFilter(
+                                    android.graphics.Color.HSVToColor(floatArrayOf(hue, 0.8f, 1f)),
+                                    PorterDuff.Mode.SRC_ATOP
+                                )
+                                alpha = 200
+                            }
+                            canvas.drawBitmap(base, 0f, 0f, paint)
+                            BitmapDescriptorFactory.fromBitmap(tinted)
+                        } ?: BitmapDescriptorFactory.defaultMarker(hue)
+                        markerDescriptorCache[hue] = descriptor
+                        return descriptor
+                    }
+
+                    LaunchedEffect(
+                        destination,
+                        discoverDrops,
+                        discoverSelectedId,
+                        discoverCurrentLocation
+                    ) {
+                        val targetDrop = discoverDrops.firstOrNull { it.id == discoverSelectedId }
+                        val target = targetDrop?.let { LatLng(it.lat, it.lng) }
+                            ?: discoverCurrentLocation
+                            ?: discoverDrops.firstOrNull()?.let { LatLng(it.lat, it.lng) }
+                        if (target != null) {
+                            val zoomLevel = if (targetDrop != null) 18f else 15f
+                            val update = CameraUpdateFactory.newLatLngZoom(target, zoomLevel)
+                            cameraPositionState.animate(update)
+                        }
+                    }
+
                     discoverCurrentLocation?.let { location ->
                         if (notificationRadiusMeters > 0.0) {
                             Circle(
@@ -6534,22 +6539,20 @@ By accepting, you acknowledge that you have read and understood how GeoDrop hand
                         )
                     }
                 }
-            }
 
-            ExplorerDestination.MyDrops -> {
-                LaunchedEffect(destination, myDrops, myDropsSelectedId, myDropsCurrentLocation) {
-                    val targetDrop = myDrops.firstOrNull { it.id == myDropsSelectedId }
-                    val target = targetDrop?.let { LatLng(it.lat, it.lng) }
-                        ?: myDropsCurrentLocation
-                        ?: myDrops.firstOrNull()?.let { LatLng(it.lat, it.lng) }
-                    if (target != null) {
-                        val zoomLevel = if (targetDrop != null) 18f else 15f
-                        val update = CameraUpdateFactory.newLatLngZoom(target, zoomLevel)
-                        cameraPositionState.animate(update)
+                ExplorerDestination.MyDrops -> {
+                    LaunchedEffect(destination, myDrops, myDropsSelectedId, myDropsCurrentLocation) {
+                        val targetDrop = myDrops.firstOrNull { it.id == myDropsSelectedId }
+                        val target = targetDrop?.let { LatLng(it.lat, it.lng) }
+                            ?: myDropsCurrentLocation
+                            ?: myDrops.firstOrNull()?.let { LatLng(it.lat, it.lng) }
+                        if (target != null) {
+                            val zoomLevel = if (targetDrop != null) 18f else 15f
+                            val update = CameraUpdateFactory.newLatLngZoom(target, zoomLevel)
+                            cameraPositionState.animate(update)
+                        }
                     }
-                }
 
-                {
                     myDropsCurrentLocation?.let { location ->
                         Marker(
                             state = MarkerState(location),
@@ -6606,28 +6609,26 @@ By accepting, you acknowledge that you have read and understood how GeoDrop hand
                         )
                     }
                 }
-            }
 
-            ExplorerDestination.Collected -> {
-                val notesWithLocation = remember(collectedNotes) {
-                    collectedNotes.filter { it.lat != null && it.lng != null }
-                }
-                val highlightedNote =
-                    notesWithLocation.firstOrNull { it.id == collectedHighlightedId }
-                val fallbackNote = notesWithLocation.firstOrNull()
-
-                LaunchedEffect(destination, notesWithLocation, highlightedNote?.id) {
-                    val target = highlightedNote ?: fallbackNote
-                    if (target != null) {
-                        val lat = target.lat ?: return@LaunchedEffect
-                        val lng = target.lng ?: return@LaunchedEffect
-                        val zoom = if (highlightedNote != null) 15f else 12f
-                        val update = CameraUpdateFactory.newLatLngZoom(LatLng(lat, lng), zoom)
-                        cameraPositionState.animate(update)
+                ExplorerDestination.Collected -> {
+                    val notesWithLocation = remember(collectedNotes) {
+                        collectedNotes.filter { it.lat != null && it.lng != null }
                     }
-                }
+                    val highlightedNote =
+                        notesWithLocation.firstOrNull { it.id == collectedHighlightedId }
+                    val fallbackNote = notesWithLocation.firstOrNull()
 
-                {
+                    LaunchedEffect(destination, notesWithLocation, highlightedNote?.id) {
+                        val target = highlightedNote ?: fallbackNote
+                        if (target != null) {
+                            val lat = target.lat ?: return@LaunchedEffect
+                            val lng = target.lng ?: return@LaunchedEffect
+                            val zoom = if (highlightedNote != null) 15f else 12f
+                            val update = CameraUpdateFactory.newLatLngZoom(LatLng(lat, lng), zoom)
+                            cameraPositionState.animate(update)
+                        }
+                    }
+
                     collectedCurrentLocation?.let { location ->
                         Marker(
                             state = MarkerState(location),
@@ -6693,16 +6694,6 @@ By accepting, you acknowledge that you have read and understood how GeoDrop hand
                     }
                 }
             }
-        }
-
-        GoogleMap(
-            modifier = modifier
-                .fillMaxSize()
-                .consumeMapGesturesInParent(),
-            cameraPositionState = cameraPositionState,
-            uiSettings = uiSettings
-        ) {
-            mapContent()
         }
     }
 
