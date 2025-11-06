@@ -291,7 +291,7 @@ fun DropHereScreen(
     var showOnboardingHelp by remember { mutableStateOf(false) }
     var guestModeEnabled by rememberSaveable { mutableStateOf(false) }
     var showAccountSignIn by remember { mutableStateOf(false) }
-    var accountAuthMode by remember { mutableStateOf(AccountAuthMode.SIGN_IN) }
+    var accountAuthMode by remember { mutableStateOf<AccountAuthMode>(AccountAuthMode.SIGN_IN) }
     var accountType by remember { mutableStateOf(AccountType.EXPLORER) }
     var accountTypeSelectionLocked by remember { mutableStateOf(false) }
     var accountEmail by rememberSaveable(stateSaver = TextFieldValue.Saver) {
