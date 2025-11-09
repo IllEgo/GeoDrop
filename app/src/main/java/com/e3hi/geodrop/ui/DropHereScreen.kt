@@ -2491,7 +2491,7 @@ fun DropHereScreen(
         }
     }
 
-    val businessHomeMetrics = remember(
+    val businessHomeMetrics: BusinessHomeMetrics = remember(
         isBusinessUser,
         businessDrops,
         myDrops,
@@ -4002,8 +4002,8 @@ fun DropHereScreen(
     ) {
         companion object {
             val Empty = BusinessHomeMetrics(0, 0, 0, 0)
-        }
     }
+}
 
     private val BUSINESS_EXPIRING_SOON_THRESHOLD_MILLIS = TimeUnit.DAYS.toMillis(3)
 
@@ -4033,13 +4033,13 @@ fun DropHereScreen(
             .filter { it.isBusinessDrop() && !it.isDeleted }
 
         if (businessEntries.isEmpty()) {
-            return BusinessHomeMetrics(
-                liveDropCount = myDropCountHint ?: 0,
-                pendingReviewCount = myDropPendingReviewHint ?: 0,
-                unresolvedRedemptionCount = 0,
-                expiringOfferCount = 0
-            )
-        }
+        return BusinessHomeMetrics(
+            liveDropCount = myDropCountHint ?: 0,
+            pendingReviewCount = myDropPendingReviewHint ?: 0,
+            unresolvedRedemptionCount = 0,
+            expiringOfferCount = 0
+        )
+    }
 
         val liveDropCount = businessEntries.count { !it.isExpired(now) }
         val pendingReviewCount = businessEntries.count { it.reportCount > 0 }
