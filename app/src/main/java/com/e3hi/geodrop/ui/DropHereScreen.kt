@@ -3991,178 +3991,6 @@ fun DropHereScreen(
         }
 
     }
-    @OptIn(ExperimentalFoundationApi::class)
-    @Composable
-    private fun FirstRunOnboardingScreen(
-        onContinue: () -> Unit,
-        onExit: () -> Unit,
-        showExitButton: Boolean = true
-    ) {
-        val slides = remember {
-            listOf(
-                OnboardingSlide(
-                    icon = Icons.Rounded.Map,
-                    title = "Discover nearby drops",
-                    description = "See stories, rewards, and community posts pinned to real-world locations around you."
-                ),
-                OnboardingSlide(
-                    icon = Icons.Rounded.Place,
-                    title = "Collect and redeem",
-                    description = "Walk up to a drop to unlock it, save it to your inventory, and redeem special offers in person."
-                ),
-                OnboardingSlide(
-                    icon = Icons.Rounded.Storefront,
-                    title = "Share your own moments",
-                    description = "Create drops with photos, audio, or coupons so nearby explorers can discover your business or story."
-                ),
-                OnboardingSlide(
-                    icon = Icons.Rounded.AccountCircle,
-                    title = "Build your profile",
-                    description = "Personalize your explorer profile to track progress and highlight the drops you're proud of."
-                ),
-                OnboardingSlide(
-                    icon = Icons.Rounded.Groups,
-                    title = "Join community groups",
-                    description = "Follow local crews or start your own group to coordinate adventures and share exclusive drops."
-                )
-            )
-        }
-        val pagerState = rememberPagerState(pageCount = { slides.size })
-        val scope = rememberCoroutineScope()
-
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(24.dp)
-        ) {
-            Surface(
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .fillMaxWidth(),
-                shape = RoundedCornerShape(24.dp),
-                tonalElevation = 6.dp
-            ) {
-                Column(
-                    modifier = Modifier
-                        .padding(24.dp)
-                        .fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Welcome to GeoDrop",
-                            style = MaterialTheme.typography.titleLarge,
-                            modifier = Modifier.weight(1f)
-                        )
-                        TextButton(onClick = onContinue) {
-                            Text("Skip")
-                        }
-                    }
-
-                    HorizontalPager(
-                        state = pagerState,
-                        modifier = Modifier.fillMaxWidth()
-                    ) { page ->
-                        val slide = slides[page]
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 8.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(16.dp)
-                        ) {
-                            Surface(
-                                modifier = Modifier.size(140.dp),
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.primaryContainer
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = slide.icon,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                        modifier = Modifier.size(72.dp)
-                                    )
-                                }
-                            }
-
-                            Text(
-                                text = slide.title,
-                                style = MaterialTheme.typography.titleMedium,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-
-                            Text(
-                                text = slide.description,
-                                style = MaterialTheme.typography.bodyMedium,
-                                textAlign = TextAlign.Center,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                    }
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 8.dp),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        slides.forEachIndexed { index, _ ->
-                            val isSelected = pagerState.currentPage == index
-                            Box(
-                                modifier = Modifier
-                                    .padding(horizontal = 4.dp)
-                                    .height(8.dp)
-                                    .width(if (isSelected) 24.dp else 8.dp)
-                                    .clip(CircleShape)
-                                    .background(
-                                        if (isSelected) MaterialTheme.colorScheme.primary
-                                        else MaterialTheme.colorScheme.surfaceVariant
-                                    )
-                            )
-                        }
-                    }
-
-                    Button(
-                        onClick = {
-                            if (pagerState.currentPage == slides.lastIndex) {
-                                onContinue()
-                            } else {
-                                scope.launch {
-                                    pagerState.animateScrollToPage(pagerState.currentPage + 1)
-                                }
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(if (pagerState.currentPage == slides.lastIndex) "Continue" else "Next")
-                    }
-                }
-            }
-
-            if (showExitButton) {
-                TextButton(
-                    onClick = onExit,
-                    modifier = Modifier.align(Alignment.BottomStart)
-                ) {
-                    Text("Exit app")
-                }
-            }
-        }
-    }
-
-    private data class OnboardingSlide(
-        val icon: ImageVector,
-        val title: String,
-        val description: String
-    )
 // Matches the Material 3 large top app bar expanded height so dependent UI can align.
     private val LargeTopAppBarExpandedHeight = 152.dp
     @Composable
@@ -10994,6 +10822,177 @@ fun DropHereScreen(
         }
     }
 }
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun FirstRunOnboardingScreen(
+    onContinue: () -> Unit,
+    onExit: () -> Unit,
+    showExitButton: Boolean = true
+) {
+    val slides = remember {
+        listOf(
+            OnboardingSlide(
+                icon = Icons.Rounded.Map,
+                title = "Discover nearby drops",
+                description = "See stories, rewards, and community posts pinned to real-world locations around you."
+            ),
+            OnboardingSlide(
+                icon = Icons.Rounded.Place,
+                title = "Collect and redeem",
+                description = "Walk up to a drop to unlock it, save it to your inventory, and redeem special offers in person."
+            ),
+            OnboardingSlide(
+                icon = Icons.Rounded.Storefront,
+                title = "Share your own moments",
+                description = "Create drops with photos, audio, or coupons so nearby explorers can discover your business or story."
+            ),
+            OnboardingSlide(
+                icon = Icons.Rounded.AccountCircle,
+                title = "Build your profile",
+                description = "Personalize your explorer profile to track progress and highlight the drops you're proud of."
+            ),
+            OnboardingSlide(
+                icon = Icons.Rounded.Groups,
+                title = "Join community groups",
+                description = "Follow local crews or start your own group to coordinate adventures and share exclusive drops."
+            )
+        )
+    }
+    val pagerState = rememberPagerState(pageCount = { slides.size })
+    val scope = rememberCoroutineScope()
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp)
+    ) {
+        Surface(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .fillMaxWidth(),
+            shape = RoundedCornerShape(24.dp),
+            tonalElevation = 6.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(24.dp)
+                    .fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Welcome to GeoDrop",
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(onClick = onContinue) {
+                        Text("Skip")
+                    }
+                }
+
+                HorizontalPager(
+                    state = pagerState,
+                    modifier = Modifier.fillMaxWidth()
+                ) { page ->
+                    val slide = slides[page]
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Surface(
+                            modifier = Modifier.size(140.dp),
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primaryContainer
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = slide.icon,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.size(72.dp)
+                                )
+                            }
+                        }
+
+                        Text(
+                            text = slide.title,
+                            style = MaterialTheme.typography.titleMedium,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        Text(
+                            text = slide.description,
+                            style = MaterialTheme.typography.bodyMedium,
+                            textAlign = TextAlign.Center,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    slides.forEachIndexed { index, _ ->
+                        val isSelected = pagerState.currentPage == index
+                        Box(
+                            modifier = Modifier
+                                .padding(horizontal = 4.dp)
+                                .height(8.dp)
+                                .width(if (isSelected) 24.dp else 8.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    if (isSelected) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.surfaceVariant
+                                )
+                        )
+                    }
+                }
+
+                Button(
+                    onClick = {
+                        if (pagerState.currentPage == slides.lastIndex) {
+                            onContinue()
+                        } else {
+                            scope.launch {
+                                pagerState.animateScrollToPage(pagerState.currentPage + 1)
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(if (pagerState.currentPage == slides.lastIndex) "Continue" else "Next")
+                }
+            }
+        }
+
+        if (showExitButton) {
+            TextButton(
+                onClick = onExit,
+                modifier = Modifier.align(Alignment.BottomStart)
+            ) {
+                Text("Exit app")
+            }
+        }
+    }
+}
+
+private data class OnboardingSlide(
+    val icon: ImageVector,
+    val title: String,
+    val description: String
+)
 
 private data class DropContentTypeOption(
     val type: DropContentType,
