@@ -4084,481 +4084,6 @@ fun DropHereScreen(
     }
 
     @Composable
-    private fun BusinessHomeScreen(
-        modifier: Modifier = Modifier,
-        businessName: String?,
-        businessCategories: List<BusinessCategory>,
-        metrics: BusinessHomeMetrics,
-        onViewDashboard: () -> Unit,
-        onUpdateBusinessProfile: () -> Unit,
-        onViewMyDrops: () -> Unit,
-    ) {
-        val activeDropCount = metrics.liveDropCount
-        val pendingReviewCount = metrics.pendingReviewCount
-        val unresolvedRedemptionCount = metrics.unresolvedRedemptionCount
-        val expiringOfferCount = metrics.expiringOfferCount
-        LazyColumn(
-            modifier = modifier,
-            contentPadding = PaddingValues(
-                start = 20.dp,
-                end = 20.dp,
-                top = 24.dp,
-                bottom = 128.dp
-            ),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
-        ) {
-            item {
-                BusinessHeroCard(
-                    businessName = businessName,
-                    businessCategories = businessCategories
-                )
-            }
-
-            item { SectionHeader(text = "Manage drops") }
-
-            item {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    ActionCard(
-                        icon = Icons.Rounded.Inbox,
-                        title = "Manage existing drops",
-                        description = "Review performance and make changes to the drops you've shared.",
-                        onClick = onViewMyDrops,
-                        trailingContent = {
-                            BusinessActionSummary(
-                                liveDropCount = activeDropCount,
-                                pendingReviewCount = pendingReviewCount,
-                                unresolvedRedemptionCount = unresolvedRedemptionCount,
-                                expiringOfferCount = expiringOfferCount
-                            )
-                        }
-                    )
-                }
-            }
-
-            item { SectionHeader(text = "Insights & branding") }
-
-            item {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    ActionCard(
-                        icon = Icons.Rounded.Storefront,
-                        title = "Business dashboard",
-                        description = "Track discoveries, redemptions, and engagement in one place.",
-                        onClick = onViewDashboard,
-                        trailingContent = {
-                            BusinessActionSummary(
-                                liveDropCount = activeDropCount,
-                                pendingReviewCount = pendingReviewCount,
-                                unresolvedRedemptionCount = unresolvedRedemptionCount,
-                                expiringOfferCount = expiringOfferCount
-                            )
-                        }
-                    )
-
-                    ActionCard(
-                        icon = Icons.Rounded.Edit,
-                        title = "Update business name",
-                        description = "Adjust how your brand appears across GeoDrop experiences.",
-                        onClick = onUpdateBusinessProfile
-                    )
-                }
-            }
-        }
-    }
-
-    @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
-    @Composable
-    private fun BusinessHeroCard(
-        businessName: String?,
-        businessCategories: List<BusinessCategory>,
-        brandImageUrl: String? = null
-    ) {
-        val title = businessName?.takeIf { it.isNotBlank() }?.let { "$it on GeoDrop" }
-            ?: "Welcome to GeoDrop Business"
-        val subtitle = if (businessName.isNullOrBlank()) {
-            "Share exclusive offers, stories, and tours to reach explorers right when they're nearby."
-        } else {
-            "Keep explorers engaged with timely offers and experiences from your team."
-        }
-
-        val sortedCategories = businessCategories
-            .sortedWith(compareBy({ it.group.displayName }, { it.displayName }))
-
-        val avatarBackground = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.08f)
-        val avatarBorder = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.2f)
-        val chipContainer = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-        val chipBorder = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.2f)
-
-        ElevatedCard(
-            modifier = Modifier
-                .fillMaxWidth()
-                .border(
-                    BorderStroke(
-                        width = 1.dp,
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
-                    ),
-                    shape = RoundedCornerShape(28.dp)
-                ),
-            shape = RoundedCornerShape(28.dp),
-            colors = CardDefaults.elevatedCardColors(
-                containerColor = MaterialTheme.colorScheme.primaryContainer
-            )
-        ) {
-            Column(
-                modifier = Modifier.padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(72.dp)
-                            .clip(CircleShape)
-                            .background(avatarBackground)
-                            .border(width = 1.dp, color = avatarBorder, shape = CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (!brandImageUrl.isNullOrBlank()) {
-                            val context = LocalContext.current
-                            AsyncImage(
-                                model = ImageRequest.Builder(context)
-                                    .data(brandImageUrl)
-                                    .crossfade(true)
-                                    .build(),
-                                contentDescription = businessName?.let { "$it brand logo" },
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.matchParentSize()
-                            )
-                        } else {
-                            Icon(
-                                imageVector = Icons.Rounded.Storefront,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                modifier = Modifier.size(32.dp)
-                            )
-                        }
-                    }
-
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(
-                            text = title,
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-
-                        Text(
-                            text = subtitle,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.9f)
-                        )
-                    }
-                }
-
-                if (sortedCategories.isNotEmpty()) {
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(
-                            text = "Business categories",
-                            style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            fontWeight = FontWeight.SemiBold
-                        )
-
-                        sortedCategories
-                            .groupBy { it.group }
-                            .forEach { (group, categories) ->
-                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    Text(
-                                        text = group.displayName,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(
-                                            alpha = 0.9f
-                                        ),
-                                        fontWeight = FontWeight.Medium
-                                    )
-
-                                    FlowRow(
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        categories.forEach { category ->
-                                            AssistChip(
-                                                onClick = {},
-                                                enabled = false,
-                                                label = {
-                                                    Text(
-                                                        text = category.displayName,
-                                                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                                                    )
-                                                },
-                                                colors = AssistChipDefaults.assistChipColors(
-                                                    containerColor = chipContainer,
-                                                    labelColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                                                    disabledContainerColor = chipContainer,
-                                                    disabledLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                                                ),
-                                                border = BorderStroke(
-                                                    width = 1.dp,
-                                                    color = chipBorder
-                                                )
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                    }
-                }
-            }
-        }
-    }
-
-    @Composable
-    private fun ReadOnlyModeCard(message: String) {
-        ElevatedCard(
-            modifier = Modifier
-                .fillMaxWidth()
-                .border(
-                    border = BorderStroke(
-                        width = 1.dp,
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                    ),
-                    shape = RoundedCornerShape(20.dp)
-                ),
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.elevatedCardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant
-            )
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.Info,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary
-                )
-                Text(
-                    text = message,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
-        }
-    }
-
-    @Composable
-    private fun SectionHeader(text: String) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.fillMaxWidth()
-        )
-    }
-
-    @Composable
-    private fun ActionCard(
-        icon: ImageVector,
-        title: String,
-        description: String,
-        onClick: () -> Unit,
-        trailingContent: (@Composable () -> Unit)? = null,
-    ) {
-        ElevatedCard(
-            onClick = onClick,
-            modifier = Modifier
-                .fillMaxWidth()
-                .border(
-                    BorderStroke(
-                        width = 1.dp,
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                    ),
-                    shape = RoundedCornerShape(20.dp)
-                ),
-            shape = RoundedCornerShape(20.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp)
-                    .animateContentSize(),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(44.dp)
-                            .background(
-                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-                                shape = CircleShape
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = icon,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
-
-                    Spacer(Modifier.width(16.dp))
-
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Text(
-                            text = title,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            text = description,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-
-                trailingContent?.let {
-                    Box(
-                        modifier = Modifier
-                            .wrapContentSize()
-                            .align(Alignment.Start)
-                    ) {
-                        it()
-                    }
-                }
-            }
-        }
-    }
-
-    @Composable
-    private fun CountBadge(count: Int) {
-        Surface(
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-        ) {
-            Text(
-                text = count.toString(),
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.SemiBold
-            )
-        }
-    }
-
-    @Composable
-    private fun MetricPill(
-        label: String,
-        value: Int,
-        modifier: Modifier = Modifier
-    ) {
-        Surface(
-            modifier = modifier,
-            shape = RoundedCornerShape(50),
-            color = MaterialTheme.colorScheme.surfaceVariant,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(
-                    text = value.toString(),
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = label,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-    }
-
-    private enum class StatusChipTone { Accent, Warning }
-
-    @Composable
-    private fun StatusChip(
-        text: String,
-        tone: StatusChipTone,
-        modifier: Modifier = Modifier
-    ) {
-        val (containerColor, contentColor) = when (tone) {
-            StatusChipTone.Accent -> MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.onTertiaryContainer
-            StatusChipTone.Warning -> MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.onErrorContainer
-        }
-
-        Surface(
-            modifier = modifier,
-            shape = RoundedCornerShape(50),
-            color = containerColor
-        ) {
-            Text(
-                text = text,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                style = MaterialTheme.typography.labelMedium,
-                color = contentColor,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-    }
-
-    @OptIn(ExperimentalLayoutApi::class)
-    @Composable
-    private fun BusinessActionSummary(
-        liveDropCount: Int,
-        pendingReviewCount: Int,
-        unresolvedRedemptionCount: Int,
-        expiringOfferCount: Int
-    ) {
-        if (liveDropCount <= 0 && pendingReviewCount <= 0 && unresolvedRedemptionCount <= 0 && expiringOfferCount <= 0) {
-            return
-        }
-
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            if (liveDropCount > 0) {
-                CountBadge(count = liveDropCount)
-            }
-            if (pendingReviewCount > 0) {
-                MetricPill(
-                    label = stringResource(R.string.metric_pending_reviews),
-                    value = pendingReviewCount
-                )
-            }
-            if (unresolvedRedemptionCount > 0) {
-                MetricPill(
-                    label = stringResource(R.string.metric_open_redemptions),
-                    value = unresolvedRedemptionCount
-                )
-            }
-            if (expiringOfferCount > 0) {
-                StatusChip(
-                    text = stringResource(R.string.metric_expiring_offers, expiringOfferCount),
-                    tone = StatusChipTone.Warning
-                )
-            }
-        }
-    }
-
-    @Composable
     private fun DropComposerDialog(
         isSubmitting: Boolean,
         isBusinessUser: Boolean,
@@ -6212,8 +5737,7 @@ fun DropHereScreen(
                         Marker(
                             state = MarkerState(position),
                             title = drop.displayTitle(),
-                            snippet = snippetParts.joinToString("
-                                "),
+                            snippet = snippetParts.joinToString(" "),
                             icon = markerIcon,
                                 alpha = if (isSelected) 1f else 0.9f,
                                 zIndex = if (isSelected) 2f else 0f,
@@ -6284,8 +5808,7 @@ fun DropHereScreen(
                         Marker(
                             state = MarkerState(position),
                             title = drop.displayTitle(),
-                            snippet = snippetParts.joinToString("
-                                "),
+                            snippet = snippetParts.joinToString(" "),
                                         icon = markerIcon,
                                 alpha = if (isSelected) 1f else 0.9f,
                                 zIndex = if (isSelected) 2f else 0f,
@@ -6370,8 +5893,7 @@ fun DropHereScreen(
                         Marker(
                             state = MarkerState(position),
                             title = title,
-                            snippet = snippetParts.joinToString("
-                                "),
+                            snippet = snippetParts.joinToString(" "),
                                         icon = markerIcon,
                                 zIndex = if (note.id == collectedHighlightedId) 1f else 0f,
                                 onClick = {
@@ -10819,6 +10341,470 @@ private fun deriveBusinessHomeMetrics(
         unresolvedRedemptionCount = unresolvedRedemptionCount,
         expiringOfferCount = expiringOfferCount
     )
+}
+
+
+@Composable
+private fun BusinessHomeScreen(
+    modifier: Modifier = Modifier,
+    businessName: String?,
+    businessCategories: List<BusinessCategory>,
+    metrics: BusinessHomeMetrics,
+    onViewDashboard: () -> Unit,
+    onUpdateBusinessProfile: () -> Unit,
+    onViewMyDrops: () -> Unit,
+) {
+    val activeDropCount = metrics.liveDropCount
+    val pendingReviewCount = metrics.pendingReviewCount
+    val unresolvedRedemptionCount = metrics.unresolvedRedemptionCount
+    val expiringOfferCount = metrics.expiringOfferCount
+    LazyColumn(
+        modifier = modifier,
+        contentPadding = PaddingValues(
+            start = 20.dp,
+            end = 20.dp,
+            top = 24.dp,
+            bottom = 128.dp
+        ),
+        verticalArrangement = Arrangement.spacedBy(20.dp)
+    ) {
+        item {
+            BusinessHeroCard(
+                businessName = businessName,
+                businessCategories = businessCategories
+            )
+        }
+
+        item { SectionHeader(text = "Manage drops") }
+
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                ActionCard(
+                    icon = Icons.Rounded.Inbox,
+                    title = "Manage existing drops",
+                    description = "Review performance and make changes to the drops you've shared.",
+                    onClick = onViewMyDrops,
+                    trailingContent = {
+                        BusinessActionSummary(
+                            liveDropCount = activeDropCount,
+                            pendingReviewCount = pendingReviewCount,
+                            unresolvedRedemptionCount = unresolvedRedemptionCount,
+                            expiringOfferCount = expiringOfferCount
+                        )
+                    }
+                )
+            }
+        }
+
+        item { SectionHeader(text = "Insights & branding") }
+
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                ActionCard(
+                    icon = Icons.Rounded.Storefront,
+                    title = "Business dashboard",
+                    description = "Track discoveries, redemptions, and engagement in one place.",
+                    onClick = onViewDashboard,
+                    trailingContent = {
+                        BusinessActionSummary(
+                            liveDropCount = activeDropCount,
+                            pendingReviewCount = pendingReviewCount,
+                            unresolvedRedemptionCount = unresolvedRedemptionCount,
+                            expiringOfferCount = expiringOfferCount
+                        )
+                    }
+                )
+
+                ActionCard(
+                    icon = Icons.Rounded.Edit,
+                    title = "Update business name",
+                    description = "Adjust how your brand appears across GeoDrop experiences.",
+                    onClick = onUpdateBusinessProfile
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
+@Composable
+private fun BusinessHeroCard(
+    businessName: String?,
+    businessCategories: List<BusinessCategory>,
+    brandImageUrl: String? = null
+) {
+    val title = businessName?.takeIf { it.isNotBlank() }?.let { "$it on GeoDrop" }
+        ?: "Welcome to GeoDrop Business"
+    val subtitle = if (businessName.isNullOrBlank()) {
+        "Share exclusive offers, stories, and tours to reach explorers right when they're nearby."
+    } else {
+        "Keep explorers engaged with timely offers and experiences from your team."
+    }
+
+    val sortedCategories = businessCategories
+        .sortedWith(compareBy({ it.group.displayName }, { it.displayName }))
+
+    val avatarBackground = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.08f)
+    val avatarBorder = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.2f)
+    val chipContainer = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+    val chipBorder = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.2f)
+
+    ElevatedCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(
+                BorderStroke(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+                ),
+                shape = RoundedCornerShape(28.dp)
+            ),
+        shape = RoundedCornerShape(28.dp),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(72.dp)
+                        .clip(CircleShape)
+                        .background(avatarBackground)
+                        .border(width = 1.dp, color = avatarBorder, shape = CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (!brandImageUrl.isNullOrBlank()) {
+                        val context = LocalContext.current
+                        AsyncImage(
+                            model = ImageRequest.Builder(context)
+                                .data(brandImageUrl)
+                                .crossfade(true)
+                                .build(),
+                            contentDescription = businessName?.let { "$it brand logo" },
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.matchParentSize()
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Rounded.Storefront,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.size(32.dp)
+                        )
+                    }
+                }
+
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
+            }
+
+            if (sortedCategories.isNotEmpty()) {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    sortedCategories.forEach { category ->
+                        AssistChip(
+                            onClick = {},
+                            label = {
+                                Text(
+                                    text = category.displayName,
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = category.icon,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            },
+                            colors = AssistChipDefaults.assistChipColors(
+                                containerColor = chipContainer,
+                                labelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            ),
+                            shape = RoundedCornerShape(50),
+                            modifier = Modifier
+                                .border(
+                                    BorderStroke(
+                                        width = 1.dp,
+                                        color = chipBorder
+                                    ),
+                                    shape = RoundedCornerShape(50)
+                                )
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReadOnlyModeCard(message: String) {
+    ElevatedCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(
+                border = BorderStroke(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                ),
+                shape = RoundedCornerShape(20.dp)
+            ),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Info,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary
+            )
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+    }
+}
+
+@Composable
+private fun SectionHeader(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.titleMedium,
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier.fillMaxWidth()
+    )
+}
+
+@Composable
+private fun ActionCard(
+    icon: ImageVector,
+    title: String,
+    description: String,
+    onClick: () -> Unit,
+    trailingContent: (@Composable () -> Unit)? = null,
+) {
+    ElevatedCard(
+        onClick = onClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(
+                BorderStroke(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                ),
+                shape = RoundedCornerShape(20.dp)
+            ),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp)
+                .animateContentSize(),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .background(
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                            shape = CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+
+                Spacer(Modifier.width(16.dp))
+
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = description,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            trailingContent?.let {
+                Box(
+                    modifier = Modifier
+                        .wrapContentSize()
+                        .align(Alignment.Start)
+                ) {
+                    it()
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CountBadge(count: Int) {
+    Surface(
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+    ) {
+        Text(
+            text = count.toString(),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.primary,
+            fontWeight = FontWeight.SemiBold
+        )
+    }
+}
+
+@Composable
+private fun MetricPill(
+    label: String,
+    value: Int,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(50),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = value.toString(),
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+private enum class StatusChipTone { Accent, Warning }
+
+@Composable
+private fun StatusChip(
+    text: String,
+    tone: StatusChipTone,
+    modifier: Modifier = Modifier
+) {
+    val (containerColor, contentColor) = when (tone) {
+        StatusChipTone.Accent -> MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.onTertiaryContainer
+        StatusChipTone.Warning -> MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.onErrorContainer
+    }
+
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(50),
+        color = containerColor
+    ) {
+        Text(
+            text = text,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            style = MaterialTheme.typography.labelMedium,
+            color = contentColor,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun BusinessActionSummary(
+    liveDropCount: Int,
+    pendingReviewCount: Int,
+    unresolvedRedemptionCount: Int,
+    expiringOfferCount: Int
+) {
+    if (liveDropCount <= 0 && pendingReviewCount <= 0 && unresolvedRedemptionCount <= 0 && expiringOfferCount <= 0) {
+        return
+    }
+
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        if (liveDropCount > 0) {
+            CountBadge(count = liveDropCount)
+        }
+        if (pendingReviewCount > 0) {
+            MetricPill(
+                label = stringResource(R.string.metric_pending_reviews),
+                value = pendingReviewCount
+            )
+        }
+        if (unresolvedRedemptionCount > 0) {
+            MetricPill(
+                label = stringResource(R.string.metric_open_redemptions),
+                value = unresolvedRedemptionCount
+            )
+        }
+        if (expiringOfferCount > 0) {
+            StatusChip(
+                text = stringResource(R.string.metric_expiring_offers, expiringOfferCount),
+                tone = StatusChipTone.Warning
+            )
+        }
+    }
 }
 
 private const val NOTIFICATION_RADIUS_STEP_METERS = 50f
