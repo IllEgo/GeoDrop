@@ -10823,7 +10823,6 @@ fun DropHereScreen(
             }
         }
     }
-}
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
