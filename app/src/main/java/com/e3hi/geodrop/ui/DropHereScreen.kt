@@ -2512,6 +2512,96 @@ fun DropHereScreen(
 
     val celebrationVisible = pickupCelebrationVisible && pickupCelebrationDrop != null
 
+    @OptIn(ExperimentalMaterial3Api::class)
+    @Composable
+    fun DropHereTopAppBar(
+        modifier: Modifier = Modifier,
+        onShowTutorial: () -> Unit = {},
+        onShowFaq: () -> Unit = {},
+        onShowTerms: () -> Unit = {},
+        onShowPrivacy: () -> Unit = {},
+    ) {
+        var infoMenuExpanded by remember { mutableStateOf(false) }
+        LargeTopAppBar(
+            modifier = modifier,
+            title = {
+                Text(
+                    text = stringResource(R.string.app_name),
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.5.sp
+                    ),
+                    color = MaterialTheme.colorScheme.primary
+                )
+            },
+            actions = {
+                Box {
+                    IconButton(onClick = { infoMenuExpanded = true }) {
+                        Icon(
+                            imageVector = Icons.Rounded.Info,
+                            contentDescription = stringResource(R.string.content_description_open_info_menu)
+                        )
+                    }
+
+                    DropdownMenu(
+                        expanded = infoMenuExpanded,
+                        onDismissRequest = { infoMenuExpanded = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.info_menu_tutorial)) },
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Rounded.PlayArrow,
+                                    contentDescription = null
+                                )
+                            },
+                            onClick = {
+                                infoMenuExpanded = false
+                                onShowTutorial()
+                            }
+
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.info_menu_faq)) },
+                            leadingIcon = { Icon(Icons.Rounded.Help, contentDescription = null) },
+                            onClick = {
+                                infoMenuExpanded = false
+                                onShowFaq()
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.info_menu_terms)) },
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Rounded.Description,
+                                    contentDescription = null
+                                )
+                            },
+                            onClick = {
+                                infoMenuExpanded = false
+                                onShowTerms()
+                            }
+
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.info_menu_privacy)) },
+                            leadingIcon = { Icon(Icons.Rounded.Lock, contentDescription = null) },
+                            onClick = {
+                                infoMenuExpanded = false
+                                onShowPrivacy()
+                            }
+                        )
+                    }
+                }
+            },
+            colors = TopAppBarDefaults.largeTopAppBarColors(
+                containerColor = MaterialTheme.colorScheme.surface,
+                scrolledContainerColor = MaterialTheme.colorScheme.surface,
+                actionIconContentColor = MaterialTheme.colorScheme.onBackground
+            )
+        )
+    }
+
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         topBar = {
@@ -6256,96 +6346,6 @@ fun DropHereScreen(
                 }
             }
         }
-    }
-
-    @OptIn(ExperimentalMaterial3Api::class)
-    @Composable
-    private fun DropHereTopAppBar(
-        modifier: Modifier = Modifier,
-        onShowTutorial: () -> Unit = {},
-        onShowFaq: () -> Unit = {},
-        onShowTerms: () -> Unit = {},
-        onShowPrivacy: () -> Unit = {},
-    ) {
-        var infoMenuExpanded by remember { mutableStateOf(false) }
-        LargeTopAppBar(
-            modifier = modifier,
-            title = {
-                Text(
-                    text = stringResource(R.string.app_name),
-                    style = MaterialTheme.typography.titleLarge.copy(
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.5.sp
-                    ),
-                    color = MaterialTheme.colorScheme.primary
-                )
-            },
-            actions = {
-                Box {
-                    IconButton(onClick = { infoMenuExpanded = true }) {
-                        Icon(
-                            imageVector = Icons.Rounded.Info,
-                            contentDescription = stringResource(R.string.content_description_open_info_menu)
-                        )
-                    }
-
-                    DropdownMenu(
-                        expanded = infoMenuExpanded,
-                        onDismissRequest = { infoMenuExpanded = false }
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.info_menu_tutorial)) },
-                            leadingIcon = {
-                                Icon(
-                                    Icons.Rounded.PlayArrow,
-                                    contentDescription = null
-                                )
-                            },
-                            onClick = {
-                                infoMenuExpanded = false
-                                onShowTutorial()
-                            }
-
-                        )
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.info_menu_faq)) },
-                            leadingIcon = { Icon(Icons.Rounded.Help, contentDescription = null) },
-                            onClick = {
-                                infoMenuExpanded = false
-                                onShowFaq()
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.info_menu_terms)) },
-                            leadingIcon = {
-                                Icon(
-                                    Icons.Rounded.Description,
-                                    contentDescription = null
-                                )
-                            },
-                            onClick = {
-                                infoMenuExpanded = false
-                                onShowTerms()
-                            }
-
-                        )
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.info_menu_privacy)) },
-                            leadingIcon = { Icon(Icons.Rounded.Lock, contentDescription = null) },
-                            onClick = {
-                                infoMenuExpanded = false
-                                onShowPrivacy()
-                            }
-                        )
-                    }
-                }
-            },
-            colors = TopAppBarDefaults.largeTopAppBarColors(
-                containerColor = MaterialTheme.colorScheme.surface,
-                scrolledContainerColor = MaterialTheme.colorScheme.surface,
-                actionIconContentColor = MaterialTheme.colorScheme.onBackground
-            )
-        )
     }
 
     @OptIn(ExperimentalMaterial3Api::class)
