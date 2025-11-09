@@ -6998,11 +6998,12 @@ fun DropHereScreen(
                         stringResource(R.string.action_collected_drops_title),
                         Icons.Rounded.Bookmark
                     )
-                    SegmentedButton(
-                        selected = selected,
-                        onClick = { onSelect(destination) },
-                        shape = shape,
-                        icon = {
+                }
+                SegmentedButton(
+                    selected = selected,
+                    onClick = { onSelect(destination) },
+                    shape = shape,
+                    icon = {
                             Icon(
                                 imageVector = icon,
                                 contentDescription = null
