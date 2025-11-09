@@ -11290,39 +11290,39 @@ By accepting, you acknowledge that you have read and understood how GeoDrop hand
             }
         }
     }
+}
 
-    private data class DropContentTypeOption(
-        val type: DropContentType,
-        val title: String,
-        val description: String,
-        val icon: ImageVector
-    )
+private data class DropContentTypeOption(
+    val type: DropContentType,
+    val title: String,
+    val description: String,
+    val icon: ImageVector
+)
 
-    private data class BusinessDropTypeOption(
-        val type: DropType,
-        val title: String,
-        val description: String,
-        val icon: ImageVector
-    )
+private data class BusinessDropTypeOption(
+    val type: DropType,
+    val title: String,
+    val description: String,
+    val icon: ImageVector
+)
 
-    private enum class HomeDestination { Explorer, Business }
+private enum class HomeDestination { Explorer, Business }
 
-    private enum class ExplorerDestination { Discover, MyDrops, Collected }
+private enum class ExplorerDestination { Discover, MyDrops, Collected }
 
-    private enum class AccountAuthMode {
-        SIGN_IN,
-        REGISTER
-    }
+private enum class AccountAuthMode {
+    SIGN_IN,
+    REGISTER
+}
 
-    private enum class AccountType { EXPLORER, BUSINESS }
+private enum class AccountType { EXPLORER, BUSINESS }
 
-    private enum class DropVisibility { Public, GroupOnly }
+private enum class DropVisibility { Public, GroupOnly }
 
-    /** Tiny helper to show snackbars from non-suspend places. */
-    private fun SnackbarHostState.showMessage(
-        scope: kotlinx.coroutines.CoroutineScope,
-        msg: String
-    ) {
-        scope.launch { showSnackbar(msg) }
-    }
+/** Tiny helper to show snackbars from non-suspend places. */
+private fun SnackbarHostState.showMessage(
+    scope: kotlinx.coroutines.CoroutineScope,
+    msg: String
+) {
+    scope.launch { showSnackbar(msg) }
 }
