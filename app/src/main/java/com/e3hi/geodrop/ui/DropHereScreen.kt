@@ -3991,75 +3991,6 @@ fun DropHereScreen(
         }
 
     }
-// Matches the Material 3 large top app bar expanded height so dependent UI can align.
-    private val LargeTopAppBarExpandedHeight = 152.dp
-
-    private data class BusinessHomeMetrics(
-        val liveDropCount: Int,
-        val pendingReviewCount: Int,
-        val unresolvedRedemptionCount: Int,
-        val expiringOfferCount: Int
-    ) {
-        companion object {
-            val Empty = BusinessHomeMetrics(0, 0, 0, 0)
-    }
-}
-
-    private val BUSINESS_EXPIRING_SOON_THRESHOLD_MILLIS = TimeUnit.DAYS.toMillis(3)
-
-    private fun deriveBusinessHomeMetrics(
-        businessDrops: List<Drop>,
-        fallbackDrops: List<Drop>,
-        myDropCountHint: Int?,
-        myDropPendingReviewHint: Int?
-    ): BusinessHomeMetrics {
-        val sourceDrops = when {
-            businessDrops.isNotEmpty() -> businessDrops
-            fallbackDrops.isNotEmpty() -> fallbackDrops
-            else -> emptyList()
-        }
-
-        if (sourceDrops.isEmpty()) {
-            return BusinessHomeMetrics(
-                liveDropCount = myDropCountHint ?: 0,
-                pendingReviewCount = myDropPendingReviewHint ?: 0,
-                unresolvedRedemptionCount = 0,
-                expiringOfferCount = 0
-            )
-        }
-
-        val now = System.currentTimeMillis()
-        val businessEntries = sourceDrops
-            .filter { it.isBusinessDrop() && !it.isDeleted }
-
-        if (businessEntries.isEmpty()) {
-        return BusinessHomeMetrics(
-            liveDropCount = myDropCountHint ?: 0,
-            pendingReviewCount = myDropPendingReviewHint ?: 0,
-            unresolvedRedemptionCount = 0,
-            expiringOfferCount = 0
-        )
-    }
-
-        val liveDropCount = businessEntries.count { !it.isExpired(now) }
-        val pendingReviewCount = businessEntries.count { it.reportCount > 0 }
-        val unresolvedRedemptionCount = businessEntries.count { drop ->
-            if (drop.isExpired(now) || !drop.requiresRedemption()) return@count false
-            val remaining = drop.remainingRedemptions()
-            remaining == null || remaining > 0
-        }
-        val expiringOfferCount = businessEntries.count { drop ->
-            val remaining = drop.remainingDecayMillis(now) ?: return@count false
-            remaining in 1..BUSINESS_EXPIRING_SOON_THRESHOLD_MILLIS
-        }
-
-        return BusinessHomeMetrics(
-            liveDropCount = liveDropCount,
-            pendingReviewCount = pendingReviewCount,
-            unresolvedRedemptionCount = unresolvedRedemptionCount,
-            expiringOfferCount = expiringOfferCount
-        )
-    }
 
     @Composable
     private fun BusinessHomeScreen(
@@ -10836,6 +10767,76 @@ private fun FirstRunOnboardingScreen(
             }
         }
     }
+}
+
+// Matches the Material 3 large top app bar expanded height so dependent UI can align.
+private val LargeTopAppBarExpandedHeight = 152.dp
+
+private data class BusinessHomeMetrics(
+    val liveDropCount: Int,
+    val pendingReviewCount: Int,
+    val unresolvedRedemptionCount: Int,
+    val expiringOfferCount: Int
+) {
+    companion object {
+        val Empty = BusinessHomeMetrics(0, 0, 0, 0)
+    }
+}
+
+private val BUSINESS_EXPIRING_SOON_THRESHOLD_MILLIS = TimeUnit.DAYS.toMillis(3)
+
+private fun deriveBusinessHomeMetrics(
+    businessDrops: List<Drop>,
+    fallbackDrops: List<Drop>,
+    myDropCountHint: Int?,
+    myDropPendingReviewHint: Int?
+): BusinessHomeMetrics {
+    val sourceDrops = when {
+        businessDrops.isNotEmpty() -> businessDrops
+        fallbackDrops.isNotEmpty() -> fallbackDrops
+        else -> emptyList()
+    }
+
+    if (sourceDrops.isEmpty()) {
+        return BusinessHomeMetrics(
+            liveDropCount = myDropCountHint ?: 0,
+            pendingReviewCount = myDropPendingReviewHint ?: 0,
+            unresolvedRedemptionCount = 0,
+            expiringOfferCount = 0
+        )
+    }
+
+    val now = System.currentTimeMillis()
+    val businessEntries = sourceDrops
+        .filter { it.isBusinessDrop() && !it.isDeleted }
+
+    if (businessEntries.isEmpty()) {
+        return BusinessHomeMetrics(
+            liveDropCount = myDropCountHint ?: 0,
+            pendingReviewCount = myDropPendingReviewHint ?: 0,
+            unresolvedRedemptionCount = 0,
+            expiringOfferCount = 0
+        )
+    }
+
+    val liveDropCount = businessEntries.count { !it.isExpired(now) }
+    val pendingReviewCount = businessEntries.count { it.reportCount > 0 }
+    val unresolvedRedemptionCount = businessEntries.count { drop ->
+        if (drop.isExpired(now) || !drop.requiresRedemption()) return@count false
+        val remaining = drop.remainingRedemptions()
+        remaining == null || remaining > 0
+    }
+    val expiringOfferCount = businessEntries.count { drop ->
+        val remaining = drop.remainingDecayMillis(now) ?: return@count false
+        remaining in 1..BUSINESS_EXPIRING_SOON_THRESHOLD_MILLIS
+    }
+
+    return BusinessHomeMetrics(
+        liveDropCount = liveDropCount,
+        pendingReviewCount = pendingReviewCount,
+        unresolvedRedemptionCount = unresolvedRedemptionCount,
+        expiringOfferCount = expiringOfferCount
+    )
 }
 
 private const val NOTIFICATION_RADIUS_STEP_METERS = 50f
