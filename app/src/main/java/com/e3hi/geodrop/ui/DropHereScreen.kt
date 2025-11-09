@@ -2996,6 +2996,7 @@ fun DropHereScreen(
                 discoverDrops = sortedOtherDrops,
                 discoverSelectedId = otherDropsSelectedId,
                 discoverCurrentLocation = otherDropsCurrentLocation,
+                currentUserId = currentUserId,
                 notificationRadiusMeters = notificationRadius,
                 myDrops = sortedMyDrops,
                 myDropsSelectedId = myDropsSelectedId,
@@ -5751,353 +5752,6 @@ fun DropHereScreen(
         }
     }
 
-    private fun formatCoordinate(value: Double): String {
-        return String.format(Locale.US, "%.5f", value)
-    }
-
-
-    @Composable
-    private fun ExplorerMap(
-        modifier: Modifier = Modifier,
-        destination: ExplorerDestination,
-        discoverDrops: List<Drop>,
-        discoverSelectedId: String?,
-        discoverCurrentLocation: LatLng?,
-        notificationRadiusMeters: Double,
-        myDrops: List<Drop>,
-        myDropsSelectedId: String?,
-        myDropsCurrentLocation: LatLng?,
-        collectedNotes: List<CollectedNote>,
-        collectedHighlightedId: String?,
-        collectedCurrentLocation: LatLng?,
-        onDiscoverMarkerClick: (Drop) -> Unit,
-        onMyDropMarkerClick: (Drop) -> Unit,
-        onCollectedMarkerClick: (CollectedNote) -> Unit
-    ) {
-        val context = LocalContext.current
-        val cameraPositionState = rememberCameraPositionState()
-        val uiSettings = remember { MapUiSettings(zoomControlsEnabled = true) }
-
-        GoogleMap(
-            modifier = modifier
-                .fillMaxSize()
-                .consumeMapGesturesInParent(),
-            cameraPositionState = cameraPositionState,
-            uiSettings = uiSettings
-        ) {
-            when (destination) {
-                ExplorerDestination.Discover -> {
-                    val baseMarkerBitmap = remember {
-                        BitmapFactory.decodeResource(
-                            context.resources,
-                            R.drawable.explorer_drop_marker
-                        )?.let { bitmap ->
-                            if (bitmap.config == Bitmap.Config.ARGB_8888) {
-                                bitmap
-                            } else {
-                                bitmap.copy(Bitmap.Config.ARGB_8888, false)
-                            }
-                        }
-                    }
-                    val businessMarkerDescriptor = remember {
-                        runCatching {
-                            BitmapFactory.decodeResource(
-                                context.resources,
-                                R.drawable.business_drop_marker
-                            )?.let { bitmap ->
-                                val argbBitmap = if (bitmap.config == Bitmap.Config.ARGB_8888) {
-                                    bitmap
-                                } else {
-                                    bitmap.copy(Bitmap.Config.ARGB_8888, false)
-                                }
-                                BitmapDescriptorFactory.fromBitmap(argbBitmap)
-                            }
-                        }.getOrElse { error ->
-                            Log.e("GeoDrop", "Failed to load business drop marker", error)
-                            null
-                        }
-                    }
-                    val markerDescriptorCache = remember(baseMarkerBitmap) {
-                        mutableMapOf<Float, BitmapDescriptor>()
-                    }
-
-                    fun descriptorForHue(hue: Float): BitmapDescriptor {
-                        markerDescriptorCache[hue]?.let { return it }
-                        val descriptor = baseMarkerBitmap?.let { base ->
-                            val tinted =
-                                Bitmap.createBitmap(base.width, base.height, Bitmap.Config.ARGB_8888)
-                            val canvas = Canvas(tinted)
-                            canvas.drawBitmap(base, 0f, 0f, null)
-                            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                                colorFilter = PorterDuffColorFilter(
-                                    android.graphics.Color.HSVToColor(floatArrayOf(hue, 0.8f, 1f)),
-                                    PorterDuff.Mode.SRC_ATOP
-                                )
-                                alpha = 200
-                            }
-                            canvas.drawBitmap(base, 0f, 0f, paint)
-                            BitmapDescriptorFactory.fromBitmap(tinted)
-                        } ?: BitmapDescriptorFactory.defaultMarker(hue)
-                        markerDescriptorCache[hue] = descriptor
-                        return descriptor
-                    }
-
-                    LaunchedEffect(
-                        destination,
-                        discoverDrops,
-                        discoverSelectedId,
-                        discoverCurrentLocation
-                    ) {
-                        val targetDrop = discoverDrops.firstOrNull { it.id == discoverSelectedId }
-                        val target = targetDrop?.let { LatLng(it.lat, it.lng) }
-                            ?: discoverCurrentLocation
-                            ?: discoverDrops.firstOrNull()?.let { LatLng(it.lat, it.lng) }
-                        if (target != null) {
-                            val zoomLevel = if (targetDrop != null) 18f else 15f
-                            val update = CameraUpdateFactory.newLatLngZoom(target, zoomLevel)
-                            cameraPositionState.animate(update)
-                        }
-                    }
-
-                    discoverCurrentLocation?.let { location ->
-                        if (notificationRadiusMeters > 0.0) {
-                            Circle(
-                                center = location,
-                                radius = notificationRadiusMeters,
-                                strokeColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
-                                strokeWidth = 2f,
-                                fillColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
-                                zIndex = 0f
-                            )
-                        }
-
-                        Marker(
-                            state = MarkerState(location),
-                            title = "Your current location",
-                            icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE),
-                            zIndex = 1f
-                        )
-                    }
-
-                    val selectedDrop = discoverSelectedId?.let { id ->
-                        discoverDrops.firstOrNull { it.id == id }
-                    }
-                    selectedDrop?.let { drop ->
-                        val dropPosition = LatLng(drop.lat, drop.lng)
-                        Circle(
-                            center = dropPosition,
-                            radius = DROP_PICKUP_RADIUS_METERS,
-                            strokeColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.6f),
-                            strokeWidth = 2f,
-                            fillColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f),
-                            zIndex = 1f
-                        )
-                    }
-
-                    discoverDrops.forEach { drop ->
-                        val position = LatLng(drop.lat, drop.lng)
-                        val snippetParts = mutableListOf<String>()
-                        val snippetDescription = drop.description?.takeIf { it.isNotBlank() }
-                            ?: drop.text.takeIf { it.isNotBlank() }
-                            ?: when (drop.contentType) {
-                                DropContentType.PHOTO -> "Preview the photo in the drop list."
-                                DropContentType.AUDIO -> "Open the drop list to play this recording."
-                                DropContentType.VIDEO -> "Open the drop list to watch this clip."
-                                DropContentType.TEXT -> ""
-                            }
-                        if (!snippetDescription.isNullOrBlank()) {
-                            snippetParts.add(snippetDescription)
-                        }
-                        formatTimestamp(drop.createdAt)?.let { snippetParts.add("Dropped $it") }
-                        drop.groupCode?.takeIf { !it.isNullOrBlank() }
-                            ?.let { snippetParts.add("Group $it") }
-                        snippetParts.add("Lat: %.5f, Lng: %.5f".format(drop.lat, drop.lng))
-                        snippetParts.add("Likes: ${drop.likeCount}")
-                        if (drop.isNsfw) {
-                            snippetParts.add("Marked as adult content")
-                        }
-
-                        val isSelected = drop.id == discoverSelectedId
-
-                        val markerIcon = when {
-                            drop.isBusinessDrop() && businessMarkerDescriptor != null -> businessMarkerDescriptor
-                            isSelected -> descriptorForHue(BitmapDescriptorFactory.HUE_BLUE)
-                            drop.isNsfw -> descriptorForHue(BitmapDescriptorFactory.HUE_MAGENTA)
-                            else -> descriptorForHue(likeHueFor(drop.likeCount))
-                        }
-
-                        Marker(
-                            state = MarkerState(position),
-                            title = drop.displayTitle(),
-                            snippet = snippetParts.joinToString("\n"),
-                            icon = markerIcon,
-                            alpha = if (isSelected) 1f else 0.9f,
-                            zIndex = if (isSelected) 2f else 0f,
-                            onClick = {
-                                onDiscoverMarkerClick(drop)
-                                false
-                            }
-                        )
-                    }
-                }
-
-                ExplorerDestination.MyDrops -> {
-                    LaunchedEffect(destination, myDrops, myDropsSelectedId, myDropsCurrentLocation) {
-                        val targetDrop = myDrops.firstOrNull { it.id == myDropsSelectedId }
-                        val target = targetDrop?.let { LatLng(it.lat, it.lng) }
-                            ?: myDropsCurrentLocation
-                            ?: myDrops.firstOrNull()?.let { LatLng(it.lat, it.lng) }
-                        if (target != null) {
-                            val zoomLevel = if (targetDrop != null) 18f else 15f
-                            val update = CameraUpdateFactory.newLatLngZoom(target, zoomLevel)
-                            cameraPositionState.animate(update)
-                        }
-                    }
-
-                    myDropsCurrentLocation?.let { location ->
-                        Marker(
-                            state = MarkerState(location),
-                            title = "Your current location",
-                            icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE),
-                            zIndex = 1f
-                        )
-                    }
-
-                    myDrops.forEach { drop ->
-                        val position = LatLng(drop.lat, drop.lng)
-                        val snippetParts = mutableListOf<String>()
-                        val typeLabel = when (drop.contentType) {
-                            DropContentType.TEXT -> "Text note"
-                            DropContentType.PHOTO -> "Photo drop"
-                            DropContentType.AUDIO -> "Audio drop"
-                            DropContentType.VIDEO -> "Video drop"
-                        }
-                        snippetParts.add("Type: $typeLabel")
-                        formatTimestamp(drop.createdAt)?.let { snippetParts.add("Dropped $it") }
-                        drop.groupCode?.takeIf { !it.isNullOrBlank() }
-                            ?.let { snippetParts.add("Group $it") }
-                        snippetParts.add("Lat: %.5f, Lng: %.5f".format(drop.lat, drop.lng))
-                        snippetParts.add("Likes: ${drop.likeCount}")
-                        snippetParts.add("Dislikes: ${drop.dislikeCount}")
-                        if (drop.isNsfw) {
-                            snippetParts.add("Marked as adult content")
-                        }
-
-                        val isSelected = drop.id == myDropsSelectedId
-                        val markerIcon = when {
-                            isSelected -> BitmapDescriptorFactory.defaultMarker(
-                                BitmapDescriptorFactory.HUE_BLUE
-                            )
-
-                            drop.isNsfw -> BitmapDescriptorFactory.defaultMarker(
-                                BitmapDescriptorFactory.HUE_MAGENTA
-                            )
-
-                            else -> BitmapDescriptorFactory.defaultMarker(likeHueFor(drop.likeCount))
-                        }
-
-                        Marker(
-                            state = MarkerState(position),
-                            title = drop.displayTitle(),
-                            snippet = snippetParts.joinToString("\n"),
-                            icon = markerIcon,
-                            alpha = if (isSelected) 1f else 0.9f,
-                            zIndex = if (isSelected) 2f else 0f,
-                            onClick = {
-                                onMyDropMarkerClick(drop)
-                                false
-                            }
-                        )
-                    }
-                }
-
-                ExplorerDestination.Collected -> {
-                    val notesWithLocation = remember(collectedNotes) {
-                        collectedNotes.filter { it.lat != null && it.lng != null }
-                    }
-                    val highlightedNote =
-                        notesWithLocation.firstOrNull { it.id == collectedHighlightedId }
-                    val fallbackNote = notesWithLocation.firstOrNull()
-
-                    LaunchedEffect(destination, notesWithLocation, highlightedNote?.id) {
-                        val target = highlightedNote ?: fallbackNote
-                        if (target != null) {
-                            val lat = target.lat ?: return@LaunchedEffect
-                            val lng = target.lng ?: return@LaunchedEffect
-                            val zoom = if (highlightedNote != null) 15f else 12f
-                            val update = CameraUpdateFactory.newLatLngZoom(LatLng(lat, lng), zoom)
-                            cameraPositionState.animate(update)
-                        }
-                    }
-
-                    collectedCurrentLocation?.let { location ->
-                        Marker(
-                            state = MarkerState(location),
-                            title = "Your current location",
-                            icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE),
-                            zIndex = 1f
-                        )
-                    }
-
-                    notesWithLocation.forEach { note ->
-                        val lat = note.lat ?: return@forEach
-                        val lng = note.lng ?: return@forEach
-                        val position = LatLng(lat, lng)
-                        val typeLabel = when (note.contentType) {
-                            DropContentType.TEXT -> "Text note"
-                            DropContentType.PHOTO -> "Photo drop"
-                            DropContentType.AUDIO -> "Audio drop"
-                            DropContentType.VIDEO -> "Video drop"
-                        }
-                        val snippetParts = mutableListOf<String>()
-                        snippetParts.add("Type: $typeLabel")
-                        note.dropCreatedAt?.let { created ->
-                            formatTimestamp(created)?.let { snippetParts.add("Dropped $it") }
-                        }
-                        snippetParts.add("Lat: ${formatCoordinate(lat)}, Lng: ${formatCoordinate(lng)}")
-                        note.groupCode?.let { snippetParts.add("Group $it") }
-                        if (note.isNsfw) {
-                            snippetParts.add("Marked as adult content")
-                        }
-
-                        val title = note.text.ifBlank {
-                            when (note.contentType) {
-                                DropContentType.TEXT -> "Collected text drop"
-                                DropContentType.PHOTO -> "Collected photo drop"
-                                DropContentType.AUDIO -> "Collected audio drop"
-                                DropContentType.VIDEO -> "Collected video drop"
-                            }
-                        }
-
-                        val markerIcon = when {
-                            note.isNsfw -> BitmapDescriptorFactory.defaultMarker(
-                                BitmapDescriptorFactory.HUE_MAGENTA
-                            )
-
-                            note.id == collectedHighlightedId -> BitmapDescriptorFactory.defaultMarker(
-                                BitmapDescriptorFactory.HUE_ORANGE
-                            )
-
-                            else -> BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN)
-                        }
-
-                        Marker(
-                            state = MarkerState(position),
-                            title = title,
-                            snippet = snippetParts.joinToString("\n"),
-                            icon = markerIcon,
-                            zIndex = if (note.id == collectedHighlightedId) 1f else 0f,
-                            onClick = {
-                                onCollectedMarkerClick(note)
-                                false
-                            }
-                        )
-                    }
-                }
-            }
-        }
-    }
-
     @Composable
     private fun CollectedDropsContent(
         modifier: Modifier = Modifier,
@@ -6391,13 +6045,341 @@ fun DropHereScreen(
                     onClick = { onSelect(destination) },
                     shape = shape,
                     icon = {
-                            Icon(
-                                imageVector = icon,
-                                contentDescription = null
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = null
+                        )
+                    },
+                    label = { Text(label) }
+                )
+            }
+        }
+    }
+}
+
+    private fun formatCoordinate(value: Double): String {
+        return String.format(Locale.US, "%.5f", value)
+    }
+
+
+    @Composable
+    private fun ExplorerMap(
+        modifier: Modifier = Modifier,
+        destination: ExplorerDestination,
+        discoverDrops: List<Drop>,
+        discoverSelectedId: String?,
+        discoverCurrentLocation: LatLng?,
+        currentUserId: String?,
+        notificationRadiusMeters: Double,
+        myDrops: List<Drop>,
+        myDropsSelectedId: String?,
+        myDropsCurrentLocation: LatLng?,
+        collectedNotes: List<CollectedNote>,
+        collectedHighlightedId: String?,
+        collectedCurrentLocation: LatLng?,
+        onDiscoverMarkerClick: (Drop) -> Unit,
+        onMyDropMarkerClick: (Drop) -> Unit,
+        onCollectedMarkerClick: (CollectedNote) -> Unit
+    ) {
+        val context = LocalContext.current
+        val cameraPositionState = rememberCameraPositionState()
+        val uiSettings = remember { MapUiSettings(zoomControlsEnabled = true) }
+
+        GoogleMap(
+            modifier = modifier
+                .fillMaxSize()
+                .consumeMapGesturesInParent(),
+            cameraPositionState = cameraPositionState,
+            uiSettings = uiSettings
+        ) {
+            when (destination) {
+                ExplorerDestination.Discover -> {
+                    val baseMarkerBitmap = remember {
+                        BitmapFactory.decodeResource(
+                            context.resources,
+                            R.drawable.explorer_drop_marker
+                        )?.let { bitmap ->
+                            if (bitmap.config == Bitmap.Config.ARGB_8888) {
+                                bitmap
+                            } else {
+                                bitmap.copy(Bitmap.Config.ARGB_8888, false)
+                            }
+                        }
+                    }
+                    val businessMarkerDescriptor = remember {
+                        runCatching {
+                            BitmapFactory.decodeResource(
+                                context.resources,
+                                R.drawable.business_drop_marker
+                            )?.let { bitmap ->
+                                val argbBitmap = if (bitmap.config == Bitmap.Config.ARGB_8888) {
+                                    bitmap
+                                } else {
+                                    bitmap.copy(Bitmap.Config.ARGB_8888, false)
+                                }
+                                BitmapDescriptorFactory.fromBitmap(argbBitmap)
+                            }
+                        }.getOrElse { error ->
+                            Log.e("GeoDrop", "Failed to load business drop marker", error)
+                            null
+                        }
+                    }
+                    val markerDescriptorCache = remember(baseMarkerBitmap) {
+                        mutableMapOf<Float, BitmapDescriptor>()
+                    }
+
+                    fun descriptorForHue(hue: Float): BitmapDescriptor {
+                        markerDescriptorCache[hue]?.let { return it }
+                        val descriptor = baseMarkerBitmap?.let { base ->
+                            val tinted =
+                                Bitmap.createBitmap(base.width, base.height, Bitmap.Config.ARGB_8888)
+                            val canvas = Canvas(tinted)
+                            canvas.drawBitmap(base, 0f, 0f, null)
+                            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                                colorFilter = PorterDuffColorFilter(
+                                    android.graphics.Color.HSVToColor(floatArrayOf(hue, 0.8f, 1f)),
+                                    PorterDuff.Mode.SRC_ATOP
+                                )
+                                alpha = 200
+                            }
+                            canvas.drawBitmap(base, 0f, 0f, paint)
+                            BitmapDescriptorFactory.fromBitmap(tinted)
+                        } ?: BitmapDescriptorFactory.defaultMarker(hue)
+                        markerDescriptorCache[hue] = descriptor
+                        return descriptor
+                    }
+
+                    discoverCurrentLocation?.let { location ->
+                        Marker(
+                            state = MarkerState(location),
+                            title = "Your current location",
+                            icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE),
+                            zIndex = 1f
+                        )
+                    }
+
+                    notificationRadiusMeters.takeIf { it > 0.0 }?.let { radius ->
+                        discoverCurrentLocation?.let { location ->
+                            Circle(
+                                center = location,
+                                radius = radius,
+                                fillColor = Color(0x334285F4),
+                                strokeColor = Color(0x994285F4),
+                                strokeWidth = 2f
                             )
-                        },
-                        label = { Text(label) }
-                    )
+                        }
+                    }
+
+                    fun sortedDropsByDistance(
+                        drops: List<Drop>,
+                        currentLocation: LatLng?
+                    ): List<Drop> {
+                        val location = currentLocation ?: return drops
+                        return drops.sortedBy { drop ->
+                            distanceBetweenMeters(
+                                location.latitude,
+                                location.longitude,
+                                drop.lat,
+                                drop.lng
+                            )
+                        }
+                    }
+
+                    sortedDropsByDistance(discoverDrops, discoverCurrentLocation).forEach { drop ->
+                        val position = LatLng(drop.lat, drop.lng)
+                        val snippetParts = mutableListOf<String>()
+                        snippetParts.add("Dropped ${drop.displayTimeAgo()}")
+                        snippetParts.add("By ${drop.dropper.displayName()}")
+                        drop.groupCode?.takeIf { !it.isNullOrBlank() }
+                            ?.let { snippetParts.add("Group $it") }
+                        snippetParts.add("Lat: %.5f, Lng: %.5f".format(drop.lat, drop.lng))
+                        snippetParts.add("Likes: ${drop.likeCount}")
+                        snippetParts.add("Dislikes: ${drop.dislikeCount}")
+                        if (drop.isNsfw) {
+                            snippetParts.add("Marked as adult content")
+                        }
+
+                        val hue = when {
+                            drop.isBusinessDrop() -> 51f
+                            drop.isNsfw -> BitmapDescriptorFactory.HUE_MAGENTA
+                            drop.dropper.uid == currentUserId -> BitmapDescriptorFactory.HUE_AZURE
+                            else -> likeHueFor(drop.likeCount)
+                        }
+                        val markerIcon =
+                            if (drop.isBusinessDrop()) businessMarkerDescriptor else descriptorForHue(hue)
+                        val isSelected = drop.id == discoverSelectedId
+
+                        Marker(
+                            state = MarkerState(position),
+                            title = drop.displayTitle(),
+                            snippet = snippetParts.joinToString("
+                                "),
+                            icon = markerIcon,
+                                alpha = if (isSelected) 1f else 0.9f,
+                                zIndex = if (isSelected) 2f else 0f,
+                                onClick = {
+                                    onDiscoverMarkerClick(drop)
+                                    false
+                                }
+                            )
+                    }
+                }
+
+                ExplorerDestination.MyDrops -> {
+                    val dropsWithLocation = remember(myDrops) {
+                        myDrops.filter { it.lat != null && it.lng != null }
+                    }
+                    val highlightedDrop =
+                        dropsWithLocation.firstOrNull { it.id == myDropsSelectedId }
+                    val fallbackDrop = dropsWithLocation.firstOrNull()
+
+                    LaunchedEffect(destination, dropsWithLocation, highlightedDrop?.id) {
+                        val target = highlightedDrop ?: fallbackDrop
+                        if (target != null) {
+                            val lat = target.lat ?: return@LaunchedEffect
+                            val lng = target.lng ?: return@LaunchedEffect
+                            val zoom = if (highlightedDrop != null) 15f else 12f
+                            val update = CameraUpdateFactory.newLatLngZoom(LatLng(lat, lng), zoom)
+                            cameraPositionState.animate(update)
+                        }
+                    }
+
+                    myDropsCurrentLocation?.let { location ->
+                        Marker(
+                            state = MarkerState(location),
+                            title = "Your current location",
+                            icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE),
+                            zIndex = 1f
+                        )
+                    }
+
+                    dropsWithLocation.forEach { drop ->
+                        val lat = drop.lat ?: return@forEach
+                        val lng = drop.lng ?: return@forEach
+                        val position = LatLng(lat, lng)
+                        val snippetParts = mutableListOf<String>()
+                        snippetParts.add("Dropped ${drop.displayTimeAgo()}")
+                        drop.groupCode?.takeIf { !it.isNullOrBlank() }
+                            ?.let { snippetParts.add("Group $it") }
+                        snippetParts.add("Lat: %.5f, Lng: %.5f".format(drop.lat, drop.lng))
+                        snippetParts.add("Likes: ${drop.likeCount}")
+                        snippetParts.add("Dislikes: ${drop.dislikeCount}")
+                        if (drop.isNsfw) {
+                            snippetParts.add("Marked as adult content")
+                        }
+
+                        val isSelected = drop.id == myDropsSelectedId
+                        val markerIcon = when {
+                            isSelected -> BitmapDescriptorFactory.defaultMarker(
+                                BitmapDescriptorFactory.HUE_BLUE
+                            )
+
+                            drop.isNsfw -> BitmapDescriptorFactory.defaultMarker(
+                                BitmapDescriptorFactory.HUE_MAGENTA
+                            )
+
+                            else -> BitmapDescriptorFactory.defaultMarker(likeHueFor(drop.likeCount))
+                        }
+
+                        Marker(
+                            state = MarkerState(position),
+                            title = drop.displayTitle(),
+                            snippet = snippetParts.joinToString("
+                                "),
+                                        icon = markerIcon,
+                                alpha = if (isSelected) 1f else 0.9f,
+                                zIndex = if (isSelected) 2f else 0f,
+                                onClick = {
+                                    onMyDropMarkerClick(drop)
+                                    false
+                            }
+                        )
+                    }
+                }
+
+                ExplorerDestination.Collected -> {
+                    val notesWithLocation = remember(collectedNotes) {
+                        collectedNotes.filter { it.lat != null && it.lng != null }
+                    }
+                    val highlightedNote =
+                        notesWithLocation.firstOrNull { it.id == collectedHighlightedId }
+                    val fallbackNote = notesWithLocation.firstOrNull()
+
+                    LaunchedEffect(destination, notesWithLocation, highlightedNote?.id) {
+                        val target = highlightedNote ?: fallbackNote
+                        if (target != null) {
+                            val lat = target.lat ?: return@LaunchedEffect
+                            val lng = target.lng ?: return@LaunchedEffect
+                            val zoom = if (highlightedNote != null) 15f else 12f
+                            val update = CameraUpdateFactory.newLatLngZoom(LatLng(lat, lng), zoom)
+                            cameraPositionState.animate(update)
+                        }
+                    }
+
+                    collectedCurrentLocation?.let { location ->
+                        Marker(
+                            state = MarkerState(location),
+                            title = "Your current location",
+                            icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE),
+                            zIndex = 1f
+                        )
+                    }
+
+                    notesWithLocation.forEach { note ->
+                        val lat = note.lat ?: return@forEach
+                        val lng = note.lng ?: return@forEach
+                        val position = LatLng(lat, lng)
+                        val typeLabel = when (note.contentType) {
+                            DropContentType.TEXT -> "Text note"
+                            DropContentType.PHOTO -> "Photo drop"
+                            DropContentType.AUDIO -> "Audio drop"
+                            DropContentType.VIDEO -> "Video drop"
+                        }
+                        val snippetParts = mutableListOf<String>()
+                        snippetParts.add("Type: $typeLabel")
+                        note.dropCreatedAt?.let { created ->
+                            formatTimestamp(created)?.let { snippetParts.add("Dropped $it") }
+                        }
+                        snippetParts.add("Lat: ${formatCoordinate(lat)}, Lng: ${formatCoordinate(lng)}")
+                        note.groupCode?.let { snippetParts.add("Group $it") }
+                        if (note.isNsfw) {
+                            snippetParts.add("Marked as adult content")
+                        }
+
+                        val title = note.text.ifBlank {
+                            when (note.contentType) {
+                                DropContentType.TEXT -> "Collected text drop"
+                                DropContentType.PHOTO -> "Collected photo drop"
+                                DropContentType.AUDIO -> "Collected audio drop"
+                                DropContentType.VIDEO -> "Collected video drop"
+                            }
+                        }
+
+                        val markerIcon = when {
+                            note.isNsfw -> BitmapDescriptorFactory.defaultMarker(
+                                BitmapDescriptorFactory.HUE_MAGENTA
+                            )
+
+                            note.id == collectedHighlightedId -> BitmapDescriptorFactory.defaultMarker(
+                                BitmapDescriptorFactory.HUE_ORANGE
+                            )
+
+                            else -> BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN)
+                        }
+
+                        Marker(
+                            state = MarkerState(position),
+                            title = title,
+                            snippet = snippetParts.joinToString("
+                                "),
+                                        icon = markerIcon,
+                                zIndex = if (note.id == collectedHighlightedId) 1f else 0f,
+                                onClick = {
+                                    onCollectedMarkerClick(note)
+                                    false
+                                }
+                            )
+                    }
                 }
             }
         }
