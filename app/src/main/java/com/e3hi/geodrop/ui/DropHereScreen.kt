@@ -3052,7 +3052,7 @@ fun DropHereScreen(
                     )
                 } else {
                     if (currentHomeDestination == HomeDestination.Explorer && userMode != null) {
-                        ExplorerDestinationTabs(
+                        ExplorerDestinationTabRow(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 20.dp)
@@ -5529,7 +5529,7 @@ fun DropHereScreen(
 
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
-    private fun ExplorerDestinationTabs(
+    private fun ExplorerDestinationTabRow(
         modifier: Modifier = Modifier,
         current: ExplorerDestination,
         onSelect: (ExplorerDestination) -> Unit,
