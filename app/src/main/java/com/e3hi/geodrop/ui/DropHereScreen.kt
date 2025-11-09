@@ -2106,8 +2106,7 @@ fun DropHereScreen(
                     nsfwAllowed = userProfile?.canViewNsfw() == true
                 )
                 val baseStatusMessage = status
-                val visionMessage = visionStatusMessage(
-                    assessment = safety,
+                val visionMessage = safety.visionStatusMessage(
                     contentType = dropContentType
                 )
                 status = when {
@@ -5581,11 +5580,10 @@ fun DropHereScreen(
         )
     }
 
-    private fun visionStatusMessage(
-        assessment: DropSafetyAssessment,
+    private fun DropSafetyAssessment.visionStatusMessage(
         contentType: DropContentType
     ): String? {
-        return when (assessment.visionStatus) {
+        return when (visionStatus) {
             VisionApiStatus.NOT_CONFIGURED ->
                 "Google Vision SafeSearch isn't configured, so this drop wasn't scanned."
 
@@ -5604,7 +5602,7 @@ fun DropHereScreen(
                 "Google Vision SafeSearch scanned the drop and cleared it."
 
             VisionApiStatus.FLAGGED -> {
-                val reason = assessment.reasons.firstOrNull()?.takeIf { it.isNotBlank() }
+                val reason = reasons.firstOrNull()?.takeIf { it.isNotBlank() }
                 if (reason != null) {
                     "Google Vision SafeSearch flagged this drop: $reason"
                 } else {
