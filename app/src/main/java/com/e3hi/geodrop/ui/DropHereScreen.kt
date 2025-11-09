@@ -744,400 +744,6 @@ fun DropHereScreen(
         return
     }
 
-    @OptIn(ExperimentalMaterial3Api::class)
-    @Composable
-    private fun AccountSignInDialog(
-        accountType: AccountType,
-        canChangeAccountType: Boolean,
-        onAccountTypeChange: (AccountType) -> Unit,
-        mode: AccountAuthMode,
-        onModeChange: (AccountAuthMode) -> Unit,
-        email: TextFieldValue,
-        onEmailChange: (TextFieldValue) -> Unit,
-        password: TextFieldValue,
-        onPasswordChange: (TextFieldValue) -> Unit,
-        confirmPassword: TextFieldValue,
-        onConfirmPasswordChange: (TextFieldValue) -> Unit,
-        username: TextFieldValue,
-        onUsernameChange: (TextFieldValue) -> Unit,
-        isSubmitting: Boolean,
-        isGoogleSigningIn: Boolean,
-        error: String?,
-        status: String?,
-        onSubmit: () -> Unit,
-        onDismiss: () -> Unit,
-        onForgotPassword: () -> Unit,
-        onGoogleSignIn: () -> Unit
-    ) {
-        val isBusy = isSubmitting || isGoogleSigningIn
-        val focusManager = LocalFocusManager.current
-        val keyboardController = LocalSoftwareKeyboardController.current
-
-        val scrollState = rememberScrollState()
-        val configuration = LocalConfiguration.current
-        val maxDialogHeight = remember(configuration) {
-            (configuration.screenHeightDp.dp * 0.9f).coerceAtLeast(0.dp)
-        }
-
-        val hideKeyboardAndClearFocus = {
-            keyboardController?.hide()
-            focusManager.clearFocus(force = true)
-        }
-        val submitWithKeyboardDismiss = {
-            hideKeyboardAndClearFocus()
-            onSubmit()
-        }
-        val dismissWithKeyboardDismiss = {
-            hideKeyboardAndClearFocus()
-            onDismiss()
-        }
-        val forgotPasswordWithKeyboardDismiss = {
-            hideKeyboardAndClearFocus()
-            onForgotPassword()
-        }
-        val googleSignInWithKeyboardDismiss = {
-            hideKeyboardAndClearFocus()
-            onGoogleSignIn()
-        }
-
-        Dialog(
-            onDismissRequest = {
-                if (!isBusy) {
-                    dismissWithKeyboardDismiss()
-                }
-            },
-            properties = DialogProperties(
-                dismissOnBackPress = !isBusy,
-                dismissOnClickOutside = !isBusy
-            )
-        ) {
-            Surface(
-                shape = MaterialTheme.shapes.large,
-                tonalElevation = 6.dp,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .padding(24.dp)
-                        .imePadding()
-                        .heightIn(max = maxDialogHeight)
-                        .verticalScroll(scrollState),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Text(
-                        text = when (accountType) {
-                            AccountType.EXPLORER -> "Explorer account"
-                            AccountType.BUSINESS -> "Business account"
-                        },
-                        style = MaterialTheme.typography.titleLarge
-                    )
-
-                    if (canChangeAccountType) {
-                        SingleChoiceSegmentedButtonRow {
-                            AccountType.entries.forEachIndexed { index, type ->
-                                SegmentedButton(
-                                    shape = SegmentedButtonDefaults.itemShape(
-                                        index,
-                                        AccountType.entries.size
-                                    ),
-                                    selected = accountType == type,
-                                    onClick = { onAccountTypeChange(type) }
-                                ) {
-                                    Text(
-                                        text = when (type) {
-                                            AccountType.EXPLORER -> "Explorer"
-                                            AccountType.BUSINESS -> "Business"
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    Text(
-                        text = when (accountType) {
-                            AccountType.EXPLORER -> "Explorer accounts let you drop, like, and collect rewards."
-                            AccountType.BUSINESS -> "Business accounts can publish offers and require business details."
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    BoxWithConstraints {
-                        val shouldStackVertically = maxWidth < 360.dp
-
-                        if (shouldStackVertically) {
-                            Column(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                AccountAuthMode.entries.forEach { option ->
-                                    val selected = mode == option
-                                    val buttonColors = if (selected) {
-                                        ButtonDefaults.filledTonalButtonColors()
-                                    } else {
-                                        ButtonDefaults.filledTonalButtonColors(
-                                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                                            contentColor = MaterialTheme.colorScheme.onSurface
-                                        )
-                                    }
-
-                                    FilledTonalButton(
-                                        onClick = { onModeChange(option) },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        enabled = !isBusy,
-                                        colors = buttonColors,
-                                        shape = MaterialTheme.shapes.large
-                                    ) {
-                                        Text(
-                                            text = when (option) {
-                                                AccountAuthMode.SIGN_IN -> "Sign in"
-                                                AccountAuthMode.REGISTER -> "Create account"
-                                            }
-                                        )
-                                    }
-                                }
-                            }
-                        } else {
-                            SingleChoiceSegmentedButtonRow {
-                                AccountAuthMode.entries.forEachIndexed { index, option ->
-                                    SegmentedButton(
-                                        shape = SegmentedButtonDefaults.itemShape(
-                                            index,
-                                            AccountAuthMode.entries.size
-                                        ),
-                                        selected = mode == option,
-                                        onClick = { onModeChange(option) }
-                                    ) {
-                                        Text(
-                                            text = when (option) {
-                                                AccountAuthMode.SIGN_IN -> "Sign in"
-                                                AccountAuthMode.REGISTER -> "Create account"
-                                            }
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    val isRegister = mode == AccountAuthMode.REGISTER
-                    val requiresExplorerUsername = isRegister && accountType == AccountType.EXPLORER
-
-                    if (requiresExplorerUsername) {
-                        OutlinedTextField(
-                            value = username,
-                            onValueChange = onUsernameChange,
-                            label = { Text(stringResource(R.string.explorer_profile_username_label)) },
-                            placeholder = { Text(stringResource(R.string.explorer_profile_username_placeholder)) },
-                            enabled = !isBusy,
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(
-                                capitalization = KeyboardCapitalization.None,
-                                autoCorrect = false,
-                                keyboardType = KeyboardType.Ascii,
-                                imeAction = ImeAction.Next
-                            ),
-                            keyboardActions = KeyboardActions(
-                                onNext = { focusManager.moveFocus(FocusDirection.Next) }
-                            )
-                        )
-
-                        Text(
-                            text = stringResource(R.string.explorer_profile_hint),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
-                    OutlinedTextField(
-                        value = email,
-                        onValueChange = onEmailChange,
-                        label = { Text("Email address") },
-                        enabled = !isBusy,
-                        modifier = Modifier.fillMaxWidth(),
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Email,
-                            imeAction = ImeAction.Next
-                        ),
-                        keyboardActions = KeyboardActions(
-                            onNext = { focusManager.moveFocus(FocusDirection.Next) }
-                        )
-                    )
-
-                    OutlinedTextField(
-                        value = password,
-                        onValueChange = onPasswordChange,
-                        label = { Text("Password") },
-                        enabled = !isBusy,
-                        modifier = Modifier.fillMaxWidth(),
-                        visualTransformation = PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Password,
-                            imeAction = if (isRegister) ImeAction.Next else ImeAction.Done
-                        ),
-                        keyboardActions = if (isRegister) {
-                            KeyboardActions(
-                                onNext = { focusManager.moveFocus(FocusDirection.Next) }
-                            )
-                        } else {
-                            KeyboardActions(
-                                onDone = { submitWithKeyboardDismiss() }
-                            )
-                        }
-                    )
-
-                    if (isRegister) {
-                        OutlinedTextField(
-                            value = confirmPassword,
-                            onValueChange = onConfirmPasswordChange,
-                            label = { Text("Confirm password") },
-                            enabled = !isBusy,
-                            modifier = Modifier.fillMaxWidth(),
-                            visualTransformation = PasswordVisualTransformation(),
-                            keyboardOptions = KeyboardOptions(
-                                keyboardType = KeyboardType.Password,
-                                imeAction = ImeAction.Done
-                            ),
-                            keyboardActions = KeyboardActions(
-                                onDone = { submitWithKeyboardDismiss() }
-                            )
-                        )
-                    }
-
-                    error?.let { message ->
-                        Text(
-                            text = message,
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
-
-                    status?.let { message ->
-                        Text(
-                            text = message,
-                            color = MaterialTheme.colorScheme.primary,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
-
-                    if (!isRegister) {
-                        TextButton(
-                            onClick = forgotPasswordWithKeyboardDismiss,
-                            enabled = !isBusy,
-                            modifier = Modifier.align(Alignment.End)
-                        ) {
-                            Text("Forgot password?")
-                        }
-                    }
-
-                    if (isRegister) {
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            Button(
-                                onClick = submitWithKeyboardDismiss,
-                                enabled = !isBusy,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                if (isSubmitting) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(18.dp),
-                                        strokeWidth = 2.dp
-                                    )
-                                    Spacer(Modifier.width(8.dp))
-                                    Text("Working…")
-                                } else {
-                                    Text(
-                                        text = when (mode) {
-                                            AccountAuthMode.SIGN_IN -> "Sign in"
-                                            AccountAuthMode.REGISTER -> "Create account"
-                                        }
-                                    )
-                                }
-                            }
-
-                            OutlinedButton(
-                                onClick = dismissWithKeyboardDismiss,
-                                enabled = !isBusy,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text("Cancel")
-                            }
-                        }
-                    } else {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            OutlinedButton(
-                                onClick = dismissWithKeyboardDismiss,
-                                enabled = !isBusy,
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Text("Cancel")
-                            }
-
-                            Button(
-                                onClick = submitWithKeyboardDismiss,
-                                enabled = !isBusy,
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                if (isSubmitting) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(18.dp),
-                                        strokeWidth = 2.dp
-                                    )
-                                    Spacer(Modifier.width(8.dp))
-                                    Text("Working…")
-                                } else {
-                                    Text(
-                                        text = when (mode) {
-                                            AccountAuthMode.SIGN_IN -> "Sign in"
-                                            AccountAuthMode.REGISTER -> "Create account"
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    Spacer(Modifier.height(12.dp))
-                    Divider()
-                    Text(
-                        text = "Or continue with",
-                        modifier = Modifier.fillMaxWidth(),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center
-                    )
-                    OutlinedButton(
-                        onClick = googleSignInWithKeyboardDismiss,
-                        enabled = !isBusy,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        if (isGoogleSigningIn) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(18.dp),
-                                strokeWidth = 2.dp
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text("Connecting to Google…")
-                        } else {
-                            Text("Sign in with Google")
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-
     if (showAccountSignIn) {
         AccountSignInDialog(
             accountType = accountType,
@@ -10823,6 +10429,399 @@ fun DropHereScreen(
             }
         }
     }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AccountSignInDialog(
+    accountType: AccountType,
+    canChangeAccountType: Boolean,
+    onAccountTypeChange: (AccountType) -> Unit,
+    mode: AccountAuthMode,
+    onModeChange: (AccountAuthMode) -> Unit,
+    email: TextFieldValue,
+    onEmailChange: (TextFieldValue) -> Unit,
+    password: TextFieldValue,
+    onPasswordChange: (TextFieldValue) -> Unit,
+    confirmPassword: TextFieldValue,
+    onConfirmPasswordChange: (TextFieldValue) -> Unit,
+    username: TextFieldValue,
+    onUsernameChange: (TextFieldValue) -> Unit,
+    isSubmitting: Boolean,
+    isGoogleSigningIn: Boolean,
+    error: String?,
+    status: String?,
+    onSubmit: () -> Unit,
+    onDismiss: () -> Unit,
+    onForgotPassword: () -> Unit,
+    onGoogleSignIn: () -> Unit
+) {
+    val isBusy = isSubmitting || isGoogleSigningIn
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    val scrollState = rememberScrollState()
+    val configuration = LocalConfiguration.current
+    val maxDialogHeight = remember(configuration) {
+        (configuration.screenHeightDp.dp * 0.9f).coerceAtLeast(0.dp)
+    }
+
+    val hideKeyboardAndClearFocus = {
+        keyboardController?.hide()
+        focusManager.clearFocus(force = true)
+    }
+    val submitWithKeyboardDismiss = {
+        hideKeyboardAndClearFocus()
+        onSubmit()
+    }
+    val dismissWithKeyboardDismiss = {
+        hideKeyboardAndClearFocus()
+        onDismiss()
+    }
+    val forgotPasswordWithKeyboardDismiss = {
+        hideKeyboardAndClearFocus()
+        onForgotPassword()
+    }
+    val googleSignInWithKeyboardDismiss = {
+        hideKeyboardAndClearFocus()
+        onGoogleSignIn()
+    }
+
+    Dialog(
+        onDismissRequest = {
+            if (!isBusy) {
+                dismissWithKeyboardDismiss()
+            }
+        },
+        properties = DialogProperties(
+            dismissOnBackPress = !isBusy,
+            dismissOnClickOutside = !isBusy
+        )
+    ) {
+        Surface(
+            shape = MaterialTheme.shapes.large,
+            tonalElevation = 6.dp,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(24.dp)
+                    .imePadding()
+                    .heightIn(max = maxDialogHeight)
+                    .verticalScroll(scrollState),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = when (accountType) {
+                        AccountType.EXPLORER -> "Explorer account"
+                        AccountType.BUSINESS -> "Business account"
+                    },
+                    style = MaterialTheme.typography.titleLarge
+                )
+
+                if (canChangeAccountType) {
+                    SingleChoiceSegmentedButtonRow {
+                        AccountType.entries.forEachIndexed { index, type ->
+                            SegmentedButton(
+                                shape = SegmentedButtonDefaults.itemShape(
+                                    index,
+                                    AccountType.entries.size
+                                ),
+                                selected = accountType == type,
+                                onClick = { onAccountTypeChange(type) }
+                            ) {
+                                Text(
+                                    text = when (type) {
+                                        AccountType.EXPLORER -> "Explorer"
+                                        AccountType.BUSINESS -> "Business"
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Text(
+                    text = when (accountType) {
+                        AccountType.EXPLORER -> "Explorer accounts let you drop, like, and collect rewards."
+                        AccountType.BUSINESS -> "Business accounts can publish offers and require business details."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                BoxWithConstraints {
+                    val shouldStackVertically = maxWidth < 360.dp
+
+                    if (shouldStackVertically) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            AccountAuthMode.entries.forEach { option ->
+                                val selected = mode == option
+                                val buttonColors = if (selected) {
+                                    ButtonDefaults.filledTonalButtonColors()
+                                } else {
+                                    ButtonDefaults.filledTonalButtonColors(
+                                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                        contentColor = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+
+                                FilledTonalButton(
+                                    onClick = { onModeChange(option) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    enabled = !isBusy,
+                                    colors = buttonColors,
+                                    shape = MaterialTheme.shapes.large
+                                ) {
+                                    Text(
+                                        text = when (option) {
+                                            AccountAuthMode.SIGN_IN -> "Sign in"
+                                            AccountAuthMode.REGISTER -> "Create account"
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        SingleChoiceSegmentedButtonRow {
+                            AccountAuthMode.entries.forEachIndexed { index, option ->
+                                SegmentedButton(
+                                    shape = SegmentedButtonDefaults.itemShape(
+                                        index,
+                                        AccountAuthMode.entries.size
+                                    ),
+                                    selected = mode == option,
+                                    onClick = { onModeChange(option) }
+                                ) {
+                                    Text(
+                                        text = when (option) {
+                                            AccountAuthMode.SIGN_IN -> "Sign in"
+                                            AccountAuthMode.REGISTER -> "Create account"
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                val isRegister = mode == AccountAuthMode.REGISTER
+                val requiresExplorerUsername = isRegister && accountType == AccountType.EXPLORER
+
+                if (requiresExplorerUsername) {
+                    OutlinedTextField(
+                        value = username,
+                        onValueChange = onUsernameChange,
+                        label = { Text(stringResource(R.string.explorer_profile_username_label)) },
+                        placeholder = { Text(stringResource(R.string.explorer_profile_username_placeholder)) },
+                        enabled = !isBusy,
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(
+                            capitalization = KeyboardCapitalization.None,
+                            autoCorrect = false,
+                            keyboardType = KeyboardType.Ascii,
+                            imeAction = ImeAction.Next
+                        ),
+                        keyboardActions = KeyboardActions(
+                            onNext = { focusManager.moveFocus(FocusDirection.Next) }
+                        )
+                    )
+
+                    Text(
+                        text = stringResource(R.string.explorer_profile_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                OutlinedTextField(
+                    value = email,
+                    onValueChange = onEmailChange,
+                    label = { Text("Email address") },
+                    enabled = !isBusy,
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Email,
+                        imeAction = ImeAction.Next
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onNext = { focusManager.moveFocus(FocusDirection.Next) }
+                    )
+                )
+
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = onPasswordChange,
+                    label = { Text("Password") },
+                    enabled = !isBusy,
+                    modifier = Modifier.fillMaxWidth(),
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Password,
+                        imeAction = if (isRegister) ImeAction.Next else ImeAction.Done
+                    ),
+                    keyboardActions = if (isRegister) {
+                        KeyboardActions(
+                            onNext = { focusManager.moveFocus(FocusDirection.Next) }
+                        )
+                    } else {
+                        KeyboardActions(
+                            onDone = { submitWithKeyboardDismiss() }
+                        )
+                    }
+                )
+
+                if (isRegister) {
+                    OutlinedTextField(
+                        value = confirmPassword,
+                        onValueChange = onConfirmPasswordChange,
+                        label = { Text("Confirm password") },
+                        enabled = !isBusy,
+                        modifier = Modifier.fillMaxWidth(),
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Password,
+                            imeAction = ImeAction.Done
+                        ),
+                        keyboardActions = KeyboardActions(
+                            onDone = { submitWithKeyboardDismiss() }
+                        )
+                    )
+                }
+
+                error?.let { message ->
+                    Text(
+                        text = message,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+
+                status?.let { message ->
+                    Text(
+                        text = message,
+                        color = MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+
+                if (!isRegister) {
+                    TextButton(
+                        onClick = forgotPasswordWithKeyboardDismiss,
+                        enabled = !isBusy,
+                        modifier = Modifier.align(Alignment.End)
+                    ) {
+                        Text("Forgot password?")
+                    }
+                }
+
+                if (isRegister) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Button(
+                            onClick = submitWithKeyboardDismiss,
+                            enabled = !isBusy,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            if (isSubmitting) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text("Working…")
+                            } else {
+                                Text(
+                                    text = when (mode) {
+                                        AccountAuthMode.SIGN_IN -> "Sign in"
+                                        AccountAuthMode.REGISTER -> "Create account"
+                                    }
+                                )
+                            }
+                        }
+
+                        OutlinedButton(
+                            onClick = dismissWithKeyboardDismiss,
+                            enabled = !isBusy,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Cancel")
+                        }
+                    }
+                } else {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedButton(
+                            onClick = dismissWithKeyboardDismiss,
+                            enabled = !isBusy,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Cancel")
+                        }
+
+                        Button(
+                            onClick = submitWithKeyboardDismiss,
+                            enabled = !isBusy,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            if (isSubmitting) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text("Working…")
+                            } else {
+                                Text(
+                                    text = when (mode) {
+                                        AccountAuthMode.SIGN_IN -> "Sign in"
+                                        AccountAuthMode.REGISTER -> "Create account"
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(12.dp))
+                Divider()
+                Text(
+                    text = "Or continue with",
+                    modifier = Modifier.fillMaxWidth(),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+                OutlinedButton(
+                    onClick = googleSignInWithKeyboardDismiss,
+                    enabled = !isBusy,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    if (isGoogleSigningIn) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text("Connecting to Google…")
+                    } else {
+                        Text("Sign in with Google")
+                    }
+                }
+            }
+        }
+    }
+}
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
