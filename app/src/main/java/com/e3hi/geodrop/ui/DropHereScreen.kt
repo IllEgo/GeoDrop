@@ -5762,9 +5762,6 @@ fun DropHereScreen(
             )
         }
     }
-    private const val NOTIFICATION_RADIUS_STEP_METERS = 50f
-    private const val DROP_PICKUP_RADIUS_METERS = 30.0
-    private const val MAX_BUSINESS_TEMPLATE_SUGGESTIONS = 6
 
     private fun formatCoordinate(value: Double): String {
         return String.format(Locale.US, "%.5f", value)
@@ -10873,6 +10870,10 @@ private fun FirstRunOnboardingScreen(
         }
     }
 }
+
+private const val NOTIFICATION_RADIUS_STEP_METERS = 50f
+private const val DROP_PICKUP_RADIUS_METERS = 30.0
+private const val MAX_BUSINESS_TEMPLATE_SUGGESTIONS = 6
 
 private data class OnboardingSlide(
     val icon: ImageVector,
