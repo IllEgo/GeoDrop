@@ -3052,16 +3052,54 @@ fun DropHereScreen(
                     )
                 } else {
                     if (currentHomeDestination == HomeDestination.Explorer && userMode != null) {
-                        ExplorerDestinationTabRow(
+                        val showMyDrops = hasExplorerAccount
+                        val showCollected = hasExplorerAccount
+                        val destinations = remember(showMyDrops, showCollected) {
+                            ExplorerDestination.values().filter { destination ->
+                                when (destination) {
+                                    ExplorerDestination.MyDrops -> showMyDrops
+                                    ExplorerDestination.Collected -> showCollected
+                                    ExplorerDestination.Discover -> true
+                                }
+                            }
+                        }
+                        val selectedIndex = destinations.indexOf(effectiveExplorerDestination).let { index ->
+                            if (index >= 0) index else 0
+                        }
+
+                        ScrollableTabRow(
+                            selectedTabIndex = selectedIndex,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 20.dp)
                                 .padding(bottom = 8.dp),
-                            current = effectiveExplorerDestination,
-                            onSelect = { destination -> openExplorerDestination(destination) },
-                            showMyDrops = hasExplorerAccount,
-                            showCollected = hasExplorerAccount
-                        )
+                            divider = {}
+                        ) {
+                            destinations.forEach { destination ->
+                                val label = when (destination) {
+                                    ExplorerDestination.Discover -> stringResource(R.string.action_browse_map_title)
+                                    ExplorerDestination.MyDrops -> stringResource(R.string.action_my_drops_title)
+                                    ExplorerDestination.Collected -> stringResource(R.string.action_collected_drops_title)
+                                }
+                                val icon = when (destination) {
+                                    ExplorerDestination.Discover -> Icons.Rounded.Map
+                                    ExplorerDestination.MyDrops -> Icons.Rounded.Inbox
+                                    ExplorerDestination.Collected -> Icons.Rounded.Bookmark
+                                }
+
+                                Tab(
+                                    selected = destination == effectiveExplorerDestination,
+                                    onClick = { openExplorerDestination(destination) },
+                                    text = { Text(label) },
+                                    icon = {
+                                        Icon(
+                                            imageVector = icon,
+                                            contentDescription = null
+                                        )
+                                    }
+                                )
+                            }
+                        }
                         Spacer(Modifier.height(8.dp))
                     }
 
@@ -5526,56 +5564,6 @@ fun DropHereScreen(
             }
         }
     }
-
-    @OptIn(ExperimentalMaterial3Api::class)
-    @Composable
-    private fun ExplorerDestinationTabRow(
-        modifier: Modifier = Modifier,
-        current: ExplorerDestination,
-        onSelect: (ExplorerDestination) -> Unit,
-        showMyDrops: Boolean,
-        showCollected: Boolean
-    ) {
-        val destinations = remember(showMyDrops, showCollected) {
-            ExplorerDestination.values().filter { destination ->
-                when (destination) {
-                    ExplorerDestination.MyDrops -> showMyDrops
-                    ExplorerDestination.Collected -> showCollected
-                    ExplorerDestination.Discover -> true
-                }
-            }
-        }
-        SingleChoiceSegmentedButtonRow(modifier = modifier) {
-            destinations.forEachIndexed { index, destination ->
-                val selected = destination == current
-                val shape = SegmentedButtonDefaults.itemShape(index, destinations.size)
-                val label = when (destination) {
-                    ExplorerDestination.Discover -> stringResource(R.string.action_browse_map_title)
-                    ExplorerDestination.MyDrops -> stringResource(R.string.action_my_drops_title)
-                    ExplorerDestination.Collected -> stringResource(R.string.action_collected_drops_title)
-                }
-                val icon = when (destination) {
-                    ExplorerDestination.Discover -> Icons.Rounded.Map
-                    ExplorerDestination.MyDrops -> Icons.Rounded.Inbox
-                    ExplorerDestination.Collected -> Icons.Rounded.Bookmark
-                }
-
-                SegmentedButton(
-                    selected = selected,
-                    onClick = { onSelect(destination) },
-                    shape = shape,
-                    icon = {
-                        Icon(
-                            imageVector = icon,
-                            contentDescription = null
-                        )
-                    },
-                    label = { Text(label) }
-                )
-            }
-        }
-    }
-}
 
     private fun formatCoordinate(value: Double): String {
         return String.format(Locale.US, "%.5f", value)
