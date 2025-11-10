@@ -3063,9 +3063,10 @@ fun DropHereScreen(
                                 }
                             }
                         }
-                        val selectedIndex = destinations.indexOf(effectiveExplorerDestination).let { index ->
-                            if (index >= 0) index else 0
-                        }
+                        val selectedIndex =
+                            destinations.indexOf(effectiveExplorerDestination).let { index ->
+                                if (index >= 0) index else 0
+                            }
 
                         ScrollableTabRow(
                             selectedTabIndex = selectedIndex,
@@ -4731,6 +4732,7 @@ fun DropHereScreen(
                     )
                 }
             }
+
             DropContentType.VIDEO -> {
                 val hasVideo = capturedVideoUri != null
                 val videoPreview: (@Composable () -> Unit)? = if (hasVideo) {
@@ -5640,7 +5642,11 @@ fun DropHereScreen(
                         markerDescriptorCache[hue]?.let { return it }
                         val descriptor = baseMarkerBitmap?.let { base ->
                             val tinted =
-                                Bitmap.createBitmap(base.width, base.height, Bitmap.Config.ARGB_8888)
+                                Bitmap.createBitmap(
+                                    base.width,
+                                    base.height,
+                                    Bitmap.Config.ARGB_8888
+                                )
                             val canvas = Canvas(tinted)
                             canvas.drawBitmap(base, 0f, 0f, null)
                             val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -5714,7 +5720,9 @@ fun DropHereScreen(
                             else -> likeHueFor(drop.likeCount)
                         }
                         val markerIcon =
-                            if (drop.isBusinessDrop()) businessMarkerDescriptor else descriptorForHue(hue)
+                            if (drop.isBusinessDrop()) businessMarkerDescriptor else descriptorForHue(
+                                hue
+                            )
                         val isSelected = drop.id == discoverSelectedId
 
                         Marker(
@@ -5722,13 +5730,13 @@ fun DropHereScreen(
                             title = drop.displayTitle(),
                             snippet = snippetParts.joinToString(" "),
                             icon = markerIcon,
-                                alpha = if (isSelected) 1f else 0.9f,
-                                zIndex = if (isSelected) 2f else 0f,
-                                onClick = {
-                                    onDiscoverMarkerClick(drop)
-                                    false
-                                }
-                            )
+                            alpha = if (isSelected) 1f else 0.9f,
+                            zIndex = if (isSelected) 2f else 0f,
+                            onClick = {
+                                onDiscoverMarkerClick(drop)
+                                false
+                            }
+                        )
                     }
                 }
 
@@ -5792,12 +5800,12 @@ fun DropHereScreen(
                             state = MarkerState(position),
                             title = drop.displayTitle(),
                             snippet = snippetParts.joinToString(" "),
-                                        icon = markerIcon,
-                                alpha = if (isSelected) 1f else 0.9f,
-                                zIndex = if (isSelected) 2f else 0f,
-                                onClick = {
-                                    onMyDropMarkerClick(drop)
-                                    false
+                            icon = markerIcon,
+                            alpha = if (isSelected) 1f else 0.9f,
+                            zIndex = if (isSelected) 2f else 0f,
+                            onClick = {
+                                onMyDropMarkerClick(drop)
+                                false
                             }
                         )
                     }
@@ -5877,13 +5885,13 @@ fun DropHereScreen(
                             state = MarkerState(position),
                             title = title,
                             snippet = snippetParts.joinToString(" "),
-                                        icon = markerIcon,
-                                zIndex = if (note.id == collectedHighlightedId) 1f else 0f,
-                                onClick = {
-                                    onCollectedMarkerClick(note)
-                                    false
-                                }
-                            )
+                            icon = markerIcon,
+                            zIndex = if (note.id == collectedHighlightedId) 1f else 0f,
+                            onClick = {
+                                onCollectedMarkerClick(note)
+                                false
+                            }
+                        )
                     }
                 }
             }
@@ -9698,201 +9706,223 @@ fun DropHereScreen(
         }
     }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun AccountSignInDialog(
-    accountType: AccountType,
-    canChangeAccountType: Boolean,
-    onAccountTypeChange: (AccountType) -> Unit,
-    mode: AccountAuthMode,
-    onModeChange: (AccountAuthMode) -> Unit,
-    email: TextFieldValue,
-    onEmailChange: (TextFieldValue) -> Unit,
-    password: TextFieldValue,
-    onPasswordChange: (TextFieldValue) -> Unit,
-    confirmPassword: TextFieldValue,
-    onConfirmPasswordChange: (TextFieldValue) -> Unit,
-    username: TextFieldValue,
-    onUsernameChange: (TextFieldValue) -> Unit,
-    isSubmitting: Boolean,
-    isGoogleSigningIn: Boolean,
-    error: String?,
-    status: String?,
-    onSubmit: () -> Unit,
-    onDismiss: () -> Unit,
-    onForgotPassword: () -> Unit,
-    onGoogleSignIn: () -> Unit
-) {
-    val isBusy = isSubmitting || isGoogleSigningIn
-    val focusManager = LocalFocusManager.current
-    val keyboardController = LocalSoftwareKeyboardController.current
-
-    val scrollState = rememberScrollState()
-    val configuration = LocalConfiguration.current
-    val maxDialogHeight = remember(configuration) {
-        (configuration.screenHeightDp.dp * 0.9f).coerceAtLeast(0.dp)
-    }
-
-    val hideKeyboardAndClearFocus = {
-        keyboardController?.hide()
-        focusManager.clearFocus(force = true)
-    }
-    val submitWithKeyboardDismiss = {
-        hideKeyboardAndClearFocus()
-        onSubmit()
-    }
-    val dismissWithKeyboardDismiss = {
-        hideKeyboardAndClearFocus()
-        onDismiss()
-    }
-    val forgotPasswordWithKeyboardDismiss = {
-        hideKeyboardAndClearFocus()
-        onForgotPassword()
-    }
-    val googleSignInWithKeyboardDismiss = {
-        hideKeyboardAndClearFocus()
-        onGoogleSignIn()
-    }
-
-    Dialog(
-        onDismissRequest = {
-            if (!isBusy) {
-                dismissWithKeyboardDismiss()
-            }
-        },
-        properties = DialogProperties(
-            dismissOnBackPress = !isBusy,
-            dismissOnClickOutside = !isBusy
-        )
+    @OptIn(ExperimentalMaterial3Api::class)
+    @Composable
+    private fun AccountSignInDialog(
+        accountType: AccountType,
+        canChangeAccountType: Boolean,
+        onAccountTypeChange: (AccountType) -> Unit,
+        mode: AccountAuthMode,
+        onModeChange: (AccountAuthMode) -> Unit,
+        email: TextFieldValue,
+        onEmailChange: (TextFieldValue) -> Unit,
+        password: TextFieldValue,
+        onPasswordChange: (TextFieldValue) -> Unit,
+        confirmPassword: TextFieldValue,
+        onConfirmPasswordChange: (TextFieldValue) -> Unit,
+        username: TextFieldValue,
+        onUsernameChange: (TextFieldValue) -> Unit,
+        isSubmitting: Boolean,
+        isGoogleSigningIn: Boolean,
+        error: String?,
+        status: String?,
+        onSubmit: () -> Unit,
+        onDismiss: () -> Unit,
+        onForgotPassword: () -> Unit,
+        onGoogleSignIn: () -> Unit
     ) {
-        Surface(
-            shape = MaterialTheme.shapes.large,
-            tonalElevation = 6.dp,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .padding(24.dp)
-                    .imePadding()
-                    .heightIn(max = maxDialogHeight)
-                    .verticalScroll(scrollState),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Text(
-                    text = when (accountType) {
-                        AccountType.EXPLORER -> "Explorer account"
-                        AccountType.BUSINESS -> "Business account"
-                    },
-                    style = MaterialTheme.typography.titleLarge
-                )
+        val isBusy = isSubmitting || isGoogleSigningIn
+        val focusManager = LocalFocusManager.current
+        val keyboardController = LocalSoftwareKeyboardController.current
 
-                if (canChangeAccountType) {
-                    SingleChoiceSegmentedButtonRow {
-                        AccountType.entries.forEachIndexed { index, type ->
-                            SegmentedButton(
-                                shape = SegmentedButtonDefaults.itemShape(
-                                    index,
-                                    AccountType.entries.size
-                                ),
-                                selected = accountType == type,
-                                onClick = { onAccountTypeChange(type) }
-                            ) {
-                                Text(
-                                    text = when (type) {
-                                        AccountType.EXPLORER -> "Explorer"
-                                        AccountType.BUSINESS -> "Business"
-                                    }
-                                )
-                            }
-                        }
-                    }
+        val scrollState = rememberScrollState()
+        val configuration = LocalConfiguration.current
+        val maxDialogHeight = remember(configuration) {
+            (configuration.screenHeightDp.dp * 0.9f).coerceAtLeast(0.dp)
+        }
+
+        val hideKeyboardAndClearFocus = {
+            keyboardController?.hide()
+            focusManager.clearFocus(force = true)
+        }
+        val submitWithKeyboardDismiss = {
+            hideKeyboardAndClearFocus()
+            onSubmit()
+        }
+        val dismissWithKeyboardDismiss = {
+            hideKeyboardAndClearFocus()
+            onDismiss()
+        }
+        val forgotPasswordWithKeyboardDismiss = {
+            hideKeyboardAndClearFocus()
+            onForgotPassword()
+        }
+        val googleSignInWithKeyboardDismiss = {
+            hideKeyboardAndClearFocus()
+            onGoogleSignIn()
+        }
+
+        Dialog(
+            onDismissRequest = {
+                if (!isBusy) {
+                    dismissWithKeyboardDismiss()
                 }
+            },
+            properties = DialogProperties(
+                dismissOnBackPress = !isBusy,
+                dismissOnClickOutside = !isBusy
+            )
+        ) {
+            Surface(
+                shape = MaterialTheme.shapes.large,
+                tonalElevation = 6.dp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .padding(24.dp)
+                        .imePadding()
+                        .heightIn(max = maxDialogHeight)
+                        .verticalScroll(scrollState),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Text(
+                        text = when (accountType) {
+                            AccountType.EXPLORER -> "Explorer account"
+                            AccountType.BUSINESS -> "Business account"
+                        },
+                        style = MaterialTheme.typography.titleLarge
+                    )
 
-                Text(
-                    text = when (accountType) {
-                        AccountType.EXPLORER -> "Explorer accounts let you drop, like, and collect rewards."
-                        AccountType.BUSINESS -> "Business accounts can publish offers and require business details."
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                BoxWithConstraints {
-                    val shouldStackVertically = maxWidth < 360.dp
-
-                    if (shouldStackVertically) {
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            AccountAuthMode.entries.forEach { option ->
-                                val selected = mode == option
-                                val buttonColors = if (selected) {
-                                    ButtonDefaults.filledTonalButtonColors()
-                                } else {
-                                    ButtonDefaults.filledTonalButtonColors(
-                                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                                        contentColor = MaterialTheme.colorScheme.onSurface
-                                    )
-                                }
-
-                                FilledTonalButton(
-                                    onClick = { onModeChange(option) },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    enabled = !isBusy,
-                                    colors = buttonColors,
-                                    shape = MaterialTheme.shapes.large
-                                ) {
-                                    Text(
-                                        text = when (option) {
-                                            AccountAuthMode.SIGN_IN -> "Sign in"
-                                            AccountAuthMode.REGISTER -> "Create account"
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                    } else {
+                    if (canChangeAccountType) {
                         SingleChoiceSegmentedButtonRow {
-                            AccountAuthMode.entries.forEachIndexed { index, option ->
+                            AccountType.entries.forEachIndexed { index, type ->
                                 SegmentedButton(
                                     shape = SegmentedButtonDefaults.itemShape(
                                         index,
-                                        AccountAuthMode.entries.size
+                                        AccountType.entries.size
                                     ),
-                                    selected = mode == option,
-                                    onClick = { onModeChange(option) }
+                                    selected = accountType == type,
+                                    onClick = { onAccountTypeChange(type) }
                                 ) {
                                     Text(
-                                        text = when (option) {
-                                            AccountAuthMode.SIGN_IN -> "Sign in"
-                                            AccountAuthMode.REGISTER -> "Create account"
+                                        text = when (type) {
+                                            AccountType.EXPLORER -> "Explorer"
+                                            AccountType.BUSINESS -> "Business"
                                         }
                                     )
                                 }
                             }
                         }
                     }
-                }
 
-                val isRegister = mode == AccountAuthMode.REGISTER
-                val requiresExplorerUsername = isRegister && accountType == AccountType.EXPLORER
+                    Text(
+                        text = when (accountType) {
+                            AccountType.EXPLORER -> "Explorer accounts let you drop, like, and collect rewards."
+                            AccountType.BUSINESS -> "Business accounts can publish offers and require business details."
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
 
-                if (requiresExplorerUsername) {
+                    BoxWithConstraints {
+                        val shouldStackVertically = maxWidth < 360.dp
+
+                        if (shouldStackVertically) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                AccountAuthMode.entries.forEach { option ->
+                                    val selected = mode == option
+                                    val buttonColors = if (selected) {
+                                        ButtonDefaults.filledTonalButtonColors()
+                                    } else {
+                                        ButtonDefaults.filledTonalButtonColors(
+                                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                            contentColor = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+
+                                    FilledTonalButton(
+                                        onClick = { onModeChange(option) },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        enabled = !isBusy,
+                                        colors = buttonColors,
+                                        shape = MaterialTheme.shapes.large
+                                    ) {
+                                        Text(
+                                            text = when (option) {
+                                                AccountAuthMode.SIGN_IN -> "Sign in"
+                                                AccountAuthMode.REGISTER -> "Create account"
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        } else {
+                            SingleChoiceSegmentedButtonRow {
+                                AccountAuthMode.entries.forEachIndexed { index, option ->
+                                    SegmentedButton(
+                                        shape = SegmentedButtonDefaults.itemShape(
+                                            index,
+                                            AccountAuthMode.entries.size
+                                        ),
+                                        selected = mode == option,
+                                        onClick = { onModeChange(option) }
+                                    ) {
+                                        Text(
+                                            text = when (option) {
+                                                AccountAuthMode.SIGN_IN -> "Sign in"
+                                                AccountAuthMode.REGISTER -> "Create account"
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    val isRegister = mode == AccountAuthMode.REGISTER
+                    val requiresExplorerUsername = isRegister && accountType == AccountType.EXPLORER
+
+                    if (requiresExplorerUsername) {
+                        OutlinedTextField(
+                            value = username,
+                            onValueChange = onUsernameChange,
+                            label = { Text(stringResource(R.string.explorer_profile_username_label)) },
+                            placeholder = { Text(stringResource(R.string.explorer_profile_username_placeholder)) },
+                            enabled = !isBusy,
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(
+                                capitalization = KeyboardCapitalization.None,
+                                autoCorrect = false,
+                                keyboardType = KeyboardType.Ascii,
+                                imeAction = ImeAction.Next
+                            ),
+                            keyboardActions = KeyboardActions(
+                                onNext = { focusManager.moveFocus(FocusDirection.Next) }
+                            )
+                        )
+
+                        Text(
+                            text = stringResource(R.string.explorer_profile_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
                     OutlinedTextField(
-                        value = username,
-                        onValueChange = onUsernameChange,
-                        label = { Text(stringResource(R.string.explorer_profile_username_label)) },
-                        placeholder = { Text(stringResource(R.string.explorer_profile_username_placeholder)) },
+                        value = email,
+                        onValueChange = onEmailChange,
+                        label = { Text("Email address") },
                         enabled = !isBusy,
                         modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
                         keyboardOptions = KeyboardOptions(
-                            capitalization = KeyboardCapitalization.None,
-                            autoCorrect = false,
-                            keyboardType = KeyboardType.Ascii,
+                            keyboardType = KeyboardType.Email,
                             imeAction = ImeAction.Next
                         ),
                         keyboardActions = KeyboardActions(
@@ -9900,937 +9930,916 @@ private fun AccountSignInDialog(
                         )
                     )
 
-                    Text(
-                        text = stringResource(R.string.explorer_profile_hint),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                OutlinedTextField(
-                    value = email,
-                    onValueChange = onEmailChange,
-                    label = { Text("Email address") },
-                    enabled = !isBusy,
-                    modifier = Modifier.fillMaxWidth(),
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Email,
-                        imeAction = ImeAction.Next
-                    ),
-                    keyboardActions = KeyboardActions(
-                        onNext = { focusManager.moveFocus(FocusDirection.Next) }
-                    )
-                )
-
-                OutlinedTextField(
-                    value = password,
-                    onValueChange = onPasswordChange,
-                    label = { Text("Password") },
-                    enabled = !isBusy,
-                    modifier = Modifier.fillMaxWidth(),
-                    visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Password,
-                        imeAction = if (isRegister) ImeAction.Next else ImeAction.Done
-                    ),
-                    keyboardActions = if (isRegister) {
-                        KeyboardActions(
-                            onNext = { focusManager.moveFocus(FocusDirection.Next) }
-                        )
-                    } else {
-                        KeyboardActions(
-                            onDone = { submitWithKeyboardDismiss() }
-                        )
-                    }
-                )
-
-                if (isRegister) {
                     OutlinedTextField(
-                        value = confirmPassword,
-                        onValueChange = onConfirmPasswordChange,
-                        label = { Text("Confirm password") },
+                        value = password,
+                        onValueChange = onPasswordChange,
+                        label = { Text("Password") },
                         enabled = !isBusy,
                         modifier = Modifier.fillMaxWidth(),
                         visualTransformation = PasswordVisualTransformation(),
                         keyboardOptions = KeyboardOptions(
                             keyboardType = KeyboardType.Password,
-                            imeAction = ImeAction.Done
+                            imeAction = if (isRegister) ImeAction.Next else ImeAction.Done
                         ),
-                        keyboardActions = KeyboardActions(
-                            onDone = { submitWithKeyboardDismiss() }
-                        )
+                        keyboardActions = if (isRegister) {
+                            KeyboardActions(
+                                onNext = { focusManager.moveFocus(FocusDirection.Next) }
+                            )
+                        } else {
+                            KeyboardActions(
+                                onDone = { submitWithKeyboardDismiss() }
+                            )
+                        }
                     )
-                }
 
-                error?.let { message ->
-                    Text(
-                        text = message,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
-
-                status?.let { message ->
-                    Text(
-                        text = message,
-                        color = MaterialTheme.colorScheme.primary,
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
-
-                if (!isRegister) {
-                    TextButton(
-                        onClick = forgotPasswordWithKeyboardDismiss,
-                        enabled = !isBusy,
-                        modifier = Modifier.align(Alignment.End)
-                    ) {
-                        Text("Forgot password?")
-                    }
-                }
-
-                if (isRegister) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        Button(
-                            onClick = submitWithKeyboardDismiss,
+                    if (isRegister) {
+                        OutlinedTextField(
+                            value = confirmPassword,
+                            onValueChange = onConfirmPasswordChange,
+                            label = { Text("Confirm password") },
                             enabled = !isBusy,
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.fillMaxWidth(),
+                            visualTransformation = PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Password,
+                                imeAction = ImeAction.Done
+                            ),
+                            keyboardActions = KeyboardActions(
+                                onDone = { submitWithKeyboardDismiss() }
+                            )
+                        )
+                    }
+
+                    error?.let { message ->
+                        Text(
+                            text = message,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+
+                    status?.let { message ->
+                        Text(
+                            text = message,
+                            color = MaterialTheme.colorScheme.primary,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+
+                    if (!isRegister) {
+                        TextButton(
+                            onClick = forgotPasswordWithKeyboardDismiss,
+                            enabled = !isBusy,
+                            modifier = Modifier.align(Alignment.End)
                         ) {
-                            if (isSubmitting) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(18.dp),
-                                    strokeWidth = 2.dp
-                                )
-                                Spacer(Modifier.width(8.dp))
-                                Text("Working…")
-                            } else {
-                                Text(
-                                    text = when (mode) {
-                                        AccountAuthMode.SIGN_IN -> "Sign in"
-                                        AccountAuthMode.REGISTER -> "Create account"
-                                    }
-                                )
+                            Text("Forgot password?")
+                        }
+                    }
+
+                    if (isRegister) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            Button(
+                                onClick = submitWithKeyboardDismiss,
+                                enabled = !isBusy,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                if (isSubmitting) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(18.dp),
+                                        strokeWidth = 2.dp
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Working…")
+                                } else {
+                                    Text(
+                                        text = when (mode) {
+                                            AccountAuthMode.SIGN_IN -> "Sign in"
+                                            AccountAuthMode.REGISTER -> "Create account"
+                                        }
+                                    )
+                                }
+                            }
+
+                            OutlinedButton(
+                                onClick = dismissWithKeyboardDismiss,
+                                enabled = !isBusy,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Cancel")
                             }
                         }
-
-                        OutlinedButton(
-                            onClick = dismissWithKeyboardDismiss,
-                            enabled = !isBusy,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Cancel")
-                        }
-                    }
-                } else {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        OutlinedButton(
-                            onClick = dismissWithKeyboardDismiss,
-                            enabled = !isBusy,
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text("Cancel")
-                        }
-
-                        Button(
-                            onClick = submitWithKeyboardDismiss,
-                            enabled = !isBusy,
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            if (isSubmitting) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(18.dp),
-                                    strokeWidth = 2.dp
-                                )
-                                Spacer(Modifier.width(8.dp))
-                                Text("Working…")
-                            } else {
-                                Text(
-                                    text = when (mode) {
-                                        AccountAuthMode.SIGN_IN -> "Sign in"
-                                        AccountAuthMode.REGISTER -> "Create account"
-                                    }
-                                )
-                            }
-                        }
-                    }
-                }
-
-                Spacer(Modifier.height(12.dp))
-                Divider()
-                Text(
-                    text = "Or continue with",
-                    modifier = Modifier.fillMaxWidth(),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center
-                )
-                OutlinedButton(
-                    onClick = googleSignInWithKeyboardDismiss,
-                    enabled = !isBusy,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    if (isGoogleSigningIn) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(18.dp),
-                            strokeWidth = 2.dp
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text("Connecting to Google…")
                     } else {
-                        Text("Sign in with Google")
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            OutlinedButton(
+                                onClick = dismissWithKeyboardDismiss,
+                                enabled = !isBusy,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("Cancel")
+                            }
+
+                            Button(
+                                onClick = submitWithKeyboardDismiss,
+                                enabled = !isBusy,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                if (isSubmitting) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(18.dp),
+                                        strokeWidth = 2.dp
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Working…")
+                                } else {
+                                    Text(
+                                        text = when (mode) {
+                                            AccountAuthMode.SIGN_IN -> "Sign in"
+                                            AccountAuthMode.REGISTER -> "Create account"
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(12.dp))
+                    Divider()
+                    Text(
+                        text = "Or continue with",
+                        modifier = Modifier.fillMaxWidth(),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+                    OutlinedButton(
+                        onClick = googleSignInWithKeyboardDismiss,
+                        enabled = !isBusy,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        if (isGoogleSigningIn) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text("Connecting to Google…")
+                        } else {
+                            Text("Sign in with Google")
+                        }
                     }
                 }
             }
         }
     }
-}
 
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun FirstRunOnboardingScreen(
-    onContinue: () -> Unit,
-    onExit: () -> Unit,
-    showExitButton: Boolean = true
-) {
-    val slides = remember {
-        listOf(
-            OnboardingSlide(
-                icon = Icons.Rounded.Map,
-                title = "Discover nearby drops",
-                description = "See stories, rewards, and community posts pinned to real-world locations around you."
-            ),
-            OnboardingSlide(
-                icon = Icons.Rounded.Place,
-                title = "Collect and redeem",
-                description = "Walk up to a drop to unlock it, save it to your inventory, and redeem special offers in person."
-            ),
-            OnboardingSlide(
-                icon = Icons.Rounded.Storefront,
-                title = "Share your own moments",
-                description = "Create drops with photos, audio, or coupons so nearby explorers can discover your business or story."
-            ),
-            OnboardingSlide(
-                icon = Icons.Rounded.AccountCircle,
-                title = "Build your profile",
-                description = "Personalize your explorer profile to track progress and highlight the drops you're proud of."
-            ),
-            OnboardingSlide(
-                icon = Icons.Rounded.Groups,
-                title = "Join community groups",
-                description = "Follow local crews or start your own group to coordinate adventures and share exclusive drops."
+    @OptIn(ExperimentalFoundationApi::class)
+    @Composable
+    private fun FirstRunOnboardingScreen(
+        onContinue: () -> Unit,
+        onExit: () -> Unit,
+        showExitButton: Boolean = true
+    ) {
+        val slides = remember {
+            listOf(
+                OnboardingSlide(
+                    icon = Icons.Rounded.Map,
+                    title = "Discover nearby drops",
+                    description = "See stories, rewards, and community posts pinned to real-world locations around you."
+                ),
+                OnboardingSlide(
+                    icon = Icons.Rounded.Place,
+                    title = "Collect and redeem",
+                    description = "Walk up to a drop to unlock it, save it to your inventory, and redeem special offers in person."
+                ),
+                OnboardingSlide(
+                    icon = Icons.Rounded.Storefront,
+                    title = "Share your own moments",
+                    description = "Create drops with photos, audio, or coupons so nearby explorers can discover your business or story."
+                ),
+                OnboardingSlide(
+                    icon = Icons.Rounded.AccountCircle,
+                    title = "Build your profile",
+                    description = "Personalize your explorer profile to track progress and highlight the drops you're proud of."
+                ),
+                OnboardingSlide(
+                    icon = Icons.Rounded.Groups,
+                    title = "Join community groups",
+                    description = "Follow local crews or start your own group to coordinate adventures and share exclusive drops."
+                )
             )
+        }
+        val pagerState = rememberPagerState(pageCount = { slides.size })
+        val scope = rememberCoroutineScope()
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp)
+        ) {
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp),
+                tonalElevation = 6.dp
+            ) {
+                Column(
+                    modifier = Modifier
+                        .padding(24.dp)
+                        .fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Welcome to GeoDrop",
+                            style = MaterialTheme.typography.titleLarge,
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(onClick = onContinue) {
+                            Text("Skip")
+                        }
+                    }
+
+                    HorizontalPager(
+                        state = pagerState,
+                        modifier = Modifier.fillMaxWidth()
+                    ) { page ->
+                        val slide = slides[page]
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 8.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Surface(
+                                modifier = Modifier.size(140.dp),
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.primaryContainer
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = slide.icon,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.size(72.dp)
+                                    )
+                                }
+                            }
+
+                            Text(
+                                text = slide.title,
+                                style = MaterialTheme.typography.titleMedium,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+
+                            Text(
+                                text = slide.description,
+                                style = MaterialTheme.typography.bodyMedium,
+                                textAlign = TextAlign.Center,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        slides.forEachIndexed { index, _ ->
+                            val isSelected = pagerState.currentPage == index
+                            Box(
+                                modifier = Modifier
+                                    .padding(horizontal = 4.dp)
+                                    .height(8.dp)
+                                    .width(if (isSelected) 24.dp else 8.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        if (isSelected) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.surfaceVariant
+                                    )
+                            )
+                        }
+                    }
+
+                    Button(
+                        onClick = {
+                            if (pagerState.currentPage == slides.lastIndex) {
+                                onContinue()
+                            } else {
+                                scope.launch {
+                                    pagerState.animateScrollToPage(pagerState.currentPage + 1)
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(if (pagerState.currentPage == slides.lastIndex) "Continue" else "Next")
+                    }
+                }
+            }
+
+            if (showExitButton) {
+                TextButton(
+                    onClick = onExit,
+                    modifier = Modifier.align(Alignment.BottomStart)
+                ) {
+                    Text("Exit app")
+                }
+            }
+        }
+    }
+
+// Matches the Material 3 large top app bar expanded height so dependent UI can align.
+    private val LargeTopAppBarExpandedHeight = 152.dp
+
+    private data class BusinessHomeMetrics(
+        val liveDropCount: Int,
+        val pendingReviewCount: Int,
+        val unresolvedRedemptionCount: Int,
+        val expiringOfferCount: Int
+    ) {
+        companion object {
+            val Empty = BusinessHomeMetrics(0, 0, 0, 0)
+        }
+    }
+
+    private val BUSINESS_EXPIRING_SOON_THRESHOLD_MILLIS = TimeUnit.DAYS.toMillis(3)
+
+    private fun deriveBusinessHomeMetrics(
+        businessDrops: List<Drop>,
+        fallbackDrops: List<Drop>,
+        myDropCountHint: Int?,
+        myDropPendingReviewHint: Int?
+    ): BusinessHomeMetrics {
+        val sourceDrops = when {
+            businessDrops.isNotEmpty() -> businessDrops
+            fallbackDrops.isNotEmpty() -> fallbackDrops
+            else -> emptyList()
+        }
+
+        if (sourceDrops.isEmpty()) {
+            return BusinessHomeMetrics(
+                liveDropCount = myDropCountHint ?: 0,
+                pendingReviewCount = myDropPendingReviewHint ?: 0,
+                unresolvedRedemptionCount = 0,
+                expiringOfferCount = 0
+            )
+        }
+
+        val now = System.currentTimeMillis()
+        val businessEntries = sourceDrops
+            .filter { it.isBusinessDrop() && !it.isDeleted }
+
+        if (businessEntries.isEmpty()) {
+            return BusinessHomeMetrics(
+                liveDropCount = myDropCountHint ?: 0,
+                pendingReviewCount = myDropPendingReviewHint ?: 0,
+                unresolvedRedemptionCount = 0,
+                expiringOfferCount = 0
+            )
+        }
+
+        val liveDropCount = businessEntries.count { !it.isExpired(now) }
+        val pendingReviewCount = businessEntries.count { it.reportCount > 0 }
+        val unresolvedRedemptionCount = businessEntries.count { drop ->
+            if (drop.isExpired(now) || !drop.requiresRedemption()) return@count false
+            val remaining = drop.remainingRedemptions()
+            remaining == null || remaining > 0
+        }
+        val expiringOfferCount = businessEntries.count { drop ->
+            val remaining = drop.remainingDecayMillis(now) ?: return@count false
+            remaining in 1..BUSINESS_EXPIRING_SOON_THRESHOLD_MILLIS
+        }
+
+        return BusinessHomeMetrics(
+            liveDropCount = liveDropCount,
+            pendingReviewCount = pendingReviewCount,
+            unresolvedRedemptionCount = unresolvedRedemptionCount,
+            expiringOfferCount = expiringOfferCount
         )
     }
-    val pagerState = rememberPagerState(pageCount = { slides.size })
-    val scope = rememberCoroutineScope()
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp)
+
+    @Composable
+    private fun BusinessHomeScreen(
+        modifier: Modifier = Modifier,
+        businessName: String?,
+        businessCategories: List<BusinessCategory>,
+        metrics: BusinessHomeMetrics,
+        onViewDashboard: () -> Unit,
+        onUpdateBusinessProfile: () -> Unit,
+        onViewMyDrops: () -> Unit,
     ) {
-        Surface(
+        val activeDropCount = metrics.liveDropCount
+        val pendingReviewCount = metrics.pendingReviewCount
+        val unresolvedRedemptionCount = metrics.unresolvedRedemptionCount
+        val expiringOfferCount = metrics.expiringOfferCount
+        LazyColumn(
+            modifier = modifier,
+            contentPadding = PaddingValues(
+                start = 20.dp,
+                end = 20.dp,
+                top = 24.dp,
+                bottom = 128.dp
+            ),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
+        ) {
+            item {
+                BusinessHeroCard(
+                    businessName = businessName,
+                    businessCategories = businessCategories
+                )
+            }
+
+            item { SectionHeader(text = "Manage drops") }
+
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    ActionCard(
+                        icon = Icons.Rounded.Inbox,
+                        title = "Manage existing drops",
+                        description = "Review performance and make changes to the drops you've shared.",
+                        onClick = onViewMyDrops,
+                        trailingContent = {
+                            BusinessActionSummary(
+                                liveDropCount = activeDropCount,
+                                pendingReviewCount = pendingReviewCount,
+                                unresolvedRedemptionCount = unresolvedRedemptionCount,
+                                expiringOfferCount = expiringOfferCount
+                            )
+                        }
+                    )
+                }
+            }
+
+            item { SectionHeader(text = "Insights & branding") }
+
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    ActionCard(
+                        icon = Icons.Rounded.Storefront,
+                        title = "Business dashboard",
+                        description = "Track discoveries, redemptions, and engagement in one place.",
+                        onClick = onViewDashboard,
+                        trailingContent = {
+                            BusinessActionSummary(
+                                liveDropCount = activeDropCount,
+                                pendingReviewCount = pendingReviewCount,
+                                unresolvedRedemptionCount = unresolvedRedemptionCount,
+                                expiringOfferCount = expiringOfferCount
+                            )
+                        }
+                    )
+
+                    ActionCard(
+                        icon = Icons.Rounded.Edit,
+                        title = "Update business name",
+                        description = "Adjust how your brand appears across GeoDrop experiences.",
+                        onClick = onUpdateBusinessProfile
+                    )
+                }
+            }
+        }
+    }
+
+    @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
+    @Composable
+    private fun BusinessHeroCard(
+        businessName: String?,
+        businessCategories: List<BusinessCategory>,
+        brandImageUrl: String? = null
+    ) {
+        val title = businessName?.takeIf { it.isNotBlank() }?.let { "$it on GeoDrop" }
+            ?: "Welcome to GeoDrop Business"
+        val subtitle = if (businessName.isNullOrBlank()) {
+            "Share exclusive offers, stories, and tours to reach explorers right when they're nearby."
+        } else {
+            "Keep explorers engaged with timely offers and experiences from your team."
+        }
+
+        val sortedCategories = businessCategories
+            .sortedWith(compareBy({ it.group.displayName }, { it.displayName }))
+
+        val avatarBackground = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.08f)
+        val avatarBorder = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.2f)
+        val chipContainer = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+        val chipBorder = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.2f)
+
+        ElevatedCard(
             modifier = Modifier
-                .align(Alignment.Center)
-                .fillMaxWidth(),
-            shape = RoundedCornerShape(24.dp),
-            tonalElevation = 6.dp
+                .fillMaxWidth()
+                .border(
+                    BorderStroke(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+                    ),
+                    shape = RoundedCornerShape(28.dp)
+                ),
+            shape = RoundedCornerShape(28.dp),
+            colors = CardDefaults.elevatedCardColors(
+                containerColor = MaterialTheme.colorScheme.primaryContainer
+            )
         ) {
             Column(
-                modifier = Modifier
-                    .padding(24.dp)
-                    .fillMaxWidth(),
+                modifier = Modifier.padding(24.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "Welcome to GeoDrop",
-                        style = MaterialTheme.typography.titleLarge,
-                        modifier = Modifier.weight(1f)
-                    )
-                    TextButton(onClick = onContinue) {
-                        Text("Skip")
-                    }
-                }
-
-                HorizontalPager(
-                    state = pagerState,
-                    modifier = Modifier.fillMaxWidth()
-                ) { page ->
-                    val slide = slides[page]
-                    Column(
+                    Box(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 8.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                            .size(72.dp)
+                            .clip(CircleShape)
+                            .background(avatarBackground)
+                            .border(width = 1.dp, color = avatarBorder, shape = CircleShape),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Surface(
-                            modifier = Modifier.size(140.dp),
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.primaryContainer
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = slide.icon,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    modifier = Modifier.size(72.dp)
-                                )
-                            }
-                        }
-
-                        Text(
-                            text = slide.title,
-                            style = MaterialTheme.typography.titleMedium,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-
-                        Text(
-                            text = slide.description,
-                            style = MaterialTheme.typography.bodyMedium,
-                            textAlign = TextAlign.Center,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    slides.forEachIndexed { index, _ ->
-                        val isSelected = pagerState.currentPage == index
-                        Box(
-                            modifier = Modifier
-                                .padding(horizontal = 4.dp)
-                                .height(8.dp)
-                                .width(if (isSelected) 24.dp else 8.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    if (isSelected) MaterialTheme.colorScheme.primary
-                                    else MaterialTheme.colorScheme.surfaceVariant
-                                )
-                        )
-                    }
-                }
-
-                Button(
-                    onClick = {
-                        if (pagerState.currentPage == slides.lastIndex) {
-                            onContinue()
+                        if (!brandImageUrl.isNullOrBlank()) {
+                            val context = LocalContext.current
+                            AsyncImage(
+                                model = ImageRequest.Builder(context)
+                                    .data(brandImageUrl)
+                                    .crossfade(true)
+                                    .build(),
+                                contentDescription = businessName?.let { "$it brand logo" },
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.matchParentSize()
+                            )
                         } else {
-                            scope.launch {
-                                pagerState.animateScrollToPage(pagerState.currentPage + 1)
-                            }
+                            Icon(
+                                imageVector = Icons.Rounded.Storefront,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.size(32.dp)
+                            )
                         }
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(if (pagerState.currentPage == slides.lastIndex) "Continue" else "Next")
+                    }
+
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = title,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        Text(
+                            text = subtitle,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                }
+
+                if (sortedCategories.isNotEmpty()) {
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        sortedCategories.forEach { category ->
+                            AssistChip(
+                                onClick = {},
+                                label = {
+                                    Text(
+                                        text = category.displayName,
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = category.icon,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                },
+                                colors = AssistChipDefaults.assistChipColors(
+                                    containerColor = chipContainer,
+                                    labelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                ),
+                                shape = RoundedCornerShape(50),
+                                modifier = Modifier
+                                    .border(
+                                        BorderStroke(
+                                            width = 1.dp,
+                                            color = chipBorder
+                                        ),
+                                        shape = RoundedCornerShape(50)
+                                    )
+                            )
+                        }
+                    }
                 }
             }
         }
-
-        if (showExitButton) {
-            TextButton(
-                onClick = onExit,
-                modifier = Modifier.align(Alignment.BottomStart)
-            ) {
-                Text("Exit app")
-            }
-        }
-    }
-}
-
-// Matches the Material 3 large top app bar expanded height so dependent UI can align.
-private val LargeTopAppBarExpandedHeight = 152.dp
-
-private data class BusinessHomeMetrics(
-    val liveDropCount: Int,
-    val pendingReviewCount: Int,
-    val unresolvedRedemptionCount: Int,
-    val expiringOfferCount: Int
-) {
-    companion object {
-        val Empty = BusinessHomeMetrics(0, 0, 0, 0)
-    }
-}
-
-private val BUSINESS_EXPIRING_SOON_THRESHOLD_MILLIS = TimeUnit.DAYS.toMillis(3)
-
-private fun deriveBusinessHomeMetrics(
-    businessDrops: List<Drop>,
-    fallbackDrops: List<Drop>,
-    myDropCountHint: Int?,
-    myDropPendingReviewHint: Int?
-): BusinessHomeMetrics {
-    val sourceDrops = when {
-        businessDrops.isNotEmpty() -> businessDrops
-        fallbackDrops.isNotEmpty() -> fallbackDrops
-        else -> emptyList()
     }
 
-    if (sourceDrops.isEmpty()) {
-        return BusinessHomeMetrics(
-            liveDropCount = myDropCountHint ?: 0,
-            pendingReviewCount = myDropPendingReviewHint ?: 0,
-            unresolvedRedemptionCount = 0,
-            expiringOfferCount = 0
-        )
-    }
-
-    val now = System.currentTimeMillis()
-    val businessEntries = sourceDrops
-        .filter { it.isBusinessDrop() && !it.isDeleted }
-
-    if (businessEntries.isEmpty()) {
-        return BusinessHomeMetrics(
-            liveDropCount = myDropCountHint ?: 0,
-            pendingReviewCount = myDropPendingReviewHint ?: 0,
-            unresolvedRedemptionCount = 0,
-            expiringOfferCount = 0
-        )
-    }
-
-    val liveDropCount = businessEntries.count { !it.isExpired(now) }
-    val pendingReviewCount = businessEntries.count { it.reportCount > 0 }
-    val unresolvedRedemptionCount = businessEntries.count { drop ->
-        if (drop.isExpired(now) || !drop.requiresRedemption()) return@count false
-        val remaining = drop.remainingRedemptions()
-        remaining == null || remaining > 0
-    }
-    val expiringOfferCount = businessEntries.count { drop ->
-        val remaining = drop.remainingDecayMillis(now) ?: return@count false
-        remaining in 1..BUSINESS_EXPIRING_SOON_THRESHOLD_MILLIS
-    }
-
-    return BusinessHomeMetrics(
-        liveDropCount = liveDropCount,
-        pendingReviewCount = pendingReviewCount,
-        unresolvedRedemptionCount = unresolvedRedemptionCount,
-        expiringOfferCount = expiringOfferCount
-    )
-}
-
-
-@Composable
-private fun BusinessHomeScreen(
-    modifier: Modifier = Modifier,
-    businessName: String?,
-    businessCategories: List<BusinessCategory>,
-    metrics: BusinessHomeMetrics,
-    onViewDashboard: () -> Unit,
-    onUpdateBusinessProfile: () -> Unit,
-    onViewMyDrops: () -> Unit,
-) {
-    val activeDropCount = metrics.liveDropCount
-    val pendingReviewCount = metrics.pendingReviewCount
-    val unresolvedRedemptionCount = metrics.unresolvedRedemptionCount
-    val expiringOfferCount = metrics.expiringOfferCount
-    LazyColumn(
-        modifier = modifier,
-        contentPadding = PaddingValues(
-            start = 20.dp,
-            end = 20.dp,
-            top = 24.dp,
-            bottom = 128.dp
-        ),
-        verticalArrangement = Arrangement.spacedBy(20.dp)
-    ) {
-        item {
-            BusinessHeroCard(
-                businessName = businessName,
-                businessCategories = businessCategories
-            )
-        }
-
-        item { SectionHeader(text = "Manage drops") }
-
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                ActionCard(
-                    icon = Icons.Rounded.Inbox,
-                    title = "Manage existing drops",
-                    description = "Review performance and make changes to the drops you've shared.",
-                    onClick = onViewMyDrops,
-                    trailingContent = {
-                        BusinessActionSummary(
-                            liveDropCount = activeDropCount,
-                            pendingReviewCount = pendingReviewCount,
-                            unresolvedRedemptionCount = unresolvedRedemptionCount,
-                            expiringOfferCount = expiringOfferCount
-                        )
-                    }
-                )
-            }
-        }
-
-        item { SectionHeader(text = "Insights & branding") }
-
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                ActionCard(
-                    icon = Icons.Rounded.Storefront,
-                    title = "Business dashboard",
-                    description = "Track discoveries, redemptions, and engagement in one place.",
-                    onClick = onViewDashboard,
-                    trailingContent = {
-                        BusinessActionSummary(
-                            liveDropCount = activeDropCount,
-                            pendingReviewCount = pendingReviewCount,
-                            unresolvedRedemptionCount = unresolvedRedemptionCount,
-                            expiringOfferCount = expiringOfferCount
-                        )
-                    }
-                )
-
-                ActionCard(
-                    icon = Icons.Rounded.Edit,
-                    title = "Update business name",
-                    description = "Adjust how your brand appears across GeoDrop experiences.",
-                    onClick = onUpdateBusinessProfile
-                )
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
-@Composable
-private fun BusinessHeroCard(
-    businessName: String?,
-    businessCategories: List<BusinessCategory>,
-    brandImageUrl: String? = null
-) {
-    val title = businessName?.takeIf { it.isNotBlank() }?.let { "$it on GeoDrop" }
-        ?: "Welcome to GeoDrop Business"
-    val subtitle = if (businessName.isNullOrBlank()) {
-        "Share exclusive offers, stories, and tours to reach explorers right when they're nearby."
-    } else {
-        "Keep explorers engaged with timely offers and experiences from your team."
-    }
-
-    val sortedCategories = businessCategories
-        .sortedWith(compareBy({ it.group.displayName }, { it.displayName }))
-
-    val avatarBackground = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.08f)
-    val avatarBorder = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.2f)
-    val chipContainer = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-    val chipBorder = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.2f)
-
-    ElevatedCard(
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(
-                BorderStroke(
-                    width = 1.dp,
-                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+    @Composable
+    private fun ReadOnlyModeCard(message: String) {
+        ElevatedCard(
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(
+                    border = BorderStroke(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                    ),
+                    shape = RoundedCornerShape(20.dp)
                 ),
-                shape = RoundedCornerShape(28.dp)
-            ),
-        shape = RoundedCornerShape(28.dp),
-        colors = CardDefaults.elevatedCardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.elevatedCardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant
+            )
         ) {
             Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(72.dp)
-                        .clip(CircleShape)
-                        .background(avatarBackground)
-                        .border(width = 1.dp, color = avatarBorder, shape = CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (!brandImageUrl.isNullOrBlank()) {
-                        val context = LocalContext.current
-                        AsyncImage(
-                            model = ImageRequest.Builder(context)
-                                .data(brandImageUrl)
-                                .crossfade(true)
-                                .build(),
-                            contentDescription = businessName?.let { "$it brand logo" },
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.matchParentSize()
-                        )
-                    } else {
-                        Icon(
-                            imageVector = Icons.Rounded.Storefront,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.size(32.dp)
-                        )
-                    }
-                }
-
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                    Text(
-                        text = subtitle,
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                }
-            }
-
-            if (sortedCategories.isNotEmpty()) {
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    sortedCategories.forEach { category ->
-                        AssistChip(
-                            onClick = {},
-                            label = {
-                                Text(
-                                    text = category.displayName,
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                            },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = category.icon,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                            },
-                            colors = AssistChipDefaults.assistChipColors(
-                                containerColor = chipContainer,
-                                labelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                            ),
-                            shape = RoundedCornerShape(50),
-                            modifier = Modifier
-                                .border(
-                                    BorderStroke(
-                                        width = 1.dp,
-                                        color = chipBorder
-                                    ),
-                                    shape = RoundedCornerShape(50)
-                                )
-                        )
-                    }
-                }
+                Icon(
+                    imageVector = Icons.Rounded.Info,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
             }
         }
     }
-}
 
-@Composable
-private fun ReadOnlyModeCard(message: String) {
-    ElevatedCard(
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(
-                border = BorderStroke(
-                    width = 1.dp,
-                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                ),
-                shape = RoundedCornerShape(20.dp)
-            ),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.elevatedCardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        )
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(20.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.Info,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary
-            )
-            Text(
-                text = message,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-        }
-    }
-}
-
-@Composable
-private fun SectionHeader(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.titleMedium,
-        fontWeight = FontWeight.SemiBold,
-        modifier = Modifier.fillMaxWidth()
-    )
-}
-
-@Composable
-private fun ActionCard(
-    icon: ImageVector,
-    title: String,
-    description: String,
-    onClick: () -> Unit,
-    trailingContent: (@Composable () -> Unit)? = null,
-) {
-    ElevatedCard(
-        onClick = onClick,
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(
-                BorderStroke(
-                    width = 1.dp,
-                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                ),
-                shape = RoundedCornerShape(20.dp)
-            ),
-        shape = RoundedCornerShape(20.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(20.dp)
-                .animateContentSize(),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .background(
-                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-                            shape = CircleShape
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
-
-                Spacer(Modifier.width(16.dp))
-
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        text = description,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            trailingContent?.let {
-                Box(
-                    modifier = Modifier
-                        .wrapContentSize()
-                        .align(Alignment.Start)
-                ) {
-                    it()
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun CountBadge(count: Int) {
-    Surface(
-        shape = CircleShape,
-        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-    ) {
-        Text(
-            text = count.toString(),
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.primary,
-            fontWeight = FontWeight.SemiBold
-        )
-    }
-}
-
-@Composable
-private fun MetricPill(
-    label: String,
-    value: Int,
-    modifier: Modifier = Modifier
-) {
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(50),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Text(
-                text = value.toString(),
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}
-
-private enum class StatusChipTone { Accent, Warning }
-
-@Composable
-private fun StatusChip(
-    text: String,
-    tone: StatusChipTone,
-    modifier: Modifier = Modifier
-) {
-    val (containerColor, contentColor) = when (tone) {
-        StatusChipTone.Accent -> MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.onTertiaryContainer
-        StatusChipTone.Warning -> MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.onErrorContainer
-    }
-
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(50),
-        color = containerColor
-    ) {
+    @Composable
+    private fun SectionHeader(text: String) {
         Text(
             text = text,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-            style = MaterialTheme.typography.labelMedium,
-            color = contentColor,
+            style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            modifier = Modifier.fillMaxWidth()
         )
     }
-}
 
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun BusinessActionSummary(
-    liveDropCount: Int,
-    pendingReviewCount: Int,
-    unresolvedRedemptionCount: Int,
-    expiringOfferCount: Int
-) {
-    if (liveDropCount <= 0 && pendingReviewCount <= 0 && unresolvedRedemptionCount <= 0 && expiringOfferCount <= 0) {
-        return
-    }
-
-    FlowRow(
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+    @Composable
+    private fun ActionCard(
+        icon: ImageVector,
+        title: String,
+        description: String,
+        onClick: () -> Unit,
+        trailingContent: (@Composable () -> Unit)? = null,
     ) {
-        if (liveDropCount > 0) {
-            CountBadge(count = liveDropCount)
+        ElevatedCard(
+            onClick = onClick,
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(
+                    BorderStroke(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                    ),
+                    shape = RoundedCornerShape(20.dp)
+                ),
+            shape = RoundedCornerShape(20.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp)
+                    .animateContentSize(),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .background(
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                                shape = CircleShape
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+
+                    Spacer(Modifier.width(16.dp))
+
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = title,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = description,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                trailingContent?.let {
+                    Box(
+                        modifier = Modifier
+                            .wrapContentSize()
+                            .align(Alignment.Start)
+                    ) {
+                        it()
+                    }
+                }
+            }
         }
-        if (pendingReviewCount > 0) {
-            MetricPill(
-                label = stringResource(R.string.metric_pending_reviews),
-                value = pendingReviewCount
-            )
-        }
-        if (unresolvedRedemptionCount > 0) {
-            MetricPill(
-                label = stringResource(R.string.metric_open_redemptions),
-                value = unresolvedRedemptionCount
-            )
-        }
-        if (expiringOfferCount > 0) {
-            StatusChip(
-                text = stringResource(R.string.metric_expiring_offers, expiringOfferCount),
-                tone = StatusChipTone.Warning
+    }
+
+    @Composable
+    private fun CountBadge(count: Int) {
+        Surface(
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+        ) {
+            Text(
+                text = count.toString(),
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.SemiBold
             )
         }
     }
-}
 
-private const val NOTIFICATION_RADIUS_STEP_METERS = 50f
-private const val DROP_PICKUP_RADIUS_METERS = 30.0
-private const val MAX_BUSINESS_TEMPLATE_SUGGESTIONS = 6
+    @Composable
+    private fun MetricPill(
+        label: String,
+        value: Int,
+        modifier: Modifier = Modifier
+    ) {
+        Surface(
+            modifier = modifier,
+            shape = RoundedCornerShape(50),
+            color = MaterialTheme.colorScheme.surfaceVariant,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = value.toString(),
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
 
-private data class OnboardingSlide(
-    val icon: ImageVector,
-    val title: String,
-    val description: String
-)
+    private enum class StatusChipTone { Accent, Warning }
 
-private data class DropContentTypeOption(
-    val type: DropContentType,
-    val title: String,
-    val description: String,
-    val icon: ImageVector
-)
+    @Composable
+    private fun StatusChip(
+        text: String,
+        tone: StatusChipTone,
+        modifier: Modifier = Modifier
+    ) {
+        val (containerColor, contentColor) = when (tone) {
+            StatusChipTone.Accent -> MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.onTertiaryContainer
+            StatusChipTone.Warning -> MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.onErrorContainer
+        }
 
-private data class BusinessDropTypeOption(
-    val type: DropType,
-    val title: String,
-    val description: String,
-    val icon: ImageVector
-)
+        Surface(
+            modifier = modifier,
+            shape = RoundedCornerShape(50),
+            color = containerColor
+        ) {
+            Text(
+                text = text,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                style = MaterialTheme.typography.labelMedium,
+                color = contentColor,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
 
-private enum class HomeDestination { Explorer, Business }
+    @OptIn(ExperimentalLayoutApi::class)
+    @Composable
+    private fun BusinessActionSummary(
+        liveDropCount: Int,
+        pendingReviewCount: Int,
+        unresolvedRedemptionCount: Int,
+        expiringOfferCount: Int
+    ) {
+        if (liveDropCount <= 0 && pendingReviewCount <= 0 && unresolvedRedemptionCount <= 0 && expiringOfferCount <= 0) {
+            return
+        }
 
-private enum class ExplorerDestination { Discover, MyDrops, Collected }
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            if (liveDropCount > 0) {
+                CountBadge(count = liveDropCount)
+            }
+            if (pendingReviewCount > 0) {
+                MetricPill(
+                    label = stringResource(R.string.metric_pending_reviews),
+                    value = pendingReviewCount
+                )
+            }
+            if (unresolvedRedemptionCount > 0) {
+                MetricPill(
+                    label = stringResource(R.string.metric_open_redemptions),
+                    value = unresolvedRedemptionCount
+                )
+            }
+            if (expiringOfferCount > 0) {
+                StatusChip(
+                    text = stringResource(R.string.metric_expiring_offers, expiringOfferCount),
+                    tone = StatusChipTone.Warning
+                )
+            }
+        }
+    }
 
-private enum class AccountAuthMode {
-    SIGN_IN,
-    REGISTER
-}
+    private const val NOTIFICATION_RADIUS_STEP_METERS = 50f
+    private const val DROP_PICKUP_RADIUS_METERS = 30.0
+    private const val MAX_BUSINESS_TEMPLATE_SUGGESTIONS = 6
 
-private enum class AccountType { EXPLORER, BUSINESS }
+    private data class OnboardingSlide(
+        val icon: ImageVector,
+        val title: String,
+        val description: String
+    )
 
-private enum class DropVisibility { Public, GroupOnly }
+    private data class DropContentTypeOption(
+        val type: DropContentType,
+        val title: String,
+        val description: String,
+        val icon: ImageVector
+    )
 
-/** Tiny helper to show snackbars from non-suspend places. */
-private fun SnackbarHostState.showMessage(
-    scope: kotlinx.coroutines.CoroutineScope,
-    msg: String
-) {
-    scope.launch { showSnackbar(msg) }
+    private data class BusinessDropTypeOption(
+        val type: DropType,
+        val title: String,
+        val description: String,
+        val icon: ImageVector
+    )
+
+    private enum class HomeDestination { Explorer, Business }
+
+    private enum class ExplorerDestination { Discover, MyDrops, Collected }
+
+    private enum class AccountAuthMode {
+        SIGN_IN,
+        REGISTER
+    }
+
+    private enum class AccountType { EXPLORER, BUSINESS }
+
+    private enum class DropVisibility { Public, GroupOnly }
+
+    /** Tiny helper to show snackbars from non-suspend places. */
+    private fun SnackbarHostState.showMessage(
+        scope: kotlinx.coroutines.CoroutineScope,
+        msg: String
+    ) {
+        scope.launch { showSnackbar(msg) }
+    }
 }
