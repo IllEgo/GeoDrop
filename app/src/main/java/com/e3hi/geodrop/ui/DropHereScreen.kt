@@ -870,7 +870,6 @@ fun DropHereScreen(
         mutableStateListOf<String>()
     }
     var otherDropsRefreshToken by remember { mutableStateOf(0) }
-    val otherDropsListState = rememberLazyListState()
     var votingDropIds by remember { mutableStateOf(setOf<String>()) }
     val dropReportReasons = remember { DefaultReportReasons }
     var browseReportDialogOpen by remember { mutableStateOf(false) }
@@ -3155,12 +3154,6 @@ fun DropHereScreen(
                                                     drop.id
                                                 }
                                             },
-                                            onPickUp = { drop -> pickUpDrop(drop) },
-                                            currentUserId = currentUserId,
-                                            votingDropIds = votingDropIds,
-                                            collectedDropIds = collectedDropIds,
-                                            canCollectDrops = canParticipate,
-                                            collectRestrictionMessage = collectRestrictionMessage,
                                             sortOption = otherDropsSortOption,
                                             sortOptions = dropSortOptions,
                                             onSortOptionChange = { option ->
@@ -3168,12 +3161,7 @@ fun DropHereScreen(
                                             },
                                             canLikeDrops = canParticipate,
                                             likeRestrictionMessage = if (canParticipate) null else participationRestriction("react to drops"),
-                                            onLike = { drop, status -> submitLike(drop, status) },
-                                            onReport = handleOtherDropReport,
-                                            reportingDropId = browseReportingDropId,
-                                            onIgnoreDrop = ::ignoreDropForNow,
-                                            onRefresh = { otherDropsRefreshToken += 1 },
-                                            listState = otherDropsListState
+                                            onRefresh = { otherDropsRefreshToken += 1 }
                                         )
                                     }
                                 }
@@ -7451,50 +7439,13 @@ private fun OtherDropsExplorerSection(
     emptyMessage: String? = null,
     selectedId: String?,
     onSelect: (Drop) -> Unit,
-    onPickUp: (Drop) -> Unit,
-    currentUserId: String?,
-    votingDropIds: Set<String>,
-    collectedDropIds: Set<String>,
-    canCollectDrops: Boolean,
-    collectRestrictionMessage: String?,
     sortOption: DropSortOption,
     sortOptions: List<DropSortOption>,
     onSortOptionChange: (DropSortOption) -> Unit,
     canLikeDrops: Boolean,
     likeRestrictionMessage: String?,
-    onLike: (Drop, DropLikeStatus) -> Unit,
-    onReport: (Drop) -> Unit,
-    reportingDropId: String?,
-    onIgnoreDrop: (Drop) -> Unit,
-    onRefresh: () -> Unit,
-    listState: LazyListState
+    onRefresh: () -> Unit
 ) {
-    val context = LocalContext.current
-    val isSignedIn = !currentUserId.isNullOrBlank()
-
-    var lastSortOption by remember { mutableStateOf(sortOption) }
-    var skipSelectionScroll by remember { mutableStateOf(false) }
-
-    LaunchedEffect(sortOption) {
-        if (lastSortOption != sortOption) {
-            skipSelectionScroll = true
-            listState.scrollToItem(0)
-            lastSortOption = sortOption
-        }
-    }
-
-    LaunchedEffect(selectedId, drops) {
-        if (skipSelectionScroll) {
-            skipSelectionScroll = false
-            return@LaunchedEffect
-        }
-        val targetId = selectedId ?: return@LaunchedEffect
-        val index = drops.indexOfFirst { it.id == targetId }
-        if (index >= 0) {
-            listState.animateScrollToItem(index)
-        }
-    }
-
     Box(modifier = modifier.fillMaxSize()) {
         if (refreshing && !loading) {
             LinearProgressIndicator(
@@ -7574,99 +7525,48 @@ private fun OtherDropsExplorerSection(
                         modifier = Modifier.fillMaxSize()
                     )
 
-                    Surface(
+                    Column(
                         modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .padding(horizontal = 16.dp, vertical = 16.dp)
-                            .navigationBarsPadding(),
-                        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-                        tonalElevation = 6.dp,
-                        shadowElevation = 0.dp
+                            .align(Alignment.TopStart)
+                            .padding(horizontal = 20.dp, vertical = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = 12.dp)
+                        Surface(
+                            shape = RoundedCornerShape(24.dp),
+                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+                            tonalElevation = 6.dp,
+                            shadowElevation = 0.dp
                         ) {
                             Row(
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 20.dp, vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
                                 DropSortMenu(
-                                    modifier = Modifier.weight(1f),
                                     current = sortOption,
                                     options = sortOptions,
                                     onSelect = onSortOptionChange
                                 )
 
                                 if (drops.isNotEmpty()) {
-                                    Spacer(Modifier.width(12.dp))
                                     CountBadge(count = drops.size)
                                 }
                             }
 
                             if (!likeRestrictionMessage.isNullOrBlank() && !canLikeDrops) {
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+                                    tonalElevation = 4.dp,
+                                    shadowElevation = 0.dp
+                                ) {
                                 Text(
                                     text = likeRestrictionMessage,
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier
-                                        .padding(horizontal = 20.dp)
-                                        .padding(bottom = 8.dp)
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
                                 )
-                            }
-
-                            LazyColumn(
-                                state = listState,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .heightIn(max = 360.dp),
-                                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
-                                verticalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                items(drops, key = { it.id }) { drop ->
-                                    val hasCollected = collectedDropIds.contains(drop.id)
-                                    val withinPickupRange = currentLocation?.let { location ->
-                                        distanceBetweenMeters(
-                                            location.latitude,
-                                            location.longitude,
-                                            drop.lat,
-                                            drop.lng
-                                        ) <= DROP_PICKUP_RADIUS_METERS
-                                    } ?: false
-                                    val isOwnDrop = currentUserId != null && drop.createdBy == currentUserId
-                                    val alreadyReported = currentUserId?.let { drop.reportedBy.containsKey(it) } == true
-                                    val canReport = isSignedIn && !isOwnDrop && (hasCollected || withinPickupRange)
-                                    val reportMessage = when {
-                                        isOwnDrop -> "You created this drop."
-                                        !isSignedIn -> "Sign in to report drops."
-                                        alreadyReported -> "Thanks for your report. We'll review it soon."
-                                        else -> null
-                                    }
-                                    val showReportButton = !isOwnDrop
-                                    val isReporting = reportingDropId == drop.id
-                                    val canIgnoreForNow = !withinPickupRange
-                                    OtherDropRow(
-                                        drop = drop,
-                                        isSelected = drop.id == selectedId,
-                                        currentLocation = currentLocation,
-                                        userLike = drop.userLikeStatus(currentUserId),
-                                        canPickUp = canCollectDrops,
-                                        pickupRestrictionMessage = collectRestrictionMessage,
-                                        showReport = showReportButton,
-                                        canReport = canReport,
-                                        alreadyReported = alreadyReported,
-                                        reportRestrictionMessage = reportMessage,
-                                        isReporting = isReporting,
-                                        canIgnoreForNow = canIgnoreForNow,
-                                        onIgnoreForNow = { onIgnoreDrop(drop) },
-                                        onSelect = { onSelect(drop) },
-                                        onPickUp = { onPickUp(drop) },
-                                        onReport = { onReport(drop) }
-                                    )
-                                }
                             }
                         }
                     }
@@ -9768,9 +9668,9 @@ private fun OtherDropsMap(
             val snippetDescription = drop.description?.takeIf { it.isNotBlank() }
                 ?: drop.text.takeIf { it.isNotBlank() }
                 ?: when (drop.contentType) {
-                    DropContentType.PHOTO -> "Preview the photo in the drop list."
-                    DropContentType.AUDIO -> "Open the drop list to play this recording."
-                    DropContentType.VIDEO -> "Open the drop list to watch this clip."
+                    DropContentType.PHOTO -> "Tap to preview this photo."
+                    DropContentType.AUDIO -> "Tap to play this recording."
+                    DropContentType.VIDEO -> "Tap to watch this clip."
                     DropContentType.TEXT -> ""
                 }
             if (!snippetDescription.isNullOrBlank()) {
