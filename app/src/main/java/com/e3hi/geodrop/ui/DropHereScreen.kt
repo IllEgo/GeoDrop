@@ -276,6 +276,11 @@ import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.math.sqrt
 
+private enum class AccountAuthMode {
+    SIGN_IN,
+    REGISTER
+}
+
 @SuppressLint("MissingPermission")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -10825,11 +10830,6 @@ fun DropHereScreen(
     private enum class HomeDestination { Explorer, Business }
 
     private enum class ExplorerDestination { Discover, MyDrops, Collected }
-
-    private enum class AccountAuthMode {
-        SIGN_IN,
-        REGISTER
-    }
 
     private enum class AccountType { EXPLORER, BUSINESS }
 
