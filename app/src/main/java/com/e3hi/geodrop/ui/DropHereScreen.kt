@@ -7553,14 +7553,15 @@ private fun OtherDropsExplorerSection(
                                     CountBadge(count = drops.size)
                                 }
                             }
+                        }
 
-                            if (!likeRestrictionMessage.isNullOrBlank() && !canLikeDrops) {
-                                Surface(
-                                    shape = RoundedCornerShape(16.dp),
-                                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
-                                    tonalElevation = 4.dp,
-                                    shadowElevation = 0.dp
-                                ) {
+                        if (!likeRestrictionMessage.isNullOrBlank() && !canLikeDrops) {
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+                                tonalElevation = 4.dp,
+                                shadowElevation = 0.dp
+                            ) {
                                 Text(
                                     text = likeRestrictionMessage,
                                     style = MaterialTheme.typography.bodySmall,
