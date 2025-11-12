@@ -51,7 +51,6 @@ import androidx.compose.foundation.gestures.AnchoredDraggableState
 import androidx.compose.foundation.gestures.DraggableAnchors
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.anchoredDraggable
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.animateTo
 import androidx.compose.foundation.gestures.snapTo
 import androidx.compose.foundation.horizontalScroll
@@ -169,6 +168,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.coerceAtLeast
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -6288,7 +6288,7 @@ private fun CollectedDropsContent(
             ExplorerDropListPanel(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .fillMaxHeight()
+                    .heightIn(max = 420.dp)
                     .navigationBarsPadding(),
                 mapAwareTopPadding = topContentPadding,
                 handleLabel = "Collected",
@@ -7564,7 +7564,7 @@ private fun OtherDropsExplorerSection(
                     ExplorerDropListPanel(
                         modifier = Modifier
                             .align(Alignment.TopEnd)
-                            .fillMaxHeight()
+                            .heightIn(max = 420.dp)
                             .navigationBarsPadding(),
                         mapAwareTopPadding = topContentPadding,
                         handleLabel = "Discover",
@@ -7839,6 +7839,7 @@ private fun ExplorerDropListPanel(
     state: ExplorerDropListPanelState = rememberExplorerDropListPanelState(),
     mapAwareTopPadding: Dp = 0.dp,
     panelWidth: Dp = 360.dp,
+    panelMaxHeight: Dp = 420.dp,
     handleWidth: Dp = 40.dp,
     handleLabel: String,
     contentPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
@@ -7850,7 +7851,7 @@ private fun ExplorerDropListPanel(
     val layoutDirection = LocalLayoutDirection.current
     val coroutineScope = rememberCoroutineScope()
 
-    BoxWithConstraints(modifier = modifier) {
+    BoxWithConstraints(modifier = modifier.heightIn(max = panelMaxHeight)) {
         val effectivePanelWidth = remember(panelWidth, maxWidth) {
             panelWidth.coerceAtMost(maxWidth)
         }
@@ -7878,30 +7879,38 @@ private fun ExplorerDropListPanel(
         val endPadding = contentPadding.calculateEndPadding(layoutDirection)
         val topPadding = contentPadding.calculateTopPadding()
         val bottomPadding = contentPadding.calculateBottomPadding()
+        val availablePanelHeight = remember(maxHeight, mapAwareTopPadding) {
+            (maxHeight - mapAwareTopPadding).coerceAtLeast(0.dp)
+        }
+        val anchoredModifier = Modifier.anchoredDraggable(
+            state = state.anchoredState,
+            orientation = Orientation.Horizontal
+        )
 
         Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .padding(top = mapAwareTopPadding)
-                .fillMaxHeight()
+                .heightIn(max = availablePanelHeight)
                 .width(effectivePanelWidth + handleWidth)
-                .anchoredDraggable(
-                    state = state.anchoredState,
-                    orientation = Orientation.Horizontal
-                )
         ) {
             Surface(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .width(effectivePanelWidth)
-                    .fillMaxHeight()
-                    .graphicsLayer { translationX = state.offset },
+                    .heightIn(max = availablePanelHeight)
+                    .graphicsLayer { translationX = state.offset }
+                    .then(anchoredModifier),
                 shape = RoundedCornerShape(topStart = 24.dp, bottomStart = 24.dp),
                 tonalElevation = 8.dp,
                 shadowElevation = 0.dp,
                 color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)
             ) {
-                Column(modifier = Modifier.fillMaxSize()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .heightIn(max = availablePanelHeight)
+                ) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -7935,14 +7944,9 @@ private fun ExplorerDropListPanel(
 
             Surface(
                 modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .padding(vertical = 32.dp)
+                    .align(Alignment.TopEnd)
+                    .padding(top = 16.dp)
                     .width(handleWidth)
-                    .pointerInput(Unit) {
-                        detectHorizontalDragGestures { change, _ ->
-                            change.consume()
-                        }
-                    }
                     .clickable(
                         indication = null,
                         interactionSource = remember { MutableInteractionSource() }
@@ -7950,7 +7954,8 @@ private fun ExplorerDropListPanel(
                         coroutineScope.launch {
                             state.animateTo(ExplorerDropListPanelValue.Expanded)
                         }
-                    },
+                    }
+                    .then(anchoredModifier),
                 shape = RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp),
                 tonalElevation = 8.dp,
                 shadowElevation = 0.dp,
@@ -7958,10 +7963,9 @@ private fun ExplorerDropListPanel(
             ) {
                 Column(
                     modifier = Modifier
-                        .fillMaxHeight()
                         .padding(horizontal = 8.dp, vertical = 12.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
+                    verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.Top)
                 ) {
                     Icon(
                         imageVector = Icons.Filled.ExpandLess,
@@ -8711,7 +8715,7 @@ private fun MyDropsContent(
                     ExplorerDropListPanel(
                         modifier = Modifier
                             .align(Alignment.TopEnd)
-                            .fillMaxHeight()
+                            .heightIn(max = 420.dp)
                             .navigationBarsPadding(),
                         mapAwareTopPadding = topContentPadding,
                         handleLabel = "My drops",
