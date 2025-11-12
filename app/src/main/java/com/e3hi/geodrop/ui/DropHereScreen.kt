@@ -46,13 +46,20 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.AnchoredDraggableState
+import androidx.compose.foundation.gestures.DraggableAnchors
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.anchoredDraggable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.rememberAnchoredDraggableState
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -126,8 +133,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.layout.onSizeChanged
@@ -3161,6 +3169,15 @@ fun DropHereScreen(
                                             },
                                             canLikeDrops = canParticipate,
                                             likeRestrictionMessage = if (canParticipate) null else participationRestriction("react to drops"),
+                                            currentUserId = currentUserId,
+                                            isSignedIn = isSignedIn,
+                                            collectedDropIds = collectedDropIds,
+                                            canParticipate = canParticipate,
+                                            collectRestrictionMessage = collectRestrictionMessage,
+                                            browseReportingDropId = browseReportingDropId,
+                                            onPickUp = { pickUpDrop(it) },
+                                            onReport = { handleOtherDropReport(it) },
+                                            onIgnoreForNow = { ignoreDropForNow(it) },
                                             onRefresh = { otherDropsRefreshToken += 1 }
                                         )
                                     }
@@ -6265,29 +6282,23 @@ private fun CollectedDropsContent(
                 )
             }
 
-            Surface(
+            ExplorerDropListPanel(
                 modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(horizontal = 16.dp, vertical = 16.dp)
+                    .align(Alignment.TopEnd)
+                    .fillMaxHeight()
                     .navigationBarsPadding(),
-                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-                tonalElevation = 6.dp,
-                shadowElevation = 0.dp
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 12.dp)
-                ) {
+                mapAwareTopPadding = topContentPadding,
+                handleLabel = "Collected",
+                listState = listState,
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                header = {
                     if (hiddenNsfwCount > 0) {
                         val plural = if (hiddenNsfwCount == 1) "drop" else "drops"
                         Surface(
                             color = MaterialTheme.colorScheme.surfaceVariant,
                             tonalElevation = 2.dp,
                             shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 8.dp)
+                            modifier = Modifier.fillMaxWidth()
                         ) {
                             Text(
                                 text = "Your NSFW settings are hiding $hiddenNsfwCount collected $plural.",
@@ -6299,10 +6310,9 @@ private fun CollectedDropsContent(
                     }
 
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         DropSortMenu(
                             modifier = Modifier.weight(1f),
@@ -6311,53 +6321,44 @@ private fun CollectedDropsContent(
                             onSelect = onSortOptionChange
                         )
 
-                        Spacer(Modifier.width(12.dp))
                         CountBadge(count = notes.size)
                     }
-
-                    LazyColumn(
-                        state = listState,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = 360.dp),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        items(notes, key = { it.id }) { note ->
-                            val isHighlighted = note.id == selectedId
-                            val alreadyReported = reportedDropIds.contains(note.id)
-                            val restrictionMessage = when {
-                                alreadyReported -> "Thanks for your report. We'll review it soon."
-                                !canReportDrops -> "Sign in to report drops."
-                                else -> null
-                            }
-                            val isReporting = isReportProcessing && reportingDropId == note.id
-                            val canReact = canLikeDrops && isSignedIn
-                            val isVoting = votingDropIds.contains(note.id)
-                            CollectedNoteCard(
-                                note = note,
-                                selected = isHighlighted,
-                                expanded = isHighlighted,
-                                onSelect = { onSelect(note) },
-                                likeCount = note.likeCount,
-                                dislikeCount = note.dislikeCount,
-                                userLike = note.likeStatus(),
-                                canLike = canReact,
-                                likeRestrictionMessage = likeRestrictionMessage,
-                                isVoting = isVoting,
-                                onLike = { status -> onLike(note, status) },
-                                canReport = canReportDrops,
-                                alreadyReported = alreadyReported,
-                                reportRestrictionMessage = restrictionMessage,
-                                isReporting = isReporting,
-                                onReport = { onReport(note) },
-                                onView = { onView(note) },
-                                onRemove = { onRemove(note) }
-                            )
+                },
+                body = {
+                    items(notes, key = { it.id }) { note ->
+                        val isHighlighted = note.id == selectedId
+                        val alreadyReported = reportedDropIds.contains(note.id)
+                        val restrictionMessage = when {
+                            alreadyReported -> "Thanks for your report. We'll review it soon."
+                            !canReportDrops -> "Sign in to report drops."
+                            else -> null
                         }
+                        val isReporting = isReportProcessing && reportingDropId == note.id
+                        val canReact = canLikeDrops && isSignedIn
+                        val isVoting = votingDropIds.contains(note.id)
+                        CollectedNoteCard(
+                            note = note,
+                            selected = isHighlighted,
+                            expanded = isHighlighted,
+                            onSelect = { onSelect(note) },
+                            likeCount = note.likeCount,
+                            dislikeCount = note.dislikeCount,
+                            userLike = note.likeStatus(),
+                            canLike = canReact,
+                            likeRestrictionMessage = likeRestrictionMessage,
+                            isVoting = isVoting,
+                            onLike = { status -> onLike(note, status) },
+                            canReport = canReportDrops,
+                            alreadyReported = alreadyReported,
+                            reportRestrictionMessage = restrictionMessage,
+                            isReporting = isReporting,
+                            onReport = { onReport(note) },
+                            onView = { onView(note) },
+                            onRemove = { onRemove(note) }
+                        )
                     }
                 }
-            }
+            )
         }
     }
 }
@@ -7444,6 +7445,15 @@ private fun OtherDropsExplorerSection(
     onSortOptionChange: (DropSortOption) -> Unit,
     canLikeDrops: Boolean,
     likeRestrictionMessage: String?,
+    currentUserId: String?,
+    isSignedIn: Boolean,
+    collectedDropIds: Set<String>,
+    canParticipate: Boolean,
+    collectRestrictionMessage: String?,
+    browseReportingDropId: String?,
+    onPickUp: (Drop) -> Unit,
+    onReport: (Drop) -> Unit,
+    onIgnoreForNow: (Drop) -> Unit,
     onRefresh: () -> Unit
 ) {
     Box(modifier = modifier.fillMaxSize()) {
@@ -7511,6 +7521,29 @@ private fun OtherDropsExplorerSection(
             }
 
             else -> {
+                val listState = rememberLazyListState()
+                var lastSortOption by remember { mutableStateOf(sortOption) }
+                var skipScrollForSortChange by remember { mutableStateOf(false) }
+
+                LaunchedEffect(sortOption) {
+                    if (lastSortOption != sortOption) {
+                        skipScrollForSortChange = true
+                        listState.scrollToItem(0)
+                        lastSortOption = sortOption
+                    }
+                }
+
+                LaunchedEffect(selectedId, drops) {
+                    if (skipScrollForSortChange) {
+                        skipScrollForSortChange = false
+                        return@LaunchedEffect
+                    }
+                    val targetId = selectedId ?: return@LaunchedEffect
+                    val index = drops.indexOfFirst { it.id == targetId }
+                    if (index >= 0) {
+                        listState.animateScrollToItem(index)
+                    }
+                }
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -7525,25 +7558,22 @@ private fun OtherDropsExplorerSection(
                         modifier = Modifier.fillMaxSize()
                     )
 
-                    Column(
+                    ExplorerDropListPanel(
                         modifier = Modifier
-                            .align(Alignment.TopStart)
-                            .padding(horizontal = 20.dp, vertical = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Surface(
-                            shape = RoundedCornerShape(24.dp),
-                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
-                            tonalElevation = 6.dp,
-                            shadowElevation = 0.dp
-                        ) {
+                            .align(Alignment.TopEnd)
+                            .fillMaxHeight()
+                            .navigationBarsPadding(),
+                        mapAwareTopPadding = topContentPadding,
+                        handleLabel = "Discover",
+                        listState = listState,
+                        header = {
                             Row(
-                                modifier = Modifier
-                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                                modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
                                 DropSortMenu(
+                                    modifier = Modifier.weight(1f),
                                     current = sortOption,
                                     options = sortOptions,
                                     onSelect = onSortOptionChange
@@ -7553,24 +7583,60 @@ private fun OtherDropsExplorerSection(
                                     CountBadge(count = drops.size)
                                 }
                             }
-                        }
 
-                        if (!likeRestrictionMessage.isNullOrBlank() && !canLikeDrops) {
-                            Surface(
-                                shape = RoundedCornerShape(16.dp),
-                                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
-                                tonalElevation = 4.dp,
-                                shadowElevation = 0.dp
-                            ) {
+                            if (!likeRestrictionMessage.isNullOrBlank() && !canLikeDrops) {
                                 Text(
                                     text = likeRestrictionMessage,
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        },
+                        body = {
+                            items(drops, key = { it.id }) { drop ->
+                                val userLike = drop.userLikeStatus(currentUserId)
+                                val isOwnDrop = currentUserId != null && drop.createdBy == currentUserId
+                                val alreadyReported = currentUserId?.let { id ->
+                                    drop.reportedBy.containsKey(id)
+                                } == true
+                                val hasCollected = collectedDropIds.contains(drop.id)
+                                val withinPickupRange = currentLocation?.let { location ->
+                                    distanceBetweenMeters(
+                                        location.latitude,
+                                        location.longitude,
+                                        drop.lat,
+                                        drop.lng
+                                    ) <= DROP_PICKUP_RADIUS_METERS
+                                } ?: false
+                                val canReportDrop = isSignedIn && !isOwnDrop && (hasCollected || withinPickupRange)
+                                val reportRestrictionMessage = when {
+                                    isOwnDrop -> "You created this drop."
+                                    !isSignedIn -> "Sign in to report drops."
+                                    alreadyReported -> "Thanks for your report. We'll review it soon."
+                                    else -> null
+                                }
+
+                                OtherDropRow(
+                                    drop = drop,
+                                    isSelected = drop.id == selectedId,
+                                    currentLocation = currentLocation,
+                                    userLike = userLike,
+                                    canPickUp = canParticipate,
+                                    pickupRestrictionMessage = collectRestrictionMessage,
+                                    showReport = !isOwnDrop,
+                                    canReport = canReportDrop,
+                                    alreadyReported = alreadyReported,
+                                    reportRestrictionMessage = reportRestrictionMessage,
+                                    isReporting = browseReportingDropId == drop.id,
+                                    canIgnoreForNow = !withinPickupRange,
+                                    onIgnoreForNow = { onIgnoreForNow(drop) },
+                                    onSelect = { onSelect(drop) },
+                                    onPickUp = { onPickUp(drop) },
+                                    onReport = { onReport(drop) }
                                 )
                             }
                         }
-                    }
+                    )
                 }
             }
         }
@@ -7704,6 +7770,188 @@ private fun DropSortMenu(
                         null
                     }
                 )
+            }
+        }
+    }
+}
+
+private enum class ExplorerDropListPanelValue { Collapsed, Expanded }
+
+@OptIn(ExperimentalFoundationApi::class)
+private class ExplorerDropListPanelState internal constructor(
+    internal val anchoredState: AnchoredDraggableState<ExplorerDropListPanelValue>
+) {
+    val currentValue: ExplorerDropListPanelValue get() = anchoredState.currentValue
+    val targetValue: ExplorerDropListPanelValue get() = anchoredState.targetValue
+    val offset: Float get() = anchoredState.offset
+
+    suspend fun animateTo(value: ExplorerDropListPanelValue) = anchoredState.animateTo(value)
+
+    suspend fun snapTo(value: ExplorerDropListPanelValue) = anchoredState.snapTo(value)
+
+    internal fun updateAnchors(anchors: DraggableAnchors<ExplorerDropListPanelValue>) {
+        anchoredState.updateAnchors(anchors)
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun rememberExplorerDropListPanelState(
+    initialValue: ExplorerDropListPanelValue = ExplorerDropListPanelValue.Collapsed
+): ExplorerDropListPanelState {
+    val density = LocalDensity.current
+    val anchoredState = rememberAnchoredDraggableState(
+        initialValue = initialValue,
+        positionalThreshold = { distance -> distance * 0.5f },
+        velocityThreshold = { with(density) { 80.dp.toPx() } },
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
+    )
+    return remember(anchoredState) { ExplorerDropListPanelState(anchoredState) }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun ExplorerDropListPanel(
+    modifier: Modifier = Modifier,
+    state: ExplorerDropListPanelState = rememberExplorerDropListPanelState(),
+    mapAwareTopPadding: Dp = 0.dp,
+    panelWidth: Dp = 360.dp,
+    handleWidth: Dp = 40.dp,
+    handleLabel: String,
+    contentPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+    listState: LazyListState,
+    header: @Composable ColumnScope.() -> Unit = {},
+    body: LazyListScope.() -> Unit
+) {
+    val density = LocalDensity.current
+    val layoutDirection = LocalLayoutDirection.current
+    val coroutineScope = rememberCoroutineScope()
+
+    BoxWithConstraints(modifier = modifier) {
+        val effectivePanelWidth = remember(panelWidth, maxWidth) {
+            panelWidth.coerceAtMost(maxWidth)
+        }
+        val collapsedOffset = with(density) { effectivePanelWidth.toPx() }
+        val anchors = remember(collapsedOffset) {
+            DraggableAnchors {
+                ExplorerDropListPanelValue.Collapsed at collapsedOffset
+                ExplorerDropListPanelValue.Expanded at 0f
+            }
+        }
+
+        LaunchedEffect(anchors) {
+            state.updateAnchors(anchors)
+        }
+
+        val isExpanded by remember {
+            derivedStateOf {
+                state.targetValue == ExplorerDropListPanelValue.Expanded ||
+                        (state.currentValue == ExplorerDropListPanelValue.Expanded &&
+                                state.targetValue == state.currentValue)
+            }
+        }
+
+        val startPadding = contentPadding.calculateStartPadding(layoutDirection)
+        val endPadding = contentPadding.calculateEndPadding(layoutDirection)
+        val topPadding = contentPadding.calculateTopPadding()
+        val bottomPadding = contentPadding.calculateBottomPadding()
+
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = mapAwareTopPadding)
+                .fillMaxHeight()
+                .width(effectivePanelWidth + handleWidth)
+                .anchoredDraggable(
+                    state = state.anchoredState,
+                    orientation = Orientation.Horizontal
+                )
+        ) {
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .width(effectivePanelWidth)
+                    .fillMaxHeight()
+                    .graphicsLayer { translationX = state.offset },
+                shape = RoundedCornerShape(topStart = 24.dp, bottomStart = 24.dp),
+                tonalElevation = 8.dp,
+                shadowElevation = 0.dp,
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)
+            ) {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(
+                                start = startPadding,
+                                top = topPadding,
+                                end = endPadding
+                            ),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        header()
+                    }
+
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentPadding = PaddingValues(
+                            start = startPadding,
+                            end = endPadding,
+                            top = 12.dp,
+                            bottom = bottomPadding + 16.dp
+                        ),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        body()
+                    }
+                }
+            }
+
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(vertical = 32.dp)
+                    .width(handleWidth)
+                    .pointerInput(Unit) {
+                        detectHorizontalDragGestures { change, _ ->
+                            change.consume()
+                        }
+                    }
+                    .clickable(
+                        indication = null,
+                        interactionSource = remember { MutableInteractionSource() }
+                    ) {
+                        coroutineScope.launch {
+                            state.animateTo(ExplorerDropListPanelValue.Expanded)
+                        }
+                    },
+                shape = RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp),
+                tonalElevation = 8.dp,
+                shadowElevation = 0.dp,
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .padding(horizontal = 8.dp, vertical = 12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.ExpandLess,
+                        contentDescription = null,
+                        modifier = Modifier.rotate(if (isExpanded) 90f else -90f)
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = handleLabel,
+                        style = MaterialTheme.typography.labelMedium,
+                        textAlign = TextAlign.Center
+                    )
+                }
             }
         }
     }
@@ -8437,25 +8685,20 @@ private fun MyDropsContent(
                         modifier = Modifier.fillMaxSize()
                     )
 
-                    Surface(
+                    ExplorerDropListPanel(
                         modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .padding(horizontal = 16.dp, vertical = 16.dp)
+                            .align(Alignment.TopEnd)
+                            .fillMaxHeight()
                             .navigationBarsPadding(),
-                        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-                        tonalElevation = 6.dp,
-                        shadowElevation = 0.dp
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = 12.dp)
-                        ) {
+                        mapAwareTopPadding = topContentPadding,
+                        handleLabel = "My drops",
+                        listState = listState,
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                        header = {
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
                                 DropSortMenu(
                                     modifier = Modifier.weight(1f),
@@ -8465,32 +8708,24 @@ private fun MyDropsContent(
                                 )
 
                                 if (drops.isNotEmpty()) {
-                                    Spacer(Modifier.width(12.dp))
                                     CountBadge(count = drops.size)
                                 }
                             }
 
-                            LazyColumn(
-                                state = listState,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .heightIn(max = 360.dp),
-                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                                verticalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                items(drops, key = { it.id }) { drop ->
-                                    ManageDropRow(
-                                        drop = drop,
-                                        isDeleting = deletingId == drop.id,
-                                        isSelected = drop.id == selectedId,
-                                        onSelect = { onSelect(drop) },
-                                        onView = { onView(drop) },
-                                        onDelete = { onDelete(drop) }
-                                    )
-                                }
+                        },
+                        body = {
+                            items(drops, key = { it.id }) { drop ->
+                                ManageDropRow(
+                                    drop = drop,
+                                    isDeleting = deletingId == drop.id,
+                                    isSelected = drop.id == selectedId,
+                                    onSelect = { onSelect(drop) },
+                                    onView = { onView(drop) },
+                                    onDelete = { onDelete(drop) }
+                                )
                             }
                         }
-                    }
+                    )
                 }
             }
         }
