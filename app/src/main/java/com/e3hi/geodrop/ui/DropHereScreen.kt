@@ -170,6 +170,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.coerceAtLeast
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.times
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -2558,50 +2559,6 @@ fun DropHereScreen(
         submitCollectedLike(note, status)
     }
 
-    val selectedBrowseDrop = sortedOtherDrops.firstOrNull { it.id == otherDropsSelectedId }
-    val otherOverlayData = if (
-        currentHomeDestination == HomeDestination.Explorer &&
-        effectiveExplorerDestination == ExplorerDestination.Discover &&
-        selectedBrowseDrop != null
-    ) {
-        val drop = selectedBrowseDrop
-        val hasCollected = collectedDropIds.contains(drop.id)
-        val withinPickupRange = otherDropsCurrentLocation?.let { location ->
-            distanceBetweenMeters(
-                location.latitude,
-                location.longitude,
-                drop.lat,
-                drop.lng
-            ) <= DROP_PICKUP_RADIUS_METERS
-        } ?: false
-        val isOwnDrop = currentUserId != null && drop.createdBy == currentUserId
-        val alreadyReported = currentUserId?.let { drop.reportedBy.containsKey(it) } == true
-        val reportMessage = when {
-            isOwnDrop -> "You created this drop."
-            !isSignedIn -> "Sign in to report drops."
-            alreadyReported -> "Thanks for your report. We'll review it soon."
-            else -> null
-        }
-        ExplorerOverlayData.OtherDrop(
-            drop = drop,
-            currentLocation = otherDropsCurrentLocation,
-            userLike = drop.userLikeStatus(currentUserId),
-            canPickUp = canParticipate,
-            pickupRestrictionMessage = collectRestrictionMessage,
-            showReport = !isOwnDrop,
-            canReport = isSignedIn && !isOwnDrop && (hasCollected || withinPickupRange),
-            alreadyReported = alreadyReported,
-            reportRestrictionMessage = reportMessage,
-            isReporting = browseReportingDropId == drop.id,
-            canIgnoreForNow = !withinPickupRange,
-            onPickUp = { pickUpDrop(drop) },
-            onReport = { handleOtherDropReport(drop) },
-            onIgnoreForNow = { ignoreDropForNow(drop) }
-        )
-    } else {
-        null
-    }
-
     val selectedMyDrop = sortedMyDrops.firstOrNull { it.id == myDropsSelectedId }
     val myOverlayData = if (
         currentHomeDestination == HomeDestination.Explorer &&
@@ -2653,7 +2610,7 @@ fun DropHereScreen(
     }
 
     val explorerOverlayData: ExplorerOverlayData? =
-        otherOverlayData ?: myOverlayData ?: collectedOverlayData
+        myOverlayData ?: collectedOverlayData
 
     val businessHomeMetrics = remember(
         isBusinessUser,
@@ -7547,6 +7504,15 @@ private fun OtherDropsExplorerSection(
                         listState.animateScrollToItem(index)
                     }
                 }
+
+                val panelState = rememberExplorerDropListPanelState()
+                val configuration = LocalConfiguration.current
+                val screenHeight = remember(configuration) { configuration.screenHeightDp.dp }
+                val halfScreenOffset = remember(screenHeight) { screenHeight * 0.5f }
+                val panelTopPadding = remember(topContentPadding, halfScreenOffset) {
+                    if (topContentPadding > halfScreenOffset) topContentPadding else halfScreenOffset
+                }
+                val panelMaxHeight = screenHeight
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -7564,9 +7530,11 @@ private fun OtherDropsExplorerSection(
                     ExplorerDropListPanel(
                         modifier = Modifier
                             .align(Alignment.TopEnd)
-                            .heightIn(max = 420.dp)
                             .navigationBarsPadding(),
-                        mapAwareTopPadding = topContentPadding,
+                        state = panelState,
+                        mapAwareTopPadding = panelTopPadding,
+                        panelMaxHeight = panelMaxHeight,
+                        expandWhen = selectedId != null,
                         handleLabel = "Discover",
                         listState = listState,
                         header = {
@@ -7840,6 +7808,7 @@ private fun ExplorerDropListPanel(
     mapAwareTopPadding: Dp = 0.dp,
     panelWidth: Dp = 360.dp,
     panelMaxHeight: Dp = 420.dp,
+    expandWhen: Boolean? = null,
     handleWidth: Dp = 40.dp,
     handleLabel: String,
     contentPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
@@ -7863,8 +7832,18 @@ private fun ExplorerDropListPanel(
             }
         }
 
-        LaunchedEffect(anchors) {
-            state.updateAnchors(anchors)
+        LaunchedEffect(anchors, expandWhen) {
+            when (expandWhen) {
+                true -> {
+                    state.updateAnchors(anchors)
+                    state.animateTo(ExplorerDropListPanelValue.Expanded)
+                }
+                false -> {
+                    state.updateAnchors(anchors)
+                    state.animateTo(ExplorerDropListPanelValue.Collapsed)
+                }
+                null -> state.updateAnchors(anchors)
+            }
         }
 
         val isExpanded by remember {
