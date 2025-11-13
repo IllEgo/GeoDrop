@@ -7846,16 +7846,9 @@ private fun ExplorerDropListPanel(
         }
 
         LaunchedEffect(anchors, expandWhen) {
-            when (expandWhen) {
-                true -> {
-                    state.updateAnchors(anchors)
-                    state.animateTo(ExplorerDropListPanelValue.Expanded)
-                }
-                false -> {
-                    state.updateAnchors(anchors)
-                    state.animateTo(ExplorerDropListPanelValue.Collapsed)
-                }
-                null -> state.updateAnchors(anchors)
+            state.updateAnchors(anchors)
+            if (expandWhen == true) {
+                state.animateTo(ExplorerDropListPanelValue.Expanded)
             }
         }
 
