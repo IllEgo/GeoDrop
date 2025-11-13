@@ -6209,6 +6209,9 @@ private fun CollectedDropsContent(
 
     val selectedNote = notes.firstOrNull { it.id == selectedId }
 
+    val screenHeight = rememberScreenHeightDp()
+    val panelTopPadding = rememberHalfScreenPanelTopPadding(topContentPadding)
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -6245,10 +6248,9 @@ private fun CollectedDropsContent(
             ExplorerDropListPanel(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .heightIn(max = 420.dp)
                     .navigationBarsPadding(),
-                mapAwareTopPadding = topContentPadding,
-                handleLabel = "Collected",
+                mapAwareTopPadding = panelTopPadding,
+                panelMaxHeight = screenHeight,
                 listState = listState,
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
                 header = {
@@ -7506,12 +7508,8 @@ private fun OtherDropsExplorerSection(
                 }
 
                 val panelState = rememberExplorerDropListPanelState()
-                val configuration = LocalConfiguration.current
-                val screenHeight = remember(configuration) { configuration.screenHeightDp.dp }
-                val halfScreenOffset = remember(screenHeight) { screenHeight * 0.5f }
-                val panelTopPadding = remember(topContentPadding, halfScreenOffset) {
-                    if (topContentPadding > halfScreenOffset) topContentPadding else halfScreenOffset
-                }
+                val screenHeight = rememberScreenHeightDp()
+                val panelTopPadding = rememberHalfScreenPanelTopPadding(topContentPadding)
                 val panelMaxHeight = screenHeight
                 Box(
                     modifier = Modifier
@@ -7535,7 +7533,6 @@ private fun OtherDropsExplorerSection(
                         mapAwareTopPadding = panelTopPadding,
                         panelMaxHeight = panelMaxHeight,
                         expandWhen = selectedId != null,
-                        handleLabel = "Discover",
                         listState = listState,
                         header = {
                             Row(
@@ -7780,6 +7777,21 @@ private fun rememberExplorerDropListPanelState(
     return remember(anchoredState) { ExplorerDropListPanelState(anchoredState) }
 }
 
+@Composable
+private fun rememberScreenHeightDp(): Dp {
+    val configuration = LocalConfiguration.current
+    return remember(configuration) { configuration.screenHeightDp.dp }
+}
+
+@Composable
+private fun rememberHalfScreenPanelTopPadding(basePadding: Dp): Dp {
+    val screenHeight = rememberScreenHeightDp()
+    val halfScreenOffset = remember(screenHeight) { screenHeight * 0.5f }
+    return remember(basePadding, halfScreenOffset) {
+        if (basePadding > halfScreenOffset) basePadding else halfScreenOffset
+    }
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun <T> rememberAnchoredDraggableState(
@@ -7810,7 +7822,6 @@ private fun ExplorerDropListPanel(
     panelMaxHeight: Dp = 420.dp,
     expandWhen: Boolean? = null,
     handleWidth: Dp = 40.dp,
-    handleLabel: String,
     contentPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
     listState: LazyListState,
     header: @Composable ColumnScope.() -> Unit = {},
@@ -7916,6 +7927,8 @@ private fun ExplorerDropListPanel(
                     LazyColumn(
                         state = listState,
                         modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .padding(vertical = 16.dp)
                             .fillMaxWidth()
                             .weight(1f),
                         contentPadding = PaddingValues(
@@ -7938,7 +7951,7 @@ private fun ExplorerDropListPanel(
                     .padding(top = handleTopPadding)
                     .then(anchoredModifier)
             ) {
-                    Surface(
+                    Box(
                     modifier = Modifier
                         .width(handleWidth)
                         .clickable(
@@ -8693,6 +8706,9 @@ private fun MyDropsContent(
                     }
                 }
 
+                val screenHeight = rememberScreenHeightDp()
+                val panelTopPadding = rememberHalfScreenPanelTopPadding(topContentPadding)
+
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -8709,10 +8725,9 @@ private fun MyDropsContent(
                     ExplorerDropListPanel(
                         modifier = Modifier
                             .align(Alignment.TopEnd)
-                            .heightIn(max = 420.dp)
                             .navigationBarsPadding(),
-                        mapAwareTopPadding = topContentPadding,
-                        handleLabel = "My drops",
+                        mapAwareTopPadding = panelTopPadding,
+                        panelMaxHeight = screenHeight,
                         listState = listState,
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
                         header = {
