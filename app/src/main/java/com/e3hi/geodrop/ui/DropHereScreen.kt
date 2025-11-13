@@ -7951,7 +7951,7 @@ private fun ExplorerDropListPanel(
                     .padding(top = handleTopPadding)
                     .then(anchoredModifier)
             ) {
-                    Box(
+                    Surface(
                     modifier = Modifier
                         .width(handleWidth)
                         .clickable(
