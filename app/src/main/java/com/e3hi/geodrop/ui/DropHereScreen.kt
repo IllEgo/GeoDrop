@@ -6210,7 +6210,7 @@ private fun CollectedDropsContent(
     val selectedNote = notes.firstOrNull { it.id == selectedId }
 
     val screenHeight = rememberScreenHeightDp()
-    val panelTopPadding = rememberHalfScreenPanelTopPadding(topContentPadding)
+    val panelTopPadding = topContentPadding
 
     Box(
         modifier = modifier
@@ -7509,7 +7509,7 @@ private fun OtherDropsExplorerSection(
 
                 val panelState = rememberExplorerDropListPanelState()
                 val screenHeight = rememberScreenHeightDp()
-                val panelTopPadding = rememberHalfScreenPanelTopPadding(topContentPadding)
+                val panelTopPadding = topContentPadding
                 val panelMaxHeight = screenHeight
                 Box(
                     modifier = Modifier
@@ -7783,15 +7783,6 @@ private fun rememberScreenHeightDp(): Dp {
     return remember(configuration) { configuration.screenHeightDp.dp }
 }
 
-@Composable
-private fun rememberHalfScreenPanelTopPadding(basePadding: Dp): Dp {
-    val screenHeight = rememberScreenHeightDp()
-    val halfScreenOffset = remember(screenHeight) { screenHeight * 0.5f }
-    return remember(basePadding, halfScreenOffset) {
-        if (basePadding > halfScreenOffset) basePadding else halfScreenOffset
-    }
-}
-
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun <T> rememberAnchoredDraggableState(
@@ -7836,10 +7827,7 @@ private fun ExplorerDropListPanel(
         val collapsedPanelWidth = remember(panelWidth, maxWidth) {
             panelWidth.coerceAtMost(maxWidth)
         }
-        val expandedPanelWidth = remember(maxWidth, collapsedPanelWidth) {
-            val halfWidth = maxWidth * 0.5f
-            halfWidth.coerceIn(collapsedPanelWidth, maxWidth)
-        }
+        val expandedPanelWidth = remember(maxWidth) { maxWidth }
         val collapsedOffset = with(density) { collapsedPanelWidth.toPx() }
         val anchors = remember(collapsedOffset) {
             DraggableAnchors {
