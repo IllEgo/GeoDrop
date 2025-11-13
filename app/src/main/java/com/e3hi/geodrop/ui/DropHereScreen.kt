@@ -7836,7 +7836,10 @@ private fun ExplorerDropListPanel(
         val collapsedPanelWidth = remember(panelWidth, maxWidth) {
             panelWidth.coerceAtMost(maxWidth)
         }
-        val expandedPanelWidth = maxWidth
+        val expandedPanelWidth = remember(maxWidth, collapsedPanelWidth) {
+            val halfWidth = maxWidth * 0.5f
+            halfWidth.coerceIn(collapsedPanelWidth, maxWidth)
+        }
         val collapsedOffset = with(density) { collapsedPanelWidth.toPx() }
         val anchors = remember(collapsedOffset) {
             DraggableAnchors {
@@ -7883,9 +7886,8 @@ private fun ExplorerDropListPanel(
         val handleVisible = !isExpanded
         val handleSpace = if (handleVisible) handleWidth else 0.dp
         val handleTopPadding = remember(availablePanelHeight) {
-            val midpointOffset = (availablePanelHeight / 2) + 16.dp
-            val maxPadding = (availablePanelHeight - 72.dp).coerceAtLeast(0.dp)
-            midpointOffset.coerceIn(0.dp, maxPadding)
+            val handleHeight = 72.dp
+            ((availablePanelHeight - handleHeight) / 2).coerceAtLeast(0.dp)
         }
 
             Box(
