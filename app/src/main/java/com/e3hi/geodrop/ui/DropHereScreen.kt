@@ -7830,6 +7830,7 @@ private fun ExplorerDropListPanel(
     val density = LocalDensity.current
     val layoutDirection = LocalLayoutDirection.current
     val coroutineScope = rememberCoroutineScope()
+    val handleLabel = stringResource(R.string.drop_list_handle_label)
 
     BoxWithConstraints(modifier = modifier.heightIn(max = panelMaxHeight)) {
         val collapsedPanelWidth = remember(panelWidth, maxWidth) {
