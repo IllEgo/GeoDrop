@@ -7783,6 +7783,15 @@ private fun rememberScreenHeightDp(): Dp {
     return remember(configuration) { configuration.screenHeightDp.dp }
 }
 
+@Composable
+private fun rememberHalfScreenPanelTopPadding(topContentPadding: Dp): Dp {
+    val configuration = LocalConfiguration.current
+    return remember(topContentPadding, configuration) {
+        val halfScreenHeight = configuration.screenHeightDp.dp / 2
+        maxOf(topContentPadding, halfScreenHeight)
+    }
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun <T> rememberAnchoredDraggableState(
