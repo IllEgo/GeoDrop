@@ -7927,7 +7927,7 @@ private fun ExplorerDropListPanel(
                     LazyColumn(
                         state = listState,
                         modifier = Modifier
-                            .align(Alignment.CenterEnd)
+                            .align(Alignment.End)
                             .padding(vertical = 16.dp)
                             .fillMaxWidth()
                             .weight(1f),
