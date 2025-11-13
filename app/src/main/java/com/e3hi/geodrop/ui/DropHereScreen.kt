@@ -7821,10 +7821,11 @@ private fun ExplorerDropListPanel(
     val coroutineScope = rememberCoroutineScope()
 
     BoxWithConstraints(modifier = modifier.heightIn(max = panelMaxHeight)) {
-        val effectivePanelWidth = remember(panelWidth, maxWidth) {
+        val collapsedPanelWidth = remember(panelWidth, maxWidth) {
             panelWidth.coerceAtMost(maxWidth)
         }
-        val collapsedOffset = with(density) { effectivePanelWidth.toPx() }
+        val expandedPanelWidth = maxWidth
+        val collapsedOffset = with(density) { collapsedPanelWidth.toPx() }
         val anchors = remember(collapsedOffset) {
             DraggableAnchors {
                 ExplorerDropListPanelValue.Collapsed at collapsedOffset
@@ -7866,17 +7867,26 @@ private fun ExplorerDropListPanel(
             orientation = Orientation.Horizontal
         )
 
-        Box(
+        val currentPanelWidth = if (isExpanded) expandedPanelWidth else collapsedPanelWidth
+        val handleVisible = !isExpanded
+        val handleSpace = if (handleVisible) handleWidth else 0.dp
+        val handleTopPadding = remember(availablePanelHeight) {
+            val midpointOffset = (availablePanelHeight / 2) + 16.dp
+            val maxPadding = (availablePanelHeight - 72.dp).coerceAtLeast(0.dp)
+            midpointOffset.coerceIn(0.dp, maxPadding)
+        }
+
+            Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .padding(top = mapAwareTopPadding)
                 .heightIn(max = availablePanelHeight)
-                .width(effectivePanelWidth + handleWidth)
+                .width(currentPanelWidth + handleSpace)
         ) {
             Surface(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .width(effectivePanelWidth)
+                    .width(currentPanelWidth)
                     .heightIn(max = availablePanelHeight)
                     .graphicsLayer { translationX = state.offset }
                     .then(anchoredModifier),
@@ -7921,42 +7931,47 @@ private fun ExplorerDropListPanel(
                 }
             }
 
-            Surface(
+                AnimatedVisibility(
+                    visible = handleVisible,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .padding(top = 16.dp)
-                    .width(handleWidth)
-                    .clickable(
-                        indication = null,
-                        interactionSource = remember { MutableInteractionSource() }
-                    ) {
-                        coroutineScope.launch {
-                            state.animateTo(ExplorerDropListPanelValue.Expanded)
-                        }
-                    }
-                    .then(anchoredModifier),
-                shape = RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp),
-                tonalElevation = 8.dp,
-                shadowElevation = 0.dp,
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)
+                    .padding(top = handleTopPadding)
+                    .then(anchoredModifier)
             ) {
-                Column(
+                    Surface(
                     modifier = Modifier
-                        .padding(horizontal = 8.dp, vertical = 12.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.Top)
+                        .width(handleWidth)
+                        .clickable(
+                            indication = null,
+                            interactionSource = remember { MutableInteractionSource() }
+                        ) {
+                            coroutineScope.launch {
+                                state.animateTo(ExplorerDropListPanelValue.Expanded)
+                            }
+                        },
+                        shape = RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp),
+                        tonalElevation = 8.dp,
+                        shadowElevation = 0.dp,
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)
                 ) {
-                    Icon(
-                        imageVector = Icons.Filled.ExpandLess,
-                        contentDescription = null,
-                        modifier = Modifier.rotate(if (isExpanded) 90f else -90f)
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = handleLabel,
-                        style = MaterialTheme.typography.labelMedium,
-                        textAlign = TextAlign.Center
-                    )
+                        Column(
+                            modifier = Modifier
+                                .padding(horizontal = 8.dp, vertical = 12.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.Top)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.ExpandLess,
+                                contentDescription = null,
+                                modifier = Modifier.rotate(if (isExpanded) 90f else -90f)
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                text = handleLabel,
+                                style = MaterialTheme.typography.labelMedium,
+                                textAlign = TextAlign.Center
+                            )
+                        }
                 }
             }
         }
