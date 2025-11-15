@@ -51,6 +51,8 @@ import androidx.compose.foundation.gestures.AnchoredDraggableState
 import androidx.compose.foundation.gestures.DraggableAnchors
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.anchoredDraggable
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.gestures.animateTo
 import androidx.compose.foundation.gestures.snapTo
 import androidx.compose.foundation.horizontalScroll
@@ -108,6 +110,7 @@ import androidx.compose.material.icons.rounded.Report
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Sort
+import androidx.compose.material.icons.rounded.UnfoldMore
 import androidx.compose.material.icons.rounded.ThumbDown
 import androidx.compose.material.icons.rounded.ThumbUp
 import androidx.compose.material.icons.rounded.Lightbulb
@@ -126,6 +129,7 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Slider
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -7867,6 +7871,28 @@ private fun ExplorerDropListPanel(
         val availablePanelHeight = remember(maxHeight, mapAwareTopPadding) {
             (maxHeight - mapAwareTopPadding).coerceAtLeast(0.dp)
         }
+        val availablePanelHeightPx = remember(availablePanelHeight, density) {
+            with(density) { availablePanelHeight.toPx().coerceAtLeast(1f) }
+        }
+        var internalPanelHeightFraction by rememberSaveable { mutableFloatStateOf(0.75f) }
+        val minPanelHeightFraction = 0.35f
+        val maxPanelHeightFraction = 1f
+        val panelHeightFraction = internalPanelHeightFraction.coerceIn(
+            minimumValue = minPanelHeightFraction,
+            maximumValue = maxPanelHeightFraction
+        )
+        val panelHeight = remember(availablePanelHeight, panelHeightFraction) {
+            (availablePanelHeight.value * panelHeightFraction).dp
+        }
+        val resizeLabel = stringResource(R.string.drag_to_resize)
+        val dragHandleInteraction = remember { MutableInteractionSource() }
+        val dragHandleDraggableState = rememberDraggableState { delta ->
+            val fractionDelta = delta / availablePanelHeightPx
+            internalPanelHeightFraction = (panelHeightFraction + fractionDelta).coerceIn(
+                minPanelHeightFraction,
+                maxPanelHeightFraction
+            )
+        }
         val anchoredModifier = Modifier.anchoredDraggable(
             state = state.anchoredState,
             orientation = Orientation.Horizontal
@@ -7892,6 +7918,7 @@ private fun ExplorerDropListPanel(
                     .align(Alignment.TopEnd)
                     .width(currentPanelWidth)
                     .heightIn(max = availablePanelHeight)
+                    .height(panelHeight)
                     .graphicsLayer { translationX = state.offset }
                     .then(anchoredModifier),
                 shape = RoundedCornerShape(topStart = 24.dp, bottomStart = 24.dp),
@@ -7902,7 +7929,6 @@ private fun ExplorerDropListPanel(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .heightIn(max = availablePanelHeight)
                 ) {
                     Column(
                         modifier = Modifier
@@ -7933,6 +7959,35 @@ private fun ExplorerDropListPanel(
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         body()
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(40.dp)
+                            .semantics { contentDescription = resizeLabel }
+                            .draggable(
+                                state = dragHandleDraggableState,
+                                orientation = Orientation.Vertical,
+                                interactionSource = dragHandleInteraction
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.UnfoldMore,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = resizeLabel,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
             }
