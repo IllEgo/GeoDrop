@@ -7902,7 +7902,7 @@ private fun ExplorerDropListPanel(
         Box(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(bottom = mapAwareTopPadding)
+                .padding(top = mapAwareTopPadding)
                 .height(currentPanelHeight)
                 .heightIn(min = effectiveMinPanelHeight, max = availablePanelHeight)
                 .width(currentPanelWidth + handleSpace)
