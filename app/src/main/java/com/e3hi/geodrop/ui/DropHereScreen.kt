@@ -51,8 +51,6 @@ import androidx.compose.foundation.gestures.AnchoredDraggableState
 import androidx.compose.foundation.gestures.DraggableAnchors
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.anchoredDraggable
-import androidx.compose.foundation.gestures.draggable
-import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.gestures.animateTo
 import androidx.compose.foundation.gestures.snapTo
 import androidx.compose.foundation.horizontalScroll
@@ -110,7 +108,6 @@ import androidx.compose.material.icons.rounded.Report
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Sort
-import androidx.compose.material.icons.rounded.UnfoldMore
 import androidx.compose.material.icons.rounded.ThumbDown
 import androidx.compose.material.icons.rounded.ThumbUp
 import androidx.compose.material.icons.rounded.Lightbulb
@@ -129,7 +126,6 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Slider
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -180,7 +176,6 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
@@ -3082,18 +3077,124 @@ fun DropHereScreen(
                             )
                     ) {
                         when (effectiveExplorerDestination) {
-                        ExplorerDestination.Discover -> {
-                            Column(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxWidth(),
-                                verticalArrangement = Arrangement.spacedBy(20.dp)
-                            ) {
-                                if (readOnlyParticipationMessage != null) {
-                                    Spacer(Modifier.height(navAwareTopPadding))
-                                    Box(Modifier.padding(horizontal = 20.dp)) {
-                                        ReadOnlyModeCard(message = readOnlyParticipationMessage)
+                            ExplorerDestination.Discover -> {
+                                Column(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxWidth(),
+                                    verticalArrangement = Arrangement.spacedBy(20.dp)
+                                ) {
+                                    if (readOnlyParticipationMessage != null) {
+                                        Spacer(Modifier.height(navAwareTopPadding))
+                                        Box(Modifier.padding(horizontal = 20.dp)) {
+                                            ReadOnlyModeCard(message = readOnlyParticipationMessage)
+                                        }
                                     }
+
+                                    Column(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .fillMaxWidth(),
+                                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .fillMaxWidth()
+                                        ) {
+                                            OtherDropsExplorerSection(
+                                                modifier = Modifier.fillMaxSize(),
+                                                topContentPadding = mapAwareTopPadding,
+                                                loading = otherDropsLoading,
+                                                refreshing = otherDropsRefreshing,
+                                                drops = sortedOtherDrops,
+                                                currentLocation = otherDropsCurrentLocation,
+                                                notificationRadiusMeters = notificationRadius,
+                                                error = otherDropsError,
+                                                emptyMessage = selectedExplorerGroupCode?.let { code ->
+                                                    "No drops for $code yet."
+                                                },
+                                                selectedId = otherDropsSelectedId,
+                                                onSelect = { drop ->
+                                                    otherDropsSelectedId = if (otherDropsSelectedId == drop.id) {
+                                                        null
+                                                    } else {
+                                                        drop.id
+                                                    }
+                                                },
+                                                sortOption = otherDropsSortOption,
+                                                sortOptions = dropSortOptions,
+                                                onSortOptionChange = { option ->
+                                                    otherDropsSortKey = option.name
+                                                },
+                                                canLikeDrops = canParticipate,
+                                                likeRestrictionMessage = if (canParticipate) null else participationRestriction("react to drops"),
+                                                currentUserId = currentUserId,
+                                                isSignedIn = isSignedIn,
+                                                collectedDropIds = collectedDropIds,
+                                                canParticipate = canParticipate,
+                                                collectRestrictionMessage = collectRestrictionMessage,
+                                                browseReportingDropId = browseReportingDropId,
+                                                onPickUp = { pickUpDrop(it) },
+                                                onReport = { handleOtherDropReport(it) },
+                                                onIgnoreForNow = { ignoreDropForNow(it) },
+                                                onRefresh = { otherDropsRefreshToken += 1 }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            ExplorerDestination.MyDrops -> {
+                                fun performDropDeletion(drop: Drop) {
+                                    if (drop.id.isBlank()) {
+                                        snackbar.showMessage(scope, "Unable to delete this drop.")
+                                        return
+                                    }
+
+                                    myDropsDeletingId = drop.id
+                                    scope.launch {
+                                        try {
+                                            repo.deleteDrop(drop.id)
+                                            val updated = myDrops.filterNot { it.id == drop.id }
+                                            myDrops = updated
+                                            myDropCountHint = updated.size
+                                            myDropPendingReviewHint = updated.count { it.reportCount > 0 }
+                                            if (myDropsSelectedId == drop.id) {
+                                                myDropsSelectedId = updated.firstOrNull()?.id
+                                            }
+                                            snackbar.showMessage(scope, "Drop deleted.")
+                                        } catch (e: Exception) {
+                                            snackbar.showMessage(scope, "Error: ${'$'}{e.message}")
+                                        } finally {
+                                            myDropsDeletingId = null
+                                        }
+                                    }
+                                }
+
+                                val pendingDeletion = myDropsPendingDelete
+                                if (pendingDeletion != null) {
+                                    AlertDialog(
+                                        onDismissRequest = { myDropsPendingDelete = null },
+                                        icon = { Icon(Icons.Filled.Delete, contentDescription = null) },
+                                        title = { Text("Delete drop?") },
+                                        text = { Text("Are you sure you want to delete this drop?") },
+                                        confirmButton = {
+                                            TextButton(
+                                                onClick = {
+                                                    myDropsPendingDelete = null
+                                                    performDropDeletion(pendingDeletion)
+                                                }
+                                            ) {
+                                                Text("Delete")
+                                            }
+                                        },
+                                        dismissButton = {
+                                            TextButton(onClick = { myDropsPendingDelete = null }) {
+                                                Text("Cancel")
+                                            }
+                                        }
+                                    )
                                 }
 
                                 Column(
@@ -3107,230 +3208,124 @@ fun DropHereScreen(
                                             .weight(1f)
                                             .fillMaxWidth()
                                     ) {
-                                        OtherDropsExplorerSection(
+                                        MyDropsContent(
                                             modifier = Modifier.fillMaxSize(),
                                             topContentPadding = mapAwareTopPadding,
-                                            loading = otherDropsLoading,
-                                            refreshing = otherDropsRefreshing,
-                                            drops = sortedOtherDrops,
-                                            currentLocation = otherDropsCurrentLocation,
-                                            notificationRadiusMeters = notificationRadius,
-                                            error = otherDropsError,
+                                            contentPadding = PaddingValues(bottom = 0.dp),
+                                            loading = myDropsLoading,
+                                            drops = sortedMyDrops,
+                                            currentLocation = myDropsCurrentLocation,
+                                            deletingId = myDropsDeletingId,
+                                            error = myDropsError,
                                             emptyMessage = selectedExplorerGroupCode?.let { code ->
-                                                "No drops for $code yet."
+                                                "You haven't dropped anything for $code yet."
                                             },
-                                            selectedId = otherDropsSelectedId,
+                                            selectedId = myDropsSelectedId,
+                                            sortOption = myDropsSortOption,
+                                            sortOptions = dropSortOptions,
+                                            onSortOptionChange = { option ->
+                                                myDropsSortKey = option.name
+                                            },
                                             onSelect = { drop ->
-                                                otherDropsSelectedId = if (otherDropsSelectedId == drop.id) {
+                                                myDropsSelectedId = if (myDropsSelectedId == drop.id) {
                                                     null
                                                 } else {
                                                     drop.id
                                                 }
                                             },
-                                            sortOption = otherDropsSortOption,
+                                            onRetry = { myDropsRefreshToken += 1 },
+                                            onView = viewMyDrop,
+                                            onDelete = requestMyDropDeletion
+                                        )
+                                    }
+                                }
+                            }
+
+                            ExplorerDestination.Collected -> {
+                                Column(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxWidth(),
+                                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .fillMaxWidth()
+                                    ) {
+                                        val isSignedIn = !currentUserId.isNullOrBlank()
+                                        val collectedLikeRestrictionMessage = when {
+                                            !isSignedIn -> "Sign in to react to drops."
+                                            !canParticipate -> participationRestriction("react to drops")
+                                            else -> null
+                                        }
+                                        val pendingRemoval = collectedPendingRemove
+                                        if (pendingRemoval != null) {
+                                            AlertDialog(
+                                                onDismissRequest = { collectedPendingRemove = null },
+                                                icon = { Icon(Icons.Filled.Delete, contentDescription = null) },
+                                                title = { Text("Delete saved drop?") },
+                                                text = { Text("Are you sure you want to delete this saved drop?") },
+                                                confirmButton = {
+                                                    TextButton(
+                                                        onClick = {
+                                                            noteInventory.removeCollected(pendingRemoval.id)
+                                                            collectedNotes = noteInventory.getCollectedNotes()
+                                                            collectedPendingRemove = null
+                                                        }
+                                                    ) {
+                                                        Text("Delete")
+                                                    }
+                                                },
+                                                dismissButton = {
+                                                    TextButton(onClick = { collectedPendingRemove = null }) {
+                                                        Text("Cancel")
+                                                    }
+                                                }
+                                            )
+                                        }
+
+                                        CollectedDropsContent(
+                                            modifier = Modifier.fillMaxSize(),
+                                            topContentPadding = mapAwareTopPadding,
+                                            contentPadding = PaddingValues(bottom = 0.dp),
+                                            notes = sortedCollectedNotes,
+                                            hiddenNsfwCount = hiddenNsfwCollectedCount,
+                                            canReportDrops = isSignedIn,
+                                            reportedDropIds = reportedCollectedDropIds.toSet(),
+                                            reportingDropId = browseReportingDropId,
+                                            isReportProcessing = browseReportProcessing,
+                                            emptyMessage = selectedExplorerGroupCode?.let { code ->
+                                                "You haven't collected any drops for $code yet."
+                                            },
+                                            sortOption = collectedSortOption,
                                             sortOptions = dropSortOptions,
                                             onSortOptionChange = { option ->
-                                                otherDropsSortKey = option.name
+                                                collectedSortKey = option.name
                                             },
                                             canLikeDrops = canParticipate,
-                                            likeRestrictionMessage = if (canParticipate) null else participationRestriction("react to drops"),
-                                            currentUserId = currentUserId,
                                             isSignedIn = isSignedIn,
-                                            collectedDropIds = collectedDropIds,
-                                            canParticipate = canParticipate,
-                                            collectRestrictionMessage = collectRestrictionMessage,
-                                            browseReportingDropId = browseReportingDropId,
-                                            onPickUp = { pickUpDrop(it) },
-                                            onReport = { handleOtherDropReport(it) },
-                                            onIgnoreForNow = { ignoreDropForNow(it) },
-                                            onRefresh = { otherDropsRefreshToken += 1 }
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        ExplorerDestination.MyDrops -> {
-                            fun performDropDeletion(drop: Drop) {
-                                if (drop.id.isBlank()) {
-                                    snackbar.showMessage(scope, "Unable to delete this drop.")
-                                    return
-                                }
-
-                                myDropsDeletingId = drop.id
-                                scope.launch {
-                                    try {
-                                        repo.deleteDrop(drop.id)
-                                        val updated = myDrops.filterNot { it.id == drop.id }
-                                        myDrops = updated
-                                        myDropCountHint = updated.size
-                                        myDropPendingReviewHint = updated.count { it.reportCount > 0 }
-                                        if (myDropsSelectedId == drop.id) {
-                                            myDropsSelectedId = updated.firstOrNull()?.id
-                                        }
-                                        snackbar.showMessage(scope, "Drop deleted.")
-                                    } catch (e: Exception) {
-                                        snackbar.showMessage(scope, "Error: ${'$'}{e.message}")
-                                    } finally {
-                                        myDropsDeletingId = null
-                                    }
-                                }
-                            }
-
-                            val pendingDeletion = myDropsPendingDelete
-                            if (pendingDeletion != null) {
-                                AlertDialog(
-                                    onDismissRequest = { myDropsPendingDelete = null },
-                                    icon = { Icon(Icons.Filled.Delete, contentDescription = null) },
-                                    title = { Text("Delete drop?") },
-                                    text = { Text("Are you sure you want to delete this drop?") },
-                                    confirmButton = {
-                                        TextButton(
-                                            onClick = {
-                                                myDropsPendingDelete = null
-                                                performDropDeletion(pendingDeletion)
-                                            }
-                                        ) {
-                                            Text("Delete")
-                                        }
-                                    },
-                                    dismissButton = {
-                                        TextButton(onClick = { myDropsPendingDelete = null }) {
-                                            Text("Cancel")
-                                        }
-                                    }
-                                )
-                            }
-
-                            Column(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxWidth(),
-                                verticalArrangement = Arrangement.spacedBy(16.dp)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .fillMaxWidth()
-                                ) {
-                                    MyDropsContent(
-                                        modifier = Modifier.fillMaxSize(),
-                                        topContentPadding = mapAwareTopPadding,
-                                        contentPadding = PaddingValues(bottom = 0.dp),
-                                        loading = myDropsLoading,
-                                        drops = sortedMyDrops,
-                                        currentLocation = myDropsCurrentLocation,
-                                        deletingId = myDropsDeletingId,
-                                        error = myDropsError,
-                                        emptyMessage = selectedExplorerGroupCode?.let { code ->
-                                            "You haven't dropped anything for $code yet."
-                                        },
-                                        selectedId = myDropsSelectedId,
-                                        sortOption = myDropsSortOption,
-                                        sortOptions = dropSortOptions,
-                                        onSortOptionChange = { option ->
-                                            myDropsSortKey = option.name
-                                        },
-                                        onSelect = { drop ->
-                                            myDropsSelectedId = if (myDropsSelectedId == drop.id) {
-                                                null
-                                            } else {
-                                                drop.id
-                                            }
-                                        },
-                                        onRetry = { myDropsRefreshToken += 1 },
-                                        onView = viewMyDrop,
-                                        onDelete = requestMyDropDeletion
-                                    )
-                                }
-                            }
-                        }
-
-                        ExplorerDestination.Collected -> {
-                            Column(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxWidth(),
-                                verticalArrangement = Arrangement.spacedBy(16.dp)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .fillMaxWidth()
-                                ) {
-                                    val isSignedIn = !currentUserId.isNullOrBlank()
-                                    val collectedLikeRestrictionMessage = when {
-                                        !isSignedIn -> "Sign in to react to drops."
-                                        !canParticipate -> participationRestriction("react to drops")
-                                        else -> null
-                                    }
-                                    val pendingRemoval = collectedPendingRemove
-                                    if (pendingRemoval != null) {
-                                        AlertDialog(
-                                            onDismissRequest = { collectedPendingRemove = null },
-                                            icon = { Icon(Icons.Filled.Delete, contentDescription = null) },
-                                            title = { Text("Delete saved drop?") },
-                                            text = { Text("Are you sure you want to delete this saved drop?") },
-                                            confirmButton = {
-                                                TextButton(
-                                                    onClick = {
-                                                        noteInventory.removeCollected(pendingRemoval.id)
-                                                        collectedNotes = noteInventory.getCollectedNotes()
-                                                        collectedPendingRemove = null
-                                                    }
-                                                ) {
-                                                    Text("Delete")
+                                            likeRestrictionMessage = collectedLikeRestrictionMessage,
+                                            votingDropIds = votingDropIds,
+                                            selectedId = collectedSelectedId,
+                                            onSelect = { note ->
+                                                collectedSelectedId = if (collectedSelectedId == note.id) {
+                                                    null
+                                                } else {
+                                                    note.id
                                                 }
                                             },
-                                            dismissButton = {
-                                                TextButton(onClick = { collectedPendingRemove = null }) {
-                                                    Text("Cancel")
-                                                }
-                                            }
+                                            onLike = handleCollectedLike,
+                                            onReport = handleCollectedReport,
+                                            onView = viewCollectedNote,
+                                            onRemove = requestCollectedRemoval
                                         )
                                     }
-
-                                    CollectedDropsContent(
-                                        modifier = Modifier.fillMaxSize(),
-                                        topContentPadding = mapAwareTopPadding,
-                                        contentPadding = PaddingValues(bottom = 0.dp),
-                                        notes = sortedCollectedNotes,
-                                        hiddenNsfwCount = hiddenNsfwCollectedCount,
-                                        canReportDrops = isSignedIn,
-                                        reportedDropIds = reportedCollectedDropIds.toSet(),
-                                        reportingDropId = browseReportingDropId,
-                                        isReportProcessing = browseReportProcessing,
-                                        emptyMessage = selectedExplorerGroupCode?.let { code ->
-                                            "You haven't collected any drops for $code yet."
-                                        },
-                                        sortOption = collectedSortOption,
-                                        sortOptions = dropSortOptions,
-                                        onSortOptionChange = { option ->
-                                            collectedSortKey = option.name
-                                        },
-                                        canLikeDrops = canParticipate,
-                                        isSignedIn = isSignedIn,
-                                        likeRestrictionMessage = collectedLikeRestrictionMessage,
-                                        votingDropIds = votingDropIds,
-                                        selectedId = collectedSelectedId,
-                                        onSelect = { note ->
-                                            collectedSelectedId = if (collectedSelectedId == note.id) {
-                                                null
-                                            } else {
-                                                note.id
-                                            }
-                                        },
-                                        onLike = handleCollectedLike,
-                                        onReport = handleCollectedReport,
-                                        onView = viewCollectedNote,
-                                        onRemove = requestCollectedRemoval
-                                    )
                                 }
                             }
                         }
                     }
                 }
-            }
 
                 ExplorerSelectionOverlay(
                     data = explorerOverlayData,
@@ -7872,28 +7867,6 @@ private fun ExplorerDropListPanel(
         val availablePanelHeight = remember(maxHeight, mapAwareTopPadding) {
             (maxHeight - mapAwareTopPadding).coerceAtLeast(0.dp)
         }
-        val availablePanelHeightPx = remember(availablePanelHeight, density) {
-            with(density) { availablePanelHeight.toPx().coerceAtLeast(1f) }
-        }
-        var internalPanelHeightFraction by rememberSaveable { mutableFloatStateOf(0.75f) }
-        val minPanelHeightFraction = 0.35f
-        val maxPanelHeightFraction = 1f
-        val panelHeightFraction = internalPanelHeightFraction.coerceIn(
-            minimumValue = minPanelHeightFraction,
-            maximumValue = maxPanelHeightFraction
-        )
-        val panelHeight = remember(availablePanelHeight, panelHeightFraction) {
-            (availablePanelHeight.value * panelHeightFraction).dp
-        }
-        val resizeLabel = stringResource(R.string.drag_to_resize)
-        val dragHandleInteraction = remember { MutableInteractionSource() }
-        val dragHandleDraggableState = rememberDraggableState { delta ->
-            val fractionDelta = delta / availablePanelHeightPx
-            internalPanelHeightFraction = (panelHeightFraction + fractionDelta).coerceIn(
-                minPanelHeightFraction,
-                maxPanelHeightFraction
-            )
-        }
         val anchoredModifier = Modifier.anchoredDraggable(
             state = state.anchoredState,
             orientation = Orientation.Horizontal
@@ -7909,16 +7882,16 @@ private fun ExplorerDropListPanel(
 
         Box(
             modifier = Modifier
-                .align(Alignment.BottomEnd)
+                .align(Alignment.TopEnd)
+                .padding(top = mapAwareTopPadding)
                 .heightIn(max = availablePanelHeight)
                 .width(currentPanelWidth + handleSpace)
         ) {
             Surface(
                 modifier = Modifier
-                    .align(Alignment.BottomEnd)
+                    .align(Alignment.TopEnd)
                     .width(currentPanelWidth)
                     .heightIn(max = availablePanelHeight)
-                    .height(panelHeight)
                     .graphicsLayer { translationX = state.offset }
                     .then(anchoredModifier),
                 shape = RoundedCornerShape(topStart = 24.dp, bottomStart = 24.dp),
@@ -7929,35 +7902,8 @@ private fun ExplorerDropListPanel(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
+                        .heightIn(max = availablePanelHeight)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(40.dp)
-                            .semantics { contentDescription = resizeLabel }
-                            .draggable(
-                                state = dragHandleDraggableState,
-                                orientation = Orientation.Vertical,
-                                interactionSource = dragHandleInteraction
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.UnfoldMore,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = resizeLabel,
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -7991,14 +7937,14 @@ private fun ExplorerDropListPanel(
                 }
             }
 
-                AnimatedVisibility(
-                    visible = handleVisible,
+            AnimatedVisibility(
+                visible = handleVisible,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(top = handleTopPadding)
                     .then(anchoredModifier)
             ) {
-                    Surface(
+                Surface(
                     modifier = Modifier
                         .width(handleWidth)
                         .clickable(
@@ -8009,29 +7955,29 @@ private fun ExplorerDropListPanel(
                                 state.animateTo(ExplorerDropListPanelValue.Expanded)
                             }
                         },
-                        shape = RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp),
-                        tonalElevation = 8.dp,
-                        shadowElevation = 0.dp,
-                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)
+                    shape = RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp),
+                    tonalElevation = 8.dp,
+                    shadowElevation = 0.dp,
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)
                 ) {
-                        Column(
-                            modifier = Modifier
-                                .padding(horizontal = 8.dp, vertical = 12.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.Top)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.ExpandLess,
-                                contentDescription = null,
-                                modifier = Modifier.rotate(if (isExpanded) 90f else -90f)
-                            )
-                            Spacer(Modifier.height(4.dp))
-                            Text(
-                                text = handleLabel,
-                                style = MaterialTheme.typography.labelMedium,
-                                textAlign = TextAlign.Center
-                            )
-                        }
+                    Column(
+                        modifier = Modifier
+                            .padding(horizontal = 8.dp, vertical = 12.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.Top)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.ExpandLess,
+                            contentDescription = null,
+                            modifier = Modifier.rotate(if (isExpanded) 90f else -90f)
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = handleLabel,
+                            style = MaterialTheme.typography.labelMedium,
+                            textAlign = TextAlign.Center
+                        )
+                    }
                 }
             }
         }
