@@ -7931,6 +7931,34 @@ private fun ExplorerDropListPanel(
                     modifier = Modifier
                         .fillMaxSize()
                 ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(40.dp)
+                            .semantics { contentDescription = resizeLabel }
+                            .draggable(
+                                state = dragHandleDraggableState,
+                                orientation = Orientation.Vertical,
+                                interactionSource = dragHandleInteraction
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.UnfoldMore,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = resizeLabel,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -7960,35 +7988,6 @@ private fun ExplorerDropListPanel(
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         body()
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(40.dp)
-                            .semantics { contentDescription = resizeLabel }
-                            .draggable(
-                                state = dragHandleDraggableState,
-                                orientation = Orientation.Vertical,
-                                interactionSource = dragHandleInteraction
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.UnfoldMore,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = resizeLabel,
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
                     }
                 }
             }
