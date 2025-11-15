@@ -7907,16 +7907,15 @@ private fun ExplorerDropListPanel(
             ((availablePanelHeight - handleHeight) / 2).coerceAtLeast(0.dp)
         }
 
-            Box(
+        Box(
             modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(top = mapAwareTopPadding)
+                .align(Alignment.BottomEnd)
                 .heightIn(max = availablePanelHeight)
                 .width(currentPanelWidth + handleSpace)
         ) {
             Surface(
                 modifier = Modifier
-                    .align(Alignment.TopEnd)
+                    .align(Alignment.BottomEnd)
                     .width(currentPanelWidth)
                     .heightIn(max = availablePanelHeight)
                     .height(panelHeight)
