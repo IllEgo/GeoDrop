@@ -7932,16 +7932,17 @@ private fun ExplorerDropListPanel(
                     modifier = Modifier
                         .fillMaxSize()
                         .heightIn(min = effectiveMinPanelHeight, max = availablePanelHeight)
+                        .padding(
+                            start = startPadding,
+                            top = topPadding,
+                            end = endPadding,
+                            bottom = bottomPadding
+                        )
                 ) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(
-                                start = startPadding,
-                                top = topPadding,
-                                end = endPadding,
-                                bottom = 8.dp
-                            )
+                            .padding(bottom = 8.dp)
                             .draggable(
                                 state = resizeDragState,
                                 orientation = Orientation.Vertical
@@ -7958,11 +7959,7 @@ private fun ExplorerDropListPanel(
 
                     Column(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(
-                                start = startPadding,
-                                end = endPadding
-                            ),
+                            .fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         header()
@@ -7972,14 +7969,11 @@ private fun ExplorerDropListPanel(
                         state = listState,
                         modifier = Modifier
                             .align(Alignment.End)
-                            .padding(vertical = 16.dp)
+                            .padding(top = 16.dp)
                             .fillMaxWidth()
                             .weight(1f),
                         contentPadding = PaddingValues(
-                            start = startPadding,
-                            end = endPadding,
-                            top = 12.dp,
-                            bottom = bottomPadding + 16.dp
+                            top = 12.dp
                         ),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
