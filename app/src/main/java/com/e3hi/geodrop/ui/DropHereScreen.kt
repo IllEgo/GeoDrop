@@ -6251,7 +6251,7 @@ private fun CollectedDropsContent(
 
             ExplorerDropListPanel(
                 modifier = Modifier
-                    .align(Alignment.TopEnd)
+                    .align(Alignment.BottomEnd)
                     .navigationBarsPadding(),
                 mapAwareTopPadding = panelTopPadding,
                 panelMaxHeight = screenHeight,
@@ -7531,7 +7531,7 @@ private fun OtherDropsExplorerSection(
 
                     ExplorerDropListPanel(
                         modifier = Modifier
-                            .align(Alignment.TopEnd)
+                            .align(Alignment.BottomEnd)
                             .navigationBarsPadding(),
                         state = panelState,
                         mapAwareTopPadding = panelTopPadding,
@@ -7901,15 +7901,15 @@ private fun ExplorerDropListPanel(
 
         Box(
             modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(top = mapAwareTopPadding)
+                .align(Alignment.BottomEnd)
+                .padding(bottom = mapAwareTopPadding)
                 .height(currentPanelHeight)
                 .heightIn(min = effectiveMinPanelHeight, max = availablePanelHeight)
                 .width(currentPanelWidth + handleSpace)
         ) {
             Surface(
                 modifier = Modifier
-                    .align(Alignment.TopEnd)
+                    .align(Alignment.BottomEnd)
                     .width(currentPanelWidth)
                     .height(currentPanelHeight)
                     .heightIn(min = effectiveMinPanelHeight, max = availablePanelHeight)
@@ -7923,7 +7923,7 @@ private fun ExplorerDropListPanel(
                 val resizeHandleLabel = stringResource(R.string.drop_list_resize_handle)
                 val resizeDragState = rememberDraggableState { delta ->
                     val deltaDp = with(density) { delta.toDp() }
-                    panelHeightValue = (panelHeightValue + deltaDp.value).coerceIn(
+                    panelHeightValue = (panelHeightValue - deltaDp.value).coerceIn(
                         effectiveMinPanelHeight.value,
                         availablePanelHeight.value
                     )
