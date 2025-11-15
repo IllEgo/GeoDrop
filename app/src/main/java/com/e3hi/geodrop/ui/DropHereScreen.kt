@@ -52,6 +52,8 @@ import androidx.compose.foundation.gestures.DraggableAnchors
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.anchoredDraggable
 import androidx.compose.foundation.gestures.animateTo
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.gestures.snapTo
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.ColumnScope
@@ -87,6 +89,7 @@ import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Description
+import androidx.compose.material.icons.rounded.DragHandle
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Help
 import androidx.compose.material.icons.rounded.GroupAdd
@@ -176,6 +179,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
@@ -7867,6 +7871,21 @@ private fun ExplorerDropListPanel(
         val availablePanelHeight = remember(maxHeight, mapAwareTopPadding) {
             (maxHeight - mapAwareTopPadding).coerceAtLeast(0.dp)
         }
+        val minPanelHeight = 240.dp
+        val effectiveMinPanelHeight = remember(availablePanelHeight) {
+            minPanelHeight.coerceAtMost(availablePanelHeight)
+        }
+        val defaultPanelHeight = remember(availablePanelHeight) {
+            (availablePanelHeight * 0.75f).coerceAtLeast(effectiveMinPanelHeight)
+        }
+        var panelHeightValue by rememberSaveable { mutableStateOf(defaultPanelHeight.value) }
+        LaunchedEffect(availablePanelHeight, effectiveMinPanelHeight) {
+            panelHeightValue = panelHeightValue.coerceIn(
+                effectiveMinPanelHeight.value,
+                availablePanelHeight.value
+            )
+        }
+        val currentPanelHeight = panelHeightValue.dp
         val anchoredModifier = Modifier.anchoredDraggable(
             state = state.anchoredState,
             orientation = Orientation.Horizontal
@@ -7875,23 +7894,25 @@ private fun ExplorerDropListPanel(
         val currentPanelWidth = if (isExpanded) expandedPanelWidth else collapsedPanelWidth
         val handleVisible = !isExpanded
         val handleSpace = if (handleVisible) handleWidth else 0.dp
-        val handleTopPadding = remember(availablePanelHeight) {
+        val handleTopPadding = remember(currentPanelHeight) {
             val handleHeight = 72.dp
-            ((availablePanelHeight - handleHeight) / 2).coerceAtLeast(0.dp)
+            ((currentPanelHeight - handleHeight) / 2).coerceAtLeast(0.dp)
         }
 
         Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .padding(top = mapAwareTopPadding)
-                .heightIn(max = availablePanelHeight)
+                .height(currentPanelHeight)
+                .heightIn(min = effectiveMinPanelHeight, max = availablePanelHeight)
                 .width(currentPanelWidth + handleSpace)
         ) {
             Surface(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .width(currentPanelWidth)
-                    .heightIn(max = availablePanelHeight)
+                    .height(currentPanelHeight)
+                    .heightIn(min = effectiveMinPanelHeight, max = availablePanelHeight)
                     .graphicsLayer { translationX = state.offset }
                     .then(anchoredModifier),
                 shape = RoundedCornerShape(topStart = 24.dp, bottomStart = 24.dp),
@@ -7899,17 +7920,47 @@ private fun ExplorerDropListPanel(
                 shadowElevation = 0.dp,
                 color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)
             ) {
+                val resizeHandleLabel = stringResource(R.string.drop_list_resize_handle)
+                val resizeDragState = rememberDraggableState { delta ->
+                    val deltaDp = with(density) { delta.toDp() }
+                    panelHeightValue = (panelHeightValue + deltaDp.value).coerceIn(
+                        effectiveMinPanelHeight.value,
+                        availablePanelHeight.value
+                    )
+                }
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .heightIn(max = availablePanelHeight)
+                        .heightIn(min = effectiveMinPanelHeight, max = availablePanelHeight)
                 ) {
-                    Column(
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(
                                 start = startPadding,
                                 top = topPadding,
+                                end = endPadding,
+                                bottom = 8.dp
+                            )
+                            .draggable(
+                                state = resizeDragState,
+                                orientation = Orientation.Vertical
+                            )
+                            .semantics { contentDescription = resizeHandleLabel },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.DragHandle,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(
+                                start = startPadding,
                                 end = endPadding
                             ),
                         verticalArrangement = Arrangement.spacedBy(12.dp)

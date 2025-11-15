@@ -37,6 +37,7 @@
     <string name="browse_ignore_drop_snackbar">Drop hidden for now. It\'ll show up again when you\'re nearby.</string>
     <string name="drop_list_handle_label"></string>
     <string name="action_retry_generic">Try again</string>
+    <string name="drop_list_resize_handle">Drag to resize</string>
     <string name="content_description_refresh_drops">Refresh nearby drops</string>
     <string name="action_my_drops_title">My drops</string>
     <string name="action_my_drops_description">Review, open, and manage the drops you\'ve shared.</string>
