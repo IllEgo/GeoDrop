@@ -8144,35 +8144,28 @@ private fun CollectedNoteCard(
     onView: () -> Unit,
     onRemove: () -> Unit
 ) {
-    val containerColor = if (selected) {
-        MaterialTheme.colorScheme.primaryContainer
-    } else {
-        MaterialTheme.colorScheme.surfaceVariant
+    val (containerColor, contentColor, supportingColor) = explorerDropCardColors(selected)
+    val typeLabel = when (note.contentType) {
+        DropContentType.TEXT -> "Text note"
+        DropContentType.PHOTO -> "Photo drop"
+        DropContentType.AUDIO -> "Audio drop"
+        DropContentType.VIDEO -> "Video drop"
     }
-    val contentColor = if (selected) {
-        MaterialTheme.colorScheme.onPrimaryContainer
-    } else {
-        MaterialTheme.colorScheme.onSurface
-    }
-    val supportingColor = if (selected) {
-        MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
-    } else {
-        MaterialTheme.colorScheme.onSurfaceVariant
-    }
+    val dropperHandle = note.dropperUsername?.takeIf { it.isNotBlank() }?.let { "@${it}" }
+    val previewText = note.description?.takeIf { it.isNotBlank() }
+        ?: note.text.takeIf { it.isNotBlank() }
+        ?: when (note.contentType) {
+            DropContentType.TEXT -> "(No message)"
+            DropContentType.PHOTO -> "Photo drop"
+            DropContentType.AUDIO -> "Audio drop"
+            DropContentType.VIDEO -> "Video drop"
+        }
     Card(
         modifier = Modifier.fillMaxWidth(),
         onClick = onSelect,
         colors = CardDefaults.cardColors(
             containerColor = containerColor,
             contentColor = contentColor
-        ),
-        border = BorderStroke(
-            width = 1.dp,
-            color = if (selected) {
-                MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
-            } else {
-                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
-            }
         )
     ) {
         Column(
@@ -8181,21 +8174,30 @@ private fun CollectedNoteCard(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            val typeLabel = when (note.contentType) {
-                DropContentType.TEXT -> "Text note"
-                DropContentType.PHOTO -> "Photo drop"
-                DropContentType.AUDIO -> "Audio drop"
-                DropContentType.VIDEO -> "Video drop"
-            }
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                val annotatedTitle = remember(dropperHandle, typeLabel) {
+                    if (dropperHandle != null) {
+                        buildAnnotatedString {
+                            withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
+                                append(dropperHandle)
+                            }
+                            append(" dropped ")
+                            append(typeLabel.lowercase())
+                        }
+                    } else {
+                        AnnotatedString(typeLabel)
+                    }
+                }
                 Text(
-                    text = typeLabel,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.weight(1f)
+                    text = annotatedTitle,
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.weight(1f),
+                    maxLines = if (expanded) Int.MAX_VALUE else 2,
+                    overflow = TextOverflow.Ellipsis
                 )
 
                 if (note.isNsfw) {
@@ -8213,18 +8215,11 @@ private fun CollectedNoteCard(
                 )
             }
 
-            val preview = note.description?.takeIf { it.isNotBlank() }
-                ?: note.text.takeIf { it.isNotBlank() }
-                ?: when (note.contentType) {
-                    DropContentType.TEXT -> "(No message)"
-                    DropContentType.PHOTO -> "Photo drop"
-                    DropContentType.AUDIO -> "Audio drop"
-                    DropContentType.VIDEO -> "Video drop"
-                }
             Text(
-                text = preview,
-                style = MaterialTheme.typography.bodyLarge,
-                maxLines = if (expanded) Int.MAX_VALUE else 2,
+                text = previewText,
+                style = MaterialTheme.typography.bodyMedium,
+                color = supportingColor,
+                maxLines = if (expanded) Int.MAX_VALUE else 3,
                 overflow = TextOverflow.Ellipsis
             )
 
@@ -8243,7 +8238,7 @@ private fun CollectedNoteCard(
 
                             AsyncImage(
                                 model = imageRequest,
-                                contentDescription = preview,
+                                contentDescription = previewText,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .heightIn(min = 160.dp, max = 280.dp)
@@ -9381,21 +9376,7 @@ private fun OtherDropRow(
     onPickUp: () -> Unit,
     onReport: () -> Unit
 ) {
-    val containerColor = if (isSelected) {
-        MaterialTheme.colorScheme.primaryContainer
-    } else {
-        MaterialTheme.colorScheme.surfaceVariant
-    }
-    val contentColor = if (isSelected) {
-        MaterialTheme.colorScheme.onPrimaryContainer
-    } else {
-        MaterialTheme.colorScheme.onSurface
-    }
-    val supportingColor = if (isSelected) {
-        MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
-    } else {
-        MaterialTheme.colorScheme.onSurfaceVariant
-    }
+    val (containerColor, contentColor, supportingColor) = explorerDropCardColors(isSelected)
     val distanceMeters = currentLocation?.let { location ->
         distanceBetweenMeters(location.latitude, location.longitude, drop.lat, drop.lng)
     }
@@ -10206,21 +10187,7 @@ private fun ManageDropRow(
     onView: () -> Unit,
     onDelete: () -> Unit
 ) {
-    val containerColor = if (isSelected) {
-        MaterialTheme.colorScheme.primaryContainer
-    } else {
-        MaterialTheme.colorScheme.surfaceVariant
-    }
-    val contentColor = if (isSelected) {
-        MaterialTheme.colorScheme.onPrimaryContainer
-    } else {
-        MaterialTheme.colorScheme.onSurface
-    }
-    val supportingColor = if (isSelected) {
-        MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
-    } else {
-        MaterialTheme.colorScheme.onSurfaceVariant
-    }
+    val (containerColor, contentColor, supportingColor) = explorerDropCardColors(isSelected)
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -10243,7 +10210,9 @@ private fun ManageDropRow(
                 DropTitleText(
                     drop = drop,
                     style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    maxLines = if (isSelected) Int.MAX_VALUE else 2,
+                    overflow = TextOverflow.Ellipsis
                 )
 
                 if (drop.isNsfw) {
@@ -10257,6 +10226,19 @@ private fun ManageDropRow(
                     } else {
                         "Expand drop details"
                     }
+                )
+            }
+
+            val previewText = drop.description?.takeIf { it.isNotBlank() }
+                ?: drop.text.takeIf { it.isNotBlank() }
+            previewText?.let { preview ->
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = preview,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = supportingColor,
+                    maxLines = if (isSelected) Int.MAX_VALUE else 3,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
 
@@ -10276,13 +10258,6 @@ private fun ManageDropRow(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Spacer(Modifier.height(4.dp))
-
-                    val typeLabel = when (drop.contentType) {
-                        DropContentType.TEXT -> "Text note"
-                        DropContentType.PHOTO -> "Photo drop"
-                        DropContentType.AUDIO -> "Audio drop"
-                        DropContentType.VIDEO -> "Video drop"
-                    }
 
                     val descriptionText = drop.description?.takeIf { it.isNotBlank() }
                     descriptionText?.let {
@@ -11280,4 +11255,34 @@ private enum class DropVisibility { Public, GroupOnly }
 /** Tiny helper to show snackbars from non-suspend places. */
 private fun SnackbarHostState.showMessage(scope: kotlinx.coroutines.CoroutineScope, msg: String) {
     scope.launch { showSnackbar(msg) }
+}
+private data class ExplorerDropCardColors(
+    val container: Color,
+    val content: Color,
+    val supporting: Color
+)
+
+@Composable
+private fun explorerDropCardColors(isSelected: Boolean): ExplorerDropCardColors {
+    val container = if (isSelected) {
+        MaterialTheme.colorScheme.primaryContainer
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant
+    }
+    val content = if (isSelected) {
+        MaterialTheme.colorScheme.onPrimaryContainer
+    } else {
+        MaterialTheme.colorScheme.onSurface
+    }
+    val supporting = if (isSelected) {
+        MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
+    return ExplorerDropCardColors(
+        container = container,
+        content = content,
+        supporting = supporting
+    )
 }
