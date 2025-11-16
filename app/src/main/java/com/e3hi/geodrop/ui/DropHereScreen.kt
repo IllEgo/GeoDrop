@@ -6214,7 +6214,8 @@ private fun CollectedDropsContent(
     val selectedNote = notes.firstOrNull { it.id == selectedId }
 
     val screenHeight = rememberScreenHeightDp()
-    val panelTopPadding = topContentPadding
+    val panelState = rememberExplorerDropListPanelState()
+    val panelTopPadding = rememberHalfScreenPanelTopPadding(topContentPadding)
 
     Box(
         modifier = modifier
@@ -6253,8 +6254,10 @@ private fun CollectedDropsContent(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .navigationBarsPadding(),
+                state = panelState,
                 mapAwareTopPadding = panelTopPadding,
                 panelMaxHeight = screenHeight,
+                expandWhen = selectedId != null,
                 listState = listState,
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
                 header = {
@@ -8740,6 +8743,7 @@ private fun MyDropsContent(
                 }
 
                 val screenHeight = rememberScreenHeightDp()
+                val panelState = rememberExplorerDropListPanelState()
                 val panelTopPadding = rememberHalfScreenPanelTopPadding(topContentPadding)
 
                 Box(
@@ -8757,10 +8761,12 @@ private fun MyDropsContent(
 
                     ExplorerDropListPanel(
                         modifier = Modifier
-                            .align(Alignment.TopEnd)
+                            .align(Alignment.BottomEnd)
                             .navigationBarsPadding(),
+                        state = panelState,
                         mapAwareTopPadding = panelTopPadding,
                         panelMaxHeight = screenHeight,
+                        expandWhen = selectedId != null,
                         listState = listState,
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
                         header = {
