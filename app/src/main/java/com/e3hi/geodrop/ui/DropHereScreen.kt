@@ -247,6 +247,7 @@ import com.google.android.gms.tasks.Tasks
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.auth.api.signin.GoogleSignInStatusCodes
 import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.maps.model.BitmapDescriptor
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
@@ -601,13 +602,36 @@ fun DropHereScreen(
     val accountGoogleSignInLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
+        fun googleSignInErrorMessage(
+            apiException: ApiException?,
+            defaultMessage: String = "Google sign-in failed. Try again."
+        ): String {
+            val statusMessage = apiException?.statusCode?.let { statusCode ->
+                when (statusCode) {
+                    GoogleSignInStatusCodes.SIGN_IN_CANCELLED -> "Google sign-in was cancelled."
+                    GoogleSignInStatusCodes.DEVELOPER_ERROR,
+                    GoogleSignInStatusCodes.INVALID_ACCOUNT -> "Google sign-in is misconfigured. Provide a valid web client ID."
+                    GoogleSignInStatusCodes.SIGN_IN_FAILED,
+                    GoogleSignInStatusCodes.SIGN_IN_REQUIRED,
+                    GoogleSignInStatusCodes.NETWORK_ERROR -> "Google sign-in failed. Try again."
+                    else -> null
+                }
+            }
+
+            return statusMessage
+                ?: apiException?.localizedMessage?.takeIf { it.isNotBlank() }
+                ?: defaultMessage
+        }
         if (result.resultCode != Activity.RESULT_OK) {
             accountGoogleSigningIn = false
-            accountAuthError = if (result.resultCode == Activity.RESULT_CANCELED) {
-                "Google sign-in was cancelled."
-            } else {
-                "Google sign-in failed. Try again."
-            }
+            accountAuthError = googleSignInErrorMessage(
+                apiException = GoogleSignIn.getSignedInAccountFromIntent(result.data).exception as? ApiException,
+                defaultMessage = if (result.resultCode == Activity.RESULT_CANCELED) {
+                    "Google sign-in was cancelled."
+                } else {
+                    "Google sign-in failed. Try again."
+                }
+            )
             return@rememberLauncherForActivityResult
         }
 
@@ -650,8 +674,7 @@ fun DropHereScreen(
             }
         } catch (error: ApiException) {
             accountGoogleSigningIn = false
-            accountAuthError = error.localizedMessage?.takeIf { it.isNotBlank() }
-                ?: "Google sign-in failed. Try again."
+            accountAuthError = googleSignInErrorMessage(error)
         }
     }
 
