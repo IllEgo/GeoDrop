@@ -6535,18 +6535,11 @@ private fun AccountSignInDialog(
     val isBusy = isSubmitting || isGoogleSigningIn
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
-    val errorSnackbarHost = remember { SnackbarHostState() }
 
     val scrollState = rememberScrollState()
     val configuration = LocalConfiguration.current
     val maxDialogHeight = remember(configuration) {
         (configuration.screenHeightDp.dp * 0.9f).coerceAtLeast(0.dp)
-    }
-
-    LaunchedEffect(error) {
-        error?.let { message ->
-            errorSnackbarHost.showSnackbar(message)
-        }
     }
 
     val hideKeyboardAndClearFocus = {
@@ -6630,11 +6623,6 @@ private fun AccountSignInDialog(
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                SnackbarHost(
-                    hostState = errorSnackbarHost,
-                    modifier = Modifier.fillMaxWidth()
                 )
 
                 BoxWithConstraints {
