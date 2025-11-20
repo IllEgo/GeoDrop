@@ -340,6 +340,8 @@ fun DropHereScreen(
     var waitingForEmailVerification by remember { mutableStateOf(false) }
     var verificationAccountType by remember { mutableStateOf<AccountType?>(null) }
     val defaultWebClientId = remember(ctx) {
+        val buildConfigClientId = BuildConfig.GOOGLE_WEB_CLIENT_ID.trim()
+
         val resourceId = ctx.resources.getIdentifier(
             "default_web_client_id",
             "string",
@@ -352,8 +354,8 @@ fun DropHereScreen(
             .orEmpty()
 
         when {
+            buildConfigClientId.isNotBlank() -> buildConfigClientId
             resourceClientId.isNotBlank() -> resourceClientId
-            BuildConfig.GOOGLE_WEB_CLIENT_ID.isNotBlank() -> BuildConfig.GOOGLE_WEB_CLIENT_ID
             else -> ""
         }
     }
