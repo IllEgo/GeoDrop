@@ -14,7 +14,23 @@
       },
       "oauth_client": [
         {
-          "client_id": "1017151605782-7is7mob6prbujsepnuo83r4klk8h994q.apps.googleusercontent.com",
+          "client_id": "1017151605782-jea420h2l4fp3djf9e1r6aes1n95l91l.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.e3hi.geodrop",
+            "certificate_hash": "da54737317c01b5d0867ade66ecff6f3eda574f6"
+          }
+        },
+        {
+          "client_id": "1017151605782-lhu9446u32g6om09dgorecpcjlpdeirm.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.e3hi.geodrop",
+            "certificate_hash": "951eeee659fbc5093bdcb39f758072a544bfd9bf"
+          }
+        },
+        {
+          "client_id": "1017151605782-djbct1o5kc8gc5u44gnnpgqdsoho0b0c.apps.googleusercontent.com",
           "client_type": 3
         }
       ],
@@ -29,6 +45,13 @@
             {
               "client_id": "1017151605782-7is7mob6prbujsepnuo83r4klk8h994q.apps.googleusercontent.com",
               "client_type": 3
+            },
+            {
+              "client_id": "1017151605782-kg8au2d7ck0usr6lisfatq2edbdiipk3.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.e3hi.geodrop.ios"
+              }
             }
           ]
         }
