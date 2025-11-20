@@ -623,22 +623,29 @@ fun DropHereScreen(
 
             accountAuthSubmitting = true
             val credential = GoogleAuthProvider.getCredential(idToken, null)
-            auth.signInWithCredential(credential)
-                .addOnCompleteListener { authTask ->
-                    accountAuthSubmitting = false
-                    accountGoogleSigningIn = false
-                    if (authTask.isSuccessful) {
-                        resetAccountAuthFields(clearEmail = true)
-                        val selectedType = accountType
-                        showAccountSignIn = false
-                        val isNewUser = authTask.result?.additionalUserInfo?.isNewUser == true
-                        if (selectedType == AccountType.BUSINESS && isNewUser) {
-                            showBusinessOnboarding = true
+            runCatching {
+                auth.signInWithCredential(credential)
+                    .addOnCompleteListener { authTask ->
+                        accountAuthSubmitting = false
+                        accountGoogleSigningIn = false
+                        if (authTask.isSuccessful) {
+                            resetAccountAuthFields(clearEmail = true)
+                            val selectedType = accountType
+                            showAccountSignIn = false
+                            val isNewUser = authTask.result?.additionalUserInfo?.isNewUser == true
+                            if (selectedType == AccountType.BUSINESS && isNewUser) {
+                                showBusinessOnboarding = true
+                            }
+                        } else {
+                            val message = authTask.exception?.localizedMessage?.takeIf { it.isNotBlank() }
+                                ?: "Couldn't sign you in with Google. Try again."
+                            accountAuthError = message
                         }
-                    } else {
-                        val message = authTask.exception?.localizedMessage?.takeIf { it.isNotBlank() }
+                    }.onFailure { error ->
+                        accountAuthSubmitting = false
+                        accountGoogleSigningIn = false
+                        accountAuthError = error.localizedMessage?.takeIf { it.isNotBlank() }
                             ?: "Couldn't sign you in with Google. Try again."
-                        accountAuthError = message
                     }
                 }
         } catch (error: ApiException) {
