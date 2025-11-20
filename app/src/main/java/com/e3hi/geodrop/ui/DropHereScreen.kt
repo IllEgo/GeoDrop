@@ -484,17 +484,57 @@ fun DropHereScreen(
 
         task.addOnCompleteListener { authTask ->
             if (authTask.isSuccessful) {
-                if (sanitizedExplorerUsername != null) {
-                    accountAuthStatus = ctx.getString(R.string.explorer_profile_status_claiming)
-                    pendingExplorerUsername = sanitizedExplorerUsername
-                    return@addOnCompleteListener
-                }
+                val current = auth.currentUser
 
-                accountAuthSubmitting = false
-                resetAccountAuthFields(clearEmail = true)
-                showAccountSignIn = false
-                if (selectedType == AccountType.BUSINESS && selectedMode == AccountAuthMode.REGISTER) {
-                    showBusinessOnboarding = true
+                if (selectedMode == AccountAuthMode.SIGN_IN) {
+                    if (current?.isEmailVerified == false) {
+                        current.sendEmailVerification()
+                            .addOnCompleteListener { verificationTask ->
+                                accountAuthSubmitting = false
+                                accountAuthStatus = if (verificationTask.isSuccessful) {
+                                    "Verify your email to continue. We sent a link to ${current.email ?: "your inbox"}."
+                                } else {
+                                    "Verify your email to continue. Couldn't send a link automatically—try again later."
+                                }
+                                accountAuthError = null
+                                auth.signOut()
+                            }
+                        return@addOnCompleteListener
+                    }
+
+                    if (sanitizedExplorerUsername != null) {
+                        accountAuthStatus = ctx.getString(R.string.explorer_profile_status_claiming)
+                        pendingExplorerUsername = sanitizedExplorerUsername
+                        return@addOnCompleteListener
+                    }
+
+                    accountAuthSubmitting = false
+                    resetAccountAuthFields(clearEmail = true)
+                    showAccountSignIn = false
+                    if (selectedType == AccountType.BUSINESS) {
+                        showBusinessOnboarding = true
+                    }
+                } else {
+                    val newUser = current
+                    if (newUser == null) {
+                        accountAuthSubmitting = false
+                        accountAuthError = "Couldn't create your account. Try again."
+                        return@addOnCompleteListener
+                    }
+
+                    newUser.sendEmailVerification()
+                        .addOnCompleteListener { verificationTask ->
+                            accountAuthSubmitting = false
+                            if (verificationTask.isSuccessful) {
+                                pendingExplorerUsername = sanitizedExplorerUsername
+                                accountAuthStatus = "Check ${newUser.email ?: "your inbox"} for a verification link, then sign in to continue."
+                                accountAuthError = null
+                                accountAuthMode = AccountAuthMode.SIGN_IN
+                                auth.signOut()
+                            } else {
+                                accountAuthError = "Couldn't send a verification email. Try again."
+                            }
+                        }
                 }
             } else {
                 accountAuthSubmitting = false
