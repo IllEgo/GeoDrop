@@ -704,12 +704,12 @@ fun DropHereScreen(
         accountGoogleSigningIn,
         signingOut,
         hasAcceptedTerms,
-        hasViewedOnboarding
+        hasViewedOnboarding,
+        showAccountSignIn
     ) {
         if (currentUser == null) {
             showAccountMenu = false
-            if (!accountAuthSubmitting && !accountGoogleSigningIn) {
-                showAccountSignIn = false
+            if (!accountAuthSubmitting && !accountGoogleSigningIn && !showAccountSignIn) {
                 accountAuthMode = AccountAuthMode.SIGN_IN
                 accountType = AccountType.EXPLORER
                 resetAccountAuthFields(clearEmail = true)
