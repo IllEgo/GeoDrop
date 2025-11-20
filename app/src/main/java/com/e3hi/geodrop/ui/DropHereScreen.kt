@@ -252,6 +252,7 @@ import com.google.android.gms.maps.model.BitmapDescriptor
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.LatLng
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.firestore.FirebaseFirestoreException
 import androidx.media3.common.MediaItem
@@ -546,12 +547,20 @@ fun DropHereScreen(
                 }
             } else {
                 accountAuthSubmitting = false
-                val message = authTask.exception?.localizedMessage?.takeIf { it.isNotBlank() }
-                    ?: if (selectedMode == AccountAuthMode.REGISTER) {
-                        "Couldn't create your account. Try again."
-                    } else {
-                        "Couldn't sign you in. Check your email and password."
+                val exception = authTask.exception
+                val message = when {
+                    selectedMode == AccountAuthMode.SIGN_IN &&
+                            exception is FirebaseAuthInvalidCredentialsException -> {
+                        "Incorrect password. Please try again."
                     }
+
+                    else -> exception?.localizedMessage?.takeIf { it.isNotBlank() }
+                        ?: if (selectedMode == AccountAuthMode.REGISTER) {
+                            "Couldn't create your account. Try again."
+                        } else {
+                            "Couldn't sign you in. Check your email and password."
+                        }
+                }
                 accountAuthError = message
             }
         }
