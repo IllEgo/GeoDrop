@@ -273,6 +273,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.tasks.await
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
@@ -333,6 +334,8 @@ fun DropHereScreen(
     var nsfwUpdateError by remember { mutableStateOf<String?>(null) }
     var pickupCelebrationDrop by remember { mutableStateOf<Drop?>(null) }
     var pickupCelebrationVisible by remember { mutableStateOf(false) }
+    var waitingForEmailVerification by remember { mutableStateOf(false) }
+    var verificationAccountType by remember { mutableStateOf<AccountType?>(null) }
     val defaultWebClientId = remember(ctx) {
         val resourceId = ctx.resources.getIdentifier(
             "default_web_client_id",
@@ -490,14 +493,17 @@ fun DropHereScreen(
                     if (current?.isEmailVerified == false) {
                         current.sendEmailVerification()
                             .addOnCompleteListener { verificationTask ->
-                                accountAuthSubmitting = false
+                                verificationAccountType = selectedType
+                                waitingForEmailVerification = verificationTask.isSuccessful
+                                accountAuthSubmitting = verificationTask.isSuccessful
+                                accountAuthError = null
                                 accountAuthStatus = if (verificationTask.isSuccessful) {
-                                    "Verify your email to continue. We sent a link to ${current.email ?: "your inbox"}."
+                                    "Waiting for email verification. We sent a link to ${current.email ?: "your inbox"}."
                                 } else {
+                                    waitingForEmailVerification = false
+                                    accountAuthSubmitting = false
                                     "Verify your email to continue. Couldn't send a link automatically—try again later."
                                 }
-                                accountAuthError = null
-                                auth.signOut()
                             }
                         return@addOnCompleteListener
                     }
@@ -524,14 +530,16 @@ fun DropHereScreen(
 
                     newUser.sendEmailVerification()
                         .addOnCompleteListener { verificationTask ->
-                            accountAuthSubmitting = false
                             if (verificationTask.isSuccessful) {
                                 pendingExplorerUsername = sanitizedExplorerUsername
-                                accountAuthStatus = "Check ${newUser.email ?: "your inbox"} for a verification link, then sign in to continue."
+                                verificationAccountType = selectedType
+                                waitingForEmailVerification = true
+                                accountAuthSubmitting = true
+                                accountAuthStatus = "Waiting for email verification. Check ${newUser.email ?: "your inbox"} for a verification link."
                                 accountAuthError = null
-                                accountAuthMode = AccountAuthMode.SIGN_IN
-                                auth.signOut()
                             } else {
+                                waitingForEmailVerification = false
+                                accountAuthSubmitting = false
                                 accountAuthError = "Couldn't send a verification email. Try again."
                             }
                         }
@@ -690,6 +698,8 @@ fun DropHereScreen(
                 accountAuthMode = AccountAuthMode.SIGN_IN
                 accountType = AccountType.EXPLORER
                 resetAccountAuthFields(clearEmail = true)
+                waitingForEmailVerification = false
+                verificationAccountType = null
             }
         } else {
             guestModeEnabled = false
@@ -707,6 +717,54 @@ fun DropHereScreen(
         noteInventory.setActiveUser(currentUser?.uid)
         collectedNotes = noteInventory.getCollectedNotes()
         ignoredDropIds = noteInventory.getIgnoredDropIds()
+    }
+
+    LaunchedEffect(waitingForEmailVerification, currentUser) {
+        if (!waitingForEmailVerification) return@LaunchedEffect
+
+        val user = currentUser ?: run {
+            waitingForEmailVerification = false
+            accountAuthSubmitting = false
+            accountAuthStatus = null
+            verificationAccountType = null
+            return@LaunchedEffect
+        }
+
+        while (waitingForEmailVerification) {
+            val reloadResult = runCatching { user.reload().await() }
+            if (reloadResult.isSuccess && user.isEmailVerified) {
+                waitingForEmailVerification = false
+                accountAuthSubmitting = pendingExplorerUsername != null
+                accountAuthError = null
+                verificationAccountType?.let { selectedType ->
+                    if (pendingExplorerUsername == null) {
+                        resetAccountAuthFields(clearEmail = true)
+                        showAccountSignIn = false
+                        if (selectedType == AccountType.BUSINESS) {
+                            showBusinessOnboarding = true
+                        }
+                    }
+                }
+                accountAuthStatus = if (pendingExplorerUsername != null) {
+                    ctx.getString(R.string.explorer_profile_status_claiming)
+                } else {
+                    null
+                }
+                verificationAccountType = null
+                break
+            }
+
+            if (reloadResult.isFailure) {
+                waitingForEmailVerification = false
+                accountAuthSubmitting = false
+                verificationAccountType = null
+                accountAuthError = reloadResult.exceptionOrNull()?.localizedMessage?.takeIf { it.isNotBlank() }
+                    ?: "Couldn't confirm email verification. Try signing in again."
+                break
+            }
+
+            delay(3000)
+        }
     }
 
     DisposableEffect(lifecycleOwner) {
