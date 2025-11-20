@@ -641,13 +641,13 @@ fun DropHereScreen(
                                 ?: "Couldn't sign you in with Google. Try again."
                             accountAuthError = message
                         }
-                    }.onFailure { error ->
-                        accountAuthSubmitting = false
-                        accountGoogleSigningIn = false
-                        accountAuthError = error.localizedMessage?.takeIf { it.isNotBlank() }
-                            ?: "Couldn't sign you in with Google. Try again."
                     }
-                }
+            }.onFailure { error ->
+                accountAuthSubmitting = false
+                accountGoogleSigningIn = false
+                accountAuthError = error.localizedMessage?.takeIf { it.isNotBlank() }
+                    ?: "Couldn't sign you in with Google. Try again."
+            }
         } catch (error: ApiException) {
             accountGoogleSigningIn = false
             accountAuthError = error.localizedMessage?.takeIf { it.isNotBlank() }
