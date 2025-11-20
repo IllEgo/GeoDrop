@@ -342,16 +342,8 @@ fun DropHereScreen(
     val defaultWebClientId = remember(ctx) {
         val buildConfigClientId = BuildConfig.GOOGLE_WEB_CLIENT_ID.trim()
 
-        val resourceId = ctx.resources.getIdentifier(
-            "default_web_client_id",
-            "string",
-            ctx.packageName
-        )
-
-        val resourceClientId = resourceId
-            .takeIf { it != 0 }
-            ?.let { ctx.getString(it).trim() }
-            .orEmpty()
+        val resourceClientId = runCatching { ctx.getString(R.string.default_web_client_id).trim() }
+            .getOrDefault("")
 
         when {
             buildConfigClientId.isNotBlank() -> buildConfigClientId
