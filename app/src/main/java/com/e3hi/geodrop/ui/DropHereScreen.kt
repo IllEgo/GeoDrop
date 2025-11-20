@@ -253,6 +253,7 @@ import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.LatLng
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
+import com.google.firebase.auth.FirebaseAuthInvalidUserException
 import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.firestore.FirebaseFirestoreException
 import androidx.media3.common.MediaItem
@@ -552,6 +553,11 @@ fun DropHereScreen(
                     selectedMode == AccountAuthMode.SIGN_IN &&
                             exception is FirebaseAuthInvalidCredentialsException -> {
                         "Incorrect password. Please try again."
+                    }
+
+                    selectedMode == AccountAuthMode.SIGN_IN &&
+                            exception is FirebaseAuthInvalidUserException -> {
+                        "We couldn't find an account with that email."
                     }
 
                     else -> exception?.localizedMessage?.takeIf { it.isNotBlank() }
@@ -6529,11 +6535,18 @@ private fun AccountSignInDialog(
     val isBusy = isSubmitting || isGoogleSigningIn
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
+    val errorSnackbarHost = remember { SnackbarHostState() }
 
     val scrollState = rememberScrollState()
     val configuration = LocalConfiguration.current
     val maxDialogHeight = remember(configuration) {
         (configuration.screenHeightDp.dp * 0.9f).coerceAtLeast(0.dp)
+    }
+
+    LaunchedEffect(error) {
+        error?.let { message ->
+            errorSnackbarHost.showSnackbar(message)
+        }
     }
 
     val hideKeyboardAndClearFocus = {
@@ -6617,6 +6630,11 @@ private fun AccountSignInDialog(
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                SnackbarHost(
+                    hostState = errorSnackbarHost,
+                    modifier = Modifier.fillMaxWidth()
                 )
 
                 BoxWithConstraints {
