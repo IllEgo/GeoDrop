@@ -678,8 +678,12 @@ fun DropHereScreen(
         onDispose { auth.removeAuthStateListener(listener) }
     }
 
+    val verifiedUser = currentUser?.takeIf { user ->
+        user.isEmailVerified
+    }
+
     val userMode = when {
-        currentUser != null -> UserMode.SIGNED_IN
+        verifiedUser != null -> UserMode.SIGNED_IN
         guestModeEnabled -> UserMode.GUEST
         else -> null
     }
