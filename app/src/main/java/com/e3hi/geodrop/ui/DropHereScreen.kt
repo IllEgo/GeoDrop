@@ -4034,7 +4034,13 @@ private fun GeneralSettingsStep(
     joinedGroups: List<String>,
     onSelectGroupCode: (String) -> Unit,
     onManageGroupCodes: () -> Unit,
-    isSubmitting: Boolean
+    isSubmitting: Boolean,
+    previousStep: GeneralComposerStep?,
+    nextStep: GeneralComposerStep?,
+    canProceed: Boolean,
+    onBack: (GeneralComposerStep) -> Unit,
+    onNext: (GeneralComposerStep) -> Unit,
+    onSubmit: () -> Unit
 ) {
     DropAutoDeleteSection(
         decayDaysInput = decayDaysInput,
@@ -4054,6 +4060,16 @@ private fun GeneralSettingsStep(
         onSelectGroupCode = onSelectGroupCode,
         onManageGroupCodes = onManageGroupCodes,
         isSubmitting = isSubmitting
+    )
+
+    GeneralComposerNavigation(
+        previousStep = previousStep,
+        nextStep = nextStep,
+        canProceed = canProceed,
+        isSubmitting = isSubmitting,
+        onBack = onBack,
+        onNext = onNext,
+        onSubmit = onSubmit
     )
 }
 
@@ -4197,7 +4213,13 @@ private fun BusinessSettingsStep(
     joinedGroups: List<String>,
     onSelectGroupCode: (String) -> Unit,
     onManageGroupCodes: () -> Unit,
-    isSubmitting: Boolean
+    isSubmitting: Boolean,
+    previousStep: BusinessComposerStep?,
+    nextStep: BusinessComposerStep?,
+    canProceed: Boolean,
+    onBack: (BusinessComposerStep) -> Unit,
+    onNext: (BusinessComposerStep) -> Unit,
+    onSubmit: () -> Unit
 ) {
     DropAutoDeleteSection(
         decayDaysInput = decayDaysInput,
@@ -4212,6 +4234,16 @@ private fun BusinessSettingsStep(
         onSelectGroupCode = onSelectGroupCode,
         onManageGroupCodes = onManageGroupCodes,
         isSubmitting = isSubmitting
+    )
+
+    BusinessComposerStepNavigation(
+        previousStep = previousStep,
+        nextStep = nextStep,
+        isSubmitting = isSubmitting,
+        canProceed = canProceed,
+        onBack = onBack,
+        onNext = onNext,
+        onSubmit = onSubmit
     )
 }
 
@@ -5496,7 +5528,13 @@ private fun DropComposerDialog(
                             joinedGroups = joinedGroups,
                             onSelectGroupCode = onSelectGroupCode,
                             onManageGroupCodes = onManageGroupCodes,
-                            isSubmitting = isSubmitting
+                            isSubmitting = isSubmitting,
+                            previousStep = previousStep,
+                            nextStep = nextStep,
+                            canProceed = canProceed,
+                            onBack = { step -> currentStep = step },
+                            onNext = { step -> currentStep = step },
+                            onSubmit = onSubmit
                         )
 
                         BusinessComposerStep.REVIEW -> DropReviewStep(
@@ -5514,7 +5552,7 @@ private fun DropComposerDialog(
                     }
                 }
 
-                if (currentStep != BusinessComposerStep.CONTENT) {
+                if (currentStep != BusinessComposerStep.CONTENT && currentStep != BusinessComposerStep.SETTINGS) {
                     BusinessComposerStepNavigation(
                         previousStep = previousStep,
                         nextStep = nextStep,
@@ -5608,7 +5646,13 @@ private fun DropComposerDialog(
                             joinedGroups = joinedGroups,
                             onSelectGroupCode = onSelectGroupCode,
                             onManageGroupCodes = onManageGroupCodes,
-                            isSubmitting = isSubmitting
+                            isSubmitting = isSubmitting,
+                            previousStep = previousStep,
+                            nextStep = nextStep,
+                            canProceed = canProceed,
+                            onBack = { step -> currentStep = step },
+                            onNext = { step -> currentStep = step },
+                            onSubmit = onSubmit
                         )
 
                         GeneralComposerStep.REVIEW -> DropReviewStep(
@@ -5626,7 +5670,7 @@ private fun DropComposerDialog(
                     }
                 }
 
-                if (currentStep != GeneralComposerStep.CONTENT) {
+                if (currentStep != GeneralComposerStep.CONTENT && currentStep != GeneralComposerStep.SETTINGS) {
                     GeneralComposerNavigation(
                         previousStep = previousStep,
                         nextStep = nextStep,
