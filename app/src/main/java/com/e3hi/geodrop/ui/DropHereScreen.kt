@@ -5652,7 +5652,7 @@ private fun DropComposerSection(
 }
 
 @Composable
-private fun ColumnScope.DropContentFormatSection(
+private fun DropContentFormatSection(
     dropContentType: DropContentType,
     onDropContentTypeChange: (DropContentType) -> Unit
 ) {
@@ -5670,7 +5670,7 @@ private fun ColumnScope.DropContentFormatSection(
 }
 
 @Composable
-private fun ColumnScope.DropNoteAndDescriptionSection(
+private fun DropNoteAndDescriptionSection(
     dropContentType: DropContentType,
     note: TextFieldValue,
     onNoteChange: (TextFieldValue) -> Unit,
@@ -5721,7 +5721,7 @@ private fun ColumnScope.DropNoteAndDescriptionSection(
 }
 
 @Composable
-private fun ColumnScope.DropAutoDeleteSection(
+private fun DropAutoDeleteSection(
     decayDaysInput: TextFieldValue,
     onDecayDaysChange: (TextFieldValue) -> Unit
 ) {
@@ -5748,7 +5748,7 @@ private fun ColumnScope.DropAutoDeleteSection(
 }
 
 @Composable
-private fun ColumnScope.DropMediaAttachmentsSection(
+private fun DropMediaAttachmentsSection(
     context: Context,
     dropContentType: DropContentType,
     capturedPhotoPath: String?,
@@ -5952,7 +5952,7 @@ private fun ColumnScope.DropMediaAttachmentsSection(
 }
 
 @Composable
-private fun ColumnScope.DropIdentitySection(
+private fun DropIdentitySection(
     dropAnonymously: Boolean,
     onDropAnonymouslyChange: (Boolean) -> Unit,
     isSubmitting: Boolean
@@ -5988,7 +5988,7 @@ private fun ColumnScope.DropIdentitySection(
 }
 
 @Composable
-private fun ColumnScope.DropVisibilitySectionCard(
+private fun DropVisibilitySectionCard(
     dropVisibility: DropVisibility,
     onDropVisibilityChange: (DropVisibility) -> Unit,
     groupCodeInput: TextFieldValue,
