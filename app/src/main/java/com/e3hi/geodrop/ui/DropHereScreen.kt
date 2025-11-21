@@ -115,6 +115,7 @@ import androidx.compose.material.icons.rounded.ThumbDown
 import androidx.compose.material.icons.rounded.ThumbUp
 import androidx.compose.material.icons.rounded.Lightbulb
 import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material3.*
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
@@ -136,6 +137,7 @@ import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
@@ -3957,6 +3959,341 @@ private fun TermsAcceptanceScreen(
     }
 }
 
+@Composable
+private fun GeneralContentStep(
+    dropContentType: DropContentType,
+    onDropContentTypeChange: (DropContentType) -> Unit,
+    note: TextFieldValue,
+    onNoteChange: (TextFieldValue) -> Unit,
+    description: TextFieldValue,
+    onDescriptionChange: (TextFieldValue) -> Unit,
+    context: Context,
+    capturedPhotoPath: String?,
+    onCapturePhoto: () -> Unit,
+    onClearPhoto: () -> Unit,
+    capturedAudioUri: String?,
+    onRecordAudio: () -> Unit,
+    onClearAudio: () -> Unit,
+    capturedVideoUri: String?,
+    onRecordVideo: () -> Unit,
+    onClearVideo: () -> Unit
+) {
+    DropContentFormatSection(
+        dropContentType = dropContentType,
+        onDropContentTypeChange = onDropContentTypeChange
+    )
+    DropNoteAndDescriptionSection(
+        dropContentType = dropContentType,
+        note = note,
+        onNoteChange = onNoteChange,
+        description = description,
+        onDescriptionChange = onDescriptionChange
+    )
+    DropMediaAttachmentsSection(
+        context = context,
+        dropContentType = dropContentType,
+        capturedPhotoPath = capturedPhotoPath,
+        onCapturePhoto = onCapturePhoto,
+        onClearPhoto = onClearPhoto,
+        capturedAudioUri = capturedAudioUri,
+        onRecordAudio = onRecordAudio,
+        onClearAudio = onClearAudio,
+        capturedVideoUri = capturedVideoUri,
+        onRecordVideo = onRecordVideo,
+        onClearVideo = onClearVideo
+    )
+}
+
+@Composable
+private fun GeneralSettingsStep(
+    decayDaysInput: TextFieldValue,
+    onDecayDaysChange: (TextFieldValue) -> Unit,
+    dropAnonymously: Boolean,
+    onDropAnonymouslyChange: (Boolean) -> Unit,
+    dropVisibility: DropVisibility,
+    onDropVisibilityChange: (DropVisibility) -> Unit,
+    groupCodeInput: TextFieldValue,
+    onGroupCodeInputChange: (TextFieldValue) -> Unit,
+    joinedGroups: List<String>,
+    onSelectGroupCode: (String) -> Unit,
+    onManageGroupCodes: () -> Unit,
+    isSubmitting: Boolean
+) {
+    DropAutoDeleteSection(
+        decayDaysInput = decayDaysInput,
+        onDecayDaysChange = onDecayDaysChange
+    )
+    DropIdentitySection(
+        dropAnonymously = dropAnonymously,
+        onDropAnonymouslyChange = onDropAnonymouslyChange,
+        isSubmitting = isSubmitting
+    )
+    DropVisibilitySectionCard(
+        dropVisibility = dropVisibility,
+        onDropVisibilityChange = onDropVisibilityChange,
+        groupCodeInput = groupCodeInput,
+        onGroupCodeInputChange = onGroupCodeInputChange,
+        joinedGroups = joinedGroups,
+        onSelectGroupCode = onSelectGroupCode,
+        onManageGroupCodes = onManageGroupCodes,
+        isSubmitting = isSubmitting
+    )
+}
+
+@Composable
+private fun BusinessPlanStep(
+    dropType: DropType,
+    onDropTypeChange: (DropType) -> Unit,
+    businessName: String?,
+    businessCategories: List<BusinessCategory>,
+    templateSuggestions: List<DropTemplate>,
+    onDropContentTypeChange: (DropContentType) -> Unit,
+    onNoteChange: (TextFieldValue) -> Unit,
+    onDescriptionChange: (TextFieldValue) -> Unit
+) {
+    DropComposerSection(
+        title = "Business goal",
+        description = "Choose the purpose for this drop. Options are tailored to your business categories.",
+        leadingIcon = Icons.Rounded.Storefront
+    ) {
+        BusinessDropTypeSection(
+            dropType = dropType,
+            onDropTypeChange = onDropTypeChange,
+            businessName = businessName,
+            businessCategories = businessCategories,
+            showHeader = false
+        )
+    }
+
+    if (templateSuggestions.isNotEmpty()) {
+        DropComposerSection(
+            title = "Need inspiration?",
+            description = "Browse suggested ideas based on your business categories.",
+            leadingIcon = Icons.Rounded.Info
+        ) {
+            BusinessDropTemplatesSection(
+                templates = templateSuggestions,
+                onApply = { template ->
+                    onDropTypeChange(template.dropType)
+                    onDropContentTypeChange(template.contentType)
+                    onNoteChange(TextFieldValue(template.caption.ifBlank { "" }))
+                    onDescriptionChange(TextFieldValue(template.note))
+                },
+                showHeader = false
+            )
+        }
+    }
+}
+
+@Composable
+private fun BusinessContentStep(
+    dropContentType: DropContentType,
+    onDropContentTypeChange: (DropContentType) -> Unit,
+    note: TextFieldValue,
+    onNoteChange: (TextFieldValue) -> Unit,
+    description: TextFieldValue,
+    onDescriptionChange: (TextFieldValue) -> Unit,
+    context: Context,
+    capturedPhotoPath: String?,
+    onCapturePhoto: () -> Unit,
+    onClearPhoto: () -> Unit,
+    capturedAudioUri: String?,
+    onRecordAudio: () -> Unit,
+    onClearAudio: () -> Unit,
+    capturedVideoUri: String?,
+    onRecordVideo: () -> Unit,
+    onClearVideo: () -> Unit
+) {
+    DropContentFormatSection(
+        dropContentType = dropContentType,
+        onDropContentTypeChange = onDropContentTypeChange
+    )
+    DropNoteAndDescriptionSection(
+        dropContentType = dropContentType,
+        note = note,
+        onNoteChange = onNoteChange,
+        description = description,
+        onDescriptionChange = onDescriptionChange
+    )
+    DropMediaAttachmentsSection(
+        context = context,
+        dropContentType = dropContentType,
+        capturedPhotoPath = capturedPhotoPath,
+        onCapturePhoto = onCapturePhoto,
+        onClearPhoto = onClearPhoto,
+        capturedAudioUri = capturedAudioUri,
+        onRecordAudio = onRecordAudio,
+        onClearAudio = onClearAudio,
+        capturedVideoUri = capturedVideoUri,
+        onRecordVideo = onRecordVideo,
+        onClearVideo = onClearVideo
+    )
+}
+
+@Composable
+private fun BusinessOfferStep(
+    redemptionCodeInput: TextFieldValue,
+    onRedemptionCodeChange: (TextFieldValue) -> Unit,
+    redemptionLimitInput: TextFieldValue,
+    onRedemptionLimitChange: (TextFieldValue) -> Unit
+) {
+    DropComposerSection(
+        title = "Offer security",
+        description = "Set a redemption code and optional limit so each guest redeems only once.",
+        leadingIcon = Icons.Rounded.Flag
+    ) {
+        BusinessRedemptionSection(
+            redemptionCode = redemptionCodeInput,
+            onRedemptionCodeChange = onRedemptionCodeChange,
+            redemptionLimit = redemptionLimitInput,
+            onRedemptionLimitChange = onRedemptionLimitChange,
+            showHeader = false
+        )
+    }
+}
+
+@Composable
+private fun BusinessSettingsStep(
+    decayDaysInput: TextFieldValue,
+    onDecayDaysChange: (TextFieldValue) -> Unit,
+    dropVisibility: DropVisibility,
+    onDropVisibilityChange: (DropVisibility) -> Unit,
+    groupCodeInput: TextFieldValue,
+    onGroupCodeInputChange: (TextFieldValue) -> Unit,
+    joinedGroups: List<String>,
+    onSelectGroupCode: (String) -> Unit,
+    onManageGroupCodes: () -> Unit,
+    isSubmitting: Boolean
+) {
+    DropAutoDeleteSection(
+        decayDaysInput = decayDaysInput,
+        onDecayDaysChange = onDecayDaysChange
+    )
+    DropVisibilitySectionCard(
+        dropVisibility = dropVisibility,
+        onDropVisibilityChange = onDropVisibilityChange,
+        groupCodeInput = groupCodeInput,
+        onGroupCodeInputChange = onGroupCodeInputChange,
+        joinedGroups = joinedGroups,
+        onSelectGroupCode = onSelectGroupCode,
+        onManageGroupCodes = onManageGroupCodes,
+        isSubmitting = isSubmitting
+    )
+}
+
+@Composable
+private fun DropReviewStep(
+    dropContentType: DropContentType,
+    note: TextFieldValue,
+    description: TextFieldValue,
+    capturedPhotoPath: String?,
+    capturedAudioUri: String?,
+    capturedVideoUri: String?,
+    dropVisibility: DropVisibility,
+    decayDaysInput: TextFieldValue,
+    redemptionCodeInput: TextFieldValue?,
+    redemptionLimitInput: TextFieldValue?
+) {
+    DropComposerSection(
+        title = "Content review",
+        description = "Double-check the format, text, and attachments before dropping.",
+        leadingIcon = Icons.Rounded.Visibility
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(
+                text = "Format: ${dropContentType.name.lowercase().replaceFirstChar { it.uppercase() }}",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            if (note.text.isNotBlank()) {
+                Text(
+                    text = note.text,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+            if (description.text.isNotBlank()) {
+                Text(
+                    text = description.text,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            when (dropContentType) {
+                DropContentType.TEXT -> Text("Text-only drop ready.", color = MaterialTheme.colorScheme.primary)
+                DropContentType.PHOTO -> AttachmentSummaryRow(
+                    label = "Photo",
+                    isPresent = capturedPhotoPath != null
+                )
+
+                DropContentType.AUDIO -> AttachmentSummaryRow(
+                    label = "Audio clip",
+                    isPresent = capturedAudioUri != null
+                )
+
+                DropContentType.VIDEO -> AttachmentSummaryRow(
+                    label = "Video",
+                    isPresent = capturedVideoUri != null
+                )
+            }
+        }
+    }
+
+    redemptionCodeInput?.let {
+        DropComposerSection(
+            title = "Offer protection",
+            description = "Confirm redemption code and limits before publishing.",
+            leadingIcon = Icons.Rounded.Flag
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = "Redemption code: ${it.text.ifBlank { "Not set" }}",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                redemptionLimitInput?.let { limit ->
+                    Text(
+                        text = "Limit: ${limit.text.ifBlank { "Unlimited" }}",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            }
+        }
+    }
+
+    DropComposerSection(
+        title = "Discovery settings",
+        description = "Verify visibility and lifespan for this drop.",
+        leadingIcon = Icons.Rounded.Map
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            val visibilityLabel = when (dropVisibility) {
+                DropVisibility.Public -> "Public"
+                DropVisibility.GroupOnly -> "Group only"
+            }
+            Text("Visibility: $visibilityLabel", style = MaterialTheme.typography.bodyMedium)
+            val decayDays = decayDaysInput.text.ifBlank { "No auto-delete" }
+            Text("Auto-delete: $decayDays", style = MaterialTheme.typography.bodyMedium)
+        }
+    }
+}
+
+@Composable
+private fun AttachmentSummaryRow(label: String, isPresent: Boolean) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        val icon = if (isPresent) Icons.Rounded.Check else Icons.Rounded.Close
+        val color = if (isPresent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+        Icon(imageVector = icon, contentDescription = null, tint = color)
+        Text(
+            text = if (isPresent) "$label attached" else "$label missing",
+            style = MaterialTheme.typography.bodyMedium,
+            color = color
+        )
+    }
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun FirstRunOnboardingScreen(
@@ -4885,6 +5222,7 @@ private fun BusinessActionSummary(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DropComposerDialog(
     isSubmitting: Boolean,
@@ -4929,280 +5267,324 @@ private fun DropComposerDialog(
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
-    Dialog(
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val contentIsValid = remember(dropContentType, note, capturedPhotoPath, capturedAudioUri, capturedVideoUri) {
+        when (dropContentType) {
+            DropContentType.TEXT -> note.text.isNotBlank()
+            DropContentType.PHOTO -> capturedPhotoPath != null
+            DropContentType.AUDIO -> capturedAudioUri != null
+            DropContentType.VIDEO -> capturedVideoUri != null
+        }
+    }
+
+    ModalBottomSheet(
         onDismissRequest = {
             if (!isSubmitting) {
                 onDismiss()
             }
         },
-        properties = DialogProperties(
-            dismissOnBackPress = !isSubmitting,
-            dismissOnClickOutside = !isSubmitting,
-            usePlatformDefaultWidth = false
-        )
+        sheetState = sheetState,
+        dragHandle = { SheetDefaults.DragHandle() },
+        windowInsets = WindowInsets(0, 0, 0, 0)
     ) {
-        Surface(
-            shape = MaterialTheme.shapes.large,
-            tonalElevation = 6.dp,
+        LaunchedEffect(Unit) { sheetState.expand() }
+
+        val scrollState = rememberScrollState()
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-//                .widthIn(min = 360.dp, max = 520.dp)
-                .padding(16.dp)
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            val scrollState = rememberScrollState()
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(scrollState)
-                    .padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(20.dp)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = "Create a drop",
-                        style = MaterialTheme.typography.titleLarge,
-                        modifier = Modifier.weight(1f)
+                        style = MaterialTheme.typography.titleLarge
                     )
-                    TextButton(
-                        onClick = onDismiss,
-                        enabled = !isSubmitting
-                    ) {
-                        Text("Cancel")
+                    Text(
+                        text = "Complete the steps below to share something new with nearby explorers.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                TextButton(
+                    onClick = onDismiss,
+                    enabled = !isSubmitting
+                ) {
+                    Text("Close")
+                }
+            }
+
+            if (userProfileLoading) {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            }
+
+            userProfileError?.let { errorMessage ->
+                Surface(
+                    tonalElevation = 2.dp,
+                    shape = MaterialTheme.shapes.medium,
+                    color = MaterialTheme.colorScheme.errorContainer
+                ) {
+                    Text(
+                        text = errorMessage,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                    )
+                }
+            }
+
+            if (isBusinessUser) {
+                var currentStep by rememberSaveable { mutableStateOf(BusinessComposerStep.PLAN) }
+                val availableSteps = remember(dropType) {
+                    buildList {
+                        add(BusinessComposerStep.PLAN)
+                        add(BusinessComposerStep.CONTENT)
+                        if (dropType == DropType.RESTAURANT_COUPON) {
+                            add(BusinessComposerStep.OFFER)
+                        }
+                        add(BusinessComposerStep.SETTINGS)
+                        add(BusinessComposerStep.REVIEW)
                     }
                 }
+                LaunchedEffect(availableSteps) {
+                    if (!availableSteps.contains(currentStep)) {
+                        currentStep = availableSteps.first()
+                    }
+                }
+                val templateSuggestions = remember(businessCategories) {
+                    dropTemplatesFor(businessCategories)
+                        .take(MAX_BUSINESS_TEMPLATE_SUGGESTIONS)
+                }
+
+                val offerIsValid = redemptionCodeInput.text.isNotBlank() || !availableSteps.contains(BusinessComposerStep.OFFER)
+                val canProceed = when (currentStep) {
+                    BusinessComposerStep.PLAN -> true
+                    BusinessComposerStep.CONTENT -> contentIsValid
+                    BusinessComposerStep.OFFER -> offerIsValid
+                    BusinessComposerStep.SETTINGS -> true
+                    BusinessComposerStep.REVIEW -> true
+                }
+
+                BusinessComposerStepIndicator(
+                    steps = availableSteps,
+                    currentStep = currentStep,
+                    onStepSelected = { selected ->
+                        val currentIndex = availableSteps.indexOf(currentStep)
+                        val targetIndex = availableSteps.indexOf(selected)
+                        val canAdvance = canProceed && targetIndex == currentIndex + 1
+                        if (availableSteps.contains(selected) && (targetIndex <= currentIndex || canAdvance)) {
+                            currentStep = selected
+                        }
+                    }
+                )
 
                 Text(
-                    text = "Complete the steps below to share something new with nearby explorers.",
+                    text = currentStep.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+
+                Text(
+                    text = currentStep.helper,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
-                if (userProfileLoading) {
-                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                }
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(scrollState),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    when (currentStep) {
+                        BusinessComposerStep.PLAN -> BusinessPlanStep(
+                            dropType = dropType,
+                            onDropTypeChange = onDropTypeChange,
+                            businessName = businessName,
+                            businessCategories = businessCategories,
+                            templateSuggestions = templateSuggestions,
+                            onDropContentTypeChange = onDropContentTypeChange,
+                            onNoteChange = onNoteChange,
+                            onDescriptionChange = onDescriptionChange
+                        )
 
-                userProfileError?.let { errorMessage ->
-                    Surface(
-                        tonalElevation = 2.dp,
-                        shape = MaterialTheme.shapes.medium,
-                        color = MaterialTheme.colorScheme.errorContainer
-                    ) {
-                        Text(
-                            text = errorMessage,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onErrorContainer,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp)
+                        BusinessComposerStep.CONTENT -> BusinessContentStep(
+                            dropContentType = dropContentType,
+                            onDropContentTypeChange = onDropContentTypeChange,
+                            note = note,
+                            onNoteChange = onNoteChange,
+                            description = description,
+                            onDescriptionChange = onDescriptionChange,
+                            context = context,
+                            capturedPhotoPath = capturedPhotoPath,
+                            onCapturePhoto = onCapturePhoto,
+                            onClearPhoto = onClearPhoto,
+                            capturedAudioUri = capturedAudioUri,
+                            onRecordAudio = onRecordAudio,
+                            onClearAudio = onClearAudio,
+                            capturedVideoUri = capturedVideoUri,
+                            onRecordVideo = onRecordVideo,
+                            onClearVideo = onClearVideo
+                        )
+
+                        BusinessComposerStep.OFFER -> BusinessOfferStep(
+                            redemptionCodeInput = redemptionCodeInput,
+                            onRedemptionCodeChange = onRedemptionCodeChange,
+                            redemptionLimitInput = redemptionLimitInput,
+                            onRedemptionLimitChange = onRedemptionLimitChange
+                        )
+
+                        BusinessComposerStep.SETTINGS -> BusinessSettingsStep(
+                            decayDaysInput = decayDaysInput,
+                            onDecayDaysChange = onDecayDaysChange,
+                            dropVisibility = dropVisibility,
+                            onDropVisibilityChange = onDropVisibilityChange,
+                            groupCodeInput = groupCodeInput,
+                            onGroupCodeInputChange = onGroupCodeInputChange,
+                            joinedGroups = joinedGroups,
+                            onSelectGroupCode = onSelectGroupCode,
+                            onManageGroupCodes = onManageGroupCodes,
+                            isSubmitting = isSubmitting
+                        )
+
+                        BusinessComposerStep.REVIEW -> DropReviewStep(
+                            dropContentType = dropContentType,
+                            note = note,
+                            description = description,
+                            capturedPhotoPath = capturedPhotoPath,
+                            capturedAudioUri = capturedAudioUri,
+                            capturedVideoUri = capturedVideoUri,
+                            dropVisibility = dropVisibility,
+                            decayDaysInput = decayDaysInput,
+                            redemptionCodeInput = redemptionCodeInput.takeIf { availableSteps.contains(BusinessComposerStep.OFFER) },
+                            redemptionLimitInput = redemptionLimitInput.takeIf { availableSteps.contains(BusinessComposerStep.OFFER) }
                         )
                     }
                 }
 
-                if (isBusinessUser) {
-                    var currentStep by rememberSaveable { mutableStateOf(BusinessComposerStep.PLAN) }
-                    val availableSteps = remember(dropType) {
-                        buildList {
-                            add(BusinessComposerStep.PLAN)
-                            add(BusinessComposerStep.CONTENT)
-                            if (dropType == DropType.RESTAURANT_COUPON) {
-                                add(BusinessComposerStep.OFFER)
-                            }
-                            add(BusinessComposerStep.SETTINGS)
-                        }
-                    }
-                    LaunchedEffect(availableSteps) {
-                        if (!availableSteps.contains(currentStep)) {
-                            currentStep = availableSteps.first()
-                        }
-                    }
-                    val templateSuggestions = remember(businessCategories) {
-                        dropTemplatesFor(businessCategories)
-                            .take(MAX_BUSINESS_TEMPLATE_SUGGESTIONS)
-                    }
+                val currentIndex = availableSteps.indexOf(currentStep).coerceAtLeast(0)
+                val previousStep = availableSteps.getOrNull(currentIndex - 1)
+                val nextStep = availableSteps.getOrNull(currentIndex + 1)
 
-                    BusinessComposerStepIndicator(
-                        steps = availableSteps,
-                        currentStep = currentStep,
-                        onStepSelected = { selected ->
-                            if (availableSteps.contains(selected)) {
-                                currentStep = selected
-                            }
-                        }
-                    )
-
-                    Text(
-                        text = currentStep.title,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-
-                    Text(
-                        text = currentStep.helper,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    when (currentStep) {
-                        BusinessComposerStep.PLAN -> {
-                            DropComposerSection(
-                                title = "Business goal",
-                                description = "Choose the purpose for this drop. Options are tailored to your business categories.",
-                                leadingIcon = Icons.Rounded.Storefront
-                            ) {
-                                BusinessDropTypeSection(
-                                    dropType = dropType,
-                                    onDropTypeChange = onDropTypeChange,
-                                    businessName = businessName,
-                                    businessCategories = businessCategories,
-                                    showHeader = false
-                                )
-                            }
-
-                            if (templateSuggestions.isNotEmpty()) {
-                                DropComposerSection(
-                                    title = "Need inspiration?",
-                                    description = "Browse suggested ideas based on your business categories.",
-                                    leadingIcon = Icons.Rounded.Info
-                                ) {
-                                    BusinessDropTemplatesSection(
-                                        templates = templateSuggestions,
-                                        onApply = { template ->
-                                            onDropTypeChange(template.dropType)
-                                            onDropContentTypeChange(template.contentType)
-                                            onNoteChange(TextFieldValue(template.caption.ifBlank { "" }))
-                                            onDescriptionChange(TextFieldValue(template.note))
-                                        },
-                                        showHeader = false
-                                    )
-                                }
-                            }
-                        }
-
-                        BusinessComposerStep.CONTENT -> {
-                            DropContentFormatSection(
-                                dropContentType = dropContentType,
-                                onDropContentTypeChange = onDropContentTypeChange
-                            )
-                            DropNoteAndDescriptionSection(
-                                dropContentType = dropContentType,
-                                note = note,
-                                onNoteChange = onNoteChange,
-                                description = description,
-                                onDescriptionChange = onDescriptionChange
-                            )
-                            DropMediaAttachmentsSection(
-                                context = context,
-                                dropContentType = dropContentType,
-                                capturedPhotoPath = capturedPhotoPath,
-                                onCapturePhoto = onCapturePhoto,
-                                onClearPhoto = onClearPhoto,
-                                capturedAudioUri = capturedAudioUri,
-                                onRecordAudio = onRecordAudio,
-                                onClearAudio = onClearAudio,
-                                capturedVideoUri = capturedVideoUri,
-                                onRecordVideo = onRecordVideo,
-                                onClearVideo = onClearVideo
-                            )
-                        }
-
-                        BusinessComposerStep.OFFER -> {
-                            DropComposerSection(
-                                title = "Offer security",
-                                description = "Set a redemption code and optional limit so each guest redeems only once.",
-                                leadingIcon = Icons.Rounded.Flag
-                            ) {
-                                BusinessRedemptionSection(
-                                    redemptionCode = redemptionCodeInput,
-                                    onRedemptionCodeChange = onRedemptionCodeChange,
-                                    redemptionLimit = redemptionLimitInput,
-                                    onRedemptionLimitChange = onRedemptionLimitChange,
-                                    showHeader = false
-                                )
-                            }
-                        }
-
-                        BusinessComposerStep.SETTINGS -> {
-                            DropAutoDeleteSection(
-                                decayDaysInput = decayDaysInput,
-                                onDecayDaysChange = onDecayDaysChange
-                            )
-                            DropVisibilitySectionCard(
-                                dropVisibility = dropVisibility,
-                                onDropVisibilityChange = onDropVisibilityChange,
-                                groupCodeInput = groupCodeInput,
-                                onGroupCodeInputChange = onGroupCodeInputChange,
-                                joinedGroups = joinedGroups,
-                                onSelectGroupCode = onSelectGroupCode,
-                                onManageGroupCodes = onManageGroupCodes,
-                                isSubmitting = isSubmitting
-                            )
-                        }
-                    }
-
-                    val currentIndex = availableSteps.indexOf(currentStep).coerceAtLeast(0)
-                    val previousStep = availableSteps.getOrNull(currentIndex - 1)
-                    val nextStep = availableSteps.getOrNull(currentIndex + 1)
-
-                    BusinessComposerStepNavigation(
-                        previousStep = previousStep,
-                        nextStep = nextStep,
-                        isSubmitting = isSubmitting,
-                        onBack = { step -> currentStep = step },
-                        onNext = { step -> currentStep = step },
-                        onSubmit = onSubmit
-                    )
-                } else {
-                    DropContentFormatSection(
-                        dropContentType = dropContentType,
-                        onDropContentTypeChange = onDropContentTypeChange
-                    )
-                    DropNoteAndDescriptionSection(
-                        dropContentType = dropContentType,
-                        note = note,
-                        onNoteChange = onNoteChange,
-                        description = description,
-                        onDescriptionChange = onDescriptionChange
-                    )
-                    DropAutoDeleteSection(
-                        decayDaysInput = decayDaysInput,
-                        onDecayDaysChange = onDecayDaysChange
-                    )
-                    DropMediaAttachmentsSection(
-                        context = context,
-                        dropContentType = dropContentType,
-                        capturedPhotoPath = capturedPhotoPath,
-                        onCapturePhoto = onCapturePhoto,
-                        onClearPhoto = onClearPhoto,
-                        capturedAudioUri = capturedAudioUri,
-                        onRecordAudio = onRecordAudio,
-                        onClearAudio = onClearAudio,
-                        capturedVideoUri = capturedVideoUri,
-                        onRecordVideo = onRecordVideo,
-                        onClearVideo = onClearVideo
-                    )
-                    DropIdentitySection(
-                        dropAnonymously = dropAnonymously,
-                        onDropAnonymouslyChange = onDropAnonymouslyChange,
-                        isSubmitting = isSubmitting
-                    )
-                    DropVisibilitySectionCard(
-                        dropVisibility = dropVisibility,
-                        onDropVisibilityChange = onDropVisibilityChange,
-                        groupCodeInput = groupCodeInput,
-                        onGroupCodeInputChange = onGroupCodeInputChange,
-                        joinedGroups = joinedGroups,
-                        onSelectGroupCode = onSelectGroupCode,
-                        onManageGroupCodes = onManageGroupCodes,
-                        isSubmitting = isSubmitting
-                    )
-                    DropSubmitButton(
-                        isSubmitting = isSubmitting,
-                        onSubmit = onSubmit
-                    )
+                BusinessComposerStepNavigation(
+                    previousStep = previousStep,
+                    nextStep = nextStep,
+                    isSubmitting = isSubmitting,
+                    canProceed = canProceed,
+                    onBack = { step -> currentStep = step },
+                    onNext = { step -> currentStep = step },
+                    onSubmit = onSubmit
+                )
+            } else {
+                var currentStep by rememberSaveable { mutableStateOf(GeneralComposerStep.CONTENT) }
+                val steps = remember { GeneralComposerStep.entries.toList() }
+                val canProceed = when (currentStep) {
+                    GeneralComposerStep.CONTENT -> contentIsValid
+                    GeneralComposerStep.SETTINGS -> true
+                    GeneralComposerStep.REVIEW -> true
                 }
+
+                GeneralComposerStepIndicator(
+                    steps = steps,
+                    currentStep = currentStep,
+                    onStepSelected = { selected ->
+                        val currentIndex = steps.indexOf(currentStep)
+                        val targetIndex = steps.indexOf(selected)
+                        val canAdvance = canProceed && targetIndex == currentIndex + 1
+                        if (targetIndex <= currentIndex || canAdvance) {
+                            currentStep = selected
+                        }
+                    }
+                )
+
+                Text(
+                    text = currentStep.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+
+                Text(
+                    text = currentStep.helper,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(scrollState),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    when (currentStep) {
+                        GeneralComposerStep.CONTENT -> GeneralContentStep(
+                            dropContentType = dropContentType,
+                            onDropContentTypeChange = onDropContentTypeChange,
+                            note = note,
+                            onNoteChange = onNoteChange,
+                            description = description,
+                            onDescriptionChange = onDescriptionChange,
+                            context = context,
+                            capturedPhotoPath = capturedPhotoPath,
+                            onCapturePhoto = onCapturePhoto,
+                            onClearPhoto = onClearPhoto,
+                            capturedAudioUri = capturedAudioUri,
+                            onRecordAudio = onRecordAudio,
+                            onClearAudio = onClearAudio,
+                            capturedVideoUri = capturedVideoUri,
+                            onRecordVideo = onRecordVideo,
+                            onClearVideo = onClearVideo
+                        )
+
+                        GeneralComposerStep.SETTINGS -> GeneralSettingsStep(
+                            decayDaysInput = decayDaysInput,
+                            onDecayDaysChange = onDecayDaysChange,
+                            dropAnonymously = dropAnonymously,
+                            onDropAnonymouslyChange = onDropAnonymouslyChange,
+                            dropVisibility = dropVisibility,
+                            onDropVisibilityChange = onDropVisibilityChange,
+                            groupCodeInput = groupCodeInput,
+                            onGroupCodeInputChange = onGroupCodeInputChange,
+                            joinedGroups = joinedGroups,
+                            onSelectGroupCode = onSelectGroupCode,
+                            onManageGroupCodes = onManageGroupCodes,
+                            isSubmitting = isSubmitting
+                        )
+
+                        GeneralComposerStep.REVIEW -> DropReviewStep(
+                            dropContentType = dropContentType,
+                            note = note,
+                            description = description,
+                            capturedPhotoPath = capturedPhotoPath,
+                            capturedAudioUri = capturedAudioUri,
+                            capturedVideoUri = capturedVideoUri,
+                            dropVisibility = dropVisibility,
+                            decayDaysInput = decayDaysInput,
+                            redemptionCodeInput = null,
+                            redemptionLimitInput = null
+                        )
+                    }
+                }
+
+                val currentIndex = steps.indexOf(currentStep)
+                val previousStep = steps.getOrNull(currentIndex - 1)
+                val nextStep = steps.getOrNull(currentIndex + 1)
+
+                GeneralComposerNavigation(
+                    previousStep = previousStep,
+                    nextStep = nextStep,
+                    canProceed = canProceed,
+                    isSubmitting = isSubmitting,
+                    onBack = { step -> currentStep = step },
+                    onNext = { step -> currentStep = step },
+                    onSubmit = onSubmit
+                )
             }
         }
     }
@@ -5650,10 +6032,11 @@ private fun ColumnScope.DropVisibilitySectionCard(
 private fun DropSubmitButton(
     isSubmitting: Boolean,
     onSubmit: () -> Unit,
-    modifier: Modifier = Modifier.fillMaxWidth()
+    modifier: Modifier = Modifier.fillMaxWidth(),
+    enabled: Boolean = true
 ) {
     Button(
-        enabled = !isSubmitting,
+        enabled = !isSubmitting && enabled,
         onClick = onSubmit,
         modifier = modifier
     ) {
@@ -5668,6 +6051,143 @@ private fun DropSubmitButton(
             Icon(Icons.Rounded.Place, contentDescription = null)
             Spacer(Modifier.width(8.dp))
             Text("Drop content")
+        }
+    }
+}
+
+private enum class GeneralComposerStep(val title: String, val helper: String, val shortLabel: String) {
+    CONTENT(
+        title = "Create your content",
+        helper = "Pick a format, write your message, and capture any media.",
+        shortLabel = "Content"
+    ),
+    SETTINGS(
+        title = "Choose visibility",
+        helper = "Control how long the drop lasts and who can discover it.",
+        shortLabel = "Settings"
+    ),
+    REVIEW(
+        title = "Review and drop",
+        helper = "Confirm content, attachments, and settings before submitting.",
+        shortLabel = "Review"
+    )
+}
+
+@Composable
+private fun GeneralComposerStepIndicator(
+    steps: List<GeneralComposerStep>,
+    currentStep: GeneralComposerStep,
+    onStepSelected: (GeneralComposerStep) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val scrollState = rememberScrollState()
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .horizontalScroll(scrollState),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        steps.forEachIndexed { index, step ->
+            val status = when {
+                step == currentStep -> BusinessStepStatus.Active
+                index < steps.indexOf(currentStep) -> BusinessStepStatus.Completed
+                else -> BusinessStepStatus.Upcoming
+            }
+            val (containerColor, contentColor, labelColor) = when (status) {
+                BusinessStepStatus.Active -> Triple(
+                    MaterialTheme.colorScheme.primary,
+                    MaterialTheme.colorScheme.onPrimary,
+                    MaterialTheme.colorScheme.onSurface
+                )
+
+                BusinessStepStatus.Completed -> Triple(
+                    MaterialTheme.colorScheme.secondaryContainer,
+                    MaterialTheme.colorScheme.onSecondaryContainer,
+                    MaterialTheme.colorScheme.onSurface
+                )
+
+                BusinessStepStatus.Upcoming -> Triple(
+                    MaterialTheme.colorScheme.surfaceVariant,
+                    MaterialTheme.colorScheme.onSurfaceVariant,
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            Column(
+                modifier = Modifier
+                    .widthIn(min = 72.dp)
+                    .clickable(onClick = { onStepSelected(step) }),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Surface(
+                    color = containerColor,
+                    contentColor = contentColor,
+                    shape = CircleShape,
+                    tonalElevation = if (status == BusinessStepStatus.Active) 4.dp else 0.dp
+                ) {
+                    Text(
+                        text = (index + 1).toString(),
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+
+                Text(
+                    text = step.title,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = labelColor,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.widthIn(max = 180.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun GeneralComposerNavigation(
+    previousStep: GeneralComposerStep?,
+    nextStep: GeneralComposerStep?,
+    canProceed: Boolean,
+    isSubmitting: Boolean,
+    onBack: (GeneralComposerStep) -> Unit,
+    onNext: (GeneralComposerStep) -> Unit,
+    onSubmit: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (previousStep != null) {
+            OutlinedButton(
+                onClick = { onBack(previousStep) },
+                enabled = !isSubmitting
+            ) {
+                Text("Back")
+            }
+        }
+
+        Spacer(Modifier.weight(1f))
+
+        if (nextStep != null) {
+            Button(
+                onClick = { onNext(nextStep) },
+                enabled = !isSubmitting && canProceed
+            ) {
+                Text("Next: ${nextStep.shortLabel}")
+            }
+        } else {
+            DropSubmitButton(
+                isSubmitting = isSubmitting,
+                onSubmit = onSubmit,
+                modifier = Modifier
+                    .widthIn(min = 180.dp)
+                    .alpha(if (canProceed) 1f else 0.6f),
+                enabled = canProceed
+            )
         }
     }
 }
@@ -5696,6 +6216,11 @@ private enum class BusinessComposerStep(
         title = "Finalize settings",
         helper = "Decide how long the drop lasts and who should be able to discover it.",
         shortLabel = "Settings"
+    ),
+    REVIEW(
+        title = "Review details",
+        helper = "Confirm your content, offer controls, and discovery rules before dropping.",
+        shortLabel = "Review"
     )
 }
 
@@ -5787,6 +6312,7 @@ private fun BusinessComposerStepNavigation(
     previousStep: BusinessComposerStep?,
     nextStep: BusinessComposerStep?,
     isSubmitting: Boolean,
+    canProceed: Boolean,
     onBack: (BusinessComposerStep) -> Unit,
     onNext: (BusinessComposerStep) -> Unit,
     onSubmit: () -> Unit
@@ -5809,7 +6335,7 @@ private fun BusinessComposerStepNavigation(
         if (nextStep != null) {
             Button(
                 onClick = { onNext(nextStep) },
-                enabled = !isSubmitting
+                enabled = !isSubmitting && canProceed
             ) {
                 Text("Next: ${nextStep.shortLabel}")
             }
@@ -5818,6 +6344,9 @@ private fun BusinessComposerStepNavigation(
                 isSubmitting = isSubmitting,
                 onSubmit = onSubmit,
                 modifier = Modifier
+                    .widthIn(min = 180.dp)
+                    .alpha(if (canProceed) 1f else 0.6f),
+                enabled = canProceed
             )
         }
     }
