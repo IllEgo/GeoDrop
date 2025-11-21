@@ -5874,18 +5874,17 @@ private fun DropComposerDialog(
                             redemptionLimitInput = redemptionLimitInput.takeIf { availableSteps.contains(BusinessComposerStep.OFFER) }
                         )
                     }
-                }
-
-                if (currentStep != BusinessComposerStep.CONTENT && currentStep != BusinessComposerStep.SETTINGS) {
-                    BusinessComposerStepNavigation(
-                        previousStep = previousStep,
-                        nextStep = nextStep,
-                        isSubmitting = isSubmitting,
-                        canProceed = canProceed,
-                        onBack = { step -> currentStep = step },
-                        onNext = { step -> currentStep = step },
-                        onSubmit = onSubmit
-                    )
+                    if (currentStep != BusinessComposerStep.CONTENT && currentStep != BusinessComposerStep.SETTINGS) {
+                        BusinessComposerStepNavigation(
+                            previousStep = previousStep,
+                            nextStep = nextStep,
+                            isSubmitting = isSubmitting,
+                            canProceed = canProceed,
+                            onBack = { step -> currentStep = step },
+                            onNext = { step -> currentStep = step },
+                            onSubmit = onSubmit
+                        )
+                    }
                 }
             } else {
                 var currentStep by rememberSaveable { mutableStateOf(GeneralComposerStep.CONTENT) }
@@ -5992,18 +5991,17 @@ private fun DropComposerDialog(
                             redemptionLimitInput = null
                         )
                     }
-                }
-
-                if (currentStep != GeneralComposerStep.CONTENT && currentStep != GeneralComposerStep.SETTINGS) {
-                    GeneralComposerNavigation(
-                        previousStep = previousStep,
-                        nextStep = nextStep,
-                        canProceed = canProceed,
-                        isSubmitting = isSubmitting,
-                        onBack = { step -> currentStep = step },
-                        onNext = { step -> currentStep = step },
-                        onSubmit = onSubmit
-                    )
+                    if (currentStep != GeneralComposerStep.CONTENT && currentStep != GeneralComposerStep.SETTINGS) {
+                        GeneralComposerNavigation(
+                            previousStep = previousStep,
+                            nextStep = nextStep,
+                            canProceed = canProceed,
+                            isSubmitting = isSubmitting,
+                            onBack = { step -> currentStep = step },
+                            onNext = { step -> currentStep = step },
+                            onSubmit = onSubmit
+                        )
+                    }
                 }
             }
         }
