@@ -66,6 +66,10 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -90,6 +94,7 @@ import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.DragHandle
+import androidx.compose.material.icons.rounded.Dashboard
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Help
 import androidx.compose.material.icons.rounded.GroupAdd
@@ -3140,7 +3145,7 @@ fun DropHereScreen(
 
             Box(modifier = Modifier.fillMaxSize()) {
                 if (isBusinessUser && currentHomeDestination == HomeDestination.Business) {
-                    BusinessHomeScreen(
+                    BusinessHomeDestination(
                         modifier = Modifier
                             .matchParentSize()
                             .padding(
@@ -3158,7 +3163,14 @@ fun DropHereScreen(
                             }
                         },
                         onUpdateBusinessProfile = { showBusinessOnboarding = true },
-                        onViewMyDrops = { openExplorerDestination(ExplorerDestination.MyDrops) }
+                        onViewMyDrops = { openExplorerDestination(ExplorerDestination.MyDrops) },
+                        onCreateDrop = {
+                            if (!canParticipate) {
+                                snackbar.showMessage(scope, participationRestriction("share drops"))
+                            } else {
+                                showDropComposer = true
+                            }
+                        }
                     )
                 } else {
                     Column(
@@ -4820,8 +4832,23 @@ private fun deriveBusinessHomeMetrics(
     )
 }
 
+private enum class BusinessDestination { Overview, Drops, Analytics, Profile }
+
+private data class BusinessNavigationItem(
+    val destination: BusinessDestination,
+    val icon: ImageVector,
+    val label: String
+)
+
+private data class BusinessKpiTile(
+    val title: String,
+    val icon: ImageVector,
+    val value: Int,
+    val subtitle: String
+)
+
 @Composable
-private fun BusinessHomeScreen(
+private fun BusinessHomeDestination(
     modifier: Modifier = Modifier,
     businessName: String?,
     businessCategories: List<BusinessCategory>,
@@ -4829,68 +4856,365 @@ private fun BusinessHomeScreen(
     onViewDashboard: () -> Unit,
     onUpdateBusinessProfile: () -> Unit,
     onViewMyDrops: () -> Unit,
+    onCreateDrop: () -> Unit,
 ) {
-    val activeDropCount = metrics.liveDropCount
-    val pendingReviewCount = metrics.pendingReviewCount
-    val unresolvedRedemptionCount = metrics.unresolvedRedemptionCount
-    val expiringOfferCount = metrics.expiringOfferCount
-    LazyColumn(
+    var selectedDestination by rememberSaveable { mutableStateOf(BusinessDestination.Overview) }
+    val navigationItems = remember {
+        listOf(
+            BusinessNavigationItem(BusinessDestination.Overview, Icons.Rounded.Dashboard, "Overview"),
+            BusinessNavigationItem(BusinessDestination.Drops, Icons.Rounded.Inbox, "Drops"),
+            BusinessNavigationItem(BusinessDestination.Analytics, Icons.Rounded.Lightbulb, "Analytics"),
+            BusinessNavigationItem(BusinessDestination.Profile, Icons.Rounded.Storefront, "Profile"),
+        )
+    }
+    val configuration = LocalConfiguration.current
+    val useNavRail = configuration.screenWidthDp >= 640
+
+    val onDestinationSelected: (BusinessDestination) -> Unit = { destination ->
+        when (destination) {
+            BusinessDestination.Overview -> selectedDestination = BusinessDestination.Overview
+            BusinessDestination.Drops -> onViewMyDrops()
+            BusinessDestination.Analytics -> onViewDashboard()
+            BusinessDestination.Profile -> onUpdateBusinessProfile()
+        }
+    }
+
+    Scaffold(
         modifier = modifier,
-        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 24.dp, bottom = 128.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp)
+        containerColor = MaterialTheme.colorScheme.background,
+        floatingActionButton = {
+            if (selectedDestination == BusinessDestination.Overview) {
+                ExtendedFloatingActionButton(
+                    text = { Text("Create a drop") },
+                    icon = { Icon(Icons.Rounded.AddCircle, contentDescription = null) },
+                    onClick = onCreateDrop
+                )
+            }
+        },
+        bottomBar = {
+            if (!useNavRail) {
+                BusinessNavigationBar(
+                    items = navigationItems,
+                    selectedDestination = selectedDestination,
+                    onDestinationSelected = onDestinationSelected
+                )
+            }
+        }
+    ) { innerPadding ->
+        Row(modifier = Modifier.fillMaxSize()) {
+            if (useNavRail) {
+                BusinessNavigationRail(
+                    items = navigationItems,
+                    selectedDestination = selectedDestination,
+                    onDestinationSelected = onDestinationSelected,
+                    modifier = Modifier.padding(top = innerPadding.calculateTopPadding())
+                )
+            }
+
+            BusinessOverviewContent(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(innerPadding),
+                businessName = businessName,
+                businessCategories = businessCategories,
+                metrics = metrics,
+                onCreateDrop = onCreateDrop,
+                onViewDashboard = onViewDashboard,
+                onUpdateBusinessProfile = onUpdateBusinessProfile,
+                onViewMyDrops = onViewMyDrops
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun BusinessOverviewContent(
+    modifier: Modifier = Modifier,
+    businessName: String?,
+    businessCategories: List<BusinessCategory>,
+    metrics: BusinessHomeMetrics,
+    onCreateDrop: () -> Unit,
+    onViewDashboard: () -> Unit,
+    onUpdateBusinessProfile: () -> Unit,
+    onViewMyDrops: () -> Unit
+) {
+    val kpiTiles = remember(metrics) {
+        listOf(
+            BusinessKpiTile("Live drops", Icons.Rounded.Place, metrics.liveDropCount, "Active offers nearby"),
+            BusinessKpiTile("Pending review", Icons.Rounded.Flag, metrics.pendingReviewCount, "Reports to review"),
+            BusinessKpiTile("Redemptions", Icons.Rounded.CheckCircle, metrics.unresolvedRedemptionCount, "Awaiting confirmation"),
+            BusinessKpiTile("Expiring soon", Icons.Rounded.Refresh, metrics.expiringOfferCount, "Time-sensitive"),
+        )
+    }
+
+    LazyVerticalGrid(
+        modifier = modifier.fillMaxSize(),
+        columns = GridCells.Adaptive(180.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 24.dp, bottom = 144.dp)
     ) {
-        item {
+        item(span = { GridItemSpan(maxLineSpan) }) {
             BusinessHeroCard(
                 businessName = businessName,
                 businessCategories = businessCategories
             )
         }
 
-        item { SectionHeader(text = "Manage drops") }
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            SectionHeader(text = "At a glance")
+        }
 
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                ActionCard(
+        items(kpiTiles) { tile ->
+            BusinessMetricCard(tile)
+        }
+
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            SectionHeader(text = "Operations")
+        }
+
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            BusinessActionSection(
+                metrics = metrics,
+                onCreateDrop = onCreateDrop,
+                onViewMyDrops = onViewMyDrops,
+                onUpdateBusinessProfile = onUpdateBusinessProfile
+            )
+        }
+
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            BusinessFulfillmentSection(
+                metrics = metrics,
+                onViewMyDrops = onViewMyDrops
+            )
+        }
+
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            SectionHeader(text = "Engagement & analytics")
+        }
+
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            BusinessAnalyticsSection(onViewDashboard = onViewDashboard)
+        }
+    }
+}
+
+@Composable
+private fun BusinessNavigationBar(
+    items: List<BusinessNavigationItem>,
+    selectedDestination: BusinessDestination,
+    onDestinationSelected: (BusinessDestination) -> Unit
+) {
+    NavigationBar {
+        items.forEach { item ->
+            NavigationBarItem(
+                selected = selectedDestination == item.destination,
+                onClick = { onDestinationSelected(item.destination) },
+                icon = { Icon(item.icon, contentDescription = item.label) },
+                label = { Text(item.label) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun BusinessNavigationRail(
+    items: List<BusinessNavigationItem>,
+    selectedDestination: BusinessDestination,
+    onDestinationSelected: (BusinessDestination) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    NavigationRail(modifier = modifier) {
+        items.forEach { item ->
+            NavigationRailItem(
+                selected = selectedDestination == item.destination,
+                onClick = { onDestinationSelected(item.destination) },
+                icon = { Icon(item.icon, contentDescription = item.label) },
+                label = { Text(item.label) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun BusinessMetricCard(tile: BusinessKpiTile) {
+    ElevatedCard {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Icon(tile.icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            Text(tile.title, style = MaterialTheme.typography.titleMedium)
+            Text(
+                text = tile.value.toString(),
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = tile.subtitle,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun BusinessActionSection(
+    metrics: BusinessHomeMetrics,
+    onCreateDrop: () -> Unit,
+    onViewMyDrops: () -> Unit,
+    onUpdateBusinessProfile: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        ElevatedCard {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                BusinessActionRow(
+                    icon = Icons.Rounded.AddCircle,
+                    title = "Create a drop",
+                    subtitle = "Launch a new offer or story",
+                    onClick = onCreateDrop
+                )
+                Divider()
+                BusinessActionRow(
                     icon = Icons.Rounded.Inbox,
-                    title = "Manage existing drops",
-                    description = "Review performance and make changes to the drops you've shared.",
-                    onClick = onViewMyDrops,
-                    trailingContent = {
-                        BusinessActionSummary(
-                            liveDropCount = activeDropCount,
-                            pendingReviewCount = pendingReviewCount,
-                            unresolvedRedemptionCount = unresolvedRedemptionCount,
-                            expiringOfferCount = expiringOfferCount
-                        )
-                    }
+                    title = "Manage drops",
+                    subtitle = "${metrics.liveDropCount} live • ${metrics.pendingReviewCount} flagged",
+                    onClick = onViewMyDrops
                 )
             }
         }
 
-        item { SectionHeader(text = "Insights & branding") }
-
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                ActionCard(
+        ElevatedCard {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                BusinessActionRow(
                     icon = Icons.Rounded.Storefront,
-                    title = "Business dashboard",
-                    description = "Track discoveries, redemptions, and engagement in one place.",
-                    onClick = onViewDashboard,
-                    trailingContent = {
-                        BusinessActionSummary(
-                            liveDropCount = activeDropCount,
-                            pendingReviewCount = pendingReviewCount,
-                            unresolvedRedemptionCount = unresolvedRedemptionCount,
-                            expiringOfferCount = expiringOfferCount
-                        )
-                    }
-                )
-
-                ActionCard(
-                    icon = Icons.Rounded.Edit,
-                    title = "Update business name",
-                    description = "Adjust how your brand appears across GeoDrop experiences.",
+                    title = "Update profile",
+                    subtitle = "Refresh brand details and categories",
                     onClick = onUpdateBusinessProfile
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun BusinessFulfillmentSection(
+    metrics: BusinessHomeMetrics,
+    onViewMyDrops: () -> Unit
+) {
+    ElevatedCard {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text("Queues & follow-ups", style = MaterialTheme.typography.titleMedium)
+            BusinessActionRow(
+                icon = Icons.Rounded.CheckCircle,
+                title = "Pending redemptions",
+                subtitle = "${metrics.unresolvedRedemptionCount} awaiting confirmation",
+                onClick = onViewMyDrops
+            )
+            BusinessActionRow(
+                icon = Icons.Rounded.Refresh,
+                title = "Expiring offers",
+                subtitle = "${metrics.expiringOfferCount} offers expiring soon",
+                onClick = onViewMyDrops
+            )
+        }
+    }
+}
+
+@Composable
+private fun BusinessAnalyticsSection(onViewDashboard: () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        BusinessChartPlaceholder(
+            title = "Performance over time",
+            description = "Chart your discoveries, pickups, and redemptions."
+        )
+        BusinessChartPlaceholder(
+            title = "Audience insights",
+            description = "Plug in upcoming analytics without reshaping the layout."
+        )
+        ElevatedCard {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Open business dashboard", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "See detailed charts, redemption histories, and heatmaps.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Button(onClick = onViewDashboard) {
+                    Icon(Icons.Rounded.Lightbulb, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("View dashboard")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BusinessActionRow(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(title, style = MaterialTheme.typography.titleMedium)
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Icon(Icons.Rounded.PlayArrow, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+    }
+}
+
+@Composable
+private fun BusinessChartPlaceholder(title: String, description: String) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 180.dp),
+        shape = RoundedCornerShape(16.dp),
+        tonalElevation = 2.dp,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Rounded.GraphicEq, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Text(title, style = MaterialTheme.typography.titleMedium)
+            }
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "Charts coming soon",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
