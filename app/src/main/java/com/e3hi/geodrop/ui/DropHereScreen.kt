@@ -4046,7 +4046,7 @@ private fun BusinessPlanStep(
     onDropTypeChange: (DropType) -> Unit,
     businessName: String?,
     businessCategories: List<BusinessCategory>,
-    templateSuggestions: List<DropTemplate>,
+    templateSuggestions: List<BusinessDropTemplate>,
     onDropContentTypeChange: (DropContentType) -> Unit,
     onNoteChange: (TextFieldValue) -> Unit,
     onDescriptionChange: (TextFieldValue) -> Unit
