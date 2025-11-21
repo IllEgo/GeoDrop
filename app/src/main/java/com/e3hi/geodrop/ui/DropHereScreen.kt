@@ -3976,7 +3976,14 @@ private fun GeneralContentStep(
     onClearAudio: () -> Unit,
     capturedVideoUri: String?,
     onRecordVideo: () -> Unit,
-    onClearVideo: () -> Unit
+    onClearVideo: () -> Unit,
+    previousStep: GeneralComposerStep?,
+    nextStep: GeneralComposerStep?,
+    canProceed: Boolean,
+    isSubmitting: Boolean,
+    onBack: (GeneralComposerStep) -> Unit,
+    onNext: (GeneralComposerStep) -> Unit,
+    onSubmit: () -> Unit
 ) {
     DropContentFormatSection(
         dropContentType = dropContentType,
@@ -4001,6 +4008,16 @@ private fun GeneralContentStep(
         capturedVideoUri = capturedVideoUri,
         onRecordVideo = onRecordVideo,
         onClearVideo = onClearVideo
+    )
+
+    GeneralComposerNavigation(
+        previousStep = previousStep,
+        nextStep = nextStep,
+        canProceed = canProceed,
+        isSubmitting = isSubmitting,
+        onBack = onBack,
+        onNext = onNext,
+        onSubmit = onSubmit
     )
 }
 
@@ -4102,7 +4119,14 @@ private fun BusinessContentStep(
     onClearAudio: () -> Unit,
     capturedVideoUri: String?,
     onRecordVideo: () -> Unit,
-    onClearVideo: () -> Unit
+    onClearVideo: () -> Unit,
+    previousStep: BusinessComposerStep?,
+    nextStep: BusinessComposerStep?,
+    canProceed: Boolean,
+    isSubmitting: Boolean,
+    onBack: (BusinessComposerStep) -> Unit,
+    onNext: (BusinessComposerStep) -> Unit,
+    onSubmit: () -> Unit
 ) {
     DropContentFormatSection(
         dropContentType = dropContentType,
@@ -4127,6 +4151,16 @@ private fun BusinessContentStep(
         capturedVideoUri = capturedVideoUri,
         onRecordVideo = onRecordVideo,
         onClearVideo = onClearVideo
+    )
+
+    BusinessComposerStepNavigation(
+        previousStep = previousStep,
+        nextStep = nextStep,
+        canProceed = canProceed,
+        isSubmitting = isSubmitting,
+        onBack = onBack,
+        onNext = onNext,
+        onSubmit = onSubmit
     )
 }
 
@@ -5372,6 +5406,10 @@ private fun DropComposerDialog(
                     BusinessComposerStep.REVIEW -> true
                 }
 
+                val currentIndex = availableSteps.indexOf(currentStep).coerceAtLeast(0)
+                val previousStep = availableSteps.getOrNull(currentIndex - 1)
+                val nextStep = availableSteps.getOrNull(currentIndex + 1)
+
                 BusinessComposerStepIndicator(
                     steps = availableSteps,
                     currentStep = currentStep,
@@ -5431,7 +5469,14 @@ private fun DropComposerDialog(
                             onClearAudio = onClearAudio,
                             capturedVideoUri = capturedVideoUri,
                             onRecordVideo = onRecordVideo,
-                            onClearVideo = onClearVideo
+                            onClearVideo = onClearVideo,
+                            previousStep = previousStep,
+                            nextStep = nextStep,
+                            canProceed = canProceed,
+                            isSubmitting = isSubmitting,
+                            onBack = { step -> currentStep = step },
+                            onNext = { step -> currentStep = step },
+                            onSubmit = onSubmit
                         )
 
                         BusinessComposerStep.OFFER -> BusinessOfferStep(
@@ -5469,19 +5514,17 @@ private fun DropComposerDialog(
                     }
                 }
 
-                val currentIndex = availableSteps.indexOf(currentStep).coerceAtLeast(0)
-                val previousStep = availableSteps.getOrNull(currentIndex - 1)
-                val nextStep = availableSteps.getOrNull(currentIndex + 1)
-
-                BusinessComposerStepNavigation(
-                    previousStep = previousStep,
-                    nextStep = nextStep,
-                    isSubmitting = isSubmitting,
-                    canProceed = canProceed,
-                    onBack = { step -> currentStep = step },
-                    onNext = { step -> currentStep = step },
-                    onSubmit = onSubmit
-                )
+                if (currentStep != BusinessComposerStep.CONTENT) {
+                    BusinessComposerStepNavigation(
+                        previousStep = previousStep,
+                        nextStep = nextStep,
+                        isSubmitting = isSubmitting,
+                        canProceed = canProceed,
+                        onBack = { step -> currentStep = step },
+                        onNext = { step -> currentStep = step },
+                        onSubmit = onSubmit
+                    )
+                }
             } else {
                 var currentStep by rememberSaveable { mutableStateOf(GeneralComposerStep.CONTENT) }
                 val steps = remember { GeneralComposerStep.entries.toList() }
@@ -5490,6 +5533,10 @@ private fun DropComposerDialog(
                     GeneralComposerStep.SETTINGS -> true
                     GeneralComposerStep.REVIEW -> true
                 }
+
+                val currentIndex = steps.indexOf(currentStep)
+                val previousStep = steps.getOrNull(currentIndex - 1)
+                val nextStep = steps.getOrNull(currentIndex + 1)
 
                 GeneralComposerStepIndicator(
                     steps = steps,
@@ -5539,7 +5586,14 @@ private fun DropComposerDialog(
                             onClearAudio = onClearAudio,
                             capturedVideoUri = capturedVideoUri,
                             onRecordVideo = onRecordVideo,
-                            onClearVideo = onClearVideo
+                            onClearVideo = onClearVideo,
+                            previousStep = previousStep,
+                            nextStep = nextStep,
+                            canProceed = canProceed,
+                            isSubmitting = isSubmitting,
+                            onBack = { step -> currentStep = step },
+                            onNext = { step -> currentStep = step },
+                            onSubmit = onSubmit
                         )
 
                         GeneralComposerStep.SETTINGS -> GeneralSettingsStep(
@@ -5572,19 +5626,17 @@ private fun DropComposerDialog(
                     }
                 }
 
-                val currentIndex = steps.indexOf(currentStep)
-                val previousStep = steps.getOrNull(currentIndex - 1)
-                val nextStep = steps.getOrNull(currentIndex + 1)
-
-                GeneralComposerNavigation(
-                    previousStep = previousStep,
-                    nextStep = nextStep,
-                    canProceed = canProceed,
-                    isSubmitting = isSubmitting,
-                    onBack = { step -> currentStep = step },
-                    onNext = { step -> currentStep = step },
-                    onSubmit = onSubmit
-                )
+                if (currentStep != GeneralComposerStep.CONTENT) {
+                    GeneralComposerNavigation(
+                        previousStep = previousStep,
+                        nextStep = nextStep,
+                        canProceed = canProceed,
+                        isSubmitting = isSubmitting,
+                        onBack = { step -> currentStep = step },
+                        onNext = { step -> currentStep = step },
+                        onSubmit = onSubmit
+                    )
+                }
             }
         }
     }
