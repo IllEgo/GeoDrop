@@ -5284,7 +5284,7 @@ private fun DropComposerDialog(
             }
         },
         sheetState = sheetState,
-        dragHandle = { SheetDefaults.DragHandle() },
+        dragHandle = { BottomSheetDefaults.DragHandle() },
         windowInsets = WindowInsets(0, 0, 0, 0)
     ) {
         LaunchedEffect(Unit) { sheetState.expand() }
