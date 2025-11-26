@@ -5658,7 +5658,7 @@ private fun DropComposerDialog(
 ) {
     val context = LocalContext.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val bottomNavHeightPx = with(LocalDensity.current) { 24.dp.roundToPx() }
+    val bottomNavHeightPx = with(LocalDensity.current) { 36.dp.roundToPx() }
     val contentIsValid = remember(dropContentType, note, capturedPhotoPath, capturedAudioUri, capturedVideoUri) {
         when (dropContentType) {
             DropContentType.TEXT -> note.text.isNotBlank()
