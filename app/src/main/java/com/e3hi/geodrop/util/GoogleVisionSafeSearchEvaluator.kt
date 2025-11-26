@@ -20,7 +20,7 @@ import java.net.URL
 class GoogleVisionSafeSearchEvaluator(
     private val apiKey: String,
     private val endpoint: String = "https://vision.googleapis.com/v1/images:annotate",
-    private val minimumLikelihood: Likelihood = Likelihood.LIKELY,
+    private val minimumLikelihood: Likelihood = Likelihood.VERY_LIKELY,
     private val requestTimeoutMs: Int = 10_000,
     private val safeSearchCallable: SafeSearchCallable? = null
 ) : DropSafetyEvaluator {
