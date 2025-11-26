@@ -5658,6 +5658,7 @@ private fun DropComposerDialog(
 ) {
     val context = LocalContext.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val bottomNavHeightPx = with(LocalDensity.current) { 56.dp.roundToPx() }
     val contentIsValid = remember(dropContentType, note, capturedPhotoPath, capturedAudioUri, capturedVideoUri) {
         when (dropContentType) {
             DropContentType.TEXT -> note.text.isNotBlank()
@@ -5675,7 +5676,7 @@ private fun DropComposerDialog(
         },
         sheetState = sheetState,
         dragHandle = { BottomSheetDefaults.DragHandle() },
-        windowInsets = WindowInsets(0, 0, 0, 0)
+        windowInsets = WindowInsets(0, 0, 0, bottomNavHeightPx)
     ) {
         LaunchedEffect(Unit) { sheetState.expand() }
 
