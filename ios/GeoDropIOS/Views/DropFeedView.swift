@@ -13,9 +13,9 @@ struct DropFeedView: View {
     )
     @State private var selectedDropID: Drop.ID?
     @State private var selectedSortOption: DropSortOption = .newest
-    @State private var mapHeightFraction: CGFloat = 0.45
-    @State private var dragStartFraction: CGFloat?
     @State private var shouldAnimateCamera = false
+    @State private var listPanelOffset: CGFloat = 0
+    @State private var listDragStartOffset: CGFloat?
     @State private var isRestrictionAlertPresented = false
     
     private static let defaultCoordinate = CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194)
@@ -70,46 +70,63 @@ struct DropFeedView: View {
     @ViewBuilder
     private func resizableLayout(for geometry: GeometryProxy) -> some View {
         let totalHeight = geometry.size.height
-        let minFraction: CGFloat = 0.25
-        let maxFraction: CGFloat = 0.8
-        let dividerHeight: CGFloat = 16
-        let clampedFraction = min(max(mapHeightFraction, minFraction), maxFraction)
-        let mapHeight = totalHeight * clampedFraction
-        let listHeight = max(totalHeight - mapHeight - dividerHeight, 0)
-        
-        let resizingAnimation = Animation.interactiveSpring(response: 0.25, dampingFraction: 0.85, blendDuration: 0.2)
+        let totalWidth = geometry.size.width
+        let maxPanelWidth: CGFloat = 360
+        let handleWidth: CGFloat = 44
+        let panelWidth = min(maxPanelWidth, totalWidth * 0.9)
+        let panelContentWidth = max(panelWidth - handleWidth, 0)
+        let collapsedOffset = panelContentWidth
+        let maxPanelHeight = totalHeight * 0.85
+        let minPanelHeight = min(totalHeight * 0.55, maxPanelHeight)
+        let panelHeight = max(minPanelHeight, min(maxPanelHeight, 520))
+        let visibleOffset = min(max(listPanelOffset, 0), collapsedOffset)
 
-        let drag = DragGesture(minimumDistance: 0)
+        let dragAnimation = Animation.interactiveSpring(response: 0.3, dampingFraction: 0.85, blendDuration: 0.15)
+
+        let drag = DragGesture(minimumDistance: 8)
             .onChanged { value in
-                if dragStartFraction == nil {
-                    dragStartFraction = clampedFraction
+                if listDragStartOffset == nil {
+                    listDragStartOffset = visibleOffset
                 }
-                let start = dragStartFraction ?? clampedFraction
-                let translationFraction = value.translation.height / totalHeight
-                let proposed = start + translationFraction
-                let updatedFraction = min(max(proposed, minFraction), maxFraction)
-                withAnimation(resizingAnimation) {
-                    mapHeightFraction = updatedFraction
-                }
+                let startOffset = listDragStartOffset ?? visibleOffset
+                let proposed = startOffset + value.translation.width
+                listPanelOffset = min(max(proposed, 0), collapsedOffset)
             }
             .onEnded { value in
-                let finalStart = dragStartFraction ?? clampedFraction
-                dragStartFraction = nil
-                let translationFraction = value.predictedEndTranslation.height / totalHeight
-                let proposed = finalStart + translationFraction
-                let finalFraction = min(max(proposed, minFraction), maxFraction)
-                withAnimation(resizingAnimation) {
-                    mapHeightFraction = finalFraction
+                let shouldExpand = listPanelOffset < collapsedOffset * 0.5 || value.predictedEndTranslation.width < -collapsedOffset * 0.15
+                withAnimation(dragAnimation) {
+                    listPanelOffset = shouldExpand ? 0 : collapsedOffset
                 }
+                listDragStartOffset = nil
             }
 
-        VStack(spacing: 0) {
-            mapSection(height: mapHeight)
+        ZStack(alignment: .topLeading) {
+            mapSection(height: totalHeight)
 
-            dividerSection(height: dividerHeight)
-                .gesture(drag)
-
-            listSection(height: listHeight)
+            VStack {
+                Spacer()
+                HStack {
+                    Spacer()
+                    sidePanel(
+                        width: panelWidth,
+                        height: panelHeight,
+                        contentWidth: panelContentWidth,
+                        handleWidth: handleWidth,
+                        collapsedOffset: collapsedOffset,
+                        offset: visibleOffset,
+                        drag: drag,
+                        animation: dragAnimation
+                    )
+                }
+                .padding(.horizontal, 12)
+                .padding(.bottom, 8)
+            }
+        }
+        .onAppear {
+            listPanelOffset = collapsedOffset
+        }
+        .onChange(of: panelContentWidth) { newValue in
+            listPanelOffset = min(listPanelOffset, newValue)
         }
     }
 
@@ -135,19 +152,46 @@ struct DropFeedView: View {
     }
 
     @ViewBuilder
-    private func dividerSection(height: CGFloat) -> some View {
-        ZStack {
-            geoDropTheme.colors.surface
-            Capsule()
-                .fill(geoDropTheme.colors.onSurfaceVariant.opacity(0.4))
-                .frame(width: 48, height: 6)
+    private func sidePanel(
+        width: CGFloat,
+        height: CGFloat,
+        contentWidth: CGFloat,
+        handleWidth: CGFloat,
+        collapsedOffset: CGFloat,
+        offset: CGFloat,
+        drag: some Gesture,
+        animation: Animation
+    ) -> some View {
+        let handleVisible = offset > 0
+        let handleLabel = handleVisible ? "Show drop list" : "Hide drop list"
+
+        ZStack(alignment: .topTrailing) {
+            RoundedRectangle(cornerRadius: 24)
+                .fill(geoDropTheme.colors.surface)
+                .frame(width: width, height: height)
+                .shadow(color: Color.black.opacity(0.08), radius: 16, x: 0, y: 8)
+                .overlay(
+                    HStack(spacing: 0) {
+                        panelContent
+                            .frame(width: contentWidth, height: height)
+                        handleView(isExpanded: !handleVisible, label: handleLabel)
+                            .frame(width: handleWidth, height: height)
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                withAnimation(animation) {
+                                    listPanelOffset = handleVisible ? 0 : collapsedOffset
+                                }
+                            }
+                    }
+                        .frame(width: width, height: height)
+                )
+                .offset(x: offset)
+                .animation(animation, value: offset)
+                .gesture(drag)
         }
-        .frame(height: height)
-        .contentShape(Rectangle())
     }
 
-    @ViewBuilder
-    private func listSection(height: CGFloat) -> some View {
+    private var panelContent: some View {
         Group {
             if viewModel.isAuthLoading && viewModel.drops.isEmpty {
                 loadingStateView
@@ -172,8 +216,25 @@ struct DropFeedView: View {
                 }
             }
         }
-        .frame(height: height)
-        .background(geoDropTheme.colors.surface)
+        .padding(.vertical, 12)
+    }
+
+    private func handleView(isExpanded: Bool, label: String) -> some View {
+        VStack(spacing: 8) {
+            Image(systemName: isExpanded ? "chevron.forward" : "chevron.backward")
+                .font(.system(size: 16, weight: .semibold))
+            Text(label)
+                .font(.system(size: 10, weight: .semibold))
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+        }
+        .foregroundColor(geoDropTheme.colors.onSurface)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(geoDropTheme.colors.surfaceVariant.opacity(0.8))
+        )
     }
     
     private var destinationTabs: some View {
