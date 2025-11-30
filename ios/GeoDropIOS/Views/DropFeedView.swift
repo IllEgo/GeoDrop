@@ -178,39 +178,39 @@ struct DropFeedView: View {
         let handleLabel = isExpanded ? "Hide drop list" : "Show drop list"
 
         ZStack(alignment: .leading) {
-            RoundedRectangle(cornerRadius: 24)
-                .fill(geoDropTheme.colors.surface)
-                .frame(width: width, height: height)
-                .shadow(color: Color.black.opacity(0.08), radius: 16, x: 0, y: 8)
-                .overlay(
-                    VStack(spacing: 0) {
-                        handleView(isExpanded: isExpanded, label: handleLabel)
-                            .frame(maxWidth: .infinity)
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                withAnimation(animation) {
-                                    listPanelOffset = isExpanded ? collapsedOffset : 0
+            if !isHidden {
+                RoundedRectangle(cornerRadius: 24)
+                    .fill(geoDropTheme.colors.surface)
+                    .frame(width: width, height: height)
+                    .shadow(color: Color.black.opacity(0.08), radius: 16, x: 0, y: 8)
+                    .overlay(
+                        VStack(spacing: 0) {
+                            handleView(isExpanded: isExpanded, label: handleLabel)
+                                .frame(maxWidth: .infinity)
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    withAnimation(animation) {
+                                        listPanelOffset = isExpanded ? collapsedOffset : 0
+                                    }
                                 }
                             }
                         
                         panelContent
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .padding(.top, safeAreaInsets.top + 8)
-                        .padding(.bottom, safeAreaInsets.bottom + 12)
-                        .padding(.horizontal, 12)
-                )
-                .gesture(drag)
-                .overlay(alignment: .leading) {
-                    resizeHandle
-                        .padding(.vertical, 24)
-                        .gesture(resize)
-                        .accessibilityLabel("Resize drop list")
-                }
-
-            
-            if isHidden {
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .padding(.top, safeAreaInsets.top + 8)
+                            .padding(.bottom, safeAreaInsets.bottom + 12)
+                            .padding(.horizontal, 12)
+                    )
+                    .gesture(drag)
+                    .overlay(alignment: .leading) {
+                        resizeHandle
+                            .padding(.vertical, 24)
+                            .gesture(resize)
+                            .accessibilityLabel("Resize drop list")
+                    }
+        } else {
                 VStack {
                     handleView(isExpanded: false, label: "Show drop list")
                         .contentShape(Rectangle())
