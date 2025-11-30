@@ -71,14 +71,11 @@ struct DropFeedView: View {
     private func resizableLayout(for geometry: GeometryProxy) -> some View {
         let totalHeight = geometry.size.height
         let totalWidth = geometry.size.width
-        let maxPanelWidth: CGFloat = 360
-        let handleWidth: CGFloat = 44
-        let panelWidth = min(maxPanelWidth, totalWidth * 0.9)
-        let panelContentWidth = max(panelWidth - handleWidth, 0)
-        let collapsedOffset = panelContentWidth
-        let maxPanelHeight = totalHeight * 0.85
+        let safeAreaInsets = geometry.safeAreaInsets
+        let maxPanelHeight = totalHeight * 0.9
         let minPanelHeight = min(totalHeight * 0.55, maxPanelHeight)
         let panelHeight = max(minPanelHeight, min(maxPanelHeight, 520))
+        let collapsedOffset = panelHeight + safeAreaInsets.bottom + 16
         let visibleOffset = min(max(listPanelOffset, 0), collapsedOffset)
 
         let dragAnimation = Animation.interactiveSpring(response: 0.3, dampingFraction: 0.85, blendDuration: 0.15)
@@ -89,11 +86,11 @@ struct DropFeedView: View {
                     listDragStartOffset = visibleOffset
                 }
                 let startOffset = listDragStartOffset ?? visibleOffset
-                let proposed = startOffset + value.translation.width
+                let proposed = startOffset + value.translation.height
                 listPanelOffset = min(max(proposed, 0), collapsedOffset)
             }
             .onEnded { value in
-                let shouldExpand = listPanelOffset < collapsedOffset * 0.5 || value.predictedEndTranslation.width < -collapsedOffset * 0.15
+                let shouldExpand = listPanelOffset < collapsedOffset * 0.5 || value.predictedEndTranslation.height < -collapsedOffset * 0.15
                 withAnimation(dragAnimation) {
                     listPanelOffset = shouldExpand ? 0 : collapsedOffset
                 }
@@ -105,27 +102,21 @@ struct DropFeedView: View {
 
             VStack {
                 Spacer()
-                HStack {
-                    Spacer()
-                    sidePanel(
-                        width: panelWidth,
-                        height: panelHeight,
-                        contentWidth: panelContentWidth,
-                        handleWidth: handleWidth,
-                        collapsedOffset: collapsedOffset,
-                        offset: visibleOffset,
-                        drag: drag,
-                        animation: dragAnimation
-                    )
-                }
-                .padding(.horizontal, 12)
-                .padding(.bottom, 8)
+                bottomPanel(
+                    width: totalWidth,
+                    height: panelHeight,
+                    collapsedOffset: collapsedOffset,
+                    offset: visibleOffset,
+                    drag: drag,
+                    animation: dragAnimation,
+                    safeAreaBottom: safeAreaInsets.bottom
+                )
             }
         }
         .onAppear {
             listPanelOffset = collapsedOffset
         }
-        .onChange(of: panelContentWidth) { newValue in
+        .onChange(of: collapsedOffset) { newValue in
             listPanelOffset = min(listPanelOffset, newValue)
         }
     }
@@ -152,42 +143,59 @@ struct DropFeedView: View {
     }
 
     @ViewBuilder
-    private func sidePanel(
+    private func bottomPanel(
         width: CGFloat,
         height: CGFloat,
-        contentWidth: CGFloat,
-        handleWidth: CGFloat,
         collapsedOffset: CGFloat,
         offset: CGFloat,
         drag: some Gesture,
-        animation: Animation
+        animation: Animation,
+        safeAreaBottom: CGFloat
     ) -> some View {
-        let handleVisible = offset > 0
-        let handleLabel = handleVisible ? "Show drop list" : "Hide drop list"
+        let isExpanded = offset < collapsedOffset * 0.5
+        let isHidden = offset >= collapsedOffset - 1
+        let handleLabel = isExpanded ? "Hide drop list" : "Show drop list"
 
-        ZStack(alignment: .topTrailing) {
+        ZStack(alignment: .bottom) {
             RoundedRectangle(cornerRadius: 24)
                 .fill(geoDropTheme.colors.surface)
                 .frame(width: width, height: height)
                 .shadow(color: Color.black.opacity(0.08), radius: 16, x: 0, y: 8)
                 .overlay(
-                    HStack(spacing: 0) {
-                        panelContent
-                            .frame(width: contentWidth, height: height)
-                        handleView(isExpanded: !handleVisible, label: handleLabel)
-                            .frame(width: handleWidth, height: height)
+                    VStack(spacing: 0) {
+                        handleView(isExpanded: isExpanded, label: handleLabel)
+                            .frame(maxWidth: .infinity)
                             .contentShape(Rectangle())
                             .onTapGesture {
                                 withAnimation(animation) {
-                                    listPanelOffset = handleVisible ? 0 : collapsedOffset
+                                    listPanelOffset = isExpanded ? collapsedOffset : 0
                                 }
                             }
+                        
+                        panelContent
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
-                        .frame(width: width, height: height)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .padding(.horizontal, 12)
                 )
-                .offset(x: offset)
+                .offset(y: offset)
                 .animation(animation, value: offset)
                 .gesture(drag)
+            
+            if isHidden {
+                HStack {
+                    Spacer()
+                    handleView(isExpanded: false, label: "Show drop list")
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            withAnimation(animation) {
+                                listPanelOffset = 0
+                            }
+                        }
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, safeAreaBottom + 16)
+            }
         }
     }
 
@@ -220,20 +228,25 @@ struct DropFeedView: View {
     }
 
     private func handleView(isExpanded: Bool, label: String) -> some View {
-        VStack(spacing: 8) {
-            Image(systemName: isExpanded ? "chevron.forward" : "chevron.backward")
-                .font(.system(size: 16, weight: .semibold))
-            Text(label)
-                .font(.system(size: 10, weight: .semibold))
-                .multilineTextAlignment(.center)
-                .lineLimit(2)
+        VStack(spacing: 6) {
+            Capsule()
+                .fill(geoDropTheme.colors.onSurface.opacity(0.25))
+                .frame(width: 44, height: 6)
+            HStack(spacing: 6) {
+                Image(systemName: isExpanded ? "chevron.down" : "chevron.up")
+                    .font(.system(size: 16, weight: .semibold))
+                Text(label)
+                    .font(.system(size: 10, weight: .semibold))
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+            }
         }
         .foregroundColor(geoDropTheme.colors.onSurface)
-        .padding(.horizontal, 8)
+        .padding(.horizontal, 12)
         .padding(.vertical, 12)
         .background(
             RoundedRectangle(cornerRadius: 16)
-                .fill(geoDropTheme.colors.surfaceVariant.opacity(0.8))
+                .fill(geoDropTheme.colors.surfaceVariant.opacity(0.9))
         )
     }
     
