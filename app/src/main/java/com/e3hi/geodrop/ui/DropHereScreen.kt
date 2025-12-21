@@ -6118,9 +6118,9 @@ private fun DropIdeaCard(
     ElevatedCard(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 160.dp),
+            .heightIn(min = 160.dp)
+            .clickable(onClick = onClick),
         shape = MaterialTheme.shapes.large,
-        onClick = onClick,
         border = border
     ) {
         Column(
