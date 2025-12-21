@@ -6113,15 +6113,22 @@ private fun DropIdeaCard(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
-    val border = if (isSelected) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null
+    val shape = MaterialTheme.shapes.large
+    val cardModifier = Modifier
+        .fillMaxWidth()
+        .heightIn(min = 160.dp)
+        .clickable(onClick = onClick)
+        .then(
+            if (isSelected) {
+                Modifier.border(BorderStroke(2.dp, MaterialTheme.colorScheme.primary), shape)
+            } else {
+                Modifier
+            }
+        )
 
     ElevatedCard(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = 160.dp)
-            .clickable(onClick = onClick),
-        shape = MaterialTheme.shapes.large,
-        border = border
+        modifier = cardModifier,
+        shape = shape
     ) {
         Column(
             modifier = Modifier
