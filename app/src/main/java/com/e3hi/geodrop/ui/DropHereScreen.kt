@@ -193,6 +193,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.mergeDescendants
 import androidx.compose.ui.semantics.stateDescription
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -5688,9 +5689,14 @@ private fun DropComposerDialog(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .verticalScroll(scrollState),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            val selectedDropIdea = remember(selectedDropIdeaId) {
+                dropIdeaCards.firstOrNull { it.id == selectedDropIdeaId } ?: dropIdeaCards.first()
+            }
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -5728,6 +5734,11 @@ private fun DropComposerDialog(
                         onDescriptionChange(TextFieldValue(idea.suggestedDescription))
                     }
                 }
+            )
+
+            DropIdeaTaskList(
+                idea = selectedDropIdea,
+                modifier = Modifier.fillMaxWidth()
             )
 
             if (userProfileLoading) {
@@ -6085,6 +6096,50 @@ private fun DropIdeaCarousel(
                     scope.launch { pagerState.animateScrollToPage(page) }
                 }
             )
+        }
+    }
+}
+
+@Composable
+private fun DropIdeaTaskList(idea: DropIdeaCardData, modifier: Modifier = Modifier) {
+    ElevatedCard(
+        modifier = modifier,
+        shape = MaterialTheme.shapes.medium
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = "Steps for ${'$'}{idea.title}",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+
+            idea.tasks.forEachIndexed { index, task ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .semantics(mergeDescendants = true) {
+                            contentDescription = "Task ${'$'}{index + 1}: ${'$'}task"
+                        },
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Check,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = task,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
         }
     }
 }
@@ -12337,6 +12392,7 @@ private data class DropIdeaCardData(
     val recommendedContentType: DropContentType,
     val suggestedNote: String,
     val suggestedDescription: String?,
+    val tasks: List<String>,
     val icon: ImageVector
 )
 
@@ -12348,6 +12404,12 @@ private val dropIdeaCards = listOf(
         recommendedContentType = DropContentType.TEXT,
         suggestedNote = "Share a favorite memory tied to this spot.",
         suggestedDescription = "What should future explorers feel or notice here?",
+        tasks = listOf(
+            "Pick a moment tied to this spot that others can picture.",
+            "Add a quick title that hints at the memory.",
+            "Describe what happened and why it matters to you.",
+            "Suggest what future explorers should look, listen, or feel for."
+        ),
         icon = Icons.Rounded.AutoAwesome
     ),
     DropIdeaCardData(
@@ -12357,6 +12419,12 @@ private val dropIdeaCards = listOf(
         recommendedContentType = DropContentType.TEXT,
         suggestedNote = "Drop your first clue here to start the hunt.",
         suggestedDescription = "Add a hint about where to head next.",
+        tasks = listOf(
+            "Start with a clue that connects to the current location.",
+            "Give a hint or riddle that points to the next spot.",
+            "Note any items or codes explorers should collect.",
+            "Remind them to stay safe and respect the surroundings."
+        ),
         icon = Icons.Rounded.Flag
     ),
     DropIdeaCardData(
@@ -12366,6 +12434,12 @@ private val dropIdeaCards = listOf(
         recommendedContentType = DropContentType.AUDIO,
         suggestedNote = "Record a quick message for someone to discover down the road.",
         suggestedDescription = "Tell them when to open it or why it's meaningful.",
+        tasks = listOf(
+            "Record a short message for someone to open later.",
+            "Mention when or why it should be listened to or read.",
+            "Share why this location is meaningful for the capsule.",
+            "Add a hint about what you hope they’ll think about when they open it."
+        ),
         icon = Icons.Rounded.AccessTime
     ),
     DropIdeaCardData(
@@ -12375,6 +12449,12 @@ private val dropIdeaCards = listOf(
         recommendedContentType = DropContentType.PHOTO,
         suggestedNote = "Drop your must-see tip for this area.",
         suggestedDescription = "Explain what makes it special or how to find it.",
+        tasks = listOf(
+            "Name the nearby place, dish, or view you recommend.",
+            "Share directions or landmarks to find it quickly.",
+            "Explain what makes it special or when it’s best to visit.",
+            "Add a photo or tip that helps them enjoy it like a local."
+        ),
         icon = Icons.Rounded.Lightbulb
     )
 )
