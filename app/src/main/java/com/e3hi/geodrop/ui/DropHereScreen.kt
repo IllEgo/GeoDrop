@@ -11309,7 +11309,7 @@ private fun DropAudioPlayer(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 private fun DropContentTypeSection(
     selected: DropContentType,
@@ -11320,26 +11320,26 @@ private fun DropContentTypeSection(
         listOf(
             DropContentTypeOption(
                 type = DropContentType.TEXT,
-                title = "Text",
-                description = "Share a written message for people nearby.",
-                icon = Icons.Rounded.Edit
+                title = "Leave a memory",
+                description = "Drop a heartfelt note, story, or hint for others to discover.",
+                icon = Icons.Rounded.Bookmark
             ),
             DropContentTypeOption(
                 type = DropContentType.PHOTO,
-                title = "Photo",
-                description = "Capture a photo with your camera that others can open.",
+                title = "Share the view",
+                description = "Snap a photo so explorers can see what you see.",
                 icon = Icons.Rounded.PhotoCamera
             ),
             DropContentTypeOption(
                 type = DropContentType.VIDEO,
-                title = "Video",
-                description = "Record a short clip for nearby explorers to watch.",
-                icon = Icons.Rounded.Videocam
+                title = "Start a scavenger hunt",
+                description = "Record a video clue or walkthrough for an adventure.",
+                icon = Icons.Rounded.Flag
             ),
             DropContentTypeOption(
                 type = DropContentType.AUDIO,
-                title = "Audio",
-                description = "Record a quick voice message for nearby explorers.",
+                title = "Drop a voice note",
+                description = "Share a quick message, memory, or greeting in your own voice.",
                 icon = Icons.Rounded.Mic
             )
         )
@@ -11353,29 +11353,84 @@ private fun DropContentTypeSection(
             Text("Drop content", style = MaterialTheme.typography.titleSmall)
         }
 
-        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-            options.forEachIndexed { index, option ->
-                SegmentedButton(
-                    shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
-                    onClick = { onSelect(option.type) },
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            maxItemsInEachRow = 2
+        ) {
+            options.forEach { option ->
+                DropContentTypeCard(
+                    option = option,
                     selected = option.type == selected,
-                    label = { Text(option.title) },
-                    icon = {
-                        Icon(
-                            imageVector = option.icon,
-                            contentDescription = null
-                        )
-                    }
+                    onSelect = onSelect
                 )
             }
         }
+    }
+}
 
-        Crossfade(targetState = selected, label = "dropContentDescription") { type ->
-            val message = options.firstOrNull { it.type == type }?.description ?: ""
+@Composable
+private fun DropContentTypeCard(
+    option: DropContentTypeOption,
+    selected: Boolean,
+    onSelect: (DropContentType) -> Unit
+) {
+    val cardColors = explorerDropCardColors(isSelected = selected)
+    val borderColor = if (selected) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+    }
+
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = cardColors.container,
+        contentColor = cardColors.content,
+        tonalElevation = if (selected) 6.dp else 0.dp,
+        border = BorderStroke(width = if (selected) 2.dp else 1.dp, color = borderColor),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onSelect(option.type) }
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .background(
+                        color = if (selected) {
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.08f)
+                        },
+                        shape = CircleShape
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = option.icon,
+                    contentDescription = null,
+                    tint = if (selected) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        cardColors.supporting
+                    }
+                )
+            }
+
             Text(
-                text = message,
+                text = option.title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = option.description,
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = cardColors.supporting
             )
         }
     }
