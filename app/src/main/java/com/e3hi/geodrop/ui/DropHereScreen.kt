@@ -5682,7 +5682,7 @@ private fun DropComposerDialog(
         dragHandle = { BottomSheetDefaults.DragHandle() },
         windowInsets = WindowInsets(0, 0, 0, bottomNavHeightPx)
     ) {
-        LaunchedEffect(Unit) { sheetState.expand() }
+        LaunchedEffect(Unit) { sheetState.show() }
 
         val scrollState = rememberScrollState()
         Column(
