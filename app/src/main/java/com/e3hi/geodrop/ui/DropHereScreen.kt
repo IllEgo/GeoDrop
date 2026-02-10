@@ -5673,7 +5673,7 @@ private fun DropComposerDialog(
     dropType: DropType,
     onDropTypeChange: (DropType) -> Unit,
     dropExperienceType: DropExperienceType,
-    onDropExperienceTypeChange: (DropExperienceType) -> Unit,v
+    onDropExperienceTypeChange: (DropExperienceType) -> Unit,
     dropContentType: DropContentType,
     onDropContentTypeChange: (DropContentType) -> Unit,
     note: TextFieldValue,
