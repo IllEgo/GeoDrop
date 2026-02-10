@@ -205,6 +205,7 @@ import com.e3hi.geodrop.data.CollectedNote
 import com.e3hi.geodrop.data.BusinessDropTemplate
 import com.e3hi.geodrop.data.Drop
 import com.e3hi.geodrop.data.DropContentType
+import com.e3hi.geodrop.data.DropExperienceType
 import com.e3hi.geodrop.data.GroupMembership
 import com.e3hi.geodrop.data.GroupAlreadyExistsException
 import com.e3hi.geodrop.data.GroupNotFoundException
