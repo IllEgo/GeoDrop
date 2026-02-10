@@ -1014,7 +1014,9 @@ fun DropHereScreen(
     var dropContentType by remember { mutableStateOf(DropContentType.TEXT) }
     var dropType by remember { mutableStateOf(DropType.COMMUNITY) }
     var dropExperienceType: DropExperienceType by rememberSaveable {
-        mutableStateOf(dropExperienceTypeOptions.first().type)
+        mutableStateOf(
+            dropExperienceTypeOptions.firstOrNull()?.type ?: DropExperienceType.MEMORY_DROP
+        )
     }
     var note by remember { mutableStateOf(TextFieldValue("")) }
     var description by remember { mutableStateOf(TextFieldValue("")) }
@@ -5740,19 +5742,36 @@ private fun DropComposerDialog(
     }
     val selectedExperience = remember(dropExperienceType, availableExperienceTypes) {
         availableExperienceTypes.firstOrNull { it.type == dropExperienceType }
-            ?: availableExperienceTypes.first()
+            ?: availableExperienceTypes.firstOrNull()
     }
     LaunchedEffect(availableExperienceTypes) {
         if (availableExperienceTypes.none { it.type == dropExperienceType }) {
-            val fallback = availableExperienceTypes.first()
+            val fallback = availableExperienceTypes.firstOrNull() ?: return@LaunchedEffect
             onDropExperienceTypeChange(fallback.type)
             onDropContentTypeChange(fallback.recommendedContentType)
         }
     }
     LaunchedEffect(selectedExperience, dropContentType) {
-        if (!selectedExperience.allowedContentTypes.contains(dropContentType)) {
-            onDropContentTypeChange(selectedExperience.recommendedContentType)
+        val activeExperience = selectedExperience ?: return@LaunchedEffect
+        if (!activeExperience.allowedContentTypes.contains(dropContentType)) {
+            onDropContentTypeChange(activeExperience.recommendedContentType)
         }
+    }
+
+    if (selectedExperience == null) {
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text("Can't create a drop right now") },
+            text = {
+                Text("Drop templates are unavailable at the moment. Please try again in a bit.")
+            },
+            confirmButton = {
+                TextButton(onClick = onDismiss) {
+                    Text("Close")
+                }
+            }
+        )
+        return
     }
 
     ModalBottomSheet(
