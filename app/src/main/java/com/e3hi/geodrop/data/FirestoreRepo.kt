@@ -1137,6 +1137,7 @@ class FirestoreRepo(
             "deletedAt" to null,
             "groupCode" to sanitized.groupCode?.takeIf { it.isNotBlank() },
             "dropType" to sanitized.dropType.name,
+            "experienceType" to sanitized.experienceType.name,
             "businessId" to sanitized.businessId,
             "businessName" to sanitized.businessName,
             "contentType" to sanitized.contentType.name,
@@ -1219,6 +1220,7 @@ class FirestoreRepo(
                 else -> null
             },
             dropType = DropType.fromRaw(getString("dropType")),
+            experienceType = DropExperienceType.fromRaw(getString("experienceType")),
             businessId = getString("businessId")?.takeIf { it.isNotBlank() },
             businessName = getString("businessName")?.takeIf { it.isNotBlank() },
             redemptionLimit = when (val raw = get("redemptionLimit")) {
@@ -1251,6 +1253,7 @@ class FirestoreRepo(
             "contentType" to contentType.name,
             "collectedAt" to collectedAt,
             "dropType" to dropType.name,
+            "experienceType" to experienceType.name,
             "redemptionCount" to redemptionCount,
             "isRedeemed" to isRedeemed,
             "likeCount" to likeCount,

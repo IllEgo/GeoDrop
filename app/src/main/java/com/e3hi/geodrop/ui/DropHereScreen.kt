@@ -998,6 +998,9 @@ fun DropHereScreen(
     var dropAnonymously by remember { mutableStateOf(false) }
     var dropContentType by remember { mutableStateOf(DropContentType.TEXT) }
     var dropType by remember { mutableStateOf(DropType.COMMUNITY) }
+    var dropExperienceType by rememberSaveable {
+        mutableStateOf(dropExperienceTypeOptions.first().type)
+    }
     var note by remember { mutableStateOf(TextFieldValue("")) }
     var description by remember { mutableStateOf(TextFieldValue("")) }
     var capturedPhotoPath by rememberSaveable { mutableStateOf<String?>(null) }
@@ -1879,6 +1882,7 @@ fun DropHereScreen(
             groupCode = groupCode,
             dropType = dropType,
             businessId = if (dropType != DropType.COMMUNITY) uid else null,
+            experienceType = dropExperienceType,
             businessName = if (dropType != DropType.COMMUNITY) userProfile?.businessName else null,
             contentType = contentType,
             mediaUrl = sanitizedMedia,
@@ -3456,6 +3460,8 @@ fun DropHereScreen(
                 userProfileError = userProfileError,
                 dropType = dropType,
                 onDropTypeChange = { dropType = it },
+                dropExperienceType = dropExperienceType,
+                onDropExperienceTypeChange = { dropExperienceType = it },
                 dropContentType = dropContentType,
                 onDropContentTypeChange = { dropContentType = it },
                 note = note,
@@ -3975,7 +3981,8 @@ private fun TermsAcceptanceScreen(
 }
 
 @Composable
-private fun GeneralContentStep(
+private fun GeneralConfigureStep(
+    option: DropExperienceTypeOption,
     dropContentType: DropContentType,
     onDropContentTypeChange: (DropContentType) -> Unit,
     note: TextFieldValue,
@@ -3992,52 +3999,6 @@ private fun GeneralContentStep(
     capturedVideoUri: String?,
     onRecordVideo: () -> Unit,
     onClearVideo: () -> Unit,
-    previousStep: GeneralComposerStep?,
-    nextStep: GeneralComposerStep?,
-    canProceed: Boolean,
-    isSubmitting: Boolean,
-    onBack: (GeneralComposerStep) -> Unit,
-    onNext: (GeneralComposerStep) -> Unit,
-    onSubmit: () -> Unit
-) {
-    DropContentFormatSection(
-        dropContentType = dropContentType,
-        onDropContentTypeChange = onDropContentTypeChange
-    )
-    DropNoteAndDescriptionSection(
-        dropContentType = dropContentType,
-        note = note,
-        onNoteChange = onNoteChange,
-        description = description,
-        onDescriptionChange = onDescriptionChange
-    )
-    DropMediaAttachmentsSection(
-        context = context,
-        dropContentType = dropContentType,
-        capturedPhotoPath = capturedPhotoPath,
-        onCapturePhoto = onCapturePhoto,
-        onClearPhoto = onClearPhoto,
-        capturedAudioUri = capturedAudioUri,
-        onRecordAudio = onRecordAudio,
-        onClearAudio = onClearAudio,
-        capturedVideoUri = capturedVideoUri,
-        onRecordVideo = onRecordVideo,
-        onClearVideo = onClearVideo
-    )
-
-    GeneralComposerNavigation(
-        previousStep = previousStep,
-        nextStep = nextStep,
-        canProceed = canProceed,
-        isSubmitting = isSubmitting,
-        onBack = onBack,
-        onNext = onNext,
-        onSubmit = onSubmit
-    )
-}
-
-@Composable
-private fun GeneralSettingsStep(
     decayDaysInput: TextFieldValue,
     onDecayDaysChange: (TextFieldValue) -> Unit,
     dropAnonymously: Boolean,
@@ -4057,6 +4018,71 @@ private fun GeneralSettingsStep(
     onNext: (GeneralComposerStep) -> Unit,
     onSubmit: () -> Unit
 ) {
+    DropComposerSection(
+        title = option.title,
+        description = option.description,
+        leadingIcon = option.icon
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                text = option.subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            val formatLabel = option.allowedContentTypes.joinToString { type ->
+                type.name.lowercase().replaceFirstChar { it.uppercase() }
+            }
+            Text(
+                text = "Supported formats: $formatLabel",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+
+    if (option.allowedContentTypes.size > 1) {
+        DropContentFormatSection(
+            dropContentType = dropContentType,
+            onDropContentTypeChange = onDropContentTypeChange,
+            allowedTypes = option.allowedContentTypes
+        )
+    } else {
+        DropComposerSection(
+            title = "Content format",
+            description = "This drop type uses a dedicated format.",
+            leadingIcon = Icons.Rounded.Edit
+        ) {
+            Text(
+                text = "Format: ${dropContentType.name.lowercase().replaceFirstChar { it.uppercase() }}",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+    }
+
+    DropExperienceFieldsSection(
+        option = option,
+        dropContentType = dropContentType,
+        note = note,
+        onNoteChange = onNoteChange,
+        description = description,
+        onDescriptionChange = onDescriptionChange
+    )
+
+    DropMediaAttachmentsSection(
+        context = context,
+        dropContentType = dropContentType,
+        capturedPhotoPath = capturedPhotoPath,
+        onCapturePhoto = onCapturePhoto,
+        onClearPhoto = onClearPhoto,
+        capturedAudioUri = capturedAudioUri,
+        onRecordAudio = onRecordAudio,
+        onClearAudio = onClearAudio,
+        capturedVideoUri = capturedVideoUri,
+        onRecordVideo = onRecordVideo,
+        onClearVideo = onClearVideo
+    )
+
     DropAutoDeleteSection(
         decayDaysInput = decayDaysInput,
         onDecayDaysChange = onDecayDaysChange
@@ -4090,6 +4116,9 @@ private fun GeneralSettingsStep(
 
 @Composable
 private fun BusinessPlanStep(
+    experienceOptions: List<DropExperienceTypeOption>,
+    selectedExperienceType: DropExperienceType,
+    onSelectExperience: (DropExperienceTypeOption) -> Unit,
     dropType: DropType,
     onDropTypeChange: (DropType) -> Unit,
     businessName: String?,
@@ -4099,6 +4128,12 @@ private fun BusinessPlanStep(
     onNoteChange: (TextFieldValue) -> Unit,
     onDescriptionChange: (TextFieldValue) -> Unit
 ) {
+    DropExperienceTypeSelectionSection(
+        options = experienceOptions,
+        selectedType = selectedExperienceType,
+        onSelect = onSelectExperience
+    )
+
     DropComposerSection(
         title = "Business goal",
         description = "Choose the purpose for this drop. Options are tailored to your business categories.",
@@ -4264,6 +4299,7 @@ private fun BusinessSettingsStep(
 
 @Composable
 private fun DropReviewStep(
+    dropExperienceType: DropExperienceType,
     dropContentType: DropContentType,
     note: TextFieldValue,
     description: TextFieldValue,
@@ -4281,6 +4317,16 @@ private fun DropReviewStep(
         leadingIcon = Icons.Rounded.Visibility
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (dropExperienceType != DropExperienceType.UNSPECIFIED) {
+                val typeLabel = dropExperienceTypeOptions.firstOrNull { it.type == dropExperienceType }?.title
+                    ?: dropExperienceType.name.lowercase().replace("_", " ")
+                        .replaceFirstChar { it.uppercase() }
+                Text(
+                    text = "Drop type: $typeLabel",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
             Text(
                 text = "Format: ${dropContentType.name.lowercase().replaceFirstChar { it.uppercase() }}",
                 style = MaterialTheme.typography.bodyMedium,
@@ -5626,6 +5672,8 @@ private fun DropComposerDialog(
     userProfileError: String?,
     dropType: DropType,
     onDropTypeChange: (DropType) -> Unit,
+    dropExperienceType: DropExperienceType,
+    onDropExperienceTypeChange: (DropExperienceType) -> Unit,v
     dropContentType: DropContentType,
     onDropContentTypeChange: (DropContentType) -> Unit,
     note: TextFieldValue,
@@ -5670,7 +5718,27 @@ private fun DropComposerDialog(
             DropContentType.VIDEO -> capturedVideoUri != null
         }
     }
-    var selectedDropIdeaId by rememberSaveable { mutableStateOf(dropIdeaCards.first().id) }
+    val availableExperienceTypes = remember(isBusinessUser) {
+        dropExperienceTypeOptions.filter { option ->
+            !option.requiresBusiness || isBusinessUser
+        }
+    }
+    val selectedExperience = remember(dropExperienceType, availableExperienceTypes) {
+        availableExperienceTypes.firstOrNull { it.type == dropExperienceType }
+            ?: availableExperienceTypes.first()
+    }
+    LaunchedEffect(availableExperienceTypes) {
+        if (availableExperienceTypes.none { it.type == dropExperienceType }) {
+            val fallback = availableExperienceTypes.first()
+            onDropExperienceTypeChange(fallback.type)
+            onDropContentTypeChange(fallback.recommendedContentType)
+        }
+    }
+    LaunchedEffect(selectedExperience, dropContentType) {
+        if (!selectedExperience.allowedContentTypes.contains(dropContentType)) {
+            onDropContentTypeChange(selectedExperience.recommendedContentType)
+        }
+    }
 
     ModalBottomSheet(
         onDismissRequest = {
@@ -5692,10 +5760,6 @@ private fun DropComposerDialog(
                 .verticalScroll(scrollState),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            val selectedDropIdea = remember(selectedDropIdeaId) {
-                dropIdeaCards.firstOrNull { it.id == selectedDropIdeaId } ?: dropIdeaCards.first()
-            }
-
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -5718,27 +5782,6 @@ private fun DropComposerDialog(
                     Text("Close")
                 }
             }
-
-            DropIdeaCarousel(
-                selectedId = selectedDropIdeaId,
-                onSelect = { idea ->
-                    selectedDropIdeaId = idea.id
-                    if (dropContentType != idea.recommendedContentType) {
-                        onDropContentTypeChange(idea.recommendedContentType)
-                    }
-                    if (note.text.isBlank() && idea.suggestedNote.isNotBlank()) {
-                        onNoteChange(TextFieldValue(idea.suggestedNote))
-                    }
-                    if (description.text.isBlank() && !idea.suggestedDescription.isNullOrBlank()) {
-                        onDescriptionChange(TextFieldValue(idea.suggestedDescription))
-                    }
-                }
-            )
-
-            DropIdeaTaskList(
-                idea = selectedDropIdea,
-                modifier = Modifier.fillMaxWidth()
-            )
 
             if (userProfileLoading) {
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
@@ -5830,6 +5873,21 @@ private fun DropComposerDialog(
                 ) {
                     when (currentStep) {
                         BusinessComposerStep.PLAN -> BusinessPlanStep(
+                            experienceOptions = availableExperienceTypes,
+                            selectedExperienceType = selectedExperience.type,
+                            onSelectExperience = { option ->
+                                onDropExperienceTypeChange(option.type)
+                                if (dropContentType != option.recommendedContentType) {
+                                    onDropContentTypeChange(option.recommendedContentType)
+                                }
+                                option.dropTypeOverride?.let { onDropTypeChange(it) }
+                                if (note.text.isBlank() && option.suggestedNote.isNotBlank()) {
+                                    onNoteChange(TextFieldValue(option.suggestedNote))
+                                }
+                                if (description.text.isBlank() && !option.suggestedDescription.isNullOrBlank()) {
+                                    onDescriptionChange(TextFieldValue(option.suggestedDescription))
+                                }
+                            },
                             dropType = dropType,
                             onDropTypeChange = onDropTypeChange,
                             businessName = businessName,
@@ -5893,6 +5951,7 @@ private fun DropComposerDialog(
                         )
 
                         BusinessComposerStep.REVIEW -> DropReviewStep(
+                            dropExperienceType = dropExperienceType,
                             dropContentType = dropContentType,
                             note = note,
                             description = description,
@@ -5918,11 +5977,11 @@ private fun DropComposerDialog(
                     }
                 }
             } else {
-                var currentStep by rememberSaveable { mutableStateOf(GeneralComposerStep.CONTENT) }
+                var currentStep by rememberSaveable { mutableStateOf(GeneralComposerStep.TYPE) }
                 val steps = remember { GeneralComposerStep.entries.toList() }
                 val canProceed = when (currentStep) {
-                    GeneralComposerStep.CONTENT -> contentIsValid
-                    GeneralComposerStep.SETTINGS -> true
+                    GeneralComposerStep.TYPE -> true
+                    GeneralComposerStep.CONFIGURE -> contentIsValid
                     GeneralComposerStep.REVIEW -> true
                 }
 
@@ -5962,7 +6021,32 @@ private fun DropComposerDialog(
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     when (currentStep) {
-                        GeneralComposerStep.CONTENT -> GeneralContentStep(
+                        GeneralComposerStep.TYPE -> GeneralTypeStep(
+                            options = availableExperienceTypes,
+                            selectedType = selectedExperience.type,
+                            onSelect = { option ->
+                                onDropExperienceTypeChange(option.type)
+                                if (dropContentType != option.recommendedContentType) {
+                                    onDropContentTypeChange(option.recommendedContentType)
+                                }
+                                option.dropTypeOverride?.let { onDropTypeChange(it) }
+                                if (note.text.isBlank() && option.suggestedNote.isNotBlank()) {
+                                    onNoteChange(TextFieldValue(option.suggestedNote))
+                                }
+                                if (description.text.isBlank() && !option.suggestedDescription.isNullOrBlank()) {
+                                    onDescriptionChange(TextFieldValue(option.suggestedDescription))
+                                }
+                            },
+                            previousStep = previousStep,
+                            nextStep = nextStep,
+                            isSubmitting = isSubmitting,
+                            onBack = { step -> currentStep = step },
+                            onNext = { step -> currentStep = step },
+                            onSubmit = onSubmit
+                        )
+
+                        GeneralComposerStep.CONFIGURE -> GeneralConfigureStep(
+                            option = selectedExperience,
                             dropContentType = dropContentType,
                             onDropContentTypeChange = onDropContentTypeChange,
                             note = note,
@@ -5979,16 +6063,6 @@ private fun DropComposerDialog(
                             capturedVideoUri = capturedVideoUri,
                             onRecordVideo = onRecordVideo,
                             onClearVideo = onClearVideo,
-                            previousStep = previousStep,
-                            nextStep = nextStep,
-                            canProceed = canProceed,
-                            isSubmitting = isSubmitting,
-                            onBack = { step -> currentStep = step },
-                            onNext = { step -> currentStep = step },
-                            onSubmit = onSubmit
-                        )
-
-                        GeneralComposerStep.SETTINGS -> GeneralSettingsStep(
                             decayDaysInput = decayDaysInput,
                             onDecayDaysChange = onDecayDaysChange,
                             dropAnonymously = dropAnonymously,
@@ -6010,6 +6084,7 @@ private fun DropComposerDialog(
                         )
 
                         GeneralComposerStep.REVIEW -> DropReviewStep(
+                            dropExperienceType = selectedExperience.type,
                             dropContentType = dropContentType,
                             note = note,
                             description = description,
@@ -6022,7 +6097,7 @@ private fun DropComposerDialog(
                             redemptionLimitInput = null
                         )
                     }
-                    if (currentStep != GeneralComposerStep.CONTENT && currentStep != GeneralComposerStep.SETTINGS) {
+                    if (currentStep != GeneralComposerStep.TYPE && currentStep != GeneralComposerStep.CONFIGURE) {
                         GeneralComposerNavigation(
                             previousStep = previousStep,
                             nextStep = nextStep,
@@ -6040,207 +6115,142 @@ private fun DropComposerDialog(
 }
 
 @Composable
-@OptIn(ExperimentalFoundationApi::class)
-private fun DropIdeaCarousel(
-    selectedId: String,
-    onSelect: (DropIdeaCardData) -> Unit
+private fun GeneralTypeStep(
+    options: List<DropExperienceTypeOption>,
+    selectedType: DropExperienceType,
+    onSelect: (DropExperienceTypeOption) -> Unit,
+    previousStep: GeneralComposerStep?,
+    nextStep: GeneralComposerStep?,
+    isSubmitting: Boolean,
+    onBack: (GeneralComposerStep) -> Unit,
+    onNext: (GeneralComposerStep) -> Unit,
+    onSubmit: () -> Unit
 ) {
-    val cards = remember { dropIdeaCards }
-    val scope = rememberCoroutineScope()
-    val initialPage = cards.indexOfFirst { it.id == selectedId }.coerceAtLeast(0)
-    val pagerState = rememberPagerState(initialPage = initialPage) { cards.size }
+    DropExperienceTypeSelectionSection(
+        options = options,
+        selectedType = selectedType,
+        onSelect = onSelect
+    )
 
-    LaunchedEffect(pagerState.currentPage) {
-        cards.getOrNull(pagerState.currentPage)?.let { current ->
-            if (current.id != selectedId) {
-                onSelect(current)
-            }
-        }
-    }
-
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Pick a drop idea",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = "Swipe to choose what kind of experience you want to leave.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            DropIdeaPagerIndicator(
-                total = cards.size,
-                currentPage = pagerState.currentPage
-            )
-        }
-
-        HorizontalPager(
-            state = pagerState,
-            pageSpacing = 12.dp,
-            contentPadding = PaddingValues(horizontal = 6.dp)
-        ) { page ->
-            val card = cards[page]
-            DropIdeaCard(
-                card = card,
-                isSelected = card.id == selectedId,
-                onClick = {
-                    onSelect(card)
-                    scope.launch { pagerState.animateScrollToPage(page) }
-                }
-            )
-        }
-    }
+    GeneralComposerNavigation(
+        previousStep = previousStep,
+        nextStep = nextStep,
+        canProceed = true,
+        isSubmitting = isSubmitting,
+        onBack = onBack,
+        onNext = onNext,
+        onSubmit = onSubmit
+    )
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun DropIdeaTaskList(idea: DropIdeaCardData, modifier: Modifier = Modifier) {
-    ElevatedCard(
-        modifier = modifier,
-        shape = MaterialTheme.shapes.medium
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Text(
-                text = "Steps for ${'$'}{idea.title}",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-
-            idea.tasks.forEachIndexed { index, task ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .semantics(mergeDescendants = true) {
-                            contentDescription = "Task ${'$'}{index + 1}: ${'$'}task"
-                        },
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Check,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                    Text(
-                        text = task,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun DropIdeaPagerIndicator(total: Int, currentPage: Int) {
-    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        repeat(total) { index ->
-            val isActive = index == currentPage
-            Box(
-                modifier = Modifier
-                    .size(if (isActive) 10.dp else 8.dp)
-                    .clip(CircleShape)
-                    .background(
-                        if (isActive) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.outlineVariant
-                    )
-            )
-        }
-    }
-}
-
-@Composable
-private fun DropIdeaCard(
-    card: DropIdeaCardData,
-    isSelected: Boolean,
-    onClick: () -> Unit
+private fun DropExperienceTypeSelectionSection(
+    options: List<DropExperienceTypeOption>,
+    selectedType: DropExperienceType,
+    onSelect: (DropExperienceTypeOption) -> Unit
 ) {
-    val shape = MaterialTheme.shapes.large
-    val cardModifier = Modifier
-        .fillMaxWidth()
-        .heightIn(min = 160.dp)
-        .clickable(onClick = onClick)
-        .then(
-            if (isSelected) {
-                Modifier.border(BorderStroke(2.dp, MaterialTheme.colorScheme.primary), shape)
-            } else {
-                Modifier
-            }
-        )
-
-    ElevatedCard(
-        modifier = cardModifier,
-        shape = shape
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+    Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        DropComposerSection(
+            title = "Drop type",
+            description = "Choose what kind of experience you want to leave behind.",
+            leadingIcon = Icons.Rounded.Category
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Surface(
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-                    shape = CircleShape
-                ) {
-                    Box(modifier = Modifier.padding(10.dp)) {
-                        Icon(
-                            imageVector = card.icon,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
-
-                Column(modifier = Modifier.weight(1f)) {
+            val grouped = options.groupBy { it.category }
+            grouped.forEach { (category, types) ->
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(
-                        text = card.title,
-                        style = MaterialTheme.typography.titleMedium,
+                        text = category.title,
+                        style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
-                        text = card.description,
+                        text = category.helper,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                }
 
-                if (isSelected) {
-                    Icon(
-                        imageVector = Icons.Rounded.CheckCircle,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
-                    )
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        maxItemsInEachRow = 2
+                    ) {
+                        types.forEach { option ->
+                            DropExperienceTypeCard(
+                                option = option,
+                                selected = option.type == selectedType,
+                                onSelect = { onSelect(option) }
+                            )
+                        }
+                    }
                 }
             }
+        }
+    }
+}
 
-            AssistChip(
-                onClick = onClick,
-                label = {
-                    Text("Best for ${card.recommendedContentType.name.lowercase()}")
-                },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Rounded.Edit,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
+@Composable
+private fun DropExperienceTypeCard(
+    option: DropExperienceTypeOption,
+    selected: Boolean,
+    onSelect: () -> Unit
+) {
+    val cardColors = explorerDropCardColors(isSelected = selected)
+    val borderColor = if (selected) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+    }
+
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = cardColors.container,
+        contentColor = cardColors.content,
+        tonalElevation = if (selected) 6.dp else 0.dp,
+        border = BorderStroke(width = if (selected) 2.dp else 1.dp, color = borderColor),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onSelect() }
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .background(
+                        color = if (selected) {
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.08f)
+                        },
+                        shape = CircleShape
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = option.icon,
+                    contentDescription = null,
+                    tint = if (selected) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        cardColors.supporting
+                    }
+                )
+            }
+
+            Text(
+                text = option.title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = option.subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = cardColors.supporting
             )
         }
     }
@@ -6310,7 +6320,8 @@ private fun DropComposerSection(
 @Composable
 private fun DropContentFormatSection(
     dropContentType: DropContentType,
-    onDropContentTypeChange: (DropContentType) -> Unit
+    onDropContentTypeChange: (DropContentType) -> Unit,
+    allowedTypes: List<DropContentType> = DropContentType.entries.toList()
 ) {
     DropComposerSection(
         title = "Content format",
@@ -6320,7 +6331,8 @@ private fun DropContentFormatSection(
         DropContentTypeSection(
             selected = dropContentType,
             onSelect = onDropContentTypeChange,
-            showHeader = false
+            showHeader = false,
+            allowedTypes = allowedTypes
         )
     }
 }
@@ -6373,6 +6385,53 @@ private fun DropNoteAndDescriptionSection(
             minLines = 2,
             modifier = Modifier.fillMaxWidth()
         )
+    }
+}
+
+@Composable
+private fun DropExperienceFieldsSection(
+    option: DropExperienceTypeOption,
+    dropContentType: DropContentType,
+    note: TextFieldValue,
+    onNoteChange: (TextFieldValue) -> Unit,
+    description: TextFieldValue,
+    onDescriptionChange: (TextFieldValue) -> Unit
+) {
+    val primaryField = option.primaryField
+    val secondaryField = option.secondaryField
+    val noteMinLines = primaryField.minLines
+        ?: if (dropContentType == DropContentType.TEXT) 3 else 1
+
+    DropComposerSection(
+        title = primaryField.title,
+        description = primaryField.supporting,
+        leadingIcon = Icons.Rounded.Edit
+    ) {
+        OutlinedTextField(
+            value = note,
+            onValueChange = onNoteChange,
+            label = null,
+            placeholder = { Text(primaryField.placeholder) },
+            minLines = noteMinLines,
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+
+    secondaryField?.let { field ->
+        DropComposerSection(
+            title = field.title,
+            description = field.supporting,
+            leadingIcon = Icons.Rounded.Description
+        ) {
+            OutlinedTextField(
+                value = description,
+                onValueChange = onDescriptionChange,
+                label = null,
+                placeholder = { Text(field.placeholder) },
+                minLines = field.minLines ?: 2,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
     }
 }
 
@@ -6712,20 +6771,20 @@ private fun DropSubmitButton(
 }
 
 private enum class GeneralComposerStep(val title: String, val helper: String, val shortLabel: String) {
-    CONTENT(
-        title = "Create your content",
-        helper = "Pick a format, write your message, and capture any media.",
-        shortLabel = "Content"
+    TYPE(
+        title = "Step 1: Choose drop type",
+        helper = "Pick the experience you want to leave behind.",
+        shortLabel = "Type"
     ),
-    SETTINGS(
-        title = "Choose visibility",
-        helper = "Control how long the drop lasts and who can discover it.",
-        shortLabel = "Settings"
+    CONFIGURE(
+        title = "Step 2: Configure",
+        helper = "Tailor the content, media, and visibility for your drop type.",
+        shortLabel = "Configure"
     ),
     REVIEW(
-        title = "Review and drop",
-        helper = "Confirm content, attachments, and settings before submitting.",
-        shortLabel = "Review"
+        title = "Step 3: Place & confirm",
+        helper = "Preview how explorers will experience it before you drop.",
+        shortLabel = "Confirm"
     )
 }
 
@@ -11551,7 +11610,8 @@ private fun DropAudioPlayer(
 private fun DropContentTypeSection(
     selected: DropContentType,
     onSelect: (DropContentType) -> Unit,
-    showHeader: Boolean = true
+    showHeader: Boolean = true,
+    allowedTypes: List<DropContentType> = DropContentType.entries.toList()
 ) {
     val options = remember {
         listOf(
@@ -11581,6 +11641,9 @@ private fun DropContentTypeSection(
             )
         )
     }
+    val filteredOptions = remember(allowedTypes) {
+        options.filter { allowedTypes.contains(it.type) }
+    }
 
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -11596,7 +11659,7 @@ private fun DropContentTypeSection(
             verticalArrangement = Arrangement.spacedBy(12.dp),
             maxItemsInEachRow = 2
         ) {
-            options.forEach { option ->
+            filteredOptions.forEach { option ->
                 DropContentTypeCard(
                     option = option,
                     selected = option.type == selected,
@@ -12384,77 +12447,599 @@ private data class BusinessDropTypeOption(
     val icon: ImageVector
 )
 
-private data class DropIdeaCardData(
-    val id: String,
+private enum class DropExperienceCategory(val title: String, val helper: String) {
+    MEMORY("Memory & personal expression", "Emotional drops focused on nostalgia and meaning."),
+    GAME("Game & exploration", "Encourage movement and repeat visits with challenges."),
+    SOCIAL("Social & community", "Spark local interaction and shared conversations."),
+    CREATIVE("Creative & media", "Build routes and prompts for creators and artists."),
+    BUSINESS("Business & value", "Drops aligned with monetization and local commerce."),
+    UTILITY("Utility & informational", "Practical tips that boost everyday usefulness."),
+    EXPERIMENTAL("Experimental & viral", "Novel experiences that drive buzz and sharing.")
+}
+
+private data class DropExperienceFieldCopy(
     val title: String,
-    val description: String,
-    val recommendedContentType: DropContentType,
-    val suggestedNote: String,
-    val suggestedDescription: String?,
-    val tasks: List<String>,
-    val icon: ImageVector
+    val supporting: String,
+    val placeholder: String,
+    val minLines: Int? = null
 )
 
-private val dropIdeaCards = listOf(
-    DropIdeaCardData(
-        id = "memory",
-        title = "Memory",
-        description = "Share a personal story or a favorite moment tied to this place.",
+private data class DropExperienceTypeOption(
+    val type: DropExperienceType,
+    val title: String,
+    val subtitle: String,
+    val description: String,
+    val category: DropExperienceCategory,
+    val icon: ImageVector,
+    val recommendedContentType: DropContentType,
+    val allowedContentTypes: List<DropContentType>,
+    val primaryField: DropExperienceFieldCopy,
+    val secondaryField: DropExperienceFieldCopy?,
+    val suggestedNote: String,
+    val suggestedDescription: String?,
+    val requiresBusiness: Boolean = false,
+    val dropTypeOverride: DropType? = null
+)
+
+private val dropExperienceTypeOptions = listOf(
+    DropExperienceTypeOption(
+        type = DropExperienceType.MEMORY_DROP,
+        title = "Memory Drop",
+        subtitle = "Leave a personal moment tied to this place.",
+        description = "Capture a meaningful memory for future explorers.",
+        category = DropExperienceCategory.MEMORY,
+        icon = Icons.Rounded.AutoAwesome,
         recommendedContentType = DropContentType.TEXT,
-        suggestedNote = "Share a favorite memory tied to this spot.",
-        suggestedDescription = "What should future explorers feel or notice here?",
-        tasks = listOf(
-            "Pick a moment tied to this spot that others can picture.",
-            "Add a quick title that hints at the memory.",
-            "Describe what happened and why it matters to you.",
-            "Suggest what future explorers should look, listen, or feel for."
+        allowedContentTypes = listOf(DropContentType.TEXT, DropContentType.PHOTO, DropContentType.AUDIO),
+        primaryField = DropExperienceFieldCopy(
+            title = "Memory message",
+            supporting = "Share the moment, the people, and why it mattered.",
+            placeholder = "Tell the story behind this memory…"
         ),
-        icon = Icons.Rounded.AutoAwesome
-    ),
-    DropIdeaCardData(
-        id = "scavenger",
-        title = "Scavenger hunt",
-        description = "Leave a clue that nudges explorers to the next hidden location.",
-        recommendedContentType = DropContentType.TEXT,
-        suggestedNote = "Drop your first clue here to start the hunt.",
-        suggestedDescription = "Add a hint about where to head next.",
-        tasks = listOf(
-            "Start with a clue that connects to the current location.",
-            "Give a hint or riddle that points to the next spot.",
-            "Note any items or codes explorers should collect.",
-            "Remind them to stay safe and respect the surroundings."
+        secondaryField = DropExperienceFieldCopy(
+            title = "Why this place matters",
+            supporting = "Optional details that help others feel the moment.",
+            placeholder = "Add the emotion, sounds, or atmosphere…"
         ),
-        icon = Icons.Rounded.Flag
+        suggestedNote = "I still remember standing right here when…",
+        suggestedDescription = "What made this place unforgettable?"
     ),
-    DropIdeaCardData(
-        id = "time_capsule",
-        title = "Time capsule",
-        description = "Record something future explorers will appreciate unlocking later.",
+    DropExperienceTypeOption(
+        type = DropExperienceType.TIME_CAPSULE,
+        title = "Time Capsule",
+        subtitle = "Lock a message until a future date or milestone.",
+        description = "Create a drop that feels special to unlock later.",
+        category = DropExperienceCategory.MEMORY,
+        icon = Icons.Rounded.AccessTime,
         recommendedContentType = DropContentType.AUDIO,
-        suggestedNote = "Record a quick message for someone to discover down the road.",
-        suggestedDescription = "Tell them when to open it or why it's meaningful.",
-        tasks = listOf(
-            "Record a short message for someone to open later.",
-            "Mention when or why it should be listened to or read.",
-            "Share why this location is meaningful for the capsule.",
-            "Add a hint about what you hope they’ll think about when they open it."
+        allowedContentTypes = listOf(DropContentType.AUDIO, DropContentType.TEXT),
+        primaryField = DropExperienceFieldCopy(
+            title = "Message for the future",
+            supporting = "Record or write the message you want unlocked later.",
+            placeholder = "Share a note for someone to open later…"
         ),
-        icon = Icons.Rounded.AccessTime
+        secondaryField = DropExperienceFieldCopy(
+            title = "Open after",
+            supporting = "Add a date, milestone, or reason to unlock.",
+            placeholder = "Open on: 2026 graduation, 10-year anniversary…"
+        ),
+        suggestedNote = "If you’re hearing this, it means we made it…",
+        suggestedDescription = "Open after: the next big milestone."
     ),
-    DropIdeaCardData(
-        id = "local_tip",
-        title = "Local recommendation",
-        description = "Share a can’t-miss food, view, or hidden gem nearby.",
-        recommendedContentType = DropContentType.PHOTO,
-        suggestedNote = "Drop your must-see tip for this area.",
-        suggestedDescription = "Explain what makes it special or how to find it.",
-        tasks = listOf(
-            "Name the nearby place, dish, or view you recommend.",
-            "Share directions or landmarks to find it quickly.",
-            "Explain what makes it special or when it’s best to visit.",
-            "Add a photo or tip that helps them enjoy it like a local."
+    DropExperienceTypeOption(
+        type = DropExperienceType.VOICE_MEMORY,
+        title = "Voice Memory",
+        subtitle = "Leave a short audio message with heart.",
+        description = "A spoken memory is human, emotional, and sticky.",
+        category = DropExperienceCategory.MEMORY,
+        icon = Icons.Rounded.Mic,
+        recommendedContentType = DropContentType.AUDIO,
+        allowedContentTypes = listOf(DropContentType.AUDIO),
+        primaryField = DropExperienceFieldCopy(
+            title = "Voice memory caption",
+            supporting = "Optional: Give listeners context before they press play.",
+            placeholder = "Recorded for someone special…",
+            minLines = 1
         ),
-        icon = Icons.Rounded.Lightbulb
+        secondaryField = DropExperienceFieldCopy(
+            title = "Who is this for?",
+            supporting = "Optional: name the person or moment you're honoring.",
+            placeholder = "For my family, for a friend, for this city…"
+        ),
+        suggestedNote = "A voice memory waiting here for you.",
+        suggestedDescription = "For anyone who misses this moment."
+    ),
+    DropExperienceTypeOption(
+        type = DropExperienceType.ANONYMOUS_CONFESSION,
+        title = "Anonymous Confession",
+        subtitle = "Share something real, without your identity.",
+        description = "A hidden confession anchored to a place.",
+        category = DropExperienceCategory.MEMORY,
+        icon = Icons.Rounded.VisibilityOff,
+        recommendedContentType = DropContentType.TEXT,
+        allowedContentTypes = listOf(DropContentType.TEXT),
+        primaryField = DropExperienceFieldCopy(
+            title = "Your confession",
+            supporting = "Be honest, keep it respectful, and stay safe.",
+            placeholder = "I never told anyone that…"
+        ),
+        secondaryField = DropExperienceFieldCopy(
+            title = "Context (optional)",
+            supporting = "Share why this spot matters to the confession.",
+            placeholder = "This place always reminded me of…"
+        ),
+        suggestedNote = "I have to admit something about this place…",
+        suggestedDescription = "Optional: add context without revealing too much."
+    ),
+    DropExperienceTypeOption(
+        type = DropExperienceType.SCAVENGER_HUNT,
+        title = "Scavenger Hunt",
+        subtitle = "Leave the first clue in a multi-step hunt.",
+        description = "Each drop unlocks the next clue or checkpoint.",
+        category = DropExperienceCategory.GAME,
+        icon = Icons.Rounded.Flag,
+        recommendedContentType = DropContentType.TEXT,
+        allowedContentTypes = listOf(DropContentType.TEXT, DropContentType.VIDEO),
+        primaryField = DropExperienceFieldCopy(
+            title = "First clue",
+            supporting = "Give explorers their starting riddle or instruction.",
+            placeholder = "Your next clue is hidden where the sun hits first…"
+        ),
+        secondaryField = DropExperienceFieldCopy(
+            title = "Next step hint",
+            supporting = "Optional: confirm how they know they’re on track.",
+            placeholder = "Look for the mural with a blue bird…"
+        ),
+        suggestedNote = "Clue #1: Follow the sound of water.",
+        suggestedDescription = "Hint: You’ll know you’re close when…"
+    ),
+    DropExperienceTypeOption(
+        type = DropExperienceType.TREASURE_HUNT,
+        title = "Treasure Hunt",
+        subtitle = "Guide explorers to a final reward location.",
+        description = "Build suspense and reveal the prize at the end.",
+        category = DropExperienceCategory.GAME,
+        icon = Icons.Rounded.EmojiEvents,
+        recommendedContentType = DropContentType.TEXT,
+        allowedContentTypes = listOf(DropContentType.TEXT, DropContentType.PHOTO),
+        primaryField = DropExperienceFieldCopy(
+            title = "Treasure hint",
+            supporting = "Describe the path to the final reward.",
+            placeholder = "The treasure waits where the path bends…"
+        ),
+        secondaryField = DropExperienceFieldCopy(
+            title = "Reward details",
+            supporting = "Optional: explain the prize or badge.",
+            placeholder = "Reward: a hidden photo spot, a badge, a prize…"
+        ),
+        suggestedNote = "Follow the lights to the final reward.",
+        suggestedDescription = "Reward: a secret view at the end."
+    ),
+    DropExperienceTypeOption(
+        type = DropExperienceType.PUZZLE_RIDDLE,
+        title = "Puzzle / Riddle Drop",
+        subtitle = "Make explorers solve before they unlock.",
+        description = "Fun friction filters out low-effort visitors.",
+        category = DropExperienceCategory.GAME,
+        icon = Icons.Rounded.Extension,
+        recommendedContentType = DropContentType.TEXT,
+        allowedContentTypes = listOf(DropContentType.TEXT),
+        primaryField = DropExperienceFieldCopy(
+            title = "Your riddle",
+            supporting = "Write a puzzle that reveals the content.",
+            placeholder = "I speak without a mouth and hear without ears…"
+        ),
+        secondaryField = DropExperienceFieldCopy(
+            title = "Optional solution hint",
+            supporting = "Give a gentle nudge without spoiling it.",
+            placeholder = "Think about something you do every morning…"
+        ),
+        suggestedNote = "Solve this: I have keys but no locks…",
+        suggestedDescription = "Hint: It’s nearby and makes music."
+    ),
+    DropExperienceTypeOption(
+        type = DropExperienceType.CHECKPOINT_CHALLENGE,
+        title = "Checkpoint Challenge",
+        subtitle = "Ask explorers to visit multiple locations.",
+        description = "Perfect for parks, campuses, or tours.",
+        category = DropExperienceCategory.GAME,
+        icon = Icons.Rounded.PinDrop,
+        recommendedContentType = DropContentType.TEXT,
+        allowedContentTypes = listOf(DropContentType.TEXT),
+        primaryField = DropExperienceFieldCopy(
+            title = "Challenge goal",
+            supporting = "Explain what checkpoints they must hit.",
+            placeholder = "Visit all 5 murals to complete this challenge…"
+        ),
+        secondaryField = DropExperienceFieldCopy(
+            title = "Checkpoint list",
+            supporting = "Optional: list the locations in order.",
+            placeholder = "1) Park entrance 2) Old oak tree 3)…"
+        ),
+        suggestedNote = "Visit every stop on this trail to finish the challenge.",
+        suggestedDescription = "Checklist: add the landmarks to hit."
+    ),
+    DropExperienceTypeOption(
+        type = DropExperienceType.MESSAGE_TO_STRANGERS,
+        title = "Message to Strangers",
+        subtitle = "Write an open letter for whoever finds it.",
+        description = "Encouragement, humor, or advice for passersby.",
+        category = DropExperienceCategory.SOCIAL,
+        icon = Icons.Rounded.Send,
+        recommendedContentType = DropContentType.TEXT,
+        allowedContentTypes = listOf(DropContentType.TEXT),
+        primaryField = DropExperienceFieldCopy(
+            title = "Open letter",
+            supporting = "Write the message you want a stranger to read.",
+            placeholder = "Hey stranger, if you made it here today…"
+        ),
+        secondaryField = DropExperienceFieldCopy(
+            title = "Optional sign-off",
+            supporting = "Share a name, emoji, or short closing.",
+            placeholder = "— someone rooting for you"
+        ),
+        suggestedNote = "If you found this, I hope your day gets brighter.",
+        suggestedDescription = "— a stranger who cares"
+    ),
+    DropExperienceTypeOption(
+        type = DropExperienceType.QUESTION_OF_THE_SPOT,
+        title = "Question of the Spot",
+        subtitle = "Ask locals for answers at this location.",
+        description = "Turn the drop into a micro forum.",
+        category = DropExperienceCategory.SOCIAL,
+        icon = Icons.Rounded.HelpOutline,
+        recommendedContentType = DropContentType.TEXT,
+        allowedContentTypes = listOf(DropContentType.TEXT),
+        primaryField = DropExperienceFieldCopy(
+            title = "Your question",
+            supporting = "Ask something locals will answer when they arrive.",
+            placeholder = "What’s the best thing to order here?"
+        ),
+        secondaryField = DropExperienceFieldCopy(
+            title = "Why you’re asking",
+            supporting = "Optional context to get better replies.",
+            placeholder = "Visiting soon and want local tips…"
+        ),
+        suggestedNote = "What’s the hidden gem on this block?",
+        suggestedDescription = "Add context so people reply with specifics."
+    ),
+    DropExperienceTypeOption(
+        type = DropExperienceType.POLL_DROP,
+        title = "Poll Drop",
+        subtitle = "Ask a quick vote at this location.",
+        description = "Results appear after voting.",
+        category = DropExperienceCategory.SOCIAL,
+        icon = Icons.Rounded.Poll,
+        recommendedContentType = DropContentType.TEXT,
+        allowedContentTypes = listOf(DropContentType.TEXT),
+        primaryField = DropExperienceFieldCopy(
+            title = "Poll question",
+            supporting = "Keep it short so people vote fast.",
+            placeholder = "Which spot has the best sunset?"
+        ),
+        secondaryField = DropExperienceFieldCopy(
+            title = "Poll choices",
+            supporting = "Add options, one per line.",
+            placeholder = "Option 1\nOption 2\nOption 3"
+        ),
+        suggestedNote = "Best coffee here?",
+        suggestedDescription = "Option 1: Café A\nOption 2: Café B"
+    ),
+    DropExperienceTypeOption(
+        type = DropExperienceType.MEETUP_PING,
+        title = "Meet-Up Ping",
+        subtitle = "Invite people to join you at a time.",
+        description = "Low-commitment, auto-expiring social pings.",
+        category = DropExperienceCategory.SOCIAL,
+        icon = Icons.Rounded.Groups,
+        recommendedContentType = DropContentType.TEXT,
+        allowedContentTypes = listOf(DropContentType.TEXT),
+        primaryField = DropExperienceFieldCopy(
+            title = "Meet-up note",
+            supporting = "Let others know what to expect.",
+            placeholder = "I’ll be here to sketch and chat!"
+        ),
+        secondaryField = DropExperienceFieldCopy(
+            title = "Time window",
+            supporting = "Share when you’ll be around.",
+            placeholder = "I’ll be here from 4–5pm today."
+        ),
+        suggestedNote = "Meet-up for a quick photo walk?",
+        suggestedDescription = "Time window: 4–5pm."
+    ),
+    DropExperienceTypeOption(
+        type = DropExperienceType.STORY_CHAPTER,
+        title = "Story Chapter",
+        subtitle = "Add a chapter to a location-based story.",
+        description = "Readers must walk the route to continue.",
+        category = DropExperienceCategory.CREATIVE,
+        icon = Icons.Rounded.MenuBook,
+        recommendedContentType = DropContentType.TEXT,
+        allowedContentTypes = listOf(DropContentType.TEXT),
+        primaryField = DropExperienceFieldCopy(
+            title = "Story chapter",
+            supporting = "Write the next part of the story here.",
+            placeholder = "Chapter 3: The fog rolled in…"
+        ),
+        secondaryField = DropExperienceFieldCopy(
+            title = "Cliffhanger or clue",
+            supporting = "Optional: tell readers where to go next.",
+            placeholder = "Continue the story at the bridge…"
+        ),
+        suggestedNote = "Chapter 2: The door creaked open…",
+        suggestedDescription = "Continue at the next stop."
+    ),
+    DropExperienceTypeOption(
+        type = DropExperienceType.PHOTO_PROMPT,
+        title = "Photo Prompt",
+        subtitle = "Challenge visitors to capture the spot.",
+        description = "Build a shared gallery tied to the location.",
+        category = DropExperienceCategory.CREATIVE,
+        icon = Icons.Rounded.PhotoCamera,
+        recommendedContentType = DropContentType.PHOTO,
+        allowedContentTypes = listOf(DropContentType.PHOTO),
+        primaryField = DropExperienceFieldCopy(
+            title = "Photo prompt",
+            supporting = "Tell visitors what to capture.",
+            placeholder = "Take a photo of this spot from your angle."
+        ),
+        secondaryField = DropExperienceFieldCopy(
+            title = "Example or tip",
+            supporting = "Optional: share what to look for.",
+            placeholder = "Try capturing the skyline at sunset…"
+        ),
+        suggestedNote = "Take a photo of the mural from your perspective.",
+        suggestedDescription = "Tip: shoot from across the street."
+    ),
+    DropExperienceTypeOption(
+        type = DropExperienceType.AR_VISUAL_DROP,
+        title = "AR / Visual Drop",
+        subtitle = "Placeholder for upcoming AR content.",
+        description = "Signals future vision for augmented visuals.",
+        category = DropExperienceCategory.CREATIVE,
+        icon = Icons.Rounded.ViewInAr,
+        recommendedContentType = DropContentType.TEXT,
+        allowedContentTypes = listOf(DropContentType.TEXT),
+        primaryField = DropExperienceFieldCopy(
+            title = "Visual teaser",
+            supporting = "Describe what the AR experience will be.",
+            placeholder = "Imagine a glowing portal opening here…"
+        ),
+        secondaryField = DropExperienceFieldCopy(
+            title = "Future experience",
+            supporting = "Optional: explain what visitors should expect.",
+            placeholder = "AR feature coming soon — stay tuned!"
+        ),
+        suggestedNote = "AR experience coming soon at this spot.",
+        suggestedDescription = "Stay tuned for visual layers here."
+    ),
+    DropExperienceTypeOption(
+        type = DropExperienceType.COUPON_DEAL,
+        title = "Coupon / Deal Drop",
+        subtitle = "Unlock a time-boxed deal nearby.",
+        description = "Trackable drops that drive foot traffic.",
+        category = DropExperienceCategory.BUSINESS,
+        icon = Icons.Rounded.LocalOffer,
+        recommendedContentType = DropContentType.TEXT,
+        allowedContentTypes = listOf(DropContentType.TEXT, DropContentType.PHOTO),
+        primaryField = DropExperienceFieldCopy(
+            title = "Deal headline",
+            supporting = "Summarize the offer in one line.",
+            placeholder = "Show this drop for 15% off today."
+        ),
+        secondaryField = DropExperienceFieldCopy(
+            title = "Redemption details",
+            supporting = "Optional: add terms or time window.",
+            placeholder = "Valid until 6pm. One per customer."
+        ),
+        suggestedNote = "Unlock 10% off when you arrive.",
+        suggestedDescription = "Valid today only. Show this at checkout.",
+        requiresBusiness = true,
+        dropTypeOverride = DropType.RESTAURANT_COUPON
+    ),
+    DropExperienceTypeOption(
+        type = DropExperienceType.BUSINESS_STORY,
+        title = "Business Story",
+        subtitle = "Share the origin story of a shop or brand.",
+        description = "Build emotional connection before purchase.",
+        category = DropExperienceCategory.BUSINESS,
+        icon = Icons.Rounded.Storefront,
+        recommendedContentType = DropContentType.TEXT,
+        allowedContentTypes = listOf(DropContentType.TEXT, DropContentType.PHOTO),
+        primaryField = DropExperienceFieldCopy(
+            title = "Origin story",
+            supporting = "Tell people why your business exists.",
+            placeholder = "We started this shop to bring…"
+        ),
+        secondaryField = DropExperienceFieldCopy(
+            title = "Visitor takeaway",
+            supporting = "Optional: what should visitors feel or do?",
+            placeholder = "Ask about our signature item…"
+        ),
+        suggestedNote = "Our story began with a family recipe…",
+        suggestedDescription = "Ask about our local favorite.",
+        requiresBusiness = true,
+        dropTypeOverride = DropType.COMMUNITY
+    ),
+    DropExperienceTypeOption(
+        type = DropExperienceType.HIDDEN_OFFER,
+        title = "Hidden Offer",
+        subtitle = "Reward locals who walk here.",
+        description = "A secret offer for people who show up.",
+        category = DropExperienceCategory.BUSINESS,
+        icon = Icons.Rounded.Lock,
+        recommendedContentType = DropContentType.TEXT,
+        allowedContentTypes = listOf(DropContentType.TEXT),
+        primaryField = DropExperienceFieldCopy(
+            title = "Hidden offer",
+            supporting = "Describe the surprise for nearby locals.",
+            placeholder = "Locals unlock a secret menu item…"
+        ),
+        secondaryField = DropExperienceFieldCopy(
+            title = "Claim instructions",
+            supporting = "Optional: how to claim the offer.",
+            placeholder = "Show this drop to staff to redeem."
+        ),
+        suggestedNote = "Secret offer for anyone who finds this.",
+        suggestedDescription = "Show this drop to redeem.",
+        requiresBusiness = true,
+        dropTypeOverride = DropType.RESTAURANT_COUPON
+    ),
+    DropExperienceTypeOption(
+        type = DropExperienceType.EVENT_REMINDER,
+        title = "Event Reminder",
+        subtitle = "Promote a live moment nearby.",
+        description = "Auto-expires after the event ends.",
+        category = DropExperienceCategory.BUSINESS,
+        icon = Icons.Rounded.Event,
+        recommendedContentType = DropContentType.TEXT,
+        allowedContentTypes = listOf(DropContentType.TEXT),
+        primaryField = DropExperienceFieldCopy(
+            title = "Event summary",
+            supporting = "Share what’s happening and why to come.",
+            placeholder = "Live music tonight at 8pm."
+        ),
+        secondaryField = DropExperienceFieldCopy(
+            title = "Event timing",
+            supporting = "Optional: add the time window or RSVP.",
+            placeholder = "Tonight 8–10pm, no cover."
+        ),
+        suggestedNote = "Live music tonight — drop in!",
+        suggestedDescription = "Tonight 8–10pm.",
+        requiresBusiness = true,
+        dropTypeOverride = DropType.COMMUNITY
+    ),
+    DropExperienceTypeOption(
+        type = DropExperienceType.TIP_DROP,
+        title = "Tip Drop",
+        subtitle = "Share a practical tip nearby.",
+        description = "Quick, useful information for daily explorers.",
+        category = DropExperienceCategory.UTILITY,
+        icon = Icons.Rounded.TipsAndUpdates,
+        recommendedContentType = DropContentType.TEXT,
+        allowedContentTypes = listOf(DropContentType.TEXT),
+        primaryField = DropExperienceFieldCopy(
+            title = "Your tip",
+            supporting = "Share the most helpful local detail.",
+            placeholder = "Best parking is behind the building…"
+        ),
+        secondaryField = DropExperienceFieldCopy(
+            title = "Extra details",
+            supporting = "Optional context to make it actionable.",
+            placeholder = "Arrive before 9am for open spots."
+        ),
+        suggestedNote = "Best time to visit is right after sunrise.",
+        suggestedDescription = "Arrive early to avoid crowds."
+    ),
+    DropExperienceTypeOption(
+        type = DropExperienceType.WARNING_HEADS_UP,
+        title = "Warning / Heads-Up",
+        subtitle = "Flag hazards, closures, or issues.",
+        description = "Keep explorers safe with real-time alerts.",
+        category = DropExperienceCategory.UTILITY,
+        icon = Icons.Rounded.Warning,
+        recommendedContentType = DropContentType.TEXT,
+        allowedContentTypes = listOf(DropContentType.TEXT),
+        primaryField = DropExperienceFieldCopy(
+            title = "Warning",
+            supporting = "State the risk or issue clearly.",
+            placeholder = "Trail closed ahead due to construction."
+        ),
+        secondaryField = DropExperienceFieldCopy(
+            title = "Details",
+            supporting = "Optional: add timelines or detours.",
+            placeholder = "Detour via the east entrance."
+        ),
+        suggestedNote = "Heads-up: slippery steps after rain.",
+        suggestedDescription = "Use the handrail and go slow."
+    ),
+    DropExperienceTypeOption(
+        type = DropExperienceType.GUIDE_MARKER,
+        title = "Guide Marker",
+        subtitle = "Create a self-guided tour stop.",
+        description = "Visitors follow markers in sequence.",
+        category = DropExperienceCategory.UTILITY,
+        icon = Icons.Rounded.Map,
+        recommendedContentType = DropContentType.TEXT,
+        allowedContentTypes = listOf(DropContentType.TEXT),
+        primaryField = DropExperienceFieldCopy(
+            title = "Guide narration",
+            supporting = "Explain what visitors should learn here.",
+            placeholder = "Welcome to stop #3 of the tour…"
+        ),
+        secondaryField = DropExperienceFieldCopy(
+            title = "Next marker",
+            supporting = "Optional: direct them to the next stop.",
+            placeholder = "Continue to the next marker at the fountain."
+        ),
+        suggestedNote = "Stop #2: This building was built in…",
+        suggestedDescription = "Next marker: the stone archway."
+    ),
+    DropExperienceTypeOption(
+        type = DropExperienceType.MYSTERY_DROP,
+        title = "Mystery Drop",
+        subtitle = "Hide the content until someone arrives.",
+        description = "Only a vague hint is shown beforehand.",
+        category = DropExperienceCategory.EXPERIMENTAL,
+        icon = Icons.Rounded.Help,
+        recommendedContentType = DropContentType.TEXT,
+        allowedContentTypes = listOf(DropContentType.TEXT, DropContentType.PHOTO),
+        primaryField = DropExperienceFieldCopy(
+            title = "Mystery hint",
+            supporting = "Tease just enough to intrigue explorers.",
+            placeholder = "You’ll uncover something unusual here…"
+        ),
+        secondaryField = DropExperienceFieldCopy(
+            title = "Reveal message",
+            supporting = "Optional: what should appear when they arrive?",
+            placeholder = "Surprise! Here’s the full story…"
+        ),
+        suggestedNote = "A hidden surprise waits here.",
+        suggestedDescription = "Reveal: add the full message."
+    ),
+    DropExperienceTypeOption(
+        type = DropExperienceType.ONE_TIME_DROP,
+        title = "One-Time Drop",
+        subtitle = "First person to enter claims it.",
+        description = "Everyone else sees it as already claimed.",
+        category = DropExperienceCategory.EXPERIMENTAL,
+        icon = Icons.Rounded.FlashOn,
+        recommendedContentType = DropContentType.TEXT,
+        allowedContentTypes = listOf(DropContentType.TEXT),
+        primaryField = DropExperienceFieldCopy(
+            title = "Claim reward",
+            supporting = "Describe what the first visitor wins.",
+            placeholder = "First person here gets a free coffee…"
+        ),
+        secondaryField = DropExperienceFieldCopy(
+            title = "Claim instructions",
+            supporting = "Optional: how to prove they claimed it.",
+            placeholder = "Show this drop to claim the reward."
+        ),
+        suggestedNote = "First to find this wins!",
+        suggestedDescription = "Show this drop to claim."
+    ),
+    DropExperienceTypeOption(
+        type = DropExperienceType.REACTION_DROP,
+        title = "Reaction Drop",
+        subtitle = "Invite emoji-only reactions.",
+        description = "Lightweight and fast for quick engagement.",
+        category = DropExperienceCategory.EXPERIMENTAL,
+        icon = Icons.Rounded.EmojiEmotions,
+        recommendedContentType = DropContentType.TEXT,
+        allowedContentTypes = listOf(DropContentType.TEXT),
+        primaryField = DropExperienceFieldCopy(
+            title = "Reaction prompt",
+            supporting = "Ask for emoji reactions only.",
+            placeholder = "How does this spot make you feel?"
+        ),
+        secondaryField = DropExperienceFieldCopy(
+            title = "Suggested reactions",
+            supporting = "Optional: list a few emojis to guide replies.",
+            placeholder = "😀 😮 🌿 🔥"
+        ),
+        suggestedNote = "React with an emoji that fits this place.",
+        suggestedDescription = "Suggested reactions: 😍 🌿 😮"
     )
 )
 

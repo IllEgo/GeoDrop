@@ -15,6 +15,7 @@ data class Drop(
     val decayDays: Int? = null,
     val groupCode: String? = null,
     val dropType: DropType = DropType.COMMUNITY,
+    val experienceType: DropExperienceType = DropExperienceType.UNSPECIFIED,
     val businessId: String? = null,
     val businessName: String? = null,
     val contentType: DropContentType = DropContentType.TEXT,
@@ -45,6 +46,42 @@ enum class DropType {
         fun fromRaw(raw: String?): DropType {
             if (raw.isNullOrBlank()) return COMMUNITY
             return entries.firstOrNull { it.name.equals(raw, ignoreCase = true) } ?: COMMUNITY
+        }
+    }
+}
+
+enum class DropExperienceType {
+    UNSPECIFIED,
+    MEMORY_DROP,
+    TIME_CAPSULE,
+    VOICE_MEMORY,
+    ANONYMOUS_CONFESSION,
+    SCAVENGER_HUNT,
+    TREASURE_HUNT,
+    PUZZLE_RIDDLE,
+    CHECKPOINT_CHALLENGE,
+    MESSAGE_TO_STRANGERS,
+    QUESTION_OF_THE_SPOT,
+    POLL_DROP,
+    MEETUP_PING,
+    STORY_CHAPTER,
+    PHOTO_PROMPT,
+    AR_VISUAL_DROP,
+    COUPON_DEAL,
+    BUSINESS_STORY,
+    HIDDEN_OFFER,
+    EVENT_REMINDER,
+    TIP_DROP,
+    WARNING_HEADS_UP,
+    GUIDE_MARKER,
+    MYSTERY_DROP,
+    ONE_TIME_DROP,
+    REACTION_DROP;
+
+    companion object {
+        fun fromRaw(raw: String?): DropExperienceType {
+            if (raw.isNullOrBlank()) return UNSPECIFIED
+            return entries.firstOrNull { it.name.equals(raw, ignoreCase = true) } ?: UNSPECIFIED
         }
     }
 }

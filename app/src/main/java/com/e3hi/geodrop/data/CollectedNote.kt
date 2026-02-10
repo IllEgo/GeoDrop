@@ -21,6 +21,7 @@ data class CollectedNote(
     val dropperUsername: String? = null,
     val decayDays: Int? = null,
     val dropType: DropType = DropType.COMMUNITY,
+    val experienceType: DropExperienceType = DropExperienceType.UNSPECIFIED,
     val businessId: String? = null,
     val businessName: String? = null,
     val redemptionLimit: Int? = null,
@@ -51,6 +52,7 @@ data class CollectedNote(
             putOpt(KEY_DROPPER_USERNAME, dropperUsername)
             putOpt(KEY_DECAY_DAYS, decayDays)
             put(KEY_DROP_TYPE, dropType.name)
+            put(KEY_EXPERIENCE_TYPE, experienceType.name)
             putOpt(KEY_BUSINESS_ID, businessId)
             putOpt(KEY_BUSINESS_NAME, businessName)
             putOpt(KEY_REDEMPTION_LIMIT, redemptionLimit)
@@ -82,6 +84,7 @@ data class CollectedNote(
         private const val KEY_DROPPER_USERNAME = "dropperUsername"
         private const val KEY_DECAY_DAYS = "decayDays"
         private const val KEY_DROP_TYPE = "dropType"
+        private const val KEY_EXPERIENCE_TYPE = "experienceType"
         private const val KEY_BUSINESS_ID = "businessId"
         private const val KEY_BUSINESS_NAME = "businessName"
         private const val KEY_REDEMPTION_LIMIT = "redemptionLimit"
@@ -111,6 +114,7 @@ data class CollectedNote(
             val dropperUsername = json.optString(KEY_DROPPER_USERNAME).takeIf { it.isNotBlank() }
             val decayDays = json.optInt(KEY_DECAY_DAYS).takeIf { json.has(KEY_DECAY_DAYS) && it > 0 }
             val dropType = DropType.fromRaw(json.optString(KEY_DROP_TYPE))
+            val experienceType = DropExperienceType.fromRaw(json.optString(KEY_EXPERIENCE_TYPE))
             val businessId = json.optString(KEY_BUSINESS_ID).takeIf { it.isNotBlank() }
             val businessName = json.optString(KEY_BUSINESS_NAME).takeIf { it.isNotBlank() }
             val redemptionLimit = json.optInt(KEY_REDEMPTION_LIMIT).takeIf { json.has(KEY_REDEMPTION_LIMIT) }
@@ -155,6 +159,7 @@ data class CollectedNote(
                 dropperUsername = dropperUsername,
                 decayDays = decayDays,
                 dropType = dropType,
+                experienceType = experienceType,
                 businessId = businessId,
                 businessName = businessName,
                 redemptionLimit = redemptionLimit,

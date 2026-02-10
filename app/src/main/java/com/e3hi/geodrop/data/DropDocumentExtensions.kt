@@ -29,6 +29,7 @@ internal fun DocumentSnapshot.toDrop(): Drop {
     val decayDays = getIntCompat("decayDays") ?: baseDrop.decayDays
     val groupCode = GroupPreferences.normalizeGroupCode(getString("groupCode")) ?: baseDrop.groupCode
     val dropType = DropType.fromRaw(getString("dropType"))
+    val experienceType = DropExperienceType.fromRaw(getString("experienceType"))
     val businessId = getString("businessId")?.takeIf { it.isNotBlank() } ?: baseDrop.businessId
     val businessName = getString("businessName")?.takeIf { it.isNotBlank() } ?: baseDrop.businessName
     val contentType = DropContentType.fromRaw(getString("contentType"))
@@ -89,6 +90,7 @@ internal fun DocumentSnapshot.toDrop(): Drop {
         decayDays = decayDays,
         groupCode = groupCode,
         dropType = dropType,
+        experienceType = experienceType,
         businessId = businessId,
         businessName = businessName,
         contentType = contentType,
