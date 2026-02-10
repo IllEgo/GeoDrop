@@ -6155,7 +6155,7 @@ private fun DropExperienceTypeSelectionSection(
         DropComposerSection(
             title = "Drop type",
             description = "Choose what kind of experience you want to leave behind.",
-            leadingIcon = Icons.Rounded.Category
+            leadingIcon = Icons.Rounded.Dashboard
         ) {
             val grouped = options.groupBy { it.category }
             grouped.forEach { (category, types) ->
