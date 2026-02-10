@@ -998,7 +998,7 @@ fun DropHereScreen(
     var dropAnonymously by remember { mutableStateOf(false) }
     var dropContentType by remember { mutableStateOf(DropContentType.TEXT) }
     var dropType by remember { mutableStateOf(DropType.COMMUNITY) }
-    var dropExperienceType by rememberSaveable {
+    var dropExperienceType: DropExperienceType by rememberSaveable {
         mutableStateOf(dropExperienceTypeOptions.first().type)
     }
     var note by remember { mutableStateOf(TextFieldValue("")) }
