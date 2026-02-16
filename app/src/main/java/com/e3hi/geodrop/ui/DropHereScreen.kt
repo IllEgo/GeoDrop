@@ -85,6 +85,7 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.material.icons.rounded.AddCircle
 import androidx.compose.material.icons.rounded.Block
@@ -11478,6 +11479,8 @@ private fun DropExperienceTypeSection(
     selected: DropExperienceType,
     onSelect: (DropExperienceType) -> Unit
 ) {
+    val tileSize = 176.dp
+
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -11495,77 +11498,108 @@ private fun DropExperienceTypeSection(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    options.forEach { option ->
-                        val isSelected = option == selected
-                        val borderColor = if (isSelected) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.outlineVariant
-                        }
+                val scrollState = rememberScrollState()
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(scrollState),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        options.forEach { option ->
+                            val isSelected = option == selected
+                            val borderColor = if (isSelected) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.outlineVariant
+                            }
 
-                        ElevatedCard(
-                            modifier = Modifier
-                                .widthIn(min = 260.dp, max = 320.dp)
-                                .clickable(role = Role.RadioButton) { onSelect(option) }
-                                .border(
-                                    BorderStroke(if (isSelected) 2.dp else 1.dp, borderColor),
-                                    shape = RoundedCornerShape(14.dp)
-                                ),
-                            shape = RoundedCornerShape(14.dp),
-                            colors = CardDefaults.elevatedCardColors(
-                                containerColor = if (isSelected) {
-                                    MaterialTheme.colorScheme.primaryContainer
-                                } else {
-                                    MaterialTheme.colorScheme.surface
-                                }
-                            )
-
-                        ) {
-                            Row(
+                            ElevatedCard(
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 14.dp, vertical = 12.dp),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = option.defaultConfiguration.icon,
-                                    contentDescription = null,
-                                    tint = if (isSelected) {
-                                        MaterialTheme.colorScheme.primary
+                                    .size(tileSize)
+                                    .clickable(role = Role.RadioButton) { onSelect(option) }
+                                    .border(
+                                        BorderStroke(if (isSelected) 2.dp else 1.dp, borderColor),
+                                        shape = RoundedCornerShape(14.dp)
+                                    ),
+                                shape = RoundedCornerShape(14.dp),
+                                colors = CardDefaults.elevatedCardColors(
+                                    containerColor = if (isSelected) {
+                                        MaterialTheme.colorScheme.primaryContainer
                                     } else {
-                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                        MaterialTheme.colorScheme.surface
                                     }
                                 )
 
-                                Column(modifier = Modifier.weight(1f)) {
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Icon(
+                                        imageVector = option.defaultConfiguration.icon,
+                                        contentDescription = null,
+                                        tint = if (isSelected) {
+                                            MaterialTheme.colorScheme.primary
+                                        } else {
+                                            MaterialTheme.colorScheme.onSurfaceVariant
+                                        }
+                                    )
                                     Text(
                                         text = option.label,
-                                        style = MaterialTheme.typography.bodyLarge,
-                                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
+                                        textAlign = TextAlign.Center,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                     Text(
                                         text = option.subtitle,
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        textAlign = TextAlign.Center,
+                                        maxLines = 3,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+
+                                    Icon(
+                                        imageVector = if (isSelected) Icons.Rounded.CheckCircle else Icons.AutoMirrored.Rounded.ArrowForward,
+                                        contentDescription = null,
+                                        tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
-
-                                Icon(
-                                    imageVector = if (isSelected) Icons.Rounded.CheckCircle else Icons.Rounded.Info,
-                                    contentDescription = null,
-                                    tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
                             }
                         }
                     }
                 }
+
+                if (scrollState.value < scrollState.maxValue) {
+                    Surface(
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .padding(end = 4.dp),
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+                        shape = CircleShape
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
+                            contentDescription = "Scroll right for more drop types",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(6.dp)
+                        )
+                    }
+                }
+            }
+
+            if (options.size > 1) {
+                Text(
+                    text = "Swipe left or right to see more drop types.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }
