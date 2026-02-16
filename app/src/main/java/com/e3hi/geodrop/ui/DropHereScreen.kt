@@ -6966,6 +6966,7 @@ private fun BusinessComposerStepNavigation(
     isSubmitting: Boolean,
     canProceed: Boolean,
     onBack: (BusinessComposerStep) -> Unit,
+    onNext: (BusinessComposerStep) -> Unit,
     onSubmit: () -> Unit,
     onValidationFailed: () -> Unit = {}
 ) {
