@@ -977,15 +977,6 @@ fun DropHereScreen(
         UserMode.SIGNED_IN -> ""
     }
 
-    fun launchDropCreationFlow() {
-        initialGeneralComposerStep = GeneralComposerStep.PLAN
-        if (userProfile?.isBusiness() == true) {
-            showDropComposer = true
-            return
-        }
-        showDropTypePicker = true
-    }
-
     var joinedGroups by remember { mutableStateOf(groupPrefs.getMemberships()) }
     var selectedExplorerGroupCode by rememberSaveable { mutableStateOf<String?>(null) }
     val createdGroups = remember(joinedGroups) {
@@ -1077,6 +1068,15 @@ fun DropHereScreen(
     var selectedHomeDestination by rememberSaveable { mutableStateOf(HomeDestination.Explorer.name) }
     var notificationRadius by remember { mutableStateOf(notificationPrefs.getNotificationRadiusMeters()) }
     var showNotificationRadiusDialog by remember { mutableStateOf(false) }
+
+    fun launchDropCreationFlow() {
+        initialGeneralComposerStep = GeneralComposerStep.PLAN
+        if (userProfile?.isBusiness() == true) {
+            showDropComposer = true
+            return
+        }
+        showDropTypePicker = true
+    }
 
     DisposableEffect(groupPrefs) {
         val listener = GroupPreferences.ChangeListener { groups, _ ->
