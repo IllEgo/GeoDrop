@@ -6806,6 +6806,7 @@ private fun GeneralComposerNavigation(
     canProceed: Boolean,
     isSubmitting: Boolean,
     onBack: (GeneralComposerStep) -> Unit,
+    onNext: (GeneralComposerStep) -> Unit,
     onSubmit: () -> Unit,
     onValidationFailed: () -> Unit = {}
 ) {
