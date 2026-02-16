@@ -68,6 +68,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyHorizontalGrid
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.pager.HorizontalPager
@@ -11690,24 +11691,57 @@ private fun DropTypeCategoryPickerDialog(
                     }
                 }
 
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                LazyHorizontalGrid(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(236.dp),
+                    rows = GridCells.Fixed(2),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    categoryOptions.forEach { option ->
-                        FilterChip(
-                            selected = selectedCategory == option.category,
-                            onClick = { selectedCategory = option.category },
-                            label = { Text(option.category.title) },
-                            leadingIcon = {
+                    items(categoryOptions) { option ->
+                        val isSelected = selectedCategory == option.category
+                        ElevatedCard(
+                            modifier = Modifier
+                                .size(112.dp)
+                                .clickable { selectedCategory = option.category },
+                            shape = RoundedCornerShape(14.dp),
+                            colors = CardDefaults.elevatedCardColors(
+                                containerColor = if (isSelected) {
+                                    MaterialTheme.colorScheme.primaryContainer
+                                } else {
+                                    MaterialTheme.colorScheme.surfaceVariant
+                                }
+                            ),
+                            border = if (isSelected) {
+                                BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+                            } else {
+                                null
+                            }
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(10.dp),
+                                verticalArrangement = Arrangement.SpaceBetween,
+                                horizontalAlignment = Alignment.Start
+                            ) {
                                 Icon(
                                     imageVector = option.icon,
                                     contentDescription = null,
-                                    modifier = Modifier.size(18.dp)
+                                    modifier = Modifier.size(20.dp),
+                                    tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = option.category.title,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 3,
+                                    overflow = TextOverflow.Ellipsis,
+                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
                                 )
                             }
-                        )
+                        }
                     }
                 }
 
