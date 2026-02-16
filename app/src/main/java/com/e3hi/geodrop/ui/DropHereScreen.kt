@@ -11586,7 +11586,7 @@ private fun DropExperienceTypeSection(
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
-                            contentDescription = "Scroll right for more drop types",
+                            contentDescription = null,
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(6.dp)
                         )
