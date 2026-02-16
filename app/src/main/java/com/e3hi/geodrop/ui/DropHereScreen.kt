@@ -977,6 +977,15 @@ fun DropHereScreen(
         UserMode.SIGNED_IN -> ""
     }
 
+    fun launchDropCreationFlow() {
+        initialGeneralComposerStep = GeneralComposerStep.PLAN
+        if (userProfile?.isBusiness() == true) {
+            showDropComposer = true
+            return
+        }
+        showDropTypePicker = true
+    }
+
     var joinedGroups by remember { mutableStateOf(groupPrefs.getMemberships()) }
     var selectedExplorerGroupCode by rememberSaveable { mutableStateOf<String?>(null) }
     val createdGroups = remember(joinedGroups) {
@@ -1058,6 +1067,8 @@ fun DropHereScreen(
     var showManageGroups by remember { mutableStateOf(false) }
     var showGroupMenu by remember { mutableStateOf(false) }
     var showDropComposer by remember { mutableStateOf(false) }
+    var showDropTypePicker by remember { mutableStateOf(false) }
+    var initialGeneralComposerStep by remember { mutableStateOf(GeneralComposerStep.PLAN) }
     var showBusinessDashboard by remember { mutableStateOf(false) }
     var businessDrops by remember { mutableStateOf<List<Drop>>(emptyList()) }
     var businessDashboardLoading by remember { mutableStateOf(false) }
@@ -2971,7 +2982,7 @@ fun DropHereScreen(
                                 snackbar.showMessage(scope, participationRestriction("share drops"))
                                 return@NavigationBarItem
                             }
-                            showDropComposer = true
+                            launchDropCreationFlow()
                         },
                         icon = { Icon(Icons.Rounded.Place, contentDescription = null) },
                         label = {
@@ -3186,7 +3197,7 @@ fun DropHereScreen(
                             if (!canParticipate) {
                                 snackbar.showMessage(scope, participationRestriction("share drops"))
                             } else {
-                                showDropComposer = true
+                                launchDropCreationFlow()
                             }
                         }
                     )
@@ -3502,13 +3513,28 @@ fun DropHereScreen(
                 onRedemptionLimitChange = { redemptionLimitInput = it },
                 decayDaysInput = decayDaysInput,
                 onDecayDaysChange = { decayDaysInput = it },
+                initialGeneralStep = initialGeneralComposerStep,
                 onManageGroupCodes = { showManageGroups = true },
                 onSubmit = { submitDrop() },
                 onDismiss = {
                     if (!isSubmitting) {
+                        initialGeneralComposerStep = GeneralComposerStep.PLAN
                         showDropComposer = false
                     }
                 }
+            )
+        }
+
+        if (showDropTypePicker) {
+            DropTypeCategoryPickerDialog(
+                selectedDropExperienceType = dropExperienceType,
+                onSelectDropExperienceType = { selectedType ->
+                    dropExperienceType = selectedType
+                    initialGeneralComposerStep = GeneralComposerStep.CONTENT
+                    showDropTypePicker = false
+                    showDropComposer = true
+                },
+                onDismiss = { showDropTypePicker = false }
             )
         }
 
@@ -5726,6 +5752,7 @@ private fun DropComposerDialog(
     onRedemptionLimitChange: (TextFieldValue) -> Unit,
     decayDaysInput: TextFieldValue,
     onDecayDaysChange: (TextFieldValue) -> Unit,
+    initialGeneralStep: GeneralComposerStep,
     onManageGroupCodes: () -> Unit,
     onSubmit: () -> Unit,
     onDismiss: () -> Unit,
@@ -5962,8 +5989,11 @@ private fun DropComposerDialog(
                     }
                 }
             } else {
-                var currentStep by rememberSaveable { mutableStateOf(GeneralComposerStep.PLAN) }
+                var currentStep by rememberSaveable { mutableStateOf(initialGeneralStep) }
                 val steps = remember { GeneralComposerStep.entries.toList() }
+                LaunchedEffect(initialGeneralStep) {
+                    currentStep = initialGeneralStep
+                }
                 val canProceed = when (currentStep) {
                     GeneralComposerStep.PLAN -> true
                     GeneralComposerStep.CONTENT -> contentIsValid
@@ -11591,6 +11621,145 @@ private fun DropExperienceTypeSection(
     }
 }
 
+@Composable
+private fun DropTypeCategoryPickerDialog(
+    selectedDropExperienceType: DropExperienceType,
+    onSelectDropExperienceType: (DropExperienceType) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var selectedCategory by rememberSaveable {
+        mutableStateOf(selectedDropExperienceType.category)
+    }
+    val categoryOptions = remember {
+        DropExperienceCategory.entries.map { category ->
+            DropTypeCategoryOption(
+                category = category,
+                icon = dropExperiencesByCategory[category]?.firstOrNull()?.defaultConfiguration?.icon
+                    ?: Icons.Rounded.Dashboard
+            )
+        }
+    }
+    val optionsForSelectedCategory = remember(selectedCategory) {
+        dropExperiencesByCategory[selectedCategory].orEmpty()
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+            shape = RoundedCornerShape(24.dp),
+            tonalElevation = 8.dp,
+            shadowElevation = 6.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = "Choose a drop category",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = "Select a category, then pick a drop type to continue to the form.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(
+                            imageVector = Icons.Rounded.Close,
+                            contentDescription = "Close"
+                        )
+                    }
+                }
+
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    categoryOptions.forEach { option ->
+                        FilterChip(
+                            selected = selectedCategory == option.category,
+                            onClick = { selectedCategory = option.category },
+                            label = { Text(option.category.title) },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = option.icon,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        )
+                    }
+                }
+
+                LazyVerticalGrid(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 380.dp),
+                    columns = GridCells.Adaptive(minSize = 156.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    items(optionsForSelectedCategory) { option ->
+                        ElevatedCard(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(146.dp)
+                                .clickable { onSelectDropExperienceType(option) },
+                            shape = RoundedCornerShape(14.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = option.defaultConfiguration.icon,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                                Text(
+                                    text = option.label,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = option.subtitle,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 3,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun BusinessDropTypeSection(
@@ -12292,6 +12461,11 @@ private data class DropContentTypeOption(
     val type: DropContentType,
     val title: String,
     val description: String,
+    val icon: ImageVector
+)
+
+private data class DropTypeCategoryOption(
+    val category: DropExperienceCategory,
     val icon: ImageVector
 )
 
