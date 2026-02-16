@@ -11564,12 +11564,6 @@ private fun DropExperienceTypeSection(
                                         maxLines = 3,
                                         overflow = TextOverflow.Ellipsis
                                     )
-
-                                    Icon(
-                                        imageVector = if (isSelected) Icons.Rounded.CheckCircle else Icons.AutoMirrored.Rounded.ArrowForward,
-                                        contentDescription = null,
-                                        tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
                                 }
                             }
                         }
@@ -11592,14 +11586,6 @@ private fun DropExperienceTypeSection(
                         )
                     }
                 }
-            }
-
-            if (options.size > 1) {
-                Text(
-                    text = "Swipe left or right to see more drop types.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
             }
         }
     }
