@@ -12283,7 +12283,6 @@ private fun BusinessRedemptionSection(
 
 private const val MAX_DECAY_DAYS = 365
 
-@Composable
 private const val MAX_MEDIA_UPLOAD_BYTES = 20 * 1024 * 1024
 
 private class MediaTooLargeException : IOException("Media exceeds upload limit")
