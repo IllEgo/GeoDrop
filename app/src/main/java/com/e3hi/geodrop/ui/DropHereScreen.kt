@@ -11579,7 +11579,7 @@ private fun DropExperienceTypeSection(
                 if (scrollState.value < scrollState.maxValue) {
                     Surface(
                         modifier = Modifier
-                            .align(Alignment.CenterEnd)
+                            .align(Alignment.End)
                             .padding(end = 4.dp),
                         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
                         shape = CircleShape
