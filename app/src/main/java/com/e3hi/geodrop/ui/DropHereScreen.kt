@@ -11704,6 +11704,17 @@ private fun DropTypeCategoryPickerDialog(
                         ElevatedCard(
                             modifier = Modifier
                                 .size(112.dp)
+                                .then(
+                                    if (isSelected) {
+                                        Modifier.border(
+                                            width = 2.dp,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            shape = RoundedCornerShape(14.dp)
+                                        )
+                                    } else {
+                                        Modifier
+                                    }
+                                )
                                 .clickable { selectedCategory = option.category },
                             shape = RoundedCornerShape(14.dp),
                             colors = CardDefaults.elevatedCardColors(
@@ -11712,12 +11723,7 @@ private fun DropTypeCategoryPickerDialog(
                                 } else {
                                     MaterialTheme.colorScheme.surfaceVariant
                                 }
-                            ),
-                            border = if (isSelected) {
-                                BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
-                            } else {
-                                null
-                            }
+                            )
                         ) {
                             Column(
                                 modifier = Modifier
