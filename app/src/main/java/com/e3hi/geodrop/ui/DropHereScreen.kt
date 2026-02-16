@@ -12326,6 +12326,8 @@ private fun readUriBytesWithLimit(ctx: Context, uri: Uri, maxBytes: Int): ByteAr
         null
     }
 }
+
+@Composable
 private fun DropVisibilitySection(
     visibility: DropVisibility,
     onVisibilityChange: (DropVisibility) -> Unit,
