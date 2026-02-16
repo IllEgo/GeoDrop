@@ -1060,7 +1060,7 @@ fun DropHereScreen(
     var showGroupMenu by remember { mutableStateOf(false) }
     var showDropComposer by remember { mutableStateOf(false) }
     var showDropTypePicker by remember { mutableStateOf(false) }
-    var initialGeneralComposerStep by remember { mutableStateOf(GeneralComposerStep.PLAN) }
+    var initialGeneralComposerStep by remember { mutableStateOf(GeneralComposerStep.CONTENT) }
     var showBusinessDashboard by remember { mutableStateOf(false) }
     var businessDrops by remember { mutableStateOf<List<Drop>>(emptyList()) }
     var businessDashboardLoading by remember { mutableStateOf(false) }
@@ -1177,7 +1177,7 @@ fun DropHereScreen(
     var userProfileError by remember { mutableStateOf<String?>(null) }
 
     fun launchDropCreationFlow() {
-        initialGeneralComposerStep = GeneralComposerStep.PLAN
+        initialGeneralComposerStep = GeneralComposerStep.CONTENT
         if (userProfile?.isBusiness() == true) {
             showDropComposer = true
             return
@@ -3519,7 +3519,7 @@ fun DropHereScreen(
                 onSubmit = { submitDrop() },
                 onDismiss = {
                     if (!isSubmitting) {
-                        initialGeneralComposerStep = GeneralComposerStep.PLAN
+                        initialGeneralComposerStep = GeneralComposerStep.CONTENT
                         showDropComposer = false
                     }
                 }
@@ -4086,40 +4086,6 @@ private fun GeneralContentStep(
         onRecordVideo = onRecordVideo,
         onClearVideo = onClearVideo
     )
-
-    GeneralComposerNavigation(
-        previousStep = previousStep,
-        nextStep = nextStep,
-        canProceed = canProceed,
-        isSubmitting = isSubmitting,
-        onBack = onBack,
-        onNext = onNext,
-        onSubmit = onSubmit
-    )
-}
-
-@Composable
-private fun GeneralPlanStep(
-    selectedDropExperienceType: DropExperienceType,
-    onDropExperienceTypeChange: (DropExperienceType) -> Unit,
-    previousStep: GeneralComposerStep?,
-    nextStep: GeneralComposerStep?,
-    canProceed: Boolean,
-    isSubmitting: Boolean,
-    onBack: (GeneralComposerStep) -> Unit,
-    onNext: (GeneralComposerStep) -> Unit,
-    onSubmit: () -> Unit
-) {
-    DropComposerSection(
-        title = "Choose drop type",
-        description = "Pick the type of experience you want to leave at this location.",
-        leadingIcon = Icons.Rounded.Dashboard
-    ) {
-        DropExperienceTypeSection(
-            selected = selectedDropExperienceType,
-            onSelect = onDropExperienceTypeChange
-        )
-    }
 
     GeneralComposerNavigation(
         previousStep = previousStep,
@@ -5996,7 +5962,6 @@ private fun DropComposerDialog(
                     currentStep = initialGeneralStep
                 }
                 val canProceed = when (currentStep) {
-                    GeneralComposerStep.PLAN -> true
                     GeneralComposerStep.CONTENT -> contentIsValid
                     GeneralComposerStep.SETTINGS -> true
                     GeneralComposerStep.REVIEW -> true
@@ -6038,18 +6003,6 @@ private fun DropComposerDialog(
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     when (currentStep) {
-                        GeneralComposerStep.PLAN -> GeneralPlanStep(
-                            selectedDropExperienceType = dropExperienceType,
-                            onDropExperienceTypeChange = onDropExperienceTypeChange,
-                            previousStep = previousStep,
-                            nextStep = nextStep,
-                            canProceed = canProceed,
-                            isSubmitting = isSubmitting,
-                            onBack = { step -> currentStep = step },
-                            onNext = { step -> currentStep = step },
-                            onSubmit = onSubmit
-                        )
-
                         GeneralComposerStep.CONTENT -> GeneralContentStep(
                             dropExperienceType = dropExperienceType,
                             dropContentType = dropContentType,
@@ -6594,11 +6547,6 @@ private fun DropSubmitButton(
 }
 
 private enum class GeneralComposerStep(val title: String, val helper: String, val shortLabel: String) {
-    PLAN(
-        title = "Choose drop type",
-        helper = "Select what kind of experience you want to leave at this location.",
-        shortLabel = "Type"
-    ),
     CONTENT(
         title = "Create your content",
         helper = "Pick a format, write your message, and capture any media.",
