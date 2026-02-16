@@ -5899,8 +5899,7 @@ private fun DropComposerDialog(
 
                 Column(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .verticalScroll(scrollState),
+                        .fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     when (currentStep) {
