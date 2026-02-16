@@ -305,6 +305,7 @@ import kotlinx.coroutines.tasks.await
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
+import java.io.ByteArrayOutputStream
 import java.util.ArrayList
 import java.util.Locale
 import java.util.concurrent.TimeUnit
@@ -2038,11 +2039,7 @@ fun DropHereScreen(
                         }
 
                         val photoBytes = withContext(Dispatchers.IO) {
-                            try {
-                                File(path).takeIf { it.exists() }?.readBytes()
-                            } catch (e: IOException) {
-                                null
-                            }
+                            readFileBytesWithLimit(path, MAX_MEDIA_UPLOAD_BYTES)
                         } ?: run {
                             isSubmitting = false
                             snackbar.showMessage(
@@ -2078,11 +2075,7 @@ fun DropHereScreen(
                         val uri = Uri.parse(uriString)
 
                         val audioBytes = withContext(Dispatchers.IO) {
-                            try {
-                                ctx.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                            } catch (e: IOException) {
-                                null
-                            }
+                            readUriBytesWithLimit(ctx, uri, MAX_MEDIA_UPLOAD_BYTES)
                         } ?: run {
                             isSubmitting = false
                             snackbar.showMessage(
@@ -2120,11 +2113,7 @@ fun DropHereScreen(
                         val uri = Uri.parse(uriString)
 
                         val videoBytes = withContext(Dispatchers.IO) {
-                            try {
-                                ctx.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                            } catch (e: IOException) {
-                                null
-                            }
+                            readUriBytesWithLimit(ctx, uri, MAX_MEDIA_UPLOAD_BYTES)
                         } ?: run {
                             isSubmitting = false
                             snackbar.showMessage(
@@ -2229,6 +2218,15 @@ fun DropHereScreen(
                 }
             } catch (e: Exception) {
                 when (e) {
+                    is MediaTooLargeException -> {
+                        isSubmitting = false
+                        val maxSizeMb = MAX_MEDIA_UPLOAD_BYTES / (1024 * 1024)
+                        snackbar.showMessage(
+                            scope,
+                            "That file is too large to drop. Keep uploads under ${maxSizeMb}MB."
+                        )
+                        return@launch
+                    }
                     is DropBlockedBySafetyException -> {
                         isSubmitting = false
                         val reason = e.assessment.reasons.firstOrNull()
@@ -12286,6 +12284,49 @@ private fun BusinessRedemptionSection(
 private const val MAX_DECAY_DAYS = 365
 
 @Composable
+private const val MAX_MEDIA_UPLOAD_BYTES = 20 * 1024 * 1024
+
+private class MediaTooLargeException : IOException("Media exceeds upload limit")
+
+private fun readFileBytesWithLimit(path: String, maxBytes: Int): ByteArray? {
+    val file = File(path)
+    if (!file.exists()) return null
+    if (file.length() > maxBytes) {
+        throw MediaTooLargeException()
+    }
+    return runCatching { file.readBytes() }.getOrNull()
+}
+
+private fun readUriBytesWithLimit(ctx: Context, uri: Uri, maxBytes: Int): ByteArray? {
+    val reportedLength = runCatching {
+        ctx.contentResolver.openAssetFileDescriptor(uri, "r")?.use { it.length }
+    }.getOrNull()
+
+    if (reportedLength != null && reportedLength > maxBytes) {
+        throw MediaTooLargeException()
+    }
+
+    return try {
+        ctx.contentResolver.openInputStream(uri)?.use { input ->
+            val output = ByteArrayOutputStream()
+            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+            var total = 0
+            while (true) {
+                val read = input.read(buffer)
+                if (read < 0) break
+                total += read
+                if (total > maxBytes) {
+                    throw MediaTooLargeException()
+                }
+                output.write(buffer, 0, read)
+            }
+            output.toByteArray()
+        }
+    } catch (e: IOException) {
+        if (e is MediaTooLargeException) throw e
+        null
+    }
+}
 private fun DropVisibilitySection(
     visibility: DropVisibility,
     onVisibilityChange: (DropVisibility) -> Unit,
