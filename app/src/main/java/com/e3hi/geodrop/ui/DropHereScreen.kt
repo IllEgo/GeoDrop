@@ -11622,6 +11622,7 @@ private fun DropExperienceTypeSection(
 }
 
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 private fun DropTypeCategoryPickerDialog(
     selectedDropExperienceType: DropExperienceType,
     onSelectDropExperienceType: (DropExperienceType) -> Unit,
