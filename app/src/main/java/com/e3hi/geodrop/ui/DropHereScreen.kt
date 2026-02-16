@@ -298,6 +298,7 @@ import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
+import org.json.JSONObject
 import kotlin.math.sin
 import kotlin.math.sqrt
 
@@ -1136,6 +1137,7 @@ fun DropHereScreen(
         showBusinessDashboard = false
         showBusinessOnboarding = false
         showDropComposer = false
+        clearComposerDraft(ctx)
         showManageGroups = false
         showAccountSignIn = false
         showNsfwDialog = false
@@ -1817,6 +1819,7 @@ fun DropHereScreen(
         clearAudio()
         clearVideo()
         showDropComposer = false
+        clearComposerDraft(ctx)
         dropAnonymously = false
         if (dropType == DropType.RESTAURANT_COUPON) {
             redemptionCodeInput = TextFieldValue("")
@@ -2219,6 +2222,14 @@ fun DropHereScreen(
                     decayDays = decayDaysResult,
                     dropAnonymously = anonymizeDrop,
                     nsfwAllowed = userProfile?.canViewNsfw() == true
+                )
+                composerAnalyticsEvent(
+                    event = "published",
+                    details = mapOf(
+                        "drop_type" to dropType.name,
+                        "content_type" to dropContentType.name,
+                        "visibility" to dropVisibility.name
+                    )
                 )
                 val baseStatusMessage = status
                 val visionMessage = visionStatusMessage(
@@ -4043,13 +4054,13 @@ private fun GeneralContentStep(
     isSubmitting: Boolean,
     onBack: (GeneralComposerStep) -> Unit,
     onNext: (GeneralComposerStep) -> Unit,
-    onSubmit: () -> Unit
+    onSubmit: () -> Unit,
+    onValidationFailed: () -> Unit = {}
 ) {
     val planDefaults = remember(dropExperienceType) { dropExperienceType.defaultConfiguration }
     val contentHint = remember(dropExperienceType) {
         dropExperienceType.subtitle
     }
-
     DropComposerSection(
         title = dropExperienceType.label,
         description = contentHint,
@@ -4094,7 +4105,8 @@ private fun GeneralContentStep(
         isSubmitting = isSubmitting,
         onBack = onBack,
         onNext = onNext,
-        onSubmit = onSubmit
+        onSubmit = onSubmit,
+        onValidationFailed = onValidationFailed
     )
 }
 
@@ -4117,7 +4129,8 @@ private fun GeneralSettingsStep(
     canProceed: Boolean,
     onBack: (GeneralComposerStep) -> Unit,
     onNext: (GeneralComposerStep) -> Unit,
-    onSubmit: () -> Unit
+    onSubmit: () -> Unit,
+    onValidationFailed: () -> Unit = {}
 ) {
     DropAutoDeleteSection(
         decayDaysInput = decayDaysInput,
@@ -4146,7 +4159,8 @@ private fun GeneralSettingsStep(
         isSubmitting = isSubmitting,
         onBack = onBack,
         onNext = onNext,
-        onSubmit = onSubmit
+        onSubmit = onSubmit,
+        onValidationFailed = onValidationFailed
     )
 }
 
@@ -4197,6 +4211,11 @@ private fun BusinessPlanStep(
 
 @Composable
 private fun BusinessContentStep(
+    dropType: DropType,
+    onDropTypeChange: (DropType) -> Unit,
+    businessName: String?,
+    businessCategories: List<BusinessCategory>,
+    templateSuggestions: List<BusinessDropTemplate>,
     dropContentType: DropContentType,
     onDropContentTypeChange: (DropContentType) -> Unit,
     note: TextFieldValue,
@@ -4219,8 +4238,21 @@ private fun BusinessContentStep(
     isSubmitting: Boolean,
     onBack: (BusinessComposerStep) -> Unit,
     onNext: (BusinessComposerStep) -> Unit,
-    onSubmit: () -> Unit
+    onSubmit: () -> Unit,
+    onValidationFailed: () -> Unit = {}
 ) {
+
+    BusinessPlanStep(
+        dropType = dropType,
+        onDropTypeChange = onDropTypeChange,
+        businessName = businessName,
+        businessCategories = businessCategories,
+        templateSuggestions = templateSuggestions,
+        onDropContentTypeChange = onDropContentTypeChange,
+        onNoteChange = onNoteChange,
+        onDescriptionChange = onDescriptionChange
+    )
+
     DropContentFormatSection(
         dropContentType = dropContentType,
         onDropContentTypeChange = onDropContentTypeChange
@@ -4253,7 +4285,8 @@ private fun BusinessContentStep(
         isSubmitting = isSubmitting,
         onBack = onBack,
         onNext = onNext,
-        onSubmit = onSubmit
+        onSubmit = onSubmit,
+        onValidationFailed = onValidationFailed
     )
 }
 
@@ -4296,7 +4329,8 @@ private fun BusinessSettingsStep(
     canProceed: Boolean,
     onBack: (BusinessComposerStep) -> Unit,
     onNext: (BusinessComposerStep) -> Unit,
-    onSubmit: () -> Unit
+    onSubmit: () -> Unit,
+    onValidationFailed: () -> Unit = {}
 ) {
     DropAutoDeleteSection(
         decayDaysInput = decayDaysInput,
@@ -4320,12 +4354,14 @@ private fun BusinessSettingsStep(
         canProceed = canProceed,
         onBack = onBack,
         onNext = onNext,
-        onSubmit = onSubmit
+        onSubmit = onSubmit,
+        onValidationFailed = onValidationFailed
     )
 }
 
 @Composable
 private fun DropReviewStep(
+    dropType: DropType,
     dropContentType: DropContentType,
     note: TextFieldValue,
     description: TextFieldValue,
@@ -4335,11 +4371,41 @@ private fun DropReviewStep(
     dropVisibility: DropVisibility,
     decayDaysInput: TextFieldValue,
     redemptionCodeInput: TextFieldValue?,
-    redemptionLimitInput: TextFieldValue?
+    redemptionLimitInput: TextFieldValue?,
+    dropAnonymously: Boolean
 ) {
     DropComposerSection(
-        title = "Content review",
-        description = "Double-check the format, text, and attachments before dropping.",
+        title = "Review summary",
+        description = "Final check before publish.",
+        leadingIcon = Icons.Rounded.Visibility
+    ) {
+        val dropTypeLabel = dropType.name.lowercase().replace('_', ' ').replaceFirstChar { it.titlecase() }
+        val visibilityLabel = when (dropVisibility) {
+            DropVisibility.Public -> "Public"
+            DropVisibility.GroupOnly -> "Group only"
+        }
+        val mediaLabel = when (dropContentType) {
+            DropContentType.TEXT -> "None"
+            DropContentType.PHOTO -> if (capturedPhotoPath != null) "Photo attached" else "Missing photo"
+            DropContentType.AUDIO -> if (capturedAudioUri != null) "Audio attached" else "Missing audio"
+            DropContentType.VIDEO -> if (capturedVideoUri != null) "Video attached" else "Missing video"
+        }
+        val redemptionSummary = redemptionCodeInput?.text?.ifBlank { "Not required" } ?: "Not required"
+        val decaySummary = decayDaysInput.text.ifBlank { "No auto-delete" }
+        val anonymitySummary = if (dropAnonymously) "Anonymous" else "Named"
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("Drop type: $dropTypeLabel", style = MaterialTheme.typography.bodyMedium)
+            Text("Visibility: $visibilityLabel", style = MaterialTheme.typography.bodyMedium)
+            Text("Media: $mediaLabel", style = MaterialTheme.typography.bodyMedium)
+            Text("Redemption: $redemptionSummary", style = MaterialTheme.typography.bodyMedium)
+            Text("Decay: $decaySummary", style = MaterialTheme.typography.bodyMedium)
+            Text("Anonymity: $anonymitySummary", style = MaterialTheme.typography.bodyMedium)
+        }
+    }
+
+    DropComposerSection(
+        title = "Content details",
+        description = "Double-check format, text, and attachments.",
         leadingIcon = Icons.Rounded.Visibility
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -5736,6 +5802,63 @@ private fun DropComposerDialog(
         }
     }
 
+    LaunchedEffect(Unit) {
+        composerAnalyticsEvent("opened", mapOf("business_user" to isBusinessUser.toString()))
+        loadComposerDraft(context)?.let { draft ->
+            draft.optString("dropExperienceType").takeIf { it.isNotBlank() }
+                ?.let { raw -> DropExperienceType.entries.firstOrNull { it.name == raw } }
+                ?.let(onDropExperienceTypeChange)
+            onDropTypeChange(DropType.fromRaw(draft.optString("dropType")))
+            onDropContentTypeChange(DropContentType.fromRaw(draft.optString("dropContentType")))
+            onNoteChange(TextFieldValue(draft.optString("note")))
+            onDescriptionChange(TextFieldValue(draft.optString("description")))
+            onDropVisibilityChange(
+                if (draft.optString("dropVisibility") == DropVisibility.GroupOnly.name) {
+                    DropVisibility.GroupOnly
+                } else {
+                    DropVisibility.Public
+                }
+            )
+            onDropAnonymouslyChange(draft.optBoolean("dropAnonymously", false))
+            onGroupCodeInputChange(TextFieldValue(draft.optString("groupCode")))
+            onRedemptionCodeChange(TextFieldValue(draft.optString("redemptionCode")))
+            onRedemptionLimitChange(TextFieldValue(draft.optString("redemptionLimit")))
+            onDecayDaysChange(TextFieldValue(draft.optString("decayDays")))
+        }
+    }
+
+    LaunchedEffect(
+        dropExperienceType,
+        dropType,
+        dropContentType,
+        note.text,
+        description.text,
+        dropVisibility,
+        dropAnonymously,
+        groupCodeInput.text,
+        redemptionCodeInput.text,
+        redemptionLimitInput.text,
+        decayDaysInput.text
+    ) {
+        saveComposerDraft(
+            context,
+            JSONObject().apply {
+                put("dropExperienceType", dropExperienceType.name)
+                put("dropType", dropType.name)
+                put("dropContentType", dropContentType.name)
+                put("note", note.text)
+                put("description", description.text)
+                put("dropVisibility", dropVisibility.name)
+                put("dropAnonymously", dropAnonymously)
+                put("groupCode", groupCodeInput.text)
+                put("redemptionCode", redemptionCodeInput.text)
+                put("redemptionLimit", redemptionLimitInput.text)
+                put("decayDays", decayDaysInput.text)
+            }
+        )
+    }
+
+
     ModalBottomSheet(
         onDismissRequest = {
             if (!isSubmitting) {
@@ -5800,15 +5923,14 @@ private fun DropComposerDialog(
             }
 
             if (isBusinessUser) {
-                var currentStep by rememberSaveable { mutableStateOf(BusinessComposerStep.PLAN) }
+                var currentStep by rememberSaveable { mutableStateOf(BusinessComposerStep.CONTENT) }
                 val availableSteps = remember(dropType) {
                     buildList {
-                        add(BusinessComposerStep.PLAN)
                         add(BusinessComposerStep.CONTENT)
+                        add(BusinessComposerStep.AUDIENCE)
                         if (dropType == DropType.RESTAURANT_COUPON) {
                             add(BusinessComposerStep.OFFER)
                         }
-                        add(BusinessComposerStep.SETTINGS)
                         add(BusinessComposerStep.REVIEW)
                     }
                 }
@@ -5824,10 +5946,9 @@ private fun DropComposerDialog(
 
                 val offerIsValid = redemptionCodeInput.text.isNotBlank() || !availableSteps.contains(BusinessComposerStep.OFFER)
                 val canProceed = when (currentStep) {
-                    BusinessComposerStep.PLAN -> true
                     BusinessComposerStep.CONTENT -> contentIsValid
+                    BusinessComposerStep.AUDIENCE -> true
                     BusinessComposerStep.OFFER -> offerIsValid
-                    BusinessComposerStep.SETTINGS -> true
                     BusinessComposerStep.REVIEW -> true
                 }
 
@@ -5867,18 +5988,12 @@ private fun DropComposerDialog(
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     when (currentStep) {
-                        BusinessComposerStep.PLAN -> BusinessPlanStep(
+                        BusinessComposerStep.CONTENT -> BusinessContentStep(
                             dropType = dropType,
                             onDropTypeChange = onDropTypeChange,
                             businessName = businessName,
                             businessCategories = businessCategories,
                             templateSuggestions = templateSuggestions,
-                            onDropContentTypeChange = onDropContentTypeChange,
-                            onNoteChange = onNoteChange,
-                            onDescriptionChange = onDescriptionChange
-                        )
-
-                        BusinessComposerStep.CONTENT -> BusinessContentStep(
                             dropContentType = dropContentType,
                             onDropContentTypeChange = onDropContentTypeChange,
                             note = note,
@@ -5900,8 +6015,15 @@ private fun DropComposerDialog(
                             canProceed = canProceed,
                             isSubmitting = isSubmitting,
                             onBack = { step -> currentStep = step },
-                            onNext = { step -> currentStep = step },
-                            onSubmit = onSubmit
+                            onNext = { step ->
+                                composerAnalyticsEvent("step_advanced", mapOf("from" to currentStep.name, "to" to step.name))
+                                currentStep = step
+                            },
+                            onSubmit = onSubmit,
+                            onValidationFailed = {
+                                composerAnalyticsEvent("validation_failed", mapOf("step" to currentStep.name))
+                                Toast.makeText(context, "Please complete required fields for this step.", Toast.LENGTH_SHORT).show()
+                            }
                         )
 
                         BusinessComposerStep.OFFER -> BusinessOfferStep(
@@ -5911,7 +6033,7 @@ private fun DropComposerDialog(
                             onRedemptionLimitChange = onRedemptionLimitChange
                         )
 
-                        BusinessComposerStep.SETTINGS -> BusinessSettingsStep(
+                        BusinessComposerStep.AUDIENCE -> BusinessSettingsStep(
                             decayDaysInput = decayDaysInput,
                             onDecayDaysChange = onDecayDaysChange,
                             dropVisibility = dropVisibility,
@@ -5926,11 +6048,19 @@ private fun DropComposerDialog(
                             nextStep = nextStep,
                             canProceed = canProceed,
                             onBack = { step -> currentStep = step },
-                            onNext = { step -> currentStep = step },
-                            onSubmit = onSubmit
+                            onNext = { step ->
+                                composerAnalyticsEvent("step_advanced", mapOf("from" to currentStep.name, "to" to step.name))
+                                currentStep = step
+                            },
+                            onSubmit = onSubmit,
+                            onValidationFailed = {
+                                composerAnalyticsEvent("validation_failed", mapOf("step" to currentStep.name))
+                                Toast.makeText(context, "Please complete required fields for this step.", Toast.LENGTH_SHORT).show()
+                            }
                         )
 
                         BusinessComposerStep.REVIEW -> DropReviewStep(
+                            dropType = dropType,
                             dropContentType = dropContentType,
                             note = note,
                             description = description,
@@ -5940,18 +6070,26 @@ private fun DropComposerDialog(
                             dropVisibility = dropVisibility,
                             decayDaysInput = decayDaysInput,
                             redemptionCodeInput = redemptionCodeInput.takeIf { availableSteps.contains(BusinessComposerStep.OFFER) },
-                            redemptionLimitInput = redemptionLimitInput.takeIf { availableSteps.contains(BusinessComposerStep.OFFER) }
+                            redemptionLimitInput = redemptionLimitInput.takeIf { availableSteps.contains(BusinessComposerStep.OFFER) },
+                            dropAnonymously = false
                         )
                     }
-                    if (currentStep != BusinessComposerStep.CONTENT && currentStep != BusinessComposerStep.SETTINGS) {
+                    if (currentStep != BusinessComposerStep.CONTENT && currentStep != BusinessComposerStep.AUDIENCE) {
                         BusinessComposerStepNavigation(
                             previousStep = previousStep,
                             nextStep = nextStep,
                             isSubmitting = isSubmitting,
                             canProceed = canProceed,
                             onBack = { step -> currentStep = step },
-                            onNext = { step -> currentStep = step },
-                            onSubmit = onSubmit
+                            onNext = { step ->
+                                composerAnalyticsEvent("step_advanced", mapOf("from" to currentStep.name, "to" to step.name))
+                                currentStep = step
+                            },
+                            onSubmit = onSubmit,
+                            onValidationFailed = {
+                                composerAnalyticsEvent("validation_failed", mapOf("step" to currentStep.name))
+                                Toast.makeText(context, "Please complete required fields for this step.", Toast.LENGTH_SHORT).show()
+                            }
                         )
                     }
                 }
@@ -5963,7 +6101,7 @@ private fun DropComposerDialog(
                 }
                 val canProceed = when (currentStep) {
                     GeneralComposerStep.CONTENT -> contentIsValid
-                    GeneralComposerStep.SETTINGS -> true
+                    GeneralComposerStep.AUDIENCE -> true
                     GeneralComposerStep.REVIEW -> true
                 }
 
@@ -6026,11 +6164,18 @@ private fun DropComposerDialog(
                             canProceed = canProceed,
                             isSubmitting = isSubmitting,
                             onBack = { step -> currentStep = step },
-                            onNext = { step -> currentStep = step },
-                            onSubmit = onSubmit
+                            onNext = { step ->
+                                composerAnalyticsEvent("step_advanced", mapOf("from" to currentStep.name, "to" to step.name))
+                                currentStep = step
+                            },
+                            onSubmit = onSubmit,
+                            onValidationFailed = {
+                                composerAnalyticsEvent("validation_failed", mapOf("step" to currentStep.name))
+                                Toast.makeText(context, "Please complete required fields for this step.", Toast.LENGTH_SHORT).show()
+                            }
                         )
 
-                        GeneralComposerStep.SETTINGS -> GeneralSettingsStep(
+                        GeneralComposerStep.AUDIENCE -> GeneralSettingsStep(
                             decayDaysInput = decayDaysInput,
                             onDecayDaysChange = onDecayDaysChange,
                             dropAnonymously = dropAnonymously,
@@ -6047,11 +6192,19 @@ private fun DropComposerDialog(
                             nextStep = nextStep,
                             canProceed = canProceed,
                             onBack = { step -> currentStep = step },
-                            onNext = { step -> currentStep = step },
-                            onSubmit = onSubmit
+                            onNext = { step ->
+                                composerAnalyticsEvent("step_advanced", mapOf("from" to currentStep.name, "to" to step.name))
+                                currentStep = step
+                            },
+                            onSubmit = onSubmit,
+                            onValidationFailed = {
+                                composerAnalyticsEvent("validation_failed", mapOf("step" to currentStep.name))
+                                Toast.makeText(context, "Please complete required fields for this step.", Toast.LENGTH_SHORT).show()
+                            }
                         )
 
                         GeneralComposerStep.REVIEW -> DropReviewStep(
+                            dropType = dropType,
                             dropContentType = dropContentType,
                             note = note,
                             description = description,
@@ -6061,18 +6214,26 @@ private fun DropComposerDialog(
                             dropVisibility = dropVisibility,
                             decayDaysInput = decayDaysInput,
                             redemptionCodeInput = null,
-                            redemptionLimitInput = null
+                            redemptionLimitInput = null,
+                            dropAnonymously = dropAnonymously
                         )
                     }
-                    if (currentStep != GeneralComposerStep.CONTENT && currentStep != GeneralComposerStep.SETTINGS) {
+                    if (currentStep != GeneralComposerStep.CONTENT && currentStep != GeneralComposerStep.AUDIENCE) {
                         GeneralComposerNavigation(
                             previousStep = previousStep,
                             nextStep = nextStep,
                             canProceed = canProceed,
                             isSubmitting = isSubmitting,
                             onBack = { step -> currentStep = step },
-                            onNext = { step -> currentStep = step },
-                            onSubmit = onSubmit
+                            onNext = { step ->
+                                composerAnalyticsEvent("step_advanced", mapOf("from" to currentStep.name, "to" to step.name))
+                                currentStep = step
+                            },
+                            onSubmit = onSubmit,
+                            onValidationFailed = {
+                                composerAnalyticsEvent("validation_failed", mapOf("step" to currentStep.name))
+                                Toast.makeText(context, "Please complete required fields for this step.", Toast.LENGTH_SHORT).show()
+                            }
                         )
                     }
                 }
@@ -6552,14 +6713,14 @@ private enum class GeneralComposerStep(val title: String, val helper: String, va
         helper = "Pick a format, write your message, and capture any media.",
         shortLabel = "Content"
     ),
-    SETTINGS(
-        title = "Choose visibility",
-        helper = "Control how long the drop lasts and who can discover it.",
-        shortLabel = "Settings"
+    AUDIENCE(
+        title = "Audience",
+        helper = "Choose visibility, group access, and identity for who should find this drop.",
+        shortLabel = "Audience"
     ),
     REVIEW(
-        title = "Review and drop",
-        helper = "Confirm content, attachments, and settings before submitting.",
+        title = "Review & Publish",
+        helper = "Confirm your summary and publish when everything looks right.",
         shortLabel = "Review"
     )
 }
@@ -6645,8 +6806,8 @@ private fun GeneralComposerNavigation(
     canProceed: Boolean,
     isSubmitting: Boolean,
     onBack: (GeneralComposerStep) -> Unit,
-    onNext: (GeneralComposerStep) -> Unit,
-    onSubmit: () -> Unit
+    onSubmit: () -> Unit,
+    onValidationFailed: () -> Unit = {}
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -6665,19 +6826,23 @@ private fun GeneralComposerNavigation(
 
         if (nextStep != null) {
             Button(
-                onClick = { onNext(nextStep) },
-                enabled = !isSubmitting && canProceed
+                onClick = {
+                    if (canProceed) onNext(nextStep) else onValidationFailed()
+                },
+                enabled = !isSubmitting
             ) {
                 Text("Next: ${nextStep.shortLabel}")
             }
         } else {
             DropSubmitButton(
                 isSubmitting = isSubmitting,
-                onSubmit = onSubmit,
+                onSubmit = {
+                    if (canProceed) onSubmit() else onValidationFailed()
+                },
                 modifier = Modifier
                     .widthIn(min = 180.dp)
                     .alpha(if (canProceed) 1f else 0.6f),
-                enabled = canProceed
+                enabled = !isSubmitting
             )
         }
     }
@@ -6688,11 +6853,6 @@ private enum class BusinessComposerStep(
     val helper: String,
     val shortLabel: String
 ) {
-    PLAN(
-        title = "Plan your drop",
-        helper = "Choose the goal that best matches what your business wants to share.",
-        shortLabel = "Plan"
-    ),
     CONTENT(
         title = "Create your content",
         helper = "Select a format and add the story that will engage nearby explorers.",
@@ -6703,14 +6863,14 @@ private enum class BusinessComposerStep(
         helper = "Protect promotions with a code and limit redemptions to avoid misuse.",
         shortLabel = "Offer"
     ),
-    SETTINGS(
-        title = "Finalize settings",
-        helper = "Decide how long the drop lasts and who should be able to discover it.",
-        shortLabel = "Settings"
+    AUDIENCE(
+        title = "Audience",
+        helper = "Set visibility and decay so the right people discover your drop at the right time.",
+        shortLabel = "Audience"
     ),
     REVIEW(
-        title = "Review details",
-        helper = "Confirm your content, offer controls, and discovery rules before dropping.",
+        title = "Review & Publish",
+        helper = "Verify content, offer controls, and audience settings before publishing.",
         shortLabel = "Review"
     )
 }
@@ -6805,8 +6965,8 @@ private fun BusinessComposerStepNavigation(
     isSubmitting: Boolean,
     canProceed: Boolean,
     onBack: (BusinessComposerStep) -> Unit,
-    onNext: (BusinessComposerStep) -> Unit,
-    onSubmit: () -> Unit
+    onSubmit: () -> Unit,
+    onValidationFailed: () -> Unit = {}
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -6825,19 +6985,23 @@ private fun BusinessComposerStepNavigation(
 
         if (nextStep != null) {
             Button(
-                onClick = { onNext(nextStep) },
-                enabled = !isSubmitting && canProceed
+                onClick = {
+                    if (canProceed) onNext(nextStep) else onValidationFailed()
+                },
+                enabled = !isSubmitting
             ) {
                 Text("Next: ${nextStep.shortLabel}")
             }
         } else {
             DropSubmitButton(
                 isSubmitting = isSubmitting,
-                onSubmit = onSubmit,
+                onSubmit = {
+                    if (canProceed) onSubmit() else onValidationFailed()
+                },
                 modifier = Modifier
                     .widthIn(min = 180.dp)
                     .alpha(if (canProceed) 1f else 0.6f),
-                enabled = canProceed
+                enabled = !isSubmitting
             )
         }
     }
@@ -12260,6 +12424,39 @@ private fun BusinessRedemptionSection(
             modifier = Modifier.fillMaxWidth()
         )
     }
+}
+
+
+private const val COMPOSER_DRAFT_PREFS = "drop_composer_draft"
+private const val COMPOSER_DRAFT_KEY = "draft_json"
+
+private fun composerAnalyticsEvent(event: String, details: Map<String, String> = emptyMap()) {
+    val detailString = details.entries.joinToString { "${it.key}=${it.value}" }
+    Log.d("DropComposerFunnel", "event=$event${if (detailString.isBlank()) "" else " $detailString"}")
+}
+
+private fun saveComposerDraft(
+    context: Context,
+    draft: JSONObject
+) {
+    context.getSharedPreferences(COMPOSER_DRAFT_PREFS, Context.MODE_PRIVATE)
+        .edit()
+        .putString(COMPOSER_DRAFT_KEY, draft.toString())
+        .apply()
+}
+
+private fun loadComposerDraft(context: Context): JSONObject? {
+    val raw = context.getSharedPreferences(COMPOSER_DRAFT_PREFS, Context.MODE_PRIVATE)
+        .getString(COMPOSER_DRAFT_KEY, null)
+        ?: return null
+    return runCatching { JSONObject(raw) }.getOrNull()
+}
+
+private fun clearComposerDraft(context: Context) {
+    context.getSharedPreferences(COMPOSER_DRAFT_PREFS, Context.MODE_PRIVATE)
+        .edit()
+        .remove(COMPOSER_DRAFT_KEY)
+        .apply()
 }
 
 private const val MAX_DECAY_DAYS = 365
