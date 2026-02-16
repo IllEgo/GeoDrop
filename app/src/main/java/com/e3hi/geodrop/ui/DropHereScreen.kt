@@ -44,9 +44,8 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.AnchoredDraggableState
 import androidx.compose.foundation.gestures.DraggableAnchors
@@ -57,7 +56,6 @@ import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.gestures.snapTo
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -74,38 +72,35 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.rounded.AccessTime
 import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.material.icons.rounded.AddCircle
-import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.Bookmark
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.CheckCircle
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.Dashboard
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.DragHandle
-import androidx.compose.material.icons.rounded.Edit
-import androidx.compose.material.icons.rounded.Flag
+import androidx.compose.material.icons.rounded.Dashboard
 import androidx.compose.material.icons.rounded.GraphicEq
+import androidx.compose.material.icons.rounded.Help
 import androidx.compose.material.icons.rounded.GroupAdd
 import androidx.compose.material.icons.rounded.Groups
-import androidx.compose.material.icons.rounded.Help
 import androidx.compose.material.icons.rounded.Inbox
 import androidx.compose.material.icons.rounded.Info
-import androidx.compose.material.icons.rounded.Lightbulb
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Logout
 import androidx.compose.material.icons.rounded.Map
@@ -114,13 +109,15 @@ import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.material.icons.rounded.Place
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Public
-import androidx.compose.material.icons.rounded.Refresh
-import androidx.compose.material.icons.rounded.Report
-import androidx.compose.material.icons.rounded.Sort
+import androidx.compose.material.icons.rounded.Videocam
 import androidx.compose.material.icons.rounded.Storefront
+import androidx.compose.material.icons.rounded.Flag
+import androidx.compose.material.icons.rounded.Report
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Sort
 import androidx.compose.material.icons.rounded.ThumbDown
 import androidx.compose.material.icons.rounded.ThumbUp
-import androidx.compose.material.icons.rounded.Videocam
 import androidx.compose.material.icons.rounded.Lightbulb
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.Visibility
@@ -5670,7 +5667,6 @@ private fun DropComposerDialog(
             DropContentType.VIDEO -> capturedVideoUri != null
         }
     }
-    var selectedDropIdeaId by rememberSaveable { mutableStateOf(dropIdeaCards.first().id) }
 
     ModalBottomSheet(
         onDismissRequest = {
@@ -5688,14 +5684,9 @@ private fun DropComposerDialog(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp)
-                .verticalScroll(scrollState),
+                .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            val selectedDropIdea = remember(selectedDropIdeaId) {
-                dropIdeaCards.firstOrNull { it.id == selectedDropIdeaId } ?: dropIdeaCards.first()
-            }
-
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -5718,27 +5709,6 @@ private fun DropComposerDialog(
                     Text("Close")
                 }
             }
-
-            DropIdeaCarousel(
-                selectedId = selectedDropIdeaId,
-                onSelect = { idea ->
-                    selectedDropIdeaId = idea.id
-                    if (dropContentType != idea.recommendedContentType) {
-                        onDropContentTypeChange(idea.recommendedContentType)
-                    }
-                    if (note.text.isBlank() && idea.suggestedNote.isNotBlank()) {
-                        onNoteChange(TextFieldValue(idea.suggestedNote))
-                    }
-                    if (description.text.isBlank() && !idea.suggestedDescription.isNullOrBlank()) {
-                        onDescriptionChange(TextFieldValue(idea.suggestedDescription))
-                    }
-                }
-            )
-
-            DropIdeaTaskList(
-                idea = selectedDropIdea,
-                modifier = Modifier.fillMaxWidth()
-            )
 
             if (userProfileLoading) {
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
@@ -6035,213 +6005,6 @@ private fun DropComposerDialog(
                     }
                 }
             }
-        }
-    }
-}
-
-@Composable
-@OptIn(ExperimentalFoundationApi::class)
-private fun DropIdeaCarousel(
-    selectedId: String,
-    onSelect: (DropIdeaCardData) -> Unit
-) {
-    val cards = remember { dropIdeaCards }
-    val scope = rememberCoroutineScope()
-    val initialPage = cards.indexOfFirst { it.id == selectedId }.coerceAtLeast(0)
-    val pagerState = rememberPagerState(initialPage = initialPage) { cards.size }
-
-    LaunchedEffect(pagerState.currentPage) {
-        cards.getOrNull(pagerState.currentPage)?.let { current ->
-            if (current.id != selectedId) {
-                onSelect(current)
-            }
-        }
-    }
-
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Pick a drop idea",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = "Swipe to choose what kind of experience you want to leave.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            DropIdeaPagerIndicator(
-                total = cards.size,
-                currentPage = pagerState.currentPage
-            )
-        }
-
-        HorizontalPager(
-            state = pagerState,
-            pageSpacing = 12.dp,
-            contentPadding = PaddingValues(horizontal = 6.dp)
-        ) { page ->
-            val card = cards[page]
-            DropIdeaCard(
-                card = card,
-                isSelected = card.id == selectedId,
-                onClick = {
-                    onSelect(card)
-                    scope.launch { pagerState.animateScrollToPage(page) }
-                }
-            )
-        }
-    }
-}
-
-@Composable
-private fun DropIdeaTaskList(idea: DropIdeaCardData, modifier: Modifier = Modifier) {
-    ElevatedCard(
-        modifier = modifier,
-        shape = MaterialTheme.shapes.medium
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Text(
-                text = "Steps for ${'$'}{idea.title}",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-
-            idea.tasks.forEachIndexed { index, task ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .semantics(mergeDescendants = true) {
-                            contentDescription = "Task ${'$'}{index + 1}: ${'$'}task"
-                        },
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Check,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                    Text(
-                        text = task,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun DropIdeaPagerIndicator(total: Int, currentPage: Int) {
-    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        repeat(total) { index ->
-            val isActive = index == currentPage
-            Box(
-                modifier = Modifier
-                    .size(if (isActive) 10.dp else 8.dp)
-                    .clip(CircleShape)
-                    .background(
-                        if (isActive) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.outlineVariant
-                    )
-            )
-        }
-    }
-}
-
-@Composable
-private fun DropIdeaCard(
-    card: DropIdeaCardData,
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
-    val shape = MaterialTheme.shapes.large
-    val cardModifier = Modifier
-        .fillMaxWidth()
-        .heightIn(min = 160.dp)
-        .clickable(onClick = onClick)
-        .then(
-            if (isSelected) {
-                Modifier.border(BorderStroke(2.dp, MaterialTheme.colorScheme.primary), shape)
-            } else {
-                Modifier
-            }
-        )
-
-    ElevatedCard(
-        modifier = cardModifier,
-        shape = shape
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Surface(
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-                    shape = CircleShape
-                ) {
-                    Box(modifier = Modifier.padding(10.dp)) {
-                        Icon(
-                            imageVector = card.icon,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
-
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = card.title,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        text = card.description,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                if (isSelected) {
-                    Icon(
-                        imageVector = Icons.Rounded.CheckCircle,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
-            }
-
-            AssistChip(
-                onClick = onClick,
-                label = {
-                    Text("Best for ${card.recommendedContentType.name.lowercase()}")
-                },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Rounded.Edit,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
-            )
         }
     }
 }
@@ -11546,7 +11309,7 @@ private fun DropAudioPlayer(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DropContentTypeSection(
     selected: DropContentType,
@@ -11557,26 +11320,26 @@ private fun DropContentTypeSection(
         listOf(
             DropContentTypeOption(
                 type = DropContentType.TEXT,
-                title = "Leave a memory",
-                description = "Drop a heartfelt note, story, or hint for others to discover.",
-                icon = Icons.Rounded.Bookmark
+                title = "Text",
+                description = "Share a written message for people nearby.",
+                icon = Icons.Rounded.Edit
             ),
             DropContentTypeOption(
                 type = DropContentType.PHOTO,
-                title = "Share the view",
-                description = "Snap a photo so explorers can see what you see.",
+                title = "Photo",
+                description = "Capture a photo with your camera that others can open.",
                 icon = Icons.Rounded.PhotoCamera
             ),
             DropContentTypeOption(
                 type = DropContentType.VIDEO,
-                title = "Start a scavenger hunt",
-                description = "Record a video clue or walkthrough for an adventure.",
-                icon = Icons.Rounded.Flag
+                title = "Video",
+                description = "Record a short clip for nearby explorers to watch.",
+                icon = Icons.Rounded.Videocam
             ),
             DropContentTypeOption(
                 type = DropContentType.AUDIO,
-                title = "Drop a voice note",
-                description = "Share a quick message, memory, or greeting in your own voice.",
+                title = "Audio",
+                description = "Record a quick voice message for nearby explorers.",
                 icon = Icons.Rounded.Mic
             )
         )
@@ -11590,84 +11353,29 @@ private fun DropContentTypeSection(
             Text("Drop content", style = MaterialTheme.typography.titleSmall)
         }
 
-        FlowRow(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            maxItemsInEachRow = 2
-        ) {
-            options.forEach { option ->
-                DropContentTypeCard(
-                    option = option,
+        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+            options.forEachIndexed { index, option ->
+                SegmentedButton(
+                    shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
+                    onClick = { onSelect(option.type) },
                     selected = option.type == selected,
-                    onSelect = onSelect
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun DropContentTypeCard(
-    option: DropContentTypeOption,
-    selected: Boolean,
-    onSelect: (DropContentType) -> Unit
-) {
-    val cardColors = explorerDropCardColors(isSelected = selected)
-    val borderColor = if (selected) {
-        MaterialTheme.colorScheme.primary
-    } else {
-        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
-    }
-
-    Surface(
-        shape = RoundedCornerShape(16.dp),
-        color = cardColors.container,
-        contentColor = cardColors.content,
-        tonalElevation = if (selected) 6.dp else 0.dp,
-        border = BorderStroke(width = if (selected) 2.dp else 1.dp, color = borderColor),
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onSelect(option.type) }
-    ) {
-        Column(
-            modifier = Modifier
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .background(
-                        color = if (selected) {
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.08f)
-                        },
-                        shape = CircleShape
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = option.icon,
-                    contentDescription = null,
-                    tint = if (selected) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        cardColors.supporting
+                    label = { Text(option.title) },
+                    icon = {
+                        Icon(
+                            imageVector = option.icon,
+                            contentDescription = null
+                        )
                     }
                 )
             }
+        }
 
+        Crossfade(targetState = selected, label = "dropContentDescription") { type ->
+            val message = options.firstOrNull { it.type == type }?.description ?: ""
             Text(
-                text = option.title,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-            Text(
-                text = option.description,
+                text = message,
                 style = MaterialTheme.typography.bodySmall,
-                color = cardColors.supporting
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
@@ -12382,80 +12090,6 @@ private data class BusinessDropTypeOption(
     val title: String,
     val description: String,
     val icon: ImageVector
-)
-
-private data class DropIdeaCardData(
-    val id: String,
-    val title: String,
-    val description: String,
-    val recommendedContentType: DropContentType,
-    val suggestedNote: String,
-    val suggestedDescription: String?,
-    val tasks: List<String>,
-    val icon: ImageVector
-)
-
-private val dropIdeaCards = listOf(
-    DropIdeaCardData(
-        id = "memory",
-        title = "Memory",
-        description = "Share a personal story or a favorite moment tied to this place.",
-        recommendedContentType = DropContentType.TEXT,
-        suggestedNote = "Share a favorite memory tied to this spot.",
-        suggestedDescription = "What should future explorers feel or notice here?",
-        tasks = listOf(
-            "Pick a moment tied to this spot that others can picture.",
-            "Add a quick title that hints at the memory.",
-            "Describe what happened and why it matters to you.",
-            "Suggest what future explorers should look, listen, or feel for."
-        ),
-        icon = Icons.Rounded.AutoAwesome
-    ),
-    DropIdeaCardData(
-        id = "scavenger",
-        title = "Scavenger hunt",
-        description = "Leave a clue that nudges explorers to the next hidden location.",
-        recommendedContentType = DropContentType.TEXT,
-        suggestedNote = "Drop your first clue here to start the hunt.",
-        suggestedDescription = "Add a hint about where to head next.",
-        tasks = listOf(
-            "Start with a clue that connects to the current location.",
-            "Give a hint or riddle that points to the next spot.",
-            "Note any items or codes explorers should collect.",
-            "Remind them to stay safe and respect the surroundings."
-        ),
-        icon = Icons.Rounded.Flag
-    ),
-    DropIdeaCardData(
-        id = "time_capsule",
-        title = "Time capsule",
-        description = "Record something future explorers will appreciate unlocking later.",
-        recommendedContentType = DropContentType.AUDIO,
-        suggestedNote = "Record a quick message for someone to discover down the road.",
-        suggestedDescription = "Tell them when to open it or why it's meaningful.",
-        tasks = listOf(
-            "Record a short message for someone to open later.",
-            "Mention when or why it should be listened to or read.",
-            "Share why this location is meaningful for the capsule.",
-            "Add a hint about what you hope they’ll think about when they open it."
-        ),
-        icon = Icons.Rounded.AccessTime
-    ),
-    DropIdeaCardData(
-        id = "local_tip",
-        title = "Local recommendation",
-        description = "Share a can’t-miss food, view, or hidden gem nearby.",
-        recommendedContentType = DropContentType.PHOTO,
-        suggestedNote = "Drop your must-see tip for this area.",
-        suggestedDescription = "Explain what makes it special or how to find it.",
-        tasks = listOf(
-            "Name the nearby place, dish, or view you recommend.",
-            "Share directions or landmarks to find it quickly.",
-            "Explain what makes it special or when it’s best to visit.",
-            "Add a photo or tip that helps them enjoy it like a local."
-        ),
-        icon = Icons.Rounded.Lightbulb
-    )
 )
 
 private enum class HomeDestination { Explorer, Business }
