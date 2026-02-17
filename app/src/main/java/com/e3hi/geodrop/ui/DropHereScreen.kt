@@ -68,6 +68,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyHorizontalGrid
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.pager.HorizontalPager
@@ -85,6 +86,7 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.material.icons.rounded.AddCircle
 import androidx.compose.material.icons.rounded.Block
@@ -296,6 +298,7 @@ import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
+import org.json.JSONObject
 import kotlin.math.sin
 import kotlin.math.sqrt
 
@@ -995,6 +998,7 @@ fun DropHereScreen(
     var dropAnonymously by remember { mutableStateOf(false) }
     var dropContentType by remember { mutableStateOf(DropContentType.TEXT) }
     var dropType by remember { mutableStateOf(DropType.COMMUNITY) }
+    var dropExperienceType by remember { mutableStateOf(DropExperienceType.MEMORY_DROP) }
     var note by remember { mutableStateOf(TextFieldValue("")) }
     var description by remember { mutableStateOf(TextFieldValue("")) }
     var capturedPhotoPath by rememberSaveable { mutableStateOf<String?>(null) }
@@ -1056,6 +1060,8 @@ fun DropHereScreen(
     var showManageGroups by remember { mutableStateOf(false) }
     var showGroupMenu by remember { mutableStateOf(false) }
     var showDropComposer by remember { mutableStateOf(false) }
+    var showDropTypePicker by remember { mutableStateOf(false) }
+    var initialGeneralComposerStep by remember { mutableStateOf(GeneralComposerStep.CONTENT) }
     var showBusinessDashboard by remember { mutableStateOf(false) }
     var businessDrops by remember { mutableStateOf<List<Drop>>(emptyList()) }
     var businessDashboardLoading by remember { mutableStateOf(false) }
@@ -1131,6 +1137,7 @@ fun DropHereScreen(
         showBusinessDashboard = false
         showBusinessOnboarding = false
         showDropComposer = false
+        clearComposerDraft(ctx)
         showManageGroups = false
         showAccountSignIn = false
         showNsfwDialog = false
@@ -1170,6 +1177,15 @@ fun DropHereScreen(
     var userProfile by remember { mutableStateOf<UserProfile?>(null) }
     var userProfileLoading by remember { mutableStateOf(false) }
     var userProfileError by remember { mutableStateOf<String?>(null) }
+
+    fun launchDropCreationFlow() {
+        initialGeneralComposerStep = GeneralComposerStep.CONTENT
+        if (userProfile?.isBusiness() == true) {
+            showDropComposer = true
+            return
+        }
+        showDropTypePicker = true
+    }
 
     val businessCategories = userProfile?.businessCategories.orEmpty()
 
@@ -1587,6 +1603,7 @@ fun DropHereScreen(
             userProfileError = null
             userProfileLoading = false
             dropType = DropType.COMMUNITY
+            dropExperienceType = DropExperienceType.MEMORY_DROP
             explorerUsernameField = TextFieldValue("")
             explorerProfileSubmitting = false
             explorerProfileError = null
@@ -1621,6 +1638,7 @@ fun DropHereScreen(
             }
         } else {
             dropType = DropType.COMMUNITY
+            dropExperienceType = DropExperienceType.MEMORY_DROP
             if (currentDestination == HomeDestination.Business) {
                 selectedHomeDestination = HomeDestination.Explorer.name
             }
@@ -1662,6 +1680,20 @@ fun DropHereScreen(
         if (dropType != DropType.RESTAURANT_COUPON) {
             redemptionCodeInput = TextFieldValue("")
             redemptionLimitInput = TextFieldValue("")
+        }
+    }
+
+    LaunchedEffect(dropExperienceType, userProfile?.isBusiness()) {
+        val defaults = dropExperienceType.defaultConfiguration
+        dropContentType = defaults.defaultContentType
+        dropType = if (userProfile?.isBusiness() == true) {
+            defaults.businessDropType
+        } else {
+            defaults.explorerDropType
+        }
+
+        if (!defaults.prefersAnonymous) {
+            dropAnonymously = false
         }
     }
 
@@ -1787,6 +1819,7 @@ fun DropHereScreen(
         clearAudio()
         clearVideo()
         showDropComposer = false
+        clearComposerDraft(ctx)
         dropAnonymously = false
         if (dropType == DropType.RESTAURANT_COUPON) {
             redemptionCodeInput = TextFieldValue("")
@@ -2189,6 +2222,14 @@ fun DropHereScreen(
                     decayDays = decayDaysResult,
                     dropAnonymously = anonymizeDrop,
                     nsfwAllowed = userProfile?.canViewNsfw() == true
+                )
+                composerAnalyticsEvent(
+                    event = "published",
+                    details = mapOf(
+                        "drop_type" to dropType.name,
+                        "content_type" to dropContentType.name,
+                        "visibility" to dropVisibility.name
+                    )
                 )
                 val baseStatusMessage = status
                 val visionMessage = visionStatusMessage(
@@ -2953,7 +2994,7 @@ fun DropHereScreen(
                                 snackbar.showMessage(scope, participationRestriction("share drops"))
                                 return@NavigationBarItem
                             }
-                            showDropComposer = true
+                            launchDropCreationFlow()
                         },
                         icon = { Icon(Icons.Rounded.Place, contentDescription = null) },
                         label = {
@@ -3168,7 +3209,7 @@ fun DropHereScreen(
                             if (!canParticipate) {
                                 snackbar.showMessage(scope, participationRestriction("share drops"))
                             } else {
-                                showDropComposer = true
+                                launchDropCreationFlow()
                             }
                         }
                     )
@@ -3451,6 +3492,8 @@ fun DropHereScreen(
                 businessCategories = businessCategories,
                 userProfileLoading = userProfileLoading,
                 userProfileError = userProfileError,
+                dropExperienceType = dropExperienceType,
+                onDropExperienceTypeChange = { dropExperienceType = it },
                 dropType = dropType,
                 onDropTypeChange = { dropType = it },
                 dropContentType = dropContentType,
@@ -3482,13 +3525,28 @@ fun DropHereScreen(
                 onRedemptionLimitChange = { redemptionLimitInput = it },
                 decayDaysInput = decayDaysInput,
                 onDecayDaysChange = { decayDaysInput = it },
+                initialGeneralStep = initialGeneralComposerStep,
                 onManageGroupCodes = { showManageGroups = true },
                 onSubmit = { submitDrop() },
                 onDismiss = {
                     if (!isSubmitting) {
+                        initialGeneralComposerStep = GeneralComposerStep.CONTENT
                         showDropComposer = false
                     }
                 }
+            )
+        }
+
+        if (showDropTypePicker) {
+            DropTypeCategoryPickerDialog(
+                selectedDropExperienceType = dropExperienceType,
+                onSelectDropExperienceType = { selectedType ->
+                    dropExperienceType = selectedType
+                    initialGeneralComposerStep = GeneralComposerStep.CONTENT
+                    showDropTypePicker = false
+                    showDropComposer = true
+                },
+                onDismiss = { showDropTypePicker = false }
             )
         }
 
@@ -3973,6 +4031,7 @@ private fun TermsAcceptanceScreen(
 
 @Composable
 private fun GeneralContentStep(
+    dropExperienceType: DropExperienceType,
     dropContentType: DropContentType,
     onDropContentTypeChange: (DropContentType) -> Unit,
     note: TextFieldValue,
@@ -3995,8 +4054,25 @@ private fun GeneralContentStep(
     isSubmitting: Boolean,
     onBack: (GeneralComposerStep) -> Unit,
     onNext: (GeneralComposerStep) -> Unit,
-    onSubmit: () -> Unit
+    onSubmit: () -> Unit,
+    onValidationFailed: () -> Unit = {}
 ) {
+    val planDefaults = remember(dropExperienceType) { dropExperienceType.defaultConfiguration }
+    val contentHint = remember(dropExperienceType) {
+        dropExperienceType.subtitle
+    }
+    DropComposerSection(
+        title = dropExperienceType.label,
+        description = contentHint,
+        leadingIcon = planDefaults.icon
+    ) {
+        Text(
+            text = "Format defaults to ${planDefaults.defaultContentType.label} for this drop. You can change it below.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+
     DropContentFormatSection(
         dropContentType = dropContentType,
         onDropContentTypeChange = onDropContentTypeChange
@@ -4029,7 +4105,8 @@ private fun GeneralContentStep(
         isSubmitting = isSubmitting,
         onBack = onBack,
         onNext = onNext,
-        onSubmit = onSubmit
+        onSubmit = onSubmit,
+        onValidationFailed = onValidationFailed
     )
 }
 
@@ -4052,7 +4129,8 @@ private fun GeneralSettingsStep(
     canProceed: Boolean,
     onBack: (GeneralComposerStep) -> Unit,
     onNext: (GeneralComposerStep) -> Unit,
-    onSubmit: () -> Unit
+    onSubmit: () -> Unit,
+    onValidationFailed: () -> Unit = {}
 ) {
     DropAutoDeleteSection(
         decayDaysInput = decayDaysInput,
@@ -4081,7 +4159,8 @@ private fun GeneralSettingsStep(
         isSubmitting = isSubmitting,
         onBack = onBack,
         onNext = onNext,
-        onSubmit = onSubmit
+        onSubmit = onSubmit,
+        onValidationFailed = onValidationFailed
     )
 }
 
@@ -4132,6 +4211,11 @@ private fun BusinessPlanStep(
 
 @Composable
 private fun BusinessContentStep(
+    dropType: DropType,
+    onDropTypeChange: (DropType) -> Unit,
+    businessName: String?,
+    businessCategories: List<BusinessCategory>,
+    templateSuggestions: List<BusinessDropTemplate>,
     dropContentType: DropContentType,
     onDropContentTypeChange: (DropContentType) -> Unit,
     note: TextFieldValue,
@@ -4154,8 +4238,21 @@ private fun BusinessContentStep(
     isSubmitting: Boolean,
     onBack: (BusinessComposerStep) -> Unit,
     onNext: (BusinessComposerStep) -> Unit,
-    onSubmit: () -> Unit
+    onSubmit: () -> Unit,
+    onValidationFailed: () -> Unit = {}
 ) {
+
+    BusinessPlanStep(
+        dropType = dropType,
+        onDropTypeChange = onDropTypeChange,
+        businessName = businessName,
+        businessCategories = businessCategories,
+        templateSuggestions = templateSuggestions,
+        onDropContentTypeChange = onDropContentTypeChange,
+        onNoteChange = onNoteChange,
+        onDescriptionChange = onDescriptionChange
+    )
+
     DropContentFormatSection(
         dropContentType = dropContentType,
         onDropContentTypeChange = onDropContentTypeChange
@@ -4188,7 +4285,8 @@ private fun BusinessContentStep(
         isSubmitting = isSubmitting,
         onBack = onBack,
         onNext = onNext,
-        onSubmit = onSubmit
+        onSubmit = onSubmit,
+        onValidationFailed = onValidationFailed
     )
 }
 
@@ -4231,7 +4329,8 @@ private fun BusinessSettingsStep(
     canProceed: Boolean,
     onBack: (BusinessComposerStep) -> Unit,
     onNext: (BusinessComposerStep) -> Unit,
-    onSubmit: () -> Unit
+    onSubmit: () -> Unit,
+    onValidationFailed: () -> Unit = {}
 ) {
     DropAutoDeleteSection(
         decayDaysInput = decayDaysInput,
@@ -4255,12 +4354,14 @@ private fun BusinessSettingsStep(
         canProceed = canProceed,
         onBack = onBack,
         onNext = onNext,
-        onSubmit = onSubmit
+        onSubmit = onSubmit,
+        onValidationFailed = onValidationFailed
     )
 }
 
 @Composable
 private fun DropReviewStep(
+    dropType: DropType,
     dropContentType: DropContentType,
     note: TextFieldValue,
     description: TextFieldValue,
@@ -4270,11 +4371,41 @@ private fun DropReviewStep(
     dropVisibility: DropVisibility,
     decayDaysInput: TextFieldValue,
     redemptionCodeInput: TextFieldValue?,
-    redemptionLimitInput: TextFieldValue?
+    redemptionLimitInput: TextFieldValue?,
+    dropAnonymously: Boolean
 ) {
     DropComposerSection(
-        title = "Content review",
-        description = "Double-check the format, text, and attachments before dropping.",
+        title = "Review summary",
+        description = "Final check before publish.",
+        leadingIcon = Icons.Rounded.Visibility
+    ) {
+        val dropTypeLabel = dropType.name.lowercase().replace('_', ' ').replaceFirstChar { it.titlecase() }
+        val visibilityLabel = when (dropVisibility) {
+            DropVisibility.Public -> "Public"
+            DropVisibility.GroupOnly -> "Group only"
+        }
+        val mediaLabel = when (dropContentType) {
+            DropContentType.TEXT -> "None"
+            DropContentType.PHOTO -> if (capturedPhotoPath != null) "Photo attached" else "Missing photo"
+            DropContentType.AUDIO -> if (capturedAudioUri != null) "Audio attached" else "Missing audio"
+            DropContentType.VIDEO -> if (capturedVideoUri != null) "Video attached" else "Missing video"
+        }
+        val redemptionSummary = redemptionCodeInput?.text?.ifBlank { "Not required" } ?: "Not required"
+        val decaySummary = decayDaysInput.text.ifBlank { "No auto-delete" }
+        val anonymitySummary = if (dropAnonymously) "Anonymous" else "Named"
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("Drop type: $dropTypeLabel", style = MaterialTheme.typography.bodyMedium)
+            Text("Visibility: $visibilityLabel", style = MaterialTheme.typography.bodyMedium)
+            Text("Media: $mediaLabel", style = MaterialTheme.typography.bodyMedium)
+            Text("Redemption: $redemptionSummary", style = MaterialTheme.typography.bodyMedium)
+            Text("Decay: $decaySummary", style = MaterialTheme.typography.bodyMedium)
+            Text("Anonymity: $anonymitySummary", style = MaterialTheme.typography.bodyMedium)
+        }
+    }
+
+    DropComposerSection(
+        title = "Content details",
+        description = "Double-check format, text, and attachments.",
         leadingIcon = Icons.Rounded.Visibility
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -5621,6 +5752,8 @@ private fun DropComposerDialog(
     businessCategories: List<BusinessCategory>,
     userProfileLoading: Boolean,
     userProfileError: String?,
+    dropExperienceType: DropExperienceType,
+    onDropExperienceTypeChange: (DropExperienceType) -> Unit,
     dropType: DropType,
     onDropTypeChange: (DropType) -> Unit,
     dropContentType: DropContentType,
@@ -5652,6 +5785,7 @@ private fun DropComposerDialog(
     onRedemptionLimitChange: (TextFieldValue) -> Unit,
     decayDaysInput: TextFieldValue,
     onDecayDaysChange: (TextFieldValue) -> Unit,
+    initialGeneralStep: GeneralComposerStep,
     onManageGroupCodes: () -> Unit,
     onSubmit: () -> Unit,
     onDismiss: () -> Unit,
@@ -5667,6 +5801,63 @@ private fun DropComposerDialog(
             DropContentType.VIDEO -> capturedVideoUri != null
         }
     }
+
+    LaunchedEffect(Unit) {
+        composerAnalyticsEvent("opened", mapOf("business_user" to isBusinessUser.toString()))
+        loadComposerDraft(context)?.let { draft ->
+            draft.optString("dropExperienceType").takeIf { it.isNotBlank() }
+                ?.let { raw -> DropExperienceType.entries.firstOrNull { it.name == raw } }
+                ?.let(onDropExperienceTypeChange)
+            onDropTypeChange(DropType.fromRaw(draft.optString("dropType")))
+            onDropContentTypeChange(DropContentType.fromRaw(draft.optString("dropContentType")))
+            onNoteChange(TextFieldValue(draft.optString("note")))
+            onDescriptionChange(TextFieldValue(draft.optString("description")))
+            onDropVisibilityChange(
+                if (draft.optString("dropVisibility") == DropVisibility.GroupOnly.name) {
+                    DropVisibility.GroupOnly
+                } else {
+                    DropVisibility.Public
+                }
+            )
+            onDropAnonymouslyChange(draft.optBoolean("dropAnonymously", false))
+            onGroupCodeInputChange(TextFieldValue(draft.optString("groupCode")))
+            onRedemptionCodeChange(TextFieldValue(draft.optString("redemptionCode")))
+            onRedemptionLimitChange(TextFieldValue(draft.optString("redemptionLimit")))
+            onDecayDaysChange(TextFieldValue(draft.optString("decayDays")))
+        }
+    }
+
+    LaunchedEffect(
+        dropExperienceType,
+        dropType,
+        dropContentType,
+        note.text,
+        description.text,
+        dropVisibility,
+        dropAnonymously,
+        groupCodeInput.text,
+        redemptionCodeInput.text,
+        redemptionLimitInput.text,
+        decayDaysInput.text
+    ) {
+        saveComposerDraft(
+            context,
+            JSONObject().apply {
+                put("dropExperienceType", dropExperienceType.name)
+                put("dropType", dropType.name)
+                put("dropContentType", dropContentType.name)
+                put("note", note.text)
+                put("description", description.text)
+                put("dropVisibility", dropVisibility.name)
+                put("dropAnonymously", dropAnonymously)
+                put("groupCode", groupCodeInput.text)
+                put("redemptionCode", redemptionCodeInput.text)
+                put("redemptionLimit", redemptionLimitInput.text)
+                put("decayDays", decayDaysInput.text)
+            }
+        )
+    }
+
 
     ModalBottomSheet(
         onDismissRequest = {
@@ -5732,15 +5923,14 @@ private fun DropComposerDialog(
             }
 
             if (isBusinessUser) {
-                var currentStep by rememberSaveable { mutableStateOf(BusinessComposerStep.PLAN) }
+                var currentStep by rememberSaveable { mutableStateOf(BusinessComposerStep.CONTENT) }
                 val availableSteps = remember(dropType) {
                     buildList {
-                        add(BusinessComposerStep.PLAN)
                         add(BusinessComposerStep.CONTENT)
+                        add(BusinessComposerStep.AUDIENCE)
                         if (dropType == DropType.RESTAURANT_COUPON) {
                             add(BusinessComposerStep.OFFER)
                         }
-                        add(BusinessComposerStep.SETTINGS)
                         add(BusinessComposerStep.REVIEW)
                     }
                 }
@@ -5756,10 +5946,9 @@ private fun DropComposerDialog(
 
                 val offerIsValid = redemptionCodeInput.text.isNotBlank() || !availableSteps.contains(BusinessComposerStep.OFFER)
                 val canProceed = when (currentStep) {
-                    BusinessComposerStep.PLAN -> true
                     BusinessComposerStep.CONTENT -> contentIsValid
+                    BusinessComposerStep.AUDIENCE -> true
                     BusinessComposerStep.OFFER -> offerIsValid
-                    BusinessComposerStep.SETTINGS -> true
                     BusinessComposerStep.REVIEW -> true
                 }
 
@@ -5799,18 +5988,12 @@ private fun DropComposerDialog(
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     when (currentStep) {
-                        BusinessComposerStep.PLAN -> BusinessPlanStep(
+                        BusinessComposerStep.CONTENT -> BusinessContentStep(
                             dropType = dropType,
                             onDropTypeChange = onDropTypeChange,
                             businessName = businessName,
                             businessCategories = businessCategories,
                             templateSuggestions = templateSuggestions,
-                            onDropContentTypeChange = onDropContentTypeChange,
-                            onNoteChange = onNoteChange,
-                            onDescriptionChange = onDescriptionChange
-                        )
-
-                        BusinessComposerStep.CONTENT -> BusinessContentStep(
                             dropContentType = dropContentType,
                             onDropContentTypeChange = onDropContentTypeChange,
                             note = note,
@@ -5832,8 +6015,15 @@ private fun DropComposerDialog(
                             canProceed = canProceed,
                             isSubmitting = isSubmitting,
                             onBack = { step -> currentStep = step },
-                            onNext = { step -> currentStep = step },
-                            onSubmit = onSubmit
+                            onNext = { step ->
+                                composerAnalyticsEvent("step_advanced", mapOf("from" to currentStep.name, "to" to step.name))
+                                currentStep = step
+                            },
+                            onSubmit = onSubmit,
+                            onValidationFailed = {
+                                composerAnalyticsEvent("validation_failed", mapOf("step" to currentStep.name))
+                                Toast.makeText(context, "Please complete required fields for this step.", Toast.LENGTH_SHORT).show()
+                            }
                         )
 
                         BusinessComposerStep.OFFER -> BusinessOfferStep(
@@ -5843,7 +6033,7 @@ private fun DropComposerDialog(
                             onRedemptionLimitChange = onRedemptionLimitChange
                         )
 
-                        BusinessComposerStep.SETTINGS -> BusinessSettingsStep(
+                        BusinessComposerStep.AUDIENCE -> BusinessSettingsStep(
                             decayDaysInput = decayDaysInput,
                             onDecayDaysChange = onDecayDaysChange,
                             dropVisibility = dropVisibility,
@@ -5858,11 +6048,19 @@ private fun DropComposerDialog(
                             nextStep = nextStep,
                             canProceed = canProceed,
                             onBack = { step -> currentStep = step },
-                            onNext = { step -> currentStep = step },
-                            onSubmit = onSubmit
+                            onNext = { step ->
+                                composerAnalyticsEvent("step_advanced", mapOf("from" to currentStep.name, "to" to step.name))
+                                currentStep = step
+                            },
+                            onSubmit = onSubmit,
+                            onValidationFailed = {
+                                composerAnalyticsEvent("validation_failed", mapOf("step" to currentStep.name))
+                                Toast.makeText(context, "Please complete required fields for this step.", Toast.LENGTH_SHORT).show()
+                            }
                         )
 
                         BusinessComposerStep.REVIEW -> DropReviewStep(
+                            dropType = dropType,
                             dropContentType = dropContentType,
                             note = note,
                             description = description,
@@ -5872,27 +6070,38 @@ private fun DropComposerDialog(
                             dropVisibility = dropVisibility,
                             decayDaysInput = decayDaysInput,
                             redemptionCodeInput = redemptionCodeInput.takeIf { availableSteps.contains(BusinessComposerStep.OFFER) },
-                            redemptionLimitInput = redemptionLimitInput.takeIf { availableSteps.contains(BusinessComposerStep.OFFER) }
+                            redemptionLimitInput = redemptionLimitInput.takeIf { availableSteps.contains(BusinessComposerStep.OFFER) },
+                            dropAnonymously = false
                         )
                     }
-                    if (currentStep != BusinessComposerStep.CONTENT && currentStep != BusinessComposerStep.SETTINGS) {
+                    if (currentStep != BusinessComposerStep.CONTENT && currentStep != BusinessComposerStep.AUDIENCE) {
                         BusinessComposerStepNavigation(
                             previousStep = previousStep,
                             nextStep = nextStep,
                             isSubmitting = isSubmitting,
                             canProceed = canProceed,
                             onBack = { step -> currentStep = step },
-                            onNext = { step -> currentStep = step },
-                            onSubmit = onSubmit
+                            onNext = { step ->
+                                composerAnalyticsEvent("step_advanced", mapOf("from" to currentStep.name, "to" to step.name))
+                                currentStep = step
+                            },
+                            onSubmit = onSubmit,
+                            onValidationFailed = {
+                                composerAnalyticsEvent("validation_failed", mapOf("step" to currentStep.name))
+                                Toast.makeText(context, "Please complete required fields for this step.", Toast.LENGTH_SHORT).show()
+                            }
                         )
                     }
                 }
             } else {
-                var currentStep by rememberSaveable { mutableStateOf(GeneralComposerStep.CONTENT) }
+                var currentStep by rememberSaveable { mutableStateOf(initialGeneralStep) }
                 val steps = remember { GeneralComposerStep.entries.toList() }
+                LaunchedEffect(initialGeneralStep) {
+                    currentStep = initialGeneralStep
+                }
                 val canProceed = when (currentStep) {
                     GeneralComposerStep.CONTENT -> contentIsValid
-                    GeneralComposerStep.SETTINGS -> true
+                    GeneralComposerStep.AUDIENCE -> true
                     GeneralComposerStep.REVIEW -> true
                 }
 
@@ -5933,6 +6142,7 @@ private fun DropComposerDialog(
                 ) {
                     when (currentStep) {
                         GeneralComposerStep.CONTENT -> GeneralContentStep(
+                            dropExperienceType = dropExperienceType,
                             dropContentType = dropContentType,
                             onDropContentTypeChange = onDropContentTypeChange,
                             note = note,
@@ -5954,11 +6164,18 @@ private fun DropComposerDialog(
                             canProceed = canProceed,
                             isSubmitting = isSubmitting,
                             onBack = { step -> currentStep = step },
-                            onNext = { step -> currentStep = step },
-                            onSubmit = onSubmit
+                            onNext = { step ->
+                                composerAnalyticsEvent("step_advanced", mapOf("from" to currentStep.name, "to" to step.name))
+                                currentStep = step
+                            },
+                            onSubmit = onSubmit,
+                            onValidationFailed = {
+                                composerAnalyticsEvent("validation_failed", mapOf("step" to currentStep.name))
+                                Toast.makeText(context, "Please complete required fields for this step.", Toast.LENGTH_SHORT).show()
+                            }
                         )
 
-                        GeneralComposerStep.SETTINGS -> GeneralSettingsStep(
+                        GeneralComposerStep.AUDIENCE -> GeneralSettingsStep(
                             decayDaysInput = decayDaysInput,
                             onDecayDaysChange = onDecayDaysChange,
                             dropAnonymously = dropAnonymously,
@@ -5975,11 +6192,19 @@ private fun DropComposerDialog(
                             nextStep = nextStep,
                             canProceed = canProceed,
                             onBack = { step -> currentStep = step },
-                            onNext = { step -> currentStep = step },
-                            onSubmit = onSubmit
+                            onNext = { step ->
+                                composerAnalyticsEvent("step_advanced", mapOf("from" to currentStep.name, "to" to step.name))
+                                currentStep = step
+                            },
+                            onSubmit = onSubmit,
+                            onValidationFailed = {
+                                composerAnalyticsEvent("validation_failed", mapOf("step" to currentStep.name))
+                                Toast.makeText(context, "Please complete required fields for this step.", Toast.LENGTH_SHORT).show()
+                            }
                         )
 
                         GeneralComposerStep.REVIEW -> DropReviewStep(
+                            dropType = dropType,
                             dropContentType = dropContentType,
                             note = note,
                             description = description,
@@ -5989,18 +6214,26 @@ private fun DropComposerDialog(
                             dropVisibility = dropVisibility,
                             decayDaysInput = decayDaysInput,
                             redemptionCodeInput = null,
-                            redemptionLimitInput = null
+                            redemptionLimitInput = null,
+                            dropAnonymously = dropAnonymously
                         )
                     }
-                    if (currentStep != GeneralComposerStep.CONTENT && currentStep != GeneralComposerStep.SETTINGS) {
+                    if (currentStep != GeneralComposerStep.CONTENT && currentStep != GeneralComposerStep.AUDIENCE) {
                         GeneralComposerNavigation(
                             previousStep = previousStep,
                             nextStep = nextStep,
                             canProceed = canProceed,
                             isSubmitting = isSubmitting,
                             onBack = { step -> currentStep = step },
-                            onNext = { step -> currentStep = step },
-                            onSubmit = onSubmit
+                            onNext = { step ->
+                                composerAnalyticsEvent("step_advanced", mapOf("from" to currentStep.name, "to" to step.name))
+                                currentStep = step
+                            },
+                            onSubmit = onSubmit,
+                            onValidationFailed = {
+                                composerAnalyticsEvent("validation_failed", mapOf("step" to currentStep.name))
+                                Toast.makeText(context, "Please complete required fields for this step.", Toast.LENGTH_SHORT).show()
+                            }
                         )
                     }
                 }
@@ -6480,14 +6713,14 @@ private enum class GeneralComposerStep(val title: String, val helper: String, va
         helper = "Pick a format, write your message, and capture any media.",
         shortLabel = "Content"
     ),
-    SETTINGS(
-        title = "Choose visibility",
-        helper = "Control how long the drop lasts and who can discover it.",
-        shortLabel = "Settings"
+    AUDIENCE(
+        title = "Audience",
+        helper = "Choose visibility, group access, and identity for who should find this drop.",
+        shortLabel = "Audience"
     ),
     REVIEW(
-        title = "Review and drop",
-        helper = "Confirm content, attachments, and settings before submitting.",
+        title = "Review & Publish",
+        helper = "Confirm your summary and publish when everything looks right.",
         shortLabel = "Review"
     )
 }
@@ -6574,7 +6807,8 @@ private fun GeneralComposerNavigation(
     isSubmitting: Boolean,
     onBack: (GeneralComposerStep) -> Unit,
     onNext: (GeneralComposerStep) -> Unit,
-    onSubmit: () -> Unit
+    onSubmit: () -> Unit,
+    onValidationFailed: () -> Unit = {}
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -6593,19 +6827,23 @@ private fun GeneralComposerNavigation(
 
         if (nextStep != null) {
             Button(
-                onClick = { onNext(nextStep) },
-                enabled = !isSubmitting && canProceed
+                onClick = {
+                    if (canProceed) onNext(nextStep) else onValidationFailed()
+                },
+                enabled = !isSubmitting
             ) {
                 Text("Next: ${nextStep.shortLabel}")
             }
         } else {
             DropSubmitButton(
                 isSubmitting = isSubmitting,
-                onSubmit = onSubmit,
+                onSubmit = {
+                    if (canProceed) onSubmit() else onValidationFailed()
+                },
                 modifier = Modifier
                     .widthIn(min = 180.dp)
                     .alpha(if (canProceed) 1f else 0.6f),
-                enabled = canProceed
+                enabled = !isSubmitting
             )
         }
     }
@@ -6616,11 +6854,6 @@ private enum class BusinessComposerStep(
     val helper: String,
     val shortLabel: String
 ) {
-    PLAN(
-        title = "Plan your drop",
-        helper = "Choose the goal that best matches what your business wants to share.",
-        shortLabel = "Plan"
-    ),
     CONTENT(
         title = "Create your content",
         helper = "Select a format and add the story that will engage nearby explorers.",
@@ -6631,14 +6864,14 @@ private enum class BusinessComposerStep(
         helper = "Protect promotions with a code and limit redemptions to avoid misuse.",
         shortLabel = "Offer"
     ),
-    SETTINGS(
-        title = "Finalize settings",
-        helper = "Decide how long the drop lasts and who should be able to discover it.",
-        shortLabel = "Settings"
+    AUDIENCE(
+        title = "Audience",
+        helper = "Set visibility and decay so the right people discover your drop at the right time.",
+        shortLabel = "Audience"
     ),
     REVIEW(
-        title = "Review details",
-        helper = "Confirm your content, offer controls, and discovery rules before dropping.",
+        title = "Review & Publish",
+        helper = "Verify content, offer controls, and audience settings before publishing.",
         shortLabel = "Review"
     )
 }
@@ -6734,7 +6967,8 @@ private fun BusinessComposerStepNavigation(
     canProceed: Boolean,
     onBack: (BusinessComposerStep) -> Unit,
     onNext: (BusinessComposerStep) -> Unit,
-    onSubmit: () -> Unit
+    onSubmit: () -> Unit,
+    onValidationFailed: () -> Unit = {}
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -6753,19 +6987,23 @@ private fun BusinessComposerStepNavigation(
 
         if (nextStep != null) {
             Button(
-                onClick = { onNext(nextStep) },
-                enabled = !isSubmitting && canProceed
+                onClick = {
+                    if (canProceed) onNext(nextStep) else onValidationFailed()
+                },
+                enabled = !isSubmitting
             ) {
                 Text("Next: ${nextStep.shortLabel}")
             }
         } else {
             DropSubmitButton(
                 isSubmitting = isSubmitting,
-                onSubmit = onSubmit,
+                onSubmit = {
+                    if (canProceed) onSubmit() else onValidationFailed()
+                },
                 modifier = Modifier
                     .widthIn(min = 180.dp)
                     .alpha(if (canProceed) 1f else 0.6f),
-                enabled = canProceed
+                enabled = !isSubmitting
             )
         }
     }
@@ -11381,6 +11619,302 @@ private fun DropContentTypeSection(
     }
 }
 
+@Composable
+private fun DropExperienceTypeSection(
+    selected: DropExperienceType,
+    onSelect: (DropExperienceType) -> Unit
+) {
+    val tileSize = 176.dp
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        dropExperiencesByCategory.forEach { (category, options) ->
+            if (options.isEmpty()) return@forEach
+
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = category.title,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                val scrollState = rememberScrollState()
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(scrollState),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        options.forEach { option ->
+                            val isSelected = option == selected
+                            val borderColor = if (isSelected) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.outlineVariant
+                            }
+
+                            ElevatedCard(
+                                modifier = Modifier
+                                    .size(tileSize)
+                                    .clickable(role = Role.RadioButton) { onSelect(option) }
+                                    .border(
+                                        BorderStroke(if (isSelected) 2.dp else 1.dp, borderColor),
+                                        shape = RoundedCornerShape(14.dp)
+                                    ),
+                                shape = RoundedCornerShape(14.dp),
+                                colors = CardDefaults.elevatedCardColors(
+                                    containerColor = if (isSelected) {
+                                        MaterialTheme.colorScheme.primaryContainer
+                                    } else {
+                                        MaterialTheme.colorScheme.surface
+                                    }
+                                )
+
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Icon(
+                                        imageVector = option.defaultConfiguration.icon,
+                                        contentDescription = null,
+                                        tint = if (isSelected) {
+                                            MaterialTheme.colorScheme.primary
+                                        } else {
+                                            MaterialTheme.colorScheme.onSurfaceVariant
+                                        }
+                                    )
+                                    Text(
+                                        text = option.label,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
+                                        textAlign = TextAlign.Center,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = option.subtitle,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        textAlign = TextAlign.Center,
+                                        maxLines = 3,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (scrollState.value < scrollState.maxValue) {
+                    Surface(
+                        modifier = Modifier
+                            .align(Alignment.End)
+                            .padding(end = 4.dp),
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+                        shape = CircleShape
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(6.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+@OptIn(ExperimentalLayoutApi::class)
+private fun DropTypeCategoryPickerDialog(
+    selectedDropExperienceType: DropExperienceType,
+    onSelectDropExperienceType: (DropExperienceType) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var selectedCategory by rememberSaveable {
+        mutableStateOf(selectedDropExperienceType.category)
+    }
+    val categoryOptions = remember {
+        DropExperienceCategory.entries.map { category ->
+            DropTypeCategoryOption(
+                category = category,
+                icon = dropExperiencesByCategory[category]?.firstOrNull()?.defaultConfiguration?.icon
+                    ?: Icons.Rounded.Dashboard
+            )
+        }
+    }
+    val optionsForSelectedCategory = remember(selectedCategory) {
+        dropExperiencesByCategory[selectedCategory].orEmpty()
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+            shape = RoundedCornerShape(24.dp),
+            tonalElevation = 8.dp,
+            shadowElevation = 6.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = "Choose a drop category",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = "Select a category, then pick a drop type to continue to the form.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(
+                            imageVector = Icons.Rounded.Close,
+                            contentDescription = "Close"
+                        )
+                    }
+                }
+
+                LazyHorizontalGrid(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(236.dp),
+                    rows = GridCells.Fixed(2),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    items(categoryOptions) { option ->
+                        val isSelected = selectedCategory == option.category
+                        ElevatedCard(
+                            modifier = Modifier
+                                .size(112.dp)
+                                .then(
+                                    if (isSelected) {
+                                        Modifier.border(
+                                            width = 2.dp,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            shape = RoundedCornerShape(14.dp)
+                                        )
+                                    } else {
+                                        Modifier
+                                    }
+                                )
+                                .clickable { selectedCategory = option.category },
+                            shape = RoundedCornerShape(14.dp),
+                            colors = CardDefaults.elevatedCardColors(
+                                containerColor = if (isSelected) {
+                                    MaterialTheme.colorScheme.primaryContainer
+                                } else {
+                                    MaterialTheme.colorScheme.surfaceVariant
+                                }
+                            )
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(10.dp),
+                                verticalArrangement = Arrangement.SpaceBetween,
+                                horizontalAlignment = Alignment.Start
+                            ) {
+                                Icon(
+                                    imageVector = option.icon,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(20.dp),
+                                    tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = option.category.title,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 3,
+                                    overflow = TextOverflow.Ellipsis,
+                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+                }
+
+                LazyVerticalGrid(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 380.dp),
+                    columns = GridCells.Adaptive(minSize = 156.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    items(optionsForSelectedCategory) { option ->
+                        ElevatedCard(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(146.dp)
+                                .clickable { onSelectDropExperienceType(option) },
+                            shape = RoundedCornerShape(14.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = option.defaultConfiguration.icon,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                                Text(
+                                    text = option.label,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = option.subtitle,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 3,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun BusinessDropTypeSection(
@@ -11894,6 +12428,39 @@ private fun BusinessRedemptionSection(
     }
 }
 
+
+private const val COMPOSER_DRAFT_PREFS = "drop_composer_draft"
+private const val COMPOSER_DRAFT_KEY = "draft_json"
+
+private fun composerAnalyticsEvent(event: String, details: Map<String, String> = emptyMap()) {
+    val detailString = details.entries.joinToString { "${it.key}=${it.value}" }
+    Log.d("DropComposerFunnel", "event=$event${if (detailString.isBlank()) "" else " $detailString"}")
+}
+
+private fun saveComposerDraft(
+    context: Context,
+    draft: JSONObject
+) {
+    context.getSharedPreferences(COMPOSER_DRAFT_PREFS, Context.MODE_PRIVATE)
+        .edit()
+        .putString(COMPOSER_DRAFT_KEY, draft.toString())
+        .apply()
+}
+
+private fun loadComposerDraft(context: Context): JSONObject? {
+    val raw = context.getSharedPreferences(COMPOSER_DRAFT_PREFS, Context.MODE_PRIVATE)
+        .getString(COMPOSER_DRAFT_KEY, null)
+        ?: return null
+    return runCatching { JSONObject(raw) }.getOrNull()
+}
+
+private fun clearComposerDraft(context: Context) {
+    context.getSharedPreferences(COMPOSER_DRAFT_PREFS, Context.MODE_PRIVATE)
+        .edit()
+        .remove(COMPOSER_DRAFT_KEY)
+        .apply()
+}
+
 private const val MAX_DECAY_DAYS = 365
 
 @Composable
@@ -12084,6 +12651,241 @@ private data class DropContentTypeOption(
     val description: String,
     val icon: ImageVector
 )
+
+private data class DropTypeCategoryOption(
+    val category: DropExperienceCategory,
+    val icon: ImageVector
+)
+
+private enum class DropExperienceCategory(val title: String) {
+    MEMORY("Memory & personal expression"),
+    GAME("Game & exploration"),
+    SOCIAL("Social & community"),
+    CREATIVE("Creative & media"),
+    BUSINESS("Business & value"),
+    UTILITY("Utility & informational"),
+    EXPERIMENTAL("Experimental / viral")
+}
+
+private data class DropExperienceDefaults(
+    val explorerDropType: DropType = DropType.COMMUNITY,
+    val businessDropType: DropType = DropType.COMMUNITY,
+    val defaultContentType: DropContentType = DropContentType.TEXT,
+    val prefersAnonymous: Boolean = false,
+    val icon: ImageVector
+)
+
+private enum class DropExperienceType(
+    val category: DropExperienceCategory,
+    val label: String,
+    val subtitle: String,
+    val defaultConfiguration: DropExperienceDefaults
+) {
+    MEMORY_DROP(
+        category = DropExperienceCategory.MEMORY,
+        label = "Memory drop",
+        subtitle = "Leave a personal moment tied to this place.",
+        defaultConfiguration = DropExperienceDefaults(
+            defaultContentType = DropContentType.TEXT,
+            icon = Icons.Rounded.AccountCircle
+        )
+    ),
+    TIME_CAPSULE(
+        category = DropExperienceCategory.MEMORY,
+        label = "Time capsule",
+        subtitle = "Drop something now that feels special later.",
+        defaultConfiguration = DropExperienceDefaults(
+            defaultContentType = DropContentType.TEXT,
+            icon = Icons.Rounded.Lock
+        )
+    ),
+    VOICE_MEMORY(
+        category = DropExperienceCategory.MEMORY,
+        label = "Voice memory",
+        subtitle = "Record a short message with emotion and personality.",
+        defaultConfiguration = DropExperienceDefaults(
+            defaultContentType = DropContentType.AUDIO,
+            icon = Icons.Rounded.Mic
+        )
+    ),
+    ANONYMOUS_CONFESSION(
+        category = DropExperienceCategory.MEMORY,
+        label = "Anonymous confession",
+        subtitle = "Share honestly while keeping your identity hidden.",
+        defaultConfiguration = DropExperienceDefaults(
+            defaultContentType = DropContentType.TEXT,
+            prefersAnonymous = true,
+            icon = Icons.Rounded.Block
+        )
+    ),
+    SCAVENGER_HUNT(
+        category = DropExperienceCategory.GAME,
+        label = "Scavenger hunt",
+        subtitle = "Start a multi-step clue path.",
+        defaultConfiguration = DropExperienceDefaults(
+            businessDropType = DropType.TOUR_STOP,
+            icon = Icons.Rounded.Flag
+        )
+    ),
+    TREASURE_HUNT(
+        category = DropExperienceCategory.GAME,
+        label = "Treasure hunt",
+        subtitle = "Guide people to a final reward location.",
+        defaultConfiguration = DropExperienceDefaults(
+            businessDropType = DropType.TOUR_STOP,
+            icon = Icons.Rounded.Place
+        )
+    ),
+    PUZZLE_RIDDLE(
+        category = DropExperienceCategory.GAME,
+        label = "Puzzle / riddle drop",
+        subtitle = "Require a clue to reveal what this drop means.",
+        defaultConfiguration = DropExperienceDefaults(icon = Icons.Rounded.Help)
+    ),
+    CHECKPOINT_CHALLENGE(
+        category = DropExperienceCategory.GAME,
+        label = "Checkpoint challenge",
+        subtitle = "Set route-based progress through multiple spots.",
+        defaultConfiguration = DropExperienceDefaults(
+            businessDropType = DropType.TOUR_STOP,
+            icon = Icons.Rounded.Map
+        )
+    ),
+    MESSAGE_TO_STRANGERS(
+        category = DropExperienceCategory.SOCIAL,
+        label = "Message to strangers",
+        subtitle = "Post an open note for anyone nearby.",
+        defaultConfiguration = DropExperienceDefaults(icon = Icons.Rounded.Public)
+    ),
+    QUESTION_OF_THE_SPOT(
+        category = DropExperienceCategory.SOCIAL,
+        label = "Question of the spot",
+        subtitle = "Ask locals for quick opinions when they arrive.",
+        defaultConfiguration = DropExperienceDefaults(icon = Icons.Rounded.Info)
+    ),
+    POLL_DROP(
+        category = DropExperienceCategory.SOCIAL,
+        label = "Poll drop",
+        subtitle = "Collect votes from people in the area.",
+        defaultConfiguration = DropExperienceDefaults(icon = Icons.Rounded.Dashboard)
+    ),
+    MEET_UP_PING(
+        category = DropExperienceCategory.SOCIAL,
+        label = "Meet-up ping",
+        subtitle = "Signal where and when you will be nearby.",
+        defaultConfiguration = DropExperienceDefaults(icon = Icons.Rounded.Groups)
+    ),
+    STORY_CHAPTER(
+        category = DropExperienceCategory.CREATIVE,
+        label = "Story chapter",
+        subtitle = "Publish one part of a location-based story.",
+        defaultConfiguration = DropExperienceDefaults(
+            businessDropType = DropType.TOUR_STOP,
+            icon = Icons.Rounded.Description
+        )
+    ),
+    PHOTO_PROMPT(
+        category = DropExperienceCategory.CREATIVE,
+        label = "Photo prompt",
+        subtitle = "Invite explorers to capture this place from their angle.",
+        defaultConfiguration = DropExperienceDefaults(
+            defaultContentType = DropContentType.PHOTO,
+            icon = Icons.Rounded.PhotoCamera
+        )
+    ),
+    AR_VISUAL_DROP(
+        category = DropExperienceCategory.CREATIVE,
+        label = "AR / visual drop",
+        subtitle = "Create a placeholder for future AR experiences.",
+        defaultConfiguration = DropExperienceDefaults(
+            defaultContentType = DropContentType.VIDEO,
+            icon = Icons.Rounded.Videocam
+        )
+    ),
+    COUPON_DEAL(
+        category = DropExperienceCategory.BUSINESS,
+        label = "Coupon / deal drop",
+        subtitle = "Unlock a nearby, time-boxed offer.",
+        defaultConfiguration = DropExperienceDefaults(
+            explorerDropType = DropType.COMMUNITY,
+            businessDropType = DropType.RESTAURANT_COUPON,
+            icon = Icons.Rounded.Storefront
+        )
+    ),
+    BUSINESS_STORY(
+        category = DropExperienceCategory.BUSINESS,
+        label = "Business story",
+        subtitle = "Share origin and values before the purchase.",
+        defaultConfiguration = DropExperienceDefaults(icon = Icons.Rounded.Description)
+    ),
+    HIDDEN_OFFER(
+        category = DropExperienceCategory.BUSINESS,
+        label = "Hidden offer",
+        subtitle = "Reward people who physically show up at this place.",
+        defaultConfiguration = DropExperienceDefaults(
+            businessDropType = DropType.RESTAURANT_COUPON,
+            icon = Icons.Rounded.Lock
+        )
+    ),
+    EVENT_REMINDER(
+        category = DropExperienceCategory.BUSINESS,
+        label = "Event reminder",
+        subtitle = "Promote something happening soon and auto-expiring.",
+        defaultConfiguration = DropExperienceDefaults(icon = Icons.Rounded.Refresh)
+    ),
+    TIP_DROP(
+        category = DropExperienceCategory.UTILITY,
+        label = "Tip drop",
+        subtitle = "Share practical local guidance.",
+        defaultConfiguration = DropExperienceDefaults(icon = Icons.Rounded.Info)
+    ),
+    WARNING_HEADS_UP(
+        category = DropExperienceCategory.UTILITY,
+        label = "Warning / heads-up",
+        subtitle = "Flag temporary safety or accessibility issues.",
+        defaultConfiguration = DropExperienceDefaults(icon = Icons.Rounded.Flag)
+    ),
+    GUIDE_MARKER(
+        category = DropExperienceCategory.UTILITY,
+        label = "Guide marker",
+        subtitle = "Create sequence-based stops for self-guided tours.",
+        defaultConfiguration = DropExperienceDefaults(
+            businessDropType = DropType.TOUR_STOP,
+            icon = Icons.Rounded.Map
+        )
+    ),
+    MYSTERY_DROP(
+        category = DropExperienceCategory.EXPERIMENTAL,
+        label = "Mystery drop",
+        subtitle = "Reveal content only when someone enters the geofence.",
+        defaultConfiguration = DropExperienceDefaults(icon = Icons.Rounded.Help)
+    ),
+    ONE_TIME_DROP(
+        category = DropExperienceCategory.EXPERIMENTAL,
+        label = "One-time drop",
+        subtitle = "First visitor claims it, everyone else sees claimed.",
+        defaultConfiguration = DropExperienceDefaults(icon = Icons.Rounded.CheckCircle)
+    ),
+    REACTION_DROP(
+        category = DropExperienceCategory.EXPERIMENTAL,
+        label = "Reaction drop",
+        subtitle = "Lightweight, emoji-first interaction.",
+        defaultConfiguration = DropExperienceDefaults(icon = Icons.Rounded.ThumbUp)
+    )
+}
+
+private val dropExperiencesByCategory: Map<DropExperienceCategory, List<DropExperienceType>> =
+    DropExperienceCategory.entries.associateWith { category ->
+        DropExperienceType.entries.filter { it.category == category }
+    }
+
+private val DropContentType.label: String
+    get() = when (this) {
+        DropContentType.TEXT -> "Text"
+        DropContentType.PHOTO -> "Photo"
+        DropContentType.AUDIO -> "Audio"
+        DropContentType.VIDEO -> "Video"
+    }
 
 private data class BusinessDropTypeOption(
     val type: DropType,
