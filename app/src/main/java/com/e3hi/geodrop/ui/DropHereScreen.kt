@@ -8906,13 +8906,7 @@ private fun ExplorerDropListPanel(
             )
         }
         val currentPanelHeight = panelHeightValue.dp
-        val anchoredModifier = Modifier.anchoredDraggable(
-            state = state.anchoredState,
-            orientation = Orientation.Horizontal
-        )
-
-        val currentPanelWidth = if (isExpanded) expandedPanelWidth else collapsedPanelWidth
-        val handleVisible = !isExpanded
+        val handleSpace = if (isExpanded) 0.dp else handleWidth
         val handleSpace = if (handleVisible) handleWidth else 0.dp
         val handleTopPadding = remember(currentPanelHeight) {
             val handleHeight = 72.dp
@@ -8933,8 +8927,7 @@ private fun ExplorerDropListPanel(
                     .width(currentPanelWidth)
                     .height(currentPanelHeight)
                     .heightIn(min = effectiveMinPanelHeight, max = availablePanelHeight)
-                    .graphicsLayer { translationX = state.offset }
-                    .then(anchoredModifier),
+                    .graphicsLayer { translationX = state.offset },
                 shape = RectangleShape,
                 tonalElevation = 8.dp,
                 shadowElevation = 0.dp,
@@ -9003,11 +8996,11 @@ private fun ExplorerDropListPanel(
             }
 
             AnimatedVisibility(
-                visible = handleVisible,
+                visible = true,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(top = handleTopPadding)
-                    .then(anchoredModifier)
+                    .graphicsLayer { translationX = state.offset }
             ) {
                 Surface(
                     modifier = Modifier
@@ -9017,7 +9010,13 @@ private fun ExplorerDropListPanel(
                             interactionSource = remember { MutableInteractionSource() }
                         ) {
                             coroutineScope.launch {
-                                state.animateTo(ExplorerDropListPanelValue.Expanded)
+                                state.animateTo(
+                                    if (isExpanded) {
+                                        ExplorerDropListPanelValue.Collapsed
+                                    } else {
+                                        ExplorerDropListPanelValue.Expanded
+                                    }
+                                )
                             }
                         },
                     shape = RectangleShape,
