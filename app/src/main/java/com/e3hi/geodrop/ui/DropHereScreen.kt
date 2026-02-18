@@ -5680,7 +5680,6 @@ private fun DropComposerDialog(
             }
         },
         sheetState = sheetState,
-        sheetGesturesEnabled = false,
         dragHandle = null,
         windowInsets = WindowInsets(0, 0, 0, bottomNavHeightPx)
     ) {
