@@ -9000,9 +9000,8 @@ private fun ExplorerDropListPanel(
             AnimatedVisibility(
                 visible = true,
                 modifier = Modifier
-                    .align(Alignment.TopEnd)
+                    .align(if (isExpanded) Alignment.TopStart else Alignment.TopEnd)
                     .padding(top = handleTopPadding)
-                    .graphicsLayer { translationX = state.offset }
             ) {
                 Surface(
                     modifier = Modifier
