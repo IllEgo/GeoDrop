@@ -8997,8 +8997,26 @@ private fun ExplorerDropListPanel(
                 }
             }
 
+            if (isExpanded) {
+                IconButton(
+                    onClick = {
+                        coroutineScope.launch {
+                            state.animateTo(ExplorerDropListPanelValue.Collapsed)
+                        }
+                    },
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(top = 8.dp, end = 8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Close,
+                        contentDescription = stringResource(R.string.content_description_close_drop_list_panel)
+                    )
+                }
+            }
+
             AnimatedVisibility(
-                visible = true,
+                visible = !isExpanded,
                 modifier = Modifier
                     .align(if (isExpanded) Alignment.TopStart else Alignment.TopEnd)
                     .padding(top = handleTopPadding)

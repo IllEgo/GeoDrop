@@ -34,6 +34,7 @@
     <string name="browse_ignore_drop_explainer">Ocultaremos este drop de la lista de exploración hasta que vuelvas a estar cerca.</string>
     <string name="browse_ignore_drop_snackbar">Drop oculto por ahora. Volverá a mostrarse cuando estés cerca.</string>
     <string name="action_my_drops_title">Mis drops</string>
+    <string name="content_description_close_drop_list_panel">Cerrar lista de drops</string>
     <string name="action_my_drops_description">Revisa, abre y gestiona los drops que has compartido.</string>
     <string name="action_collected_drops_title">Drops recopilados</string>
     <string name="action_collected_drops_hidden_nsfw">Tu configuración NSFW oculta %1$d %2$s recopilados.</string>
