@@ -133,6 +133,7 @@ import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.*
 import androidx.compose.runtime.mutableStateListOf
@@ -5657,7 +5658,10 @@ private fun DropComposerDialog(
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val sheetState = rememberModalBottomSheetState(
+        skipPartiallyExpanded = true,
+        confirmValueChange = { it != SheetValue.Hidden }
+    )
     val bottomNavHeightPx = with(LocalDensity.current) { 36.dp.roundToPx() }
     val contentIsValid = remember(dropContentType, note, capturedPhotoPath, capturedAudioUri, capturedVideoUri) {
         when (dropContentType) {
