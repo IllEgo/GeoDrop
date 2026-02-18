@@ -8883,6 +8883,9 @@ private fun ExplorerDropListPanel(
                                 state.targetValue == state.currentValue)
             }
         }
+        val currentPanelWidth = remember(isExpanded, collapsedPanelWidth, expandedPanelWidth) {
+            if (isExpanded) expandedPanelWidth else collapsedPanelWidth
+        }
 
         val startPadding = contentPadding.calculateStartPadding(layoutDirection)
         val endPadding = contentPadding.calculateEndPadding(layoutDirection)
