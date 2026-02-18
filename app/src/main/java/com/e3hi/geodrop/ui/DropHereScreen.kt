@@ -78,6 +78,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RectangleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -8934,7 +8935,7 @@ private fun ExplorerDropListPanel(
                     .heightIn(min = effectiveMinPanelHeight, max = availablePanelHeight)
                     .graphicsLayer { translationX = state.offset }
                     .then(anchoredModifier),
-                shape = RoundedCornerShape(topStart = 24.dp, bottomStart = 24.dp),
+                shape = RectangleShape,
                 tonalElevation = 8.dp,
                 shadowElevation = 0.dp,
                 color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)
@@ -9019,7 +9020,7 @@ private fun ExplorerDropListPanel(
                                 state.animateTo(ExplorerDropListPanelValue.Expanded)
                             }
                         },
-                    shape = RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp),
+                    shape = RectangleShape,
                     tonalElevation = 8.dp,
                     shadowElevation = 0.dp,
                     color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)
