@@ -8907,7 +8907,6 @@ private fun ExplorerDropListPanel(
         }
         val currentPanelHeight = panelHeightValue.dp
         val handleSpace = if (isExpanded) 0.dp else handleWidth
-        val handleSpace = if (handleVisible) handleWidth else 0.dp
         val handleTopPadding = remember(currentPanelHeight) {
             val handleHeight = 72.dp
             ((currentPanelHeight - handleHeight) / 2).coerceAtLeast(0.dp)
