@@ -1066,6 +1066,7 @@ fun DropHereScreen(
     var selectedHomeDestination by rememberSaveable { mutableStateOf(HomeDestination.Explorer.name) }
     var notificationRadius by remember { mutableStateOf(notificationPrefs.getNotificationRadiusMeters()) }
     var showNotificationRadiusDialog by remember { mutableStateOf(false) }
+    var defaultExplorerDestinationName by remember { mutableStateOf(notificationPrefs.getDefaultExplorerDestination()) }
 
     DisposableEffect(groupPrefs) {
         val listener = GroupPreferences.ChangeListener { groups, _ ->
@@ -1184,9 +1185,19 @@ fun DropHereScreen(
 
     val currentUserId = currentUser?.uid
 
-    LaunchedEffect(currentUserId) {
+    LaunchedEffect(currentUserId, hasExplorerAccount) {
         notificationPrefs.setActiveUser(currentUserId)
         notificationRadius = notificationPrefs.getNotificationRadiusMeters()
+        defaultExplorerDestinationName = notificationPrefs.getDefaultExplorerDestination()
+        if (hasExplorerAccount) {
+            val preferredDestination = defaultExplorerDestinationName
+                ?.let { name -> runCatching { ExplorerDestination.valueOf(name) }.getOrNull() }
+                ?.takeIf { destination -> destination != ExplorerDestination.Discover }
+            preferredDestination?.let { destination ->
+                selectedHomeDestination = HomeDestination.Explorer.name
+                explorerDestination = destination.name
+            }
+        }
     }
 
     LaunchedEffect(pendingExplorerUsername, currentUserId) {
@@ -2874,7 +2885,7 @@ fun DropHereScreen(
                                                             R.string.menu_edit_username_with_value,
                                                             it
                                                         )
-                                                    } ?: stringResource(R.string.menu_set_username)
+                                                    } ?: "Profile & preferences"
                                                 )
                                             },
                                             leadingIcon = { Icon(Icons.Rounded.Edit, contentDescription = null) },
@@ -2891,43 +2902,6 @@ fun DropHereScreen(
                             }
 
                             if (canParticipate) {
-                                val nsfwEnabled = userProfile?.canViewNsfw() == true
-                                DropdownMenuItem(
-                                    text = {
-                                        Text(
-                                            stringResource(
-                                                R.string.menu_notification_radius,
-                                                notificationRadius.roundToInt()
-                                            )
-                                        )
-                                    },
-                                    leadingIcon = { Icon(Icons.Rounded.Map, contentDescription = null) },
-                                    onClick = {
-                                        showAccountMenu = false
-                                        showNotificationRadiusDialog = true
-                                    }
-                                )
-                                if (!isBusinessUser) {
-                                    DropdownMenuItem(
-                                        text = {
-                                            Text(
-                                                stringResource(
-                                                    if (nsfwEnabled) {
-                                                        R.string.menu_disable_nsfw_drops
-                                                    } else {
-                                                        R.string.menu_enable_nsfw_drops
-                                                    }
-                                                )
-                                            )
-                                        },
-                                        leadingIcon = { Icon(Icons.Rounded.Flag, contentDescription = null) },
-                                        onClick = {
-                                            showAccountMenu = false
-                                            nsfwUpdateError = null
-                                            showNsfwDialog = true
-                                        }
-                                    )
-                                }
                                 DropdownMenuItem(
                                     text = {
                                         Text(
@@ -3606,6 +3580,26 @@ fun DropHereScreen(
                 onUsernameChange = { explorerUsernameField = it },
                 isSubmitting = explorerProfileSubmitting,
                 error = explorerProfileError,
+                notificationRadius = notificationRadius,
+                nsfwEnabled = userProfile?.canViewNsfw() == true,
+                defaultExplorerDestination = defaultExplorerDestinationName,
+                onEditNotificationRadius = { showNotificationRadiusDialog = true },
+                onToggleNsfw = {
+                    nsfwUpdateError = null
+                    showNsfwDialog = true
+                },
+                onDefaultExplorerDestinationChange = { destinationName ->
+                    defaultExplorerDestinationName = destinationName
+                    notificationPrefs.setDefaultExplorerDestination(destinationName)
+                    val message = if (destinationName == null) {
+                        "Default destination cleared."
+                    } else {
+                        val destination = runCatching { ExplorerDestination.valueOf(destinationName) }
+                            .getOrDefault(ExplorerDestination.Discover)
+                        "Default destination set to ${explorerDestinationLabel(destination)}."
+                    }
+                    snackbar.showMessage(scope, message)
+                },
                 onAvatarUploadClick = {
                     snackbar.showMessage(scope, "Avatar uploads are coming soon.")
                 },
@@ -7892,6 +7886,12 @@ private fun ExplorerProfileDialog(
     onUsernameChange: (TextFieldValue) -> Unit,
     isSubmitting: Boolean,
     error: String?,
+    notificationRadius: Double,
+    nsfwEnabled: Boolean,
+    defaultExplorerDestination: String?,
+    onEditNotificationRadius: () -> Unit,
+    onToggleNsfw: () -> Unit,
+    onDefaultExplorerDestinationChange: (String?) -> Unit,
     onAvatarUploadClick: () -> Unit,
     onEditDisplayName: () -> Unit,
     onSubmit: () -> Unit,
@@ -7957,6 +7957,16 @@ private fun ExplorerProfileDialog(
                     text = stringResource(R.string.explorer_profile_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                ExplorerPreferencesSection(
+                    notificationRadius = notificationRadius,
+                    nsfwEnabled = nsfwEnabled,
+                    defaultExplorerDestination = defaultExplorerDestination,
+                    enabled = !isSubmitting,
+                    onEditNotificationRadius = onEditNotificationRadius,
+                    onToggleNsfw = onToggleNsfw,
+                    onDefaultExplorerDestinationChange = onDefaultExplorerDestinationChange
                 )
 
                 error?.let { message ->
@@ -8058,6 +8068,104 @@ private fun ExplorerProfileHeader(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+    }
+}
+
+@Composable
+private fun ExplorerPreferencesSection(
+    notificationRadius: Double,
+    nsfwEnabled: Boolean,
+    defaultExplorerDestination: String?,
+    enabled: Boolean,
+    onEditNotificationRadius: () -> Unit,
+    onToggleNsfw: () -> Unit,
+    onDefaultExplorerDestinationChange: (String?) -> Unit
+) {
+    val options = remember { listOf<String?>(null) + ExplorerDestination.entries.map { it.name } }
+    val selectedDestination = defaultExplorerDestination
+        ?.let { runCatching { ExplorerDestination.valueOf(it) }.getOrNull() }
+
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text("Preferences", style = MaterialTheme.typography.titleMedium)
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Nearby notification radius", style = MaterialTheme.typography.labelMedium)
+                    Text("${notificationRadius.roundToInt()} meters", style = MaterialTheme.typography.bodyMedium)
+                }
+                TextButton(onClick = onEditNotificationRadius, enabled = enabled) {
+                    Text("Edit")
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Show 18+ drops", style = MaterialTheme.typography.labelMedium)
+                    Text(
+                        if (nsfwEnabled) "Enabled" else "Disabled",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+                Switch(
+                    checked = nsfwEnabled,
+                    onCheckedChange = { if (enabled) onToggleNsfw() },
+                    enabled = enabled
+                )
+            }
+
+            Text("Default explorer destination", style = MaterialTheme.typography.labelMedium)
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                options.forEachIndexed { index, option ->
+                    val shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size)
+                    val selected = option == defaultExplorerDestination
+                    val label = if (option == null) {
+                        "None"
+                    } else {
+                        explorerDestinationLabel(
+                            runCatching { ExplorerDestination.valueOf(option) }.getOrDefault(ExplorerDestination.Discover)
+                        )
+                    }
+                    SegmentedButton(
+                        selected = selected,
+                        onClick = { onDefaultExplorerDestinationChange(option) },
+                        shape = shape,
+                        enabled = enabled,
+                        label = { Text(label) }
+                    )
+                }
+            }
+            Text(
+                text = selectedDestination?.let { "Opens to ${explorerDestinationLabel(it)}." }
+                    ?: "No default selected. GeoDrop opens to Nearby.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+private fun explorerDestinationLabel(destination: ExplorerDestination): String {
+    return when (destination) {
+        ExplorerDestination.Discover -> "Nearby"
+        ExplorerDestination.MyDrops -> "My Drops"
+        ExplorerDestination.Collected -> "Collected"
     }
 }
 
