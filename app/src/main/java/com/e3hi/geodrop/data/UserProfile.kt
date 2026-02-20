@@ -4,6 +4,7 @@ data class UserProfile(
     val id: String = "",
     val displayName: String? = null,
     val username: String? = null,
+    val memberSince: Long? = null,
     val role: UserRole = UserRole.EXPLORER,
     val businessName: String? = null,
     val businessCategories: List<BusinessCategory> = emptyList(),

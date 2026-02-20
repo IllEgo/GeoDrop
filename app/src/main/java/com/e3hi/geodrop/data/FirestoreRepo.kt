@@ -373,6 +373,9 @@ class FirestoreRepo(
         val storedNsfwEnabled = snapshot.getBoolean("nsfwEnabled") == true
         val storedNsfwEnabledAtRaw = snapshot.get("nsfwEnabledAt")
         val storedNsfwEnabledAt = storedNsfwEnabledAtRaw.toMillisOrNull()
+        val storedCreatedAtRaw = snapshot.get("createdAt")
+        val storedCreatedAt = storedCreatedAtRaw.toMillisOrNull()
+        val resolvedCreatedAt = storedCreatedAt ?: System.currentTimeMillis()
         val resolvedDisplayName = storedDisplayName ?: displayName?.takeIf { it.isNotBlank() }
 
         val updates = hashMapOf<String, Any?>()
@@ -384,6 +387,7 @@ class FirestoreRepo(
             storedUsername?.let { updates["username"] = it }
             updates["nsfwEnabled"] = storedNsfwEnabled
             storedNsfwEnabledAtRaw?.let { updates["nsfwEnabledAt"] = it }
+            updates["createdAt"] = storedCreatedAtRaw ?: resolvedCreatedAt
         } else {
             if (snapshot.getString("role").isNullOrBlank()) {
                 updates["role"] = existingRole.name
@@ -400,6 +404,9 @@ class FirestoreRepo(
             if (!snapshot.contains("nsfwEnabledAt")) {
                 storedNsfwEnabledAtRaw?.let { updates["nsfwEnabledAt"] = it }
             }
+            if (!snapshot.contains("createdAt")) {
+                updates["createdAt"] = resolvedCreatedAt
+            }
         }
 
         if (updates.isNotEmpty()) {
@@ -410,6 +417,7 @@ class FirestoreRepo(
             id = userId,
             displayName = resolvedDisplayName,
             username = storedUsername,
+            memberSince = storedCreatedAt ?: resolvedCreatedAt,
             role = existingRole,
             businessName = existingBusinessName,
             businessCategories = existingBusinessCategories,
