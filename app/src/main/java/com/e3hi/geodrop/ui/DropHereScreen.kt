@@ -8071,6 +8071,7 @@ private fun ExplorerProfileHeader(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ExplorerPreferencesSection(
     notificationRadius: Double,
