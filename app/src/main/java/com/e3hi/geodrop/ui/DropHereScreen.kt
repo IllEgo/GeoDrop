@@ -3133,7 +3133,12 @@ fun DropHereScreen(
                     }
                 }
             },
-            snackbarHost = {}
+            snackbarHost = {
+                SnackbarHost(
+                    hostState = snackbar,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+            }
         ) { innerPadding ->
             val layoutDirection = LocalLayoutDirection.current
             val topPadding = innerPadding.calculateTopPadding()
@@ -3438,13 +3443,6 @@ fun DropHereScreen(
                     }
                 }
 
-                SnackbarHost(
-                    hostState = snackbar,
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 16.dp)
-                        .zIndex(3f)
-                )
             }
         }
 
