@@ -487,6 +487,17 @@ class FirestoreRepo(
         )
     }
 
+    suspend fun updateDisplayName(userId: String, displayName: String): UserProfile {
+        val profile = ensureUserProfile(userId)
+        if (userId.isBlank()) return profile
+
+        val trimmed = displayName.trim()
+        val updates = hashMapOf<String, Any?>("displayName" to trimmed.ifBlank { null })
+        users.document(userId).set(updates, SetOptions.merge()).await()
+
+        return profile.copy(displayName = trimmed.ifBlank { null })
+    }
+
     suspend fun updateExplorerUsername(userId: String, desiredUsername: String): UserProfile {
         val profile = ensureUserProfile(userId)
         if (userId.isBlank()) return profile

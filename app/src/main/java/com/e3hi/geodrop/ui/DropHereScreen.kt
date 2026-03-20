@@ -338,6 +338,9 @@ fun DropHereScreen(
     var explorerUsernameField by rememberSaveable(stateSaver = TextFieldValue.Saver) {
         mutableStateOf(TextFieldValue(""))
     }
+    var explorerDisplayNameField by rememberSaveable(stateSaver = TextFieldValue.Saver) {
+        mutableStateOf(TextFieldValue(""))
+    }
     var explorerProfileSubmitting by remember { mutableStateOf(false) }
     var explorerProfileError by remember { mutableStateOf<String?>(null) }
     var signingOut by remember { mutableStateOf(false) }
@@ -1240,6 +1243,7 @@ fun DropHereScreen(
             resetAccountAuthFields(clearEmail = true)
             showAccountSignIn = false
             explorerUsernameField = TextFieldValue(desired)
+            explorerDisplayNameField = TextFieldValue(userProfile?.displayName.orEmpty())
             explorerProfileError = message
             explorerProfileSubmitting = false
             showExplorerProfile = true
@@ -1279,7 +1283,7 @@ fun DropHereScreen(
         capturedVideoUri = null
     }
 
-    fun saveExplorerUsername() {
+    fun saveExplorerProfile() {
         if (explorerProfileSubmitting) return
 
         val userId = currentUserId
@@ -1288,17 +1292,27 @@ fun DropHereScreen(
             return
         }
 
-        val desired = explorerUsernameField.text
-        val sanitized = try {
-            ExplorerUsername.sanitize(desired)
-        } catch (error: ExplorerUsername.InvalidUsernameException) {
-            explorerProfileError = when (error.reason) {
-                ExplorerUsername.ValidationError.TOO_SHORT -> ctx.getString(R.string.explorer_profile_error_too_short)
-                ExplorerUsername.ValidationError.TOO_LONG -> ctx.getString(R.string.explorer_profile_error_too_long)
-                ExplorerUsername.ValidationError.INVALID_CHARACTERS ->
-                    ctx.getString(R.string.explorer_profile_error_invalid_characters)
+        val desiredUsername = explorerUsernameField.text
+        val desiredDisplayName = explorerDisplayNameField.text.trim()
+        val currentUsername = userProfile?.username
+
+        // Only validate/update username if it has changed or is newly set
+        val sanitizedUsername: String? = if (desiredUsername.isNotEmpty() && desiredUsername != currentUsername) {
+            try {
+                ExplorerUsername.sanitize(desiredUsername)
+            } catch (error: ExplorerUsername.InvalidUsernameException) {
+                explorerProfileError = when (error.reason) {
+                    ExplorerUsername.ValidationError.TOO_SHORT -> ctx.getString(R.string.explorer_profile_error_too_short)
+                    ExplorerUsername.ValidationError.TOO_LONG -> ctx.getString(R.string.explorer_profile_error_too_long)
+                    ExplorerUsername.ValidationError.INVALID_CHARACTERS ->
+                        ctx.getString(R.string.explorer_profile_error_invalid_characters)
+                }
+                return
             }
-            return
+        } else if (desiredUsername.isNotEmpty()) {
+            desiredUsername
+        } else {
+            null
         }
 
         explorerProfileSubmitting = true
@@ -1306,14 +1320,15 @@ fun DropHereScreen(
 
         scope.launch {
             try {
-                val updated = repo.updateExplorerUsername(userId, sanitized)
+                var updated = repo.updateDisplayName(userId, desiredDisplayName)
+                if (sanitizedUsername != null && sanitizedUsername != currentUsername) {
+                    updated = repo.updateExplorerUsername(userId, sanitizedUsername)
+                } else {
+                    updated = updated.copy(username = currentUsername)
+                }
                 userProfile = updated
                 showExplorerProfile = false
-                val usernameForMessage = updated.username ?: sanitized
-                snackbar.showMessage(
-                    scope,
-                    ctx.getString(R.string.explorer_profile_status_saved, "@$usernameForMessage")
-                )
+                snackbar.showMessage(scope, ctx.getString(R.string.explorer_profile_status_saved))
             } catch (error: ExplorerUsername.InvalidUsernameException) {
                 explorerProfileError = when (error.reason) {
                     ExplorerUsername.ValidationError.TOO_SHORT -> ctx.getString(R.string.explorer_profile_error_too_short)
@@ -2894,6 +2909,7 @@ fun DropHereScreen(
                                                 explorerProfileError = null
                                                 explorerProfileSubmitting = false
                                                 explorerUsernameField = TextFieldValue(explorerUsername.orEmpty())
+                                                explorerDisplayNameField = TextFieldValue(userProfile?.displayName.orEmpty())
                                                 showExplorerProfile = true
                                             }
                                         )
@@ -3573,9 +3589,9 @@ fun DropHereScreen(
 
         if (showExplorerProfile) {
             ExplorerProfileDialog(
-                displayName = userProfile?.displayName,
-                currentUsername = userProfile?.username,
                 memberSince = userProfile?.memberSince,
+                displayNameField = explorerDisplayNameField,
+                onDisplayNameChange = { explorerDisplayNameField = it },
                 username = explorerUsernameField,
                 onUsernameChange = { explorerUsernameField = it },
                 isSubmitting = explorerProfileSubmitting,
@@ -3603,10 +3619,7 @@ fun DropHereScreen(
                 onAvatarUploadClick = {
                     snackbar.showMessage(scope, "Avatar uploads are coming soon.")
                 },
-                onEditDisplayName = {
-                    snackbar.showMessage(scope, "Display name editing is coming soon.")
-                },
-                onSubmit = { saveExplorerUsername() },
+                onSubmit = { saveExplorerProfile() },
                 onDismiss = {
                     if (!explorerProfileSubmitting) {
                         showExplorerProfile = false
@@ -7879,9 +7892,9 @@ private fun AccountSignInDialog(
 
 @Composable
 private fun ExplorerProfileDialog(
-    displayName: String?,
-    currentUsername: String?,
     memberSince: Long?,
+    displayNameField: TextFieldValue,
+    onDisplayNameChange: (TextFieldValue) -> Unit,
     username: TextFieldValue,
     onUsernameChange: (TextFieldValue) -> Unit,
     isSubmitting: Boolean,
@@ -7893,7 +7906,6 @@ private fun ExplorerProfileDialog(
     onToggleNsfw: () -> Unit,
     onDefaultExplorerDestinationChange: (String?) -> Unit,
     onAvatarUploadClick: () -> Unit,
-    onEditDisplayName: () -> Unit,
     onSubmit: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -7928,12 +7940,21 @@ private fun ExplorerProfileDialog(
                 )
 
                 ExplorerProfileHeader(
-                    displayName = displayName,
-                    username = currentUsername,
                     memberSince = memberSince,
-                    onAvatarUploadClick = onAvatarUploadClick,
-                    onEditDisplayName = onEditDisplayName,
-                    onEditUsername = {}
+                    onAvatarUploadClick = onAvatarUploadClick
+                )
+
+                OutlinedTextField(
+                    value = displayNameField,
+                    onValueChange = onDisplayNameChange,
+                    label = { Text(stringResource(R.string.explorer_profile_display_name_label)) },
+                    placeholder = { Text(stringResource(R.string.explorer_profile_display_name_placeholder)) },
+                    singleLine = true,
+                    enabled = !isSubmitting,
+                    keyboardOptions = KeyboardOptions(
+                        imeAction = ImeAction.Next
+                    ),
+                    modifier = Modifier.fillMaxWidth()
                 )
 
                 OutlinedTextField(
@@ -8012,61 +8033,44 @@ private fun ExplorerProfileDialog(
 
 @Composable
 private fun ExplorerProfileHeader(
-    displayName: String?,
-    username: String?,
     memberSince: Long?,
-    onAvatarUploadClick: () -> Unit,
-    onEditDisplayName: () -> Unit,
-    onEditUsername: () -> Unit
+    onAvatarUploadClick: () -> Unit
 ) {
     Surface(
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
     ) {
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            Surface(
+                modifier = Modifier.size(56.dp),
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.primaryContainer
             ) {
-                Surface(
-                    modifier = Modifier.size(56.dp),
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.primaryContainer
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Rounded.AccountCircle,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.size(36.dp)
-                        )
-                    }
-                }
-                TextButton(onClick = onAvatarUploadClick) {
-                    Text("Upload avatar")
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Rounded.AccountCircle,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.size(36.dp)
+                    )
                 }
             }
-
-            HeaderFieldRow(
-                label = "Display name",
-                value = displayName?.takeIf { it.isNotBlank() } ?: "Add a display name",
-                onEdit = onEditDisplayName
-            )
-            HeaderFieldRow(
-                label = "Username",
-                value = username?.takeIf { it.isNotBlank() }?.let { "@$it" } ?: "Set your username",
-                onEdit = onEditUsername
-            )
-            Text(
-                text = "Member since ${formatMemberSince(memberSince)}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                TextButton(onClick = onAvatarUploadClick, contentPadding = PaddingValues(0.dp)) {
+                    Text("Upload avatar")
+                }
+                Text(
+                    text = "Member since ${formatMemberSince(memberSince)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }
@@ -8170,22 +8174,6 @@ private fun explorerDestinationLabel(destination: ExplorerDestination): String {
     }
 }
 
-@Composable
-private fun HeaderFieldRow(label: String, value: String, onEdit: () -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(value, style = MaterialTheme.typography.bodyMedium)
-        }
-        TextButton(onClick = onEdit) {
-            Text("Edit")
-        }
-    }
-}
 
 private fun formatMemberSince(memberSince: Long?): String {
     val millis = memberSince ?: return "recently"
