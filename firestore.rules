@@ -22,7 +22,8 @@ service cloud.firestore {
           'businessName',
           'businessCategories',
           'nsfwEnabled',
-          'nsfwEnabledAt'
+          'nsfwEnabledAt',
+          'createdAt'
         ]);
       }
 
