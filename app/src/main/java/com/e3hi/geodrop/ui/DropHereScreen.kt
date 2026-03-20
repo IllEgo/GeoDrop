@@ -82,6 +82,7 @@ import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExpandLess
@@ -2779,6 +2780,18 @@ fun DropHereScreen(
                 Column(modifier = Modifier.fillMaxWidth()) {
                     TopAppBar(
                         modifier = Modifier.fillMaxWidth(),
+                        navigationIcon = {
+                            if (isBusinessUser && currentHomeDestination == HomeDestination.Explorer) {
+                                IconButton(onClick = {
+                                    selectedHomeDestination = HomeDestination.Business.name
+                                }) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                                        contentDescription = "Back to business home"
+                                    )
+                                }
+                            }
+                        },
                         title = {
                             GeoDropHeader(
                                 onShowTutorial = { showOnboardingHelp = true },
