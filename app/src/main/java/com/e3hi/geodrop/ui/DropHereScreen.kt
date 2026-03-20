@@ -4946,9 +4946,6 @@ private fun BusinessHomeDestination(
                 businessName = businessName,
                 businessCategories = businessCategories,
                 metrics = metrics,
-                onCreateDrop = onCreateDrop,
-                onViewDashboard = onViewDashboard,
-                onUpdateBusinessProfile = onUpdateBusinessProfile,
                 onViewMyDrops = onViewMyDrops
             )
         }
@@ -4962,9 +4959,6 @@ private fun BusinessOverviewContent(
     businessName: String?,
     businessCategories: List<BusinessCategory>,
     metrics: BusinessHomeMetrics,
-    onCreateDrop: () -> Unit,
-    onViewDashboard: () -> Unit,
-    onUpdateBusinessProfile: () -> Unit,
     onViewMyDrops: () -> Unit
 ) {
     val kpiTiles = remember(metrics) {
@@ -4999,31 +4993,10 @@ private fun BusinessOverviewContent(
         }
 
         item(span = { GridItemSpan(maxLineSpan) }) {
-            SectionHeader(text = "Operations")
-        }
-
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            BusinessActionSection(
-                metrics = metrics,
-                onCreateDrop = onCreateDrop,
-                onViewMyDrops = onViewMyDrops,
-                onUpdateBusinessProfile = onUpdateBusinessProfile
-            )
-        }
-
-        item(span = { GridItemSpan(maxLineSpan) }) {
             BusinessFulfillmentSection(
                 metrics = metrics,
                 onViewMyDrops = onViewMyDrops
             )
-        }
-
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            SectionHeader(text = "Engagement & analytics")
-        }
-
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            BusinessAnalyticsSection(onViewDashboard = onViewDashboard)
         }
     }
 }
@@ -5085,44 +5058,6 @@ private fun BusinessMetricCard(tile: BusinessKpiTile) {
     }
 }
 
-@Composable
-private fun BusinessActionSection(
-    metrics: BusinessHomeMetrics,
-    onCreateDrop: () -> Unit,
-    onViewMyDrops: () -> Unit,
-    onUpdateBusinessProfile: () -> Unit
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        ElevatedCard {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                BusinessActionRow(
-                    icon = Icons.Rounded.AddCircle,
-                    title = "Create a drop",
-                    subtitle = "Launch a new offer or story",
-                    onClick = onCreateDrop
-                )
-                Divider()
-                BusinessActionRow(
-                    icon = Icons.Rounded.Inbox,
-                    title = "Manage drops",
-                    subtitle = "${metrics.liveDropCount} live • ${metrics.pendingReviewCount} flagged",
-                    onClick = onViewMyDrops
-                )
-            }
-        }
-
-        ElevatedCard {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                BusinessActionRow(
-                    icon = Icons.Rounded.Storefront,
-                    title = "Update profile",
-                    subtitle = "Refresh brand details and categories",
-                    onClick = onUpdateBusinessProfile
-                )
-            }
-        }
-    }
-}
 
 @Composable
 private fun BusinessFulfillmentSection(
@@ -5148,34 +5083,6 @@ private fun BusinessFulfillmentSection(
     }
 }
 
-@Composable
-private fun BusinessAnalyticsSection(onViewDashboard: () -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        BusinessChartPlaceholder(
-            title = "Performance over time",
-            description = "Chart your discoveries, pickups, and redemptions."
-        )
-        BusinessChartPlaceholder(
-            title = "Audience insights",
-            description = "Plug in upcoming analytics without reshaping the layout."
-        )
-        ElevatedCard {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Open business dashboard", style = MaterialTheme.typography.titleMedium)
-                Text(
-                    "See detailed charts, redemption histories, and heatmaps.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Button(onClick = onViewDashboard) {
-                    Icon(Icons.Rounded.Lightbulb, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("View dashboard")
-                }
-            }
-        }
-    }
-}
 
 @Composable
 private fun BusinessActionRow(
@@ -5206,48 +5113,6 @@ private fun BusinessActionRow(
     }
 }
 
-@Composable
-private fun BusinessChartPlaceholder(title: String, description: String) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = 180.dp),
-        shape = RoundedCornerShape(16.dp),
-        tonalElevation = 2.dp,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Icon(Icons.Rounded.GraphicEq, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                Text(title, style = MaterialTheme.typography.titleMedium)
-            }
-            Text(
-                text = description,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "Charts coming soon",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-    }
-}
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
