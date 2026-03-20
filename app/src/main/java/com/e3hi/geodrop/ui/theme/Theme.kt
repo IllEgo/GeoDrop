@@ -78,7 +78,7 @@ private val LightColorScheme = lightColorScheme(
 @Composable
 fun GeoDropTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = false,
+    dynamicColor: Boolean = true,
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {
@@ -94,6 +94,7 @@ fun GeoDropTheme(
     MaterialTheme(
         colorScheme = colorScheme,
         typography = Typography,
+        shapes = Shapes,
         content = content
     )
 }
