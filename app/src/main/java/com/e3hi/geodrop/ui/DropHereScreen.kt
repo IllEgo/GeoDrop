@@ -163,7 +163,9 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalFocusManager
@@ -327,6 +329,7 @@ fun DropHereScreen(
     dropSafetyEvaluator: DropSafetyEvaluator = NoOpDropSafetyEvaluator
 ) {
     val ctx = LocalContext.current
+    val haptic = LocalHapticFeedback.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val auth = remember { FirebaseAuth.getInstance() }
     var currentUser by remember { mutableStateOf(auth.currentUser) }
@@ -1463,6 +1466,7 @@ fun DropHereScreen(
                 otherDropsSelectedId = remaining.firstOrNull()?.id
             }
             snackbar.showMessage(scope, "Drop added to your collection.")
+            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
             Firebase.analytics.logEvent("drop_collected") {
                 param("drop_type", drop.dropType.name)
             }
@@ -1902,17 +1906,18 @@ fun DropHereScreen(
             "$baseStatus ($typeSummary)"
         }
         val snackbarMessage = when {
-            groupCode != null -> "Group drop saved!"
-            !dropTypeTitle.isNullOrBlank() -> "${dropTypeTitle} drop saved!"
-            dropType == DropType.RESTAURANT_COUPON -> "Offer published!"
-            dropType == DropType.TOUR_STOP -> "Tour stop saved!"
+            groupCode != null -> "Your drop is out there for the group."
+            dropType == DropType.RESTAURANT_COUPON -> "Your offer is live — go find some explorers."
+            dropType == DropType.TOUR_STOP -> "Tour stop is out in the world."
+            !dropTypeTitle.isNullOrBlank() -> "Your ${dropTypeTitle.lowercase()} is out there."
             else -> when (contentType) {
-                DropContentType.TEXT -> "Note dropped!"
-                DropContentType.PHOTO -> "Photo drop saved!"
-                DropContentType.AUDIO -> "Audio drop saved!"
-                DropContentType.VIDEO -> "Video drop saved!"
+                DropContentType.TEXT -> "Your note is out in the world."
+                DropContentType.PHOTO -> "Your photo is out there waiting to be found."
+                DropContentType.AUDIO -> "Your audio drop is out there."
+                DropContentType.VIDEO -> "Your video drop is out there."
             }
         }
+        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
         scope.launch { snackbar.showSnackbar(snackbarMessage) }
     }
 
@@ -2917,7 +2922,7 @@ fun DropHereScreen(
                 .zIndex(2f)
                 .padding(top = celebrationTopPadding),
             visible = pickupCelebrationVisible && pickupCelebrationDrop != null,
-            dropTitle = pickupCelebrationDrop?.displayTitle()
+            drop = pickupCelebrationDrop
         )
 
         Scaffold(
@@ -3320,7 +3325,7 @@ fun DropHereScreen(
                                                 notificationRadiusMeters = notificationRadius,
                                                 error = otherDropsError,
                                                 emptyMessage = selectedExplorerGroupCode?.let { code ->
-                                                    "No drops for $code yet."
+                                                    "Nothing in $code yet — be the first to drop something here."
                                                 },
                                                 selectedId = otherDropsSelectedId,
                                                 onSelect = { drop ->
@@ -8227,7 +8232,7 @@ private fun OtherDropsExplorerSection(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Text(
-                        text = emptyMessage ?: "No drops from other users are available right now.",
+                        text = emptyMessage ?: "Nothing here yet — be the first to leave your mark.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -9044,13 +9049,13 @@ private fun CollectedNoteCard(
 //                        )
 //                    }
 
-                    note.dropperUsername?.takeIf { it.isNotBlank() }?.let { username ->
-                        Text(
-                            text = "Dropped by @${username}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = supportingColor
-                        )
-                    }
+                    Text(
+                        text = note.dropperUsername?.takeIf { it.isNotBlank() }
+                            ?.let { "Dropped by @$it" }
+                            ?: "Left by a stranger",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = supportingColor
+                    )
 
                     note.groupCode?.let { group ->
                         Text(
@@ -9904,9 +9909,31 @@ private fun DropTitleText(
 private fun PickupCelebrationBanner(
     modifier: Modifier = Modifier,
     visible: Boolean,
-    dropTitle: String?
+    drop: Drop?
 ) {
-    if (dropTitle.isNullOrBlank()) return
+    if (drop == null) return
+    val isHuntComplete = drop.huntId != null &&
+        drop.huntStepIndex != null &&
+        drop.huntTotalSteps != null &&
+        drop.huntStepIndex + 1 >= drop.huntTotalSteps
+
+    val headline = when {
+        isHuntComplete -> "Hunt complete!"
+        drop.huntId != null -> "Clue collected — keep going!"
+        drop.contentType == DropContentType.PHOTO -> "You found it!"
+        drop.contentType == DropContentType.AUDIO -> "You found it!"
+        drop.contentType == DropContentType.VIDEO -> "You found it!"
+        else -> "You found something!"
+    }
+    val subline = when {
+        isHuntComplete -> "You completed the entire trail. Well done."
+        drop.huntId != null -> "The next step is now unlocked on the map."
+        drop.isAnonymous || drop.dropperUsername.isNullOrBlank() ->
+            "Left by a stranger just for you."
+        else -> "Left by @${drop.dropperUsername}"
+    }
+    val icon = if (isHuntComplete) Icons.Rounded.EmojiEvents else Icons.Rounded.Star
+
     val infiniteTransition = rememberInfiniteTransition(label = "pickupCelebration")
     val sparkleOffset by infiniteTransition.animateFloat(
         initialValue = -4f,
@@ -9944,7 +9971,10 @@ private fun PickupCelebrationBanner(
     ) {
         Card(
             colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                containerColor = if (isHuntComplete)
+                    MaterialTheme.colorScheme.primaryContainer
+                else
+                    MaterialTheme.colorScheme.surfaceVariant,
                 contentColor = MaterialTheme.colorScheme.onSurfaceVariant
             ),
             shape = RoundedCornerShape(24.dp),
@@ -9957,9 +9987,10 @@ private fun PickupCelebrationBanner(
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.Star,
+                    imageVector = icon,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.secondary,
+                    tint = if (isHuntComplete) MaterialTheme.colorScheme.primary
+                           else MaterialTheme.colorScheme.secondary,
                     modifier = Modifier
                         .size(36.dp)
                         .graphicsLayer { translationY = sparkleOffset }
@@ -9967,14 +9998,14 @@ private fun PickupCelebrationBanner(
 
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Drop collected!",
+                        text = headline,
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurface,
                         fontWeight = FontWeight.SemiBold
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        text = dropTitle,
+                        text = subline,
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -9983,7 +10014,8 @@ private fun PickupCelebrationBanner(
                 Icon(
                     imageVector = Icons.Rounded.CheckCircle,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.secondary.copy(alpha = shimmerAlpha),
+                    tint = (if (isHuntComplete) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.secondary).copy(alpha = shimmerAlpha),
                     modifier = Modifier.size(28.dp)
                 )
             }
@@ -10110,6 +10142,14 @@ private fun OtherDropRow(
                         DropContentType.VIDEO -> "Video drop"
                     }
 
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = drop.dropperUsername?.takeIf { it.isNotBlank() }
+                            ?.let { "Left by @$it" }
+                            ?: "Left by a stranger",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = supportingColor
+                    )
                     formatTimestamp(drop.createdAt)?.let {
                         Spacer(Modifier.height(4.dp))
                         Text(

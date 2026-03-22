@@ -126,10 +126,10 @@ class GeofenceReceiver : BroadcastReceiver() {
                         " (Step ${huntStepIndex + 1} of $huntTotalSteps)" else ""
                     "Scavenger hunt clue nearby$stepLabel"
                 } else when (dropContentType) {
-                    DropContentType.TEXT -> "Note nearby"
-                    DropContentType.PHOTO -> "Photo drop nearby"
-                    DropContentType.AUDIO -> "Audio drop nearby"
-                    DropContentType.VIDEO -> "Video drop nearby"
+                    DropContentType.TEXT -> "Someone left you a note nearby"
+                    DropContentType.PHOTO -> "Someone left you a photo nearby"
+                    DropContentType.AUDIO -> "Someone left you an audio note nearby"
+                    DropContentType.VIDEO -> "Someone left you a video nearby"
                 }
                 val userIdForIntent = authUserId ?: ExplorerAccountStore(context).getLastExplorerUid()
                 val pickupIntent = Intent(context, DropDecisionReceiver::class.java).apply {
@@ -172,11 +172,13 @@ class GeofenceReceiver : BroadcastReceiver() {
                     PendingIntentFlagsCompat
                 )
 
-                val prompt = when (dropContentType) {
-                    DropContentType.TEXT -> "Pick up this note?"
-                    DropContentType.PHOTO -> "Pick up this photo?"
-                    DropContentType.AUDIO -> "Pick up this audio note?"
-                    DropContentType.VIDEO -> "Pick up this video?"
+                val prompt = if (huntId != null) {
+                    "You're on the trail — claim your next clue."
+                } else when (dropContentType) {
+                    DropContentType.TEXT -> "A stranger left this here just for you. Pick it up?"
+                    DropContentType.PHOTO -> "Someone nearby left you a photo. Pick it up?"
+                    DropContentType.AUDIO -> "Someone left you an audio note. Pick it up?"
+                    DropContentType.VIDEO -> "Someone left you a video drop. Pick it up?"
                 }
 
                 val notif = NotificationCompat.Builder(context, CHANNEL_NEARBY)
