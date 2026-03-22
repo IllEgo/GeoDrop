@@ -79,6 +79,10 @@ dependencies {
     implementation 'com.google.firebase:firebase-firestore-ktx'
     implementation 'com.google.firebase:firebase-messaging-ktx'
 
+    // Crashlytics & Analytics
+    implementation 'com.google.firebase:firebase-crashlytics-ktx'
+    implementation 'com.google.firebase:firebase-analytics-ktx'
+
     // Play Services Location (fused + geofencing)
     implementation 'com.google.android.gms:play-services-location:21.3.0'
 

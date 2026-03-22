@@ -267,7 +267,11 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.FirebaseAuthInvalidUserException
 import com.google.firebase.auth.GoogleAuthProvider
+import com.google.firebase.analytics.ktx.analytics
+import com.google.firebase.analytics.ktx.logEvent
+import com.google.firebase.crashlytics.ktx.crashlytics
 import com.google.firebase.firestore.FirebaseFirestoreException
+import com.google.firebase.ktx.Firebase
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
@@ -331,6 +335,7 @@ fun DropHereScreen(
     var accountAuthStatus by remember { mutableStateOf<String?>(null) }
     var pendingExplorerUsername by remember { mutableStateOf<String?>(null) }
     var showBusinessOnboarding by remember { mutableStateOf(false) }
+    var showBusinessWelcome by remember { mutableStateOf(false) }
     var accountGoogleSigningIn by remember { mutableStateOf(false) }
     var showAccountMenu by remember { mutableStateOf(false) }
     var showFaqDialog by remember { mutableStateOf(false) }
@@ -530,6 +535,7 @@ fun DropHereScreen(
                     showAccountSignIn = false
                     if (selectedType == AccountType.BUSINESS) {
                         showBusinessOnboarding = true
+                        showBusinessWelcome = true
                     }
                 } else {
                     val newUser = current
@@ -667,6 +673,7 @@ fun DropHereScreen(
                             val isNewUser = authTask.result?.additionalUserInfo?.isNewUser == true
                             if (selectedType == AccountType.BUSINESS && isNewUser) {
                                 showBusinessOnboarding = true
+                                showBusinessWelcome = true
                             }
                         } else {
                             val message = authTask.exception?.localizedMessage?.takeIf { it.isNotBlank() }
@@ -799,6 +806,7 @@ fun DropHereScreen(
                         showAccountSignIn = false
                         if (selectedType == AccountType.BUSINESS) {
                             showBusinessOnboarding = true
+                            showBusinessWelcome = true
                         }
                     }
                 }
@@ -1433,6 +1441,9 @@ fun DropHereScreen(
                 otherDropsSelectedId = remaining.firstOrNull()?.id
             }
             snackbar.showMessage(scope, "Drop added to your collection.")
+            Firebase.analytics.logEvent("drop_collected") {
+                param("drop_type", drop.dropType.name)
+            }
             pickupCelebrationDrop = drop
 
             val userId = currentUserId
@@ -2224,6 +2235,10 @@ fun DropHereScreen(
                     dropAnonymously = anonymizeDrop,
                     nsfwAllowed = userProfile?.canViewNsfw() == true
                 )
+                Firebase.analytics.logEvent("drop_created") {
+                    param("drop_type", dropType.name)
+                    param("content_type", dropContentType.name)
+                }
                 val baseStatusMessage = status
                 val visionMessage = visionStatusMessage(
                     assessment = safety,
@@ -2681,6 +2696,9 @@ fun DropHereScreen(
     }
 
     val viewCollectedNote: (CollectedNote) -> Unit = { note ->
+        Firebase.analytics.logEvent("drop_viewed") {
+            param("drop_type", note.dropType.name)
+        }
         val intent = Intent(ctx, DropDetailActivity::class.java).apply {
             putExtra("dropId", note.id)
             if (note.text.isNotBlank()) putExtra("dropText", note.text)
@@ -3752,7 +3770,11 @@ fun DropHereScreen(
             )
         }
 
-        if (showBusinessOnboarding) {
+        if (showBusinessWelcome) {
+            BusinessFirstRunDialog(onContinue = { showBusinessWelcome = false })
+        }
+
+        if (showBusinessOnboarding && !showBusinessWelcome) {
             var businessNameField by rememberSaveable(
                 userProfile?.businessName,
                 stateSaver = TextFieldValue.Saver
@@ -3803,11 +3825,18 @@ fun DropHereScreen(
                     onboardingError = null
                     scope.launch {
                         try {
+                            val isNewProfile = userProfile?.businessName.isNullOrBlank()
                             val updated = repo.updateBusinessProfile(uid, trimmed, selectedCategories)
                             userProfile = updated
                             showBusinessOnboarding = false
                             snackbar.showMessage(scope, "Business profile saved.")
+                            if (isNewProfile) {
+                                Firebase.analytics.logEvent("business_onboarded") {
+                                    param("category_count", selectedCategories.size.toLong())
+                                }
+                            }
                         } catch (error: Exception) {
+                            Firebase.crashlytics.recordException(error)
                             onboardingError = error.localizedMessage ?: "Couldn't save business info."
                         } finally {
                             onboardingSubmitting = false
@@ -8043,6 +8072,59 @@ private fun formatMemberSince(memberSince: Long?): String {
     return runCatching {
         java.text.SimpleDateFormat("MMM yyyy", java.util.Locale.getDefault()).format(java.util.Date(millis))
     }.getOrDefault("recently")
+}
+
+@Composable
+private fun BusinessFirstRunDialog(onContinue: () -> Unit) {
+    data class Step(val icon: ImageVector, val title: String, val desc: String)
+    val steps = listOf(
+        Step(Icons.Rounded.AddCircle, "Create a drop", "Place a message, photo, or offer at any real-world location — a storefront, event venue, or local landmark."),
+        Step(Icons.Rounded.Map, "Explorers discover it", "Nearby users walking by see your drop on the map. They walk up to it to unlock and collect it."),
+        Step(Icons.Rounded.Lightbulb, "Track performance", "See how many people collected your drop, liked it, and redeemed your offers in your analytics dashboard.")
+    )
+    AlertDialog(
+        onDismissRequest = {},
+        title = {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                Icon(
+                    imageVector = Icons.Rounded.Storefront,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(40.dp)
+                )
+                Spacer(Modifier.height(8.dp))
+                Text("Welcome to GeoDrop for Business", style = MaterialTheme.typography.titleLarge, textAlign = TextAlign.Center)
+            }
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Text(
+                    "GeoDrop lets you engage local customers by placing digital drops at real-world locations.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                steps.forEach { step ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Icon(
+                            imageVector = step.icon,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(24.dp).padding(top = 2.dp)
+                        )
+                        Column {
+                            Text(step.title, style = MaterialTheme.typography.titleSmall)
+                            Text(step.desc, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = onContinue) {
+                Text("Get started")
+            }
+        }
+    )
 }
 
 @Composable

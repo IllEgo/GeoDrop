@@ -11,7 +11,11 @@
       "Bash(firebase deploy:*)",
       "Bash(xargs grep:*)",
       "Bash(grep:*)",
-      "Bash(./gradlew :app:compileDebugKotlin)"
+      "Bash(./gradlew :app:compileDebugKotlin)",
+      "Bash(./gradlew assembleDebug --quiet)",
+      "Bash(JAVA_HOME=\"/c/Program Files/Microsoft/jdk-17.0.12.7-hotspot\" ./gradlew assembleDebug --quiet)",
+      "Bash(JAVA_HOME=\"/c/Program Files/Android/Android Studio/jbr\" ./gradlew assembleDebug --quiet)",
+      "Bash(JAVA_HOME=\"/c/Program Files/Android/Android Studio/jbr\" ./gradlew assembleDebug)"
     ]
   }
 }
