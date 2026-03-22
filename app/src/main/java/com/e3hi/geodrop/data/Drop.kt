@@ -33,7 +33,10 @@ data class Drop(
     val redemptionCode: String? = null,
     val redemptionLimit: Int? = null,
     val redemptionCount: Int = 0,
-    val redeemedBy: Map<String, Long> = emptyMap()
+    val redeemedBy: Map<String, Long> = emptyMap(),
+    val huntId: String? = null,
+    val huntStepIndex: Int? = null,
+    val huntTotalSteps: Int? = null
 )
 
 enum class DropType {
@@ -161,19 +164,43 @@ fun Drop.displayTitle(): String {
 
 fun Drop.mediaLabel(): String? = mediaUrl?.takeIf { it.isNotBlank() }
 
-fun Drop.discoveryTitle(): String = when (dropType) {
-    DropType.RESTAURANT_COUPON -> "Local business offer"
-    DropType.TOUR_STOP -> "Guided tour stop"
-    DropType.COMMUNITY -> when (contentType) {
-        DropContentType.TEXT -> "Hidden note"
-        DropContentType.PHOTO -> "Hidden photo drop"
-        DropContentType.AUDIO -> "Hidden audio drop"
-        DropContentType.VIDEO -> "Hidden video drop"
+fun Drop.isHuntDrop(): Boolean = huntId != null
+
+fun Drop.huntStepLabel(): String? {
+    val step = huntStepIndex ?: return null
+    val total = huntTotalSteps
+    return if (total != null) "Step ${step + 1} of $total" else "Step ${step + 1}"
+}
+
+fun Drop.discoveryTitle(): String {
+    if (huntId != null) {
+        val step = huntStepIndex ?: 0
+        val total = huntTotalSteps
+        return if (total != null) "Scavenger hunt — Step ${step + 1} of $total" else "Scavenger hunt clue"
+    }
+    return when (dropType) {
+        DropType.RESTAURANT_COUPON -> "Local business offer"
+        DropType.TOUR_STOP -> "Guided tour stop"
+        DropType.COMMUNITY -> when (contentType) {
+            DropContentType.TEXT -> "Hidden note"
+            DropContentType.PHOTO -> "Hidden photo drop"
+            DropContentType.AUDIO -> "Hidden audio drop"
+            DropContentType.VIDEO -> "Hidden video drop"
+        }
     }
 }
 
 fun Drop.discoveryDescription(): String {
     val descriptionText = description.orEmpty()
+    if (huntId != null) {
+        val step = huntStepIndex ?: 0
+        val total = huntTotalSteps
+        val isLast = total != null && step == total - 1
+        return descriptionText.ifBlank {
+            if (isLast) "You've found the final clue! Collect it to claim your prize."
+            else "Collect this clue to unlock the next step in the hunt."
+        }
+    }
     return when (dropType) {
         DropType.RESTAURANT_COUPON -> descriptionText.ifBlank {
             "Unlock the details to redeem this business offer nearby."

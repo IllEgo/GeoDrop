@@ -10,6 +10,7 @@ import android.os.Looper
 import android.util.Log
 import androidx.core.content.ContextCompat
 import com.e3hi.geodrop.data.Drop
+import com.e3hi.geodrop.data.FirestoreRepo
 import com.e3hi.geodrop.data.decayAtMillis
 import com.e3hi.geodrop.data.isExpired
 import com.e3hi.geodrop.data.toDrop
@@ -120,6 +121,13 @@ class NearbyDropRegistrar {
                     }.getOrElse { false }
                 }
 
+                val repo = FirestoreRepo()
+                val lockedDropIds = if (!me.isNullOrBlank()) {
+                    runCatching { repo.fetchLockedHuntDropIds(me) }.getOrElse { emptySet() }
+                } else {
+                    emptySet()
+                }
+
                 val snapshot = db.collection("drops").get().await()
                 val pendingIntent = GeofencePendingIntent.get(context)
 
@@ -137,6 +145,7 @@ class NearbyDropRegistrar {
 
                     if (inventory.isCollected(id) || inventory.isIgnored(id)) continue
                     if (drop.createdBy == me) continue
+                    if (id in lockedDropIds) continue
 
                     val dropGroup = GroupPreferences.normalizeGroupCode(drop.groupCode)
                     if (dropGroup != null && dropGroup !in allowedGroups) continue

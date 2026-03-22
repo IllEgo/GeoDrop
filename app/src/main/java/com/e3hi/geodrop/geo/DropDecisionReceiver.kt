@@ -86,6 +86,13 @@ class DropDecisionReceiver : BroadcastReceiver() {
         } else {
             null
         }
+        val huntId = intent.getStringExtra(EXTRA_DROP_HUNT_ID)?.takeIf { it.isNotBlank() }
+        val huntStepIndex = if (intent.hasExtra(EXTRA_DROP_HUNT_STEP_INDEX)) {
+            intent.getIntExtra(EXTRA_DROP_HUNT_STEP_INDEX, -1).takeIf { it >= 0 }
+        } else null
+        val huntTotalSteps = if (intent.hasExtra(EXTRA_DROP_HUNT_TOTAL_STEPS)) {
+            intent.getIntExtra(EXTRA_DROP_HUNT_TOTAL_STEPS, 0).takeIf { it > 0 }
+        } else null
         val expiresAt = if (decayDays != null && createdAt != null) {
             createdAt + TimeUnit.DAYS.toMillis(decayDays.toLong())
         } else {
@@ -125,7 +132,10 @@ class DropDecisionReceiver : BroadcastReceiver() {
             collectedAt = System.currentTimeMillis(),
             isNsfw = resolvedIsNsfw,
             nsfwLabels = nsfwLabels,
-            decayDays = decayDays
+            decayDays = decayDays,
+            huntId = huntId,
+            huntStepIndex = huntStepIndex,
+            huntTotalSteps = huntTotalSteps
         )
         inventory.saveCollected(note)
 
@@ -138,6 +148,21 @@ class DropDecisionReceiver : BroadcastReceiver() {
                 repo.markDropCollected(dropId, userId)
             } catch (error: Exception) {
                 Log.w(TAG, "Failed to mark drop $dropId as collected for $userId", error)
+            }
+
+            // Advance scavenger hunt progress so the next step unlocks
+            if (!huntId.isNullOrBlank() && huntStepIndex != null && huntTotalSteps != null) {
+                try {
+                    repo.advanceHuntProgress(
+                        userId = userId,
+                        huntId = huntId,
+                        collectedDropId = dropId,
+                        nextStepIndex = huntStepIndex + 1,
+                        totalSteps = huntTotalSteps
+                    )
+                } catch (error: Exception) {
+                    Log.w(TAG, "Failed to advance hunt $huntId progress for $userId", error)
+                }
             }
         }
 
@@ -240,6 +265,9 @@ class DropDecisionReceiver : BroadcastReceiver() {
         const val EXTRA_DROP_IS_NSFW = "extra_drop_is_nsfw"
         const val EXTRA_DROP_NSFW_LABELS = "extra_drop_nsfw_labels"
         const val EXTRA_DROP_DECAY_DAYS = "extra_drop_decay_days"
+        const val EXTRA_DROP_HUNT_ID = "extra_drop_hunt_id"
+        const val EXTRA_DROP_HUNT_STEP_INDEX = "extra_drop_hunt_step_index"
+        const val EXTRA_DROP_HUNT_TOTAL_STEPS = "extra_drop_hunt_total_steps"
         private const val TAG = "DropDecisionReceiver"
         private const val PICKUP_RADIUS_METERS = 30.0f
         private val LOCATION_STALE_THRESHOLD_MILLIS = TimeUnit.MINUTES.toMillis(2)

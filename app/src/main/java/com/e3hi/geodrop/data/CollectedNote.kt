@@ -33,7 +33,10 @@ data class CollectedNote(
     val isDisliked: Boolean = false,
     val collectedAt: Long,
     val isNsfw: Boolean = false,
-    val nsfwLabels: List<String> = emptyList()
+    val nsfwLabels: List<String> = emptyList(),
+    val huntId: String? = null,
+    val huntStepIndex: Int? = null,
+    val huntTotalSteps: Int? = null
 ) {
     fun toJson(): JSONObject {
         return JSONObject().apply {
@@ -64,6 +67,9 @@ data class CollectedNote(
             put(KEY_COLLECTED_AT, collectedAt)
             put(KEY_IS_NSFW, isNsfw)
             put(KEY_NSFW_LABELS, JSONArray().apply { nsfwLabels.forEach { put(it) } })
+            putOpt(KEY_HUNT_ID, huntId)
+            huntStepIndex?.let { put(KEY_HUNT_STEP_INDEX, it) }
+            huntTotalSteps?.let { put(KEY_HUNT_TOTAL_STEPS, it) }
         }
     }
 
@@ -95,6 +101,9 @@ data class CollectedNote(
         private const val KEY_COLLECTED_AT = "collectedAt"
         private const val KEY_IS_NSFW = "isNsfw"
         private const val KEY_NSFW_LABELS = "nsfwLabels"
+        private const val KEY_HUNT_ID = "huntId"
+        private const val KEY_HUNT_STEP_INDEX = "huntStepIndex"
+        private const val KEY_HUNT_TOTAL_STEPS = "huntTotalSteps"
 
         fun fromJson(json: JSONObject): CollectedNote {
             val id = json.optString(KEY_ID)
@@ -139,6 +148,9 @@ data class CollectedNote(
                 }
                 ?: emptyList()
             val isNsfw = json.optBoolean(KEY_IS_NSFW) || nsfwLabels.isNotEmpty()
+            val huntId = json.optString(KEY_HUNT_ID).takeIf { it.isNotBlank() }
+            val huntStepIndex = if (json.has(KEY_HUNT_STEP_INDEX)) json.optInt(KEY_HUNT_STEP_INDEX).takeIf { it >= 0 } else null
+            val huntTotalSteps = if (json.has(KEY_HUNT_TOTAL_STEPS)) json.optInt(KEY_HUNT_TOTAL_STEPS).takeIf { it > 0 } else null
 
             return CollectedNote(
                 id = id,
@@ -167,7 +179,10 @@ data class CollectedNote(
                 isDisliked = isDisliked,
                 collectedAt = collectedAt,
                 isNsfw = isNsfw,
-                nsfwLabels = nsfwLabels
+                nsfwLabels = nsfwLabels,
+                huntId = huntId,
+                huntStepIndex = huntStepIndex,
+                huntTotalSteps = huntTotalSteps
             )
         }
     }

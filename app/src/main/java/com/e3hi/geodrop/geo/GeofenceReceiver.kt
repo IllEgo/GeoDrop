@@ -83,6 +83,9 @@ class GeofenceReceiver : BroadcastReceiver() {
                             ?: doc.getBlob("audioFile")?.toBytes()?.let { Base64.encodeToString(it, Base64.NO_WRAP) }
                         )
                 val decayDays = doc.getLong("decayDays")?.toInt()?.takeIf { it > 0 }
+                val huntId = doc.getString("huntId")?.takeIf { it.isNotBlank() }
+                val huntStepIndex = doc.getLong("huntStepIndex")?.toInt()
+                val huntTotalSteps = doc.getLong("huntTotalSteps")?.toInt()?.takeIf { it > 0 }
                 val expiresAt = if (decayDays != null && dropCreatedAt != null) {
                     dropCreatedAt + TimeUnit.DAYS.toMillis(decayDays.toLong())
                 } else {
@@ -118,7 +121,11 @@ class GeofenceReceiver : BroadcastReceiver() {
 
 
 
-                val title = when (dropContentType) {
+                val title = if (huntId != null) {
+                    val stepLabel = if (huntStepIndex != null && huntTotalSteps != null)
+                        " (Step ${huntStepIndex + 1} of $huntTotalSteps)" else ""
+                    "Scavenger hunt clue nearby$stepLabel"
+                } else when (dropContentType) {
                     DropContentType.TEXT -> "Note nearby"
                     DropContentType.PHOTO -> "Photo drop nearby"
                     DropContentType.AUDIO -> "Audio drop nearby"
@@ -140,6 +147,9 @@ class GeofenceReceiver : BroadcastReceiver() {
                     dropMediaMimeType?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_MEDIA_MIME_TYPE, it) }
                     dropMediaData?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_MEDIA_DATA, it) }
                     decayDays?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_DECAY_DAYS, it) }
+                    huntId?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_HUNT_ID, it) }
+                    huntStepIndex?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_HUNT_STEP_INDEX, it) }
+                    huntTotalSteps?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_HUNT_TOTAL_STEPS, it) }
                 }
 
                 val pickupPending = PendingIntent.getBroadcast(

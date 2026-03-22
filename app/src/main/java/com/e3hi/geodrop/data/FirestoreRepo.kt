@@ -38,6 +38,8 @@ class FirestoreRepo(
     private val functions = Firebase.functions(BuildConfig.FIREBASE_FUNCTIONS_REGION)
     private val claimExplorerUsernameCallableUnavailable = AtomicBoolean(false)
 
+    private val huntChains = db.collection("huntChains")
+
     private fun userGroupsCollection(userId: String) =
         users.document(userId).collection("groups")
 
@@ -49,6 +51,9 @@ class FirestoreRepo(
 
     private fun userNotificationTokensCollection(userId: String) =
         users.document(userId).collection("notificationTokens")
+
+    private fun userHuntProgressCollection(userId: String) =
+        users.document(userId).collection("huntProgress")
 
     /**
      * NEW: Suspend API. Writes a drop and returns the new document id.
@@ -626,6 +631,19 @@ class FirestoreRepo(
             }?.toSet() ?: emptySet()
         }
 
+        val lockedDropIds = if (!userId.isNullOrBlank()) {
+            runCatching { fetchLockedHuntDropIds(userId) }.getOrElse { emptySet() }
+        } else {
+            // Guests see only step-0 drops for any hunt; fetch locked (step > 0) drops to hide
+            runCatching {
+                drops.whereEqualTo("isDeleted", false).get().await().documents.mapNotNull { doc ->
+                    val stepIndex = (doc.get("huntStepIndex") as? Number)?.toInt()
+                    val huntId = doc.getString("huntId")?.takeIf { it.isNotBlank() }
+                    if (stepIndex != null && stepIndex > 0 && huntId != null) doc.id else null
+                }.toSet()
+            }.getOrElse { emptySet() }
+        }
+
         val snapshot = drops
             .whereEqualTo("isDeleted", false)
             .get()
@@ -635,6 +653,7 @@ class FirestoreRepo(
             val drop = doc.toDrop()
 
             if (drop.isDeleted) return@mapNotNull null
+            if (drop.id in lockedDropIds) return@mapNotNull null
 
             if (!drop.isVisibleTo(userId, normalizedGroups)) return@mapNotNull null
             if (drop.isNsfw && !allowNsfw && drop.createdBy != userId) return@mapNotNull null
@@ -1136,6 +1155,167 @@ class FirestoreRepo(
     }
 
 
+    // ── Scavenger Hunt ───────────────────────────────────────────────────────
+
+    suspend fun createHuntChain(chain: HuntChain): String {
+        val data = hashMapOf<String, Any?>(
+            "createdBy" to chain.createdBy,
+            "createdAt" to chain.createdAt,
+            "businessId" to chain.businessId,
+            "businessName" to chain.businessName?.trim()?.takeIf { it.isNotEmpty() },
+            "title" to chain.title.trim(),
+            "description" to chain.description?.trim()?.takeIf { it.isNotEmpty() },
+            "dropIds" to chain.dropIds,
+            "isActive" to chain.isActive,
+            "decayDays" to chain.decayDays?.takeIf { it > 0 },
+            "totalSteps" to chain.totalSteps
+        )
+        val ref = huntChains.add(data).await()
+        Log.d("GeoDrop", "Created hunt chain ${ref.id}")
+        return ref.id
+    }
+
+    suspend fun fetchHuntChain(huntId: String): HuntChain? {
+        if (huntId.isBlank()) return null
+        val doc = huntChains.document(huntId).get().await()
+        if (!doc.exists()) return null
+        return HuntChain(
+            id = doc.id,
+            createdBy = doc.getString("createdBy") ?: "",
+            createdAt = doc.getLong("createdAt") ?: 0L,
+            businessId = doc.getString("businessId")?.takeIf { it.isNotBlank() },
+            businessName = doc.getString("businessName")?.takeIf { it.isNotBlank() },
+            title = doc.getString("title") ?: "",
+            description = doc.getString("description")?.takeIf { it.isNotBlank() },
+            dropIds = (doc.get("dropIds") as? List<*>)?.mapNotNull { it as? String } ?: emptyList(),
+            isActive = doc.getBoolean("isActive") ?: true,
+            decayDays = (doc.get("decayDays") as? Number)?.toInt()?.takeIf { it > 0 },
+            totalSteps = (doc.get("totalSteps") as? Number)?.toInt() ?: 0
+        )
+    }
+
+    suspend fun fetchUserHuntProgress(userId: String, huntId: String): HuntProgress? {
+        if (userId.isBlank() || huntId.isBlank()) return null
+        val doc = userHuntProgressCollection(userId).document(huntId).get().await()
+        if (!doc.exists()) return null
+        return doc.toHuntProgress()
+    }
+
+    /**
+     * Advances the user's progress in a hunt after collecting a step.
+     * Idempotent — safe to call multiple times for the same step.
+     */
+    suspend fun advanceHuntProgress(
+        userId: String,
+        huntId: String,
+        collectedDropId: String,
+        nextStepIndex: Int,
+        totalSteps: Int
+    ) {
+        if (userId.isBlank() || huntId.isBlank()) return
+        val progressRef = userHuntProgressCollection(userId).document(huntId)
+        val now = System.currentTimeMillis()
+        db.runTransaction { transaction ->
+            val snapshot = transaction.get(progressRef)
+            if (snapshot.exists()) {
+                val current = snapshot.toHuntProgress()
+                // Idempotent: don't regress progress
+                if (current.currentStepIndex >= nextStepIndex) return@runTransaction
+                val newCompleted = (current.completedStepIds + collectedDropId).distinct()
+                val isComplete = nextStepIndex >= totalSteps
+                transaction.update(
+                    progressRef,
+                    mapOf(
+                        "currentStepIndex" to nextStepIndex,
+                        "completedStepIds" to newCompleted,
+                        "completedAt" to if (isComplete) now else null
+                    )
+                )
+            } else {
+                val isComplete = nextStepIndex >= totalSteps
+                transaction.set(
+                    progressRef,
+                    mapOf(
+                        "huntId" to huntId,
+                        "currentStepIndex" to nextStepIndex,
+                        "completedStepIds" to listOf(collectedDropId),
+                        "completedAt" to if (isComplete) now else null,
+                        "startedAt" to now
+                    )
+                )
+            }
+        }.await()
+        Log.d("GeoDrop", "Advanced hunt $huntId progress for $userId to step $nextStepIndex")
+    }
+
+    /**
+     * Returns the set of drop IDs that are currently locked for the given user
+     * (i.e. the user has not yet unlocked those hunt steps).
+     */
+    suspend fun fetchLockedHuntDropIds(userId: String): Set<String> {
+        if (userId.isBlank()) return emptySet()
+        val progressSnapshot = userHuntProgressCollection(userId).get().await()
+        val progressByHuntId = progressSnapshot.documents.mapNotNull { doc ->
+            val huntId = doc.id
+            val currentStep = (doc.get("currentStepIndex") as? Number)?.toInt() ?: 0
+            huntId to currentStep
+        }.toMap()
+
+        if (progressByHuntId.isEmpty()) {
+            // User has no progress at all — only step-0 drops are visible, all others are locked.
+            // We need to find all drops with huntStepIndex > 0 to exclude them.
+            val allHuntDrops = drops
+                .whereEqualTo("isDeleted", false)
+                .get().await()
+            return allHuntDrops.documents.mapNotNull { doc ->
+                val stepIndex = (doc.get("huntStepIndex") as? Number)?.toInt()
+                val huntId = doc.getString("huntId")?.takeIf { it.isNotBlank() }
+                if (stepIndex != null && stepIndex > 0 && huntId != null) doc.id else null
+            }.toSet()
+        }
+
+        // For hunts the user has started, lock steps beyond currentStepIndex.
+        // For hunts the user has NOT started, lock all steps > 0.
+        val startedHuntIds = progressByHuntId.keys
+
+        val allHuntDrops = drops
+            .whereEqualTo("isDeleted", false)
+            .get().await()
+
+        return allHuntDrops.documents.mapNotNull { doc ->
+            val stepIndex = (doc.get("huntStepIndex") as? Number)?.toInt() ?: return@mapNotNull null
+            val huntId = doc.getString("huntId")?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            val currentStep = progressByHuntId[huntId]
+            val isLocked = if (currentStep != null) {
+                stepIndex > currentStep
+            } else {
+                // Hunt not started — only step 0 is visible
+                stepIndex > 0
+            }
+            if (isLocked) doc.id else null
+        }.toSet()
+    }
+
+    private fun DocumentSnapshot.toHuntProgress(): HuntProgress {
+        val completedStepIds = (get("completedStepIds") as? List<*>)
+            ?.mapNotNull { it as? String } ?: emptyList()
+        return HuntProgress(
+            huntId = id,
+            currentStepIndex = (get("currentStepIndex") as? Number)?.toInt() ?: 0,
+            completedStepIds = completedStepIds,
+            completedAt = getLong("completedAt"),
+            startedAt = getLong("startedAt") ?: 0L
+        )
+    }
+
+    /** Sets the huntId field on a drop document after chain creation. */
+    suspend fun updateDropHuntId(dropId: String, huntId: String) {
+        if (dropId.isBlank() || huntId.isBlank()) return
+        drops.document(dropId).update("huntId", huntId).await()
+    }
+
+    // ── End Scavenger Hunt ───────────────────────────────────────────────────
+
     private fun Drop.prepareForSave(): Map<String, Any?> {
         val withTimestamp = if (createdAt > 0L) this else copy(createdAt = System.currentTimeMillis())
         val sanitizedDescription = withTimestamp.description?.trim()?.takeIf { it.isNotEmpty() }
@@ -1190,7 +1370,10 @@ class FirestoreRepo(
             "redemptionLimit" to sanitized.redemptionLimit,
             "redemptionCount" to sanitized.redemptionCount,
             "redeemedBy" to sanitized.redeemedBy,
-            "decayDays" to sanitized.decayDays
+            "decayDays" to sanitized.decayDays,
+            "huntId" to sanitized.huntId?.takeIf { it.isNotBlank() },
+            "huntStepIndex" to sanitized.huntStepIndex,
+            "huntTotalSteps" to sanitized.huntTotalSteps
         ).apply {
             if (!sanitized.isAnonymous) {
                 sanitized.dropperUsername?.takeIf { it.isNotBlank() }?.let { username ->
@@ -1272,7 +1455,10 @@ class FirestoreRepo(
             isDisliked = isDisliked,
             collectedAt = collectedAt,
             isNsfw = (getBoolean("isNsfw") == true) || nsfwLabels.isNotEmpty(),
-            nsfwLabels = nsfwLabels
+            nsfwLabels = nsfwLabels,
+            huntId = getString("huntId")?.takeIf { it.isNotBlank() },
+            huntStepIndex = (get("huntStepIndex") as? Number)?.toInt(),
+            huntTotalSteps = (get("huntTotalSteps") as? Number)?.toInt()?.takeIf { it > 0 }
         )
     }
 
@@ -1308,6 +1494,9 @@ class FirestoreRepo(
         businessName?.takeIf { it.isNotBlank() }?.let { data["businessName"] = it }
         redemptionLimit?.let { data["redemptionLimit"] = it }
         redeemedAt?.let { data["redeemedAt"] = it }
+        huntId?.takeIf { it.isNotBlank() }?.let { data["huntId"] = it }
+        huntStepIndex?.let { data["huntStepIndex"] = it }
+        huntTotalSteps?.takeIf { it > 0 }?.let { data["huntTotalSteps"] = it }
         return data
     }
 

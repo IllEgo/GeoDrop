@@ -163,7 +163,10 @@ service cloud.firestore {
           'redemptionCount',
           'redeemedBy',
           'decayDays',
-          'collectedBy'
+          'collectedBy',
+          'huntId',
+          'huntStepIndex',
+          'huntTotalSteps'
         ]);
       }
 
@@ -390,7 +393,10 @@ service cloud.firestore {
           'businessName',
           'redemptionLimit',
           'isNsfw',
-          'nsfwLabels'
+          'nsfwLabels',
+          'huntId',
+          'huntStepIndex',
+          'huntTotalSteps'
         ]);
       }
 
@@ -432,6 +438,42 @@ service cloud.firestore {
       allow delete: if isCurrentUser(userId);
     }
   }
+
+    match /huntChains/{huntId} {
+      allow read: if isSignedIn();
+
+      allow create: if isSignedIn()
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.keys().hasOnly([
+            'createdBy', 'createdAt', 'businessId', 'businessName',
+            'title', 'description', 'dropIds', 'isActive',
+            'decayDays', 'totalSteps'
+        ]);
+
+      allow update: if isSignedIn()
+        && resource.data.createdBy == request.auth.uid
+        && request.resource.data.keys().hasOnly([
+            'createdBy', 'createdAt', 'businessId', 'businessName',
+            'title', 'description', 'dropIds', 'isActive',
+            'decayDays', 'totalSteps'
+        ]);
+
+      allow delete: if false;
+    }
+
+    match /users/{userId}/huntProgress/{huntId} {
+      allow read: if isCurrentUser(userId);
+
+      allow create, update: if isCurrentUser(userId)
+        && request.resource.data.keys().hasOnly([
+            'huntId', 'currentStepIndex', 'completedStepIds',
+            'completedAt', 'startedAt'
+        ])
+        && request.resource.data.currentStepIndex is int
+        && request.resource.data.completedStepIds is list;
+
+      allow delete: if isCurrentUser(userId);
+    }
 
     match /users/{userId}/notificationTokens/{tokenId} {
       function hasOnlyAllowedTokenFields() {

@@ -37,6 +37,9 @@ internal fun DocumentSnapshot.toDrop(): Drop {
     val mediaData = getString("mediaData")?.takeIf { it.isNotBlank() } ?: baseDrop.mediaData
     val mediaStoragePath = getString("mediaStoragePath")?.takeIf { it.isNotBlank() } ?: baseDrop.mediaStoragePath
     val redemptionCode = getString("redemptionCode")?.takeIf { it.isNotBlank() } ?: baseDrop.redemptionCode
+    val huntId = getString("huntId")?.takeIf { it.isNotBlank() }
+    val huntStepIndex = getIntCompat("huntStepIndex")
+    val huntTotalSteps = getIntCompat("huntTotalSteps")
 
     val nsfwFlag = when {
         contains("isNsfw") -> getBooleanCompat("isNsfw") ?: baseDrop.isNsfw
@@ -105,7 +108,10 @@ internal fun DocumentSnapshot.toDrop(): Drop {
         redemptionCode = redemptionCode,
         redemptionLimit = redemptionLimit,
         redemptionCount = redemptionCount,
-        redeemedBy = redeemedBy
+        redeemedBy = redeemedBy,
+        huntId = huntId,
+        huntStepIndex = huntStepIndex,
+        huntTotalSteps = huntTotalSteps
     )
 }
 

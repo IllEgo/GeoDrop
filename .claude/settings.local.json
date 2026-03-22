@@ -16,7 +16,8 @@
       "Bash(JAVA_HOME=\"/c/Program Files/Microsoft/jdk-17.0.12.7-hotspot\" ./gradlew assembleDebug --quiet)",
       "Bash(JAVA_HOME=\"/c/Program Files/Android/Android Studio/jbr\" ./gradlew assembleDebug --quiet)",
       "Bash(JAVA_HOME=\"/c/Program Files/Android/Android Studio/jbr\" ./gradlew assembleDebug)",
-      "Bash(awk:*)"
+      "Bash(awk:*)",
+      "Bash(firebase:*)"
     ]
   }
 }

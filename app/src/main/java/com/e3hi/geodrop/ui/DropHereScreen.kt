@@ -123,6 +123,11 @@ import androidx.compose.material.icons.rounded.ThumbUp
 import androidx.compose.material.icons.rounded.Lightbulb
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.Visibility
+import androidx.compose.material.icons.rounded.EmojiEvents
+import androidx.compose.material.icons.rounded.LocationOn
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material3.*
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
@@ -219,6 +224,11 @@ import com.e3hi.geodrop.data.MediaStorageRepo
 import com.e3hi.geodrop.data.NoteInventory
 import com.e3hi.geodrop.data.UserDataSyncRepository
 import com.e3hi.geodrop.data.DropType
+import com.e3hi.geodrop.data.HuntBuilderState
+import com.e3hi.geodrop.data.HuntChain
+import com.e3hi.geodrop.data.HuntStepDraft
+import com.e3hi.geodrop.data.isHuntDrop
+import com.e3hi.geodrop.data.huntStepLabel
 import com.e3hi.geodrop.data.UserProfile
 import com.e3hi.geodrop.data.ExplorerUsername
 import com.e3hi.geodrop.data.UserMode
@@ -1075,6 +1085,10 @@ fun DropHereScreen(
     var showManageGroups by remember { mutableStateOf(false) }
     var showGroupMenu by remember { mutableStateOf(false) }
     var showDropComposer by remember { mutableStateOf(false) }
+    var showHuntBuilder by remember { mutableStateOf(false) }
+    var huntBuilderState by remember { mutableStateOf<HuntBuilderState?>(null) }
+    var huntBuilderSubmitting by remember { mutableStateOf(false) }
+    var huntBuilderError by remember { mutableStateOf<String?>(null) }
     var showBusinessDashboard by remember { mutableStateOf(false) }
     var businessDrops by remember { mutableStateOf<List<Drop>>(emptyList()) }
     var businessDashboardLoading by remember { mutableStateOf(false) }
@@ -1431,6 +1445,11 @@ fun DropHereScreen(
                 )
             }
             drop.decayDays?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_DECAY_DAYS, it) }
+            drop.huntId?.takeIf { it.isNotBlank() }?.let {
+                putExtra(DropDecisionReceiver.EXTRA_DROP_HUNT_ID, it)
+            }
+            drop.huntStepIndex?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_HUNT_STEP_INDEX, it) }
+            drop.huntTotalSteps?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_HUNT_TOTAL_STEPS, it) }
         }
 
         val result = runCatching { appContext.sendBroadcast(intent) }
@@ -1453,6 +1472,25 @@ fun DropHereScreen(
                         repo.markDropCollected(drop.id, userId)
                     } catch (error: Exception) {
                         Log.w("DropHere", "Failed to sync collected drop ${drop.id}", error)
+                    }
+                    // Advance scavenger hunt progress so the next step unlocks on the map
+                    val huntId = drop.huntId
+                    val stepIndex = drop.huntStepIndex
+                    val totalSteps = drop.huntTotalSteps
+                    if (!huntId.isNullOrBlank() && stepIndex != null && totalSteps != null) {
+                        try {
+                            repo.advanceHuntProgress(
+                                userId = userId,
+                                huntId = huntId,
+                                collectedDropId = drop.id,
+                                nextStepIndex = stepIndex + 1,
+                                totalSteps = totalSteps
+                            )
+                            // Refresh the browse map so the newly-unlocked step appears
+                            otherDropsRefreshToken += 1
+                        } catch (error: Exception) {
+                            Log.w("DropHere", "Failed to advance hunt $huntId for $userId", error)
+                        }
                     }
                 }
             }
@@ -3543,9 +3581,126 @@ fun DropHereScreen(
                 onDecayDaysChange = { decayDaysInput = it },
                 onManageGroupCodes = { showManageGroups = true },
                 onSubmit = { submitDrop() },
+                onCreateHunt = {
+                    showDropComposer = false
+                    huntBuilderError = null
+                    scope.launch {
+                        val loc = getLatestLocation()
+                        val (lat, lng) = loc ?: Pair(0.0, 0.0)
+                        huntBuilderState = HuntBuilderState(
+                            steps = listOf(HuntStepDraft(stepIndex = 0, lat = lat, lng = lng))
+                        )
+                        showHuntBuilder = true
+                    }
+                },
                 onDismiss = {
                     if (!isSubmitting) {
                         showDropComposer = false
+                    }
+                }
+            )
+        }
+
+        if (showHuntBuilder) {
+            val builderState = huntBuilderState
+            HuntBuilderDialog(
+                state = builderState ?: HuntBuilderState(),
+                isSubmitting = huntBuilderSubmitting,
+                error = huntBuilderError,
+                isBusinessUser = userProfile?.isBusiness() == true,
+                businessName = userProfile?.businessName,
+                businessCategories = businessCategories,
+                onStateChange = { huntBuilderState = it },
+                onAddStep = {
+                    scope.launch {
+                        val loc = getLatestLocation()
+                        val (lat, lng) = loc ?: Pair(0.0, 0.0)
+                        val current = huntBuilderState ?: HuntBuilderState()
+                        huntBuilderState = current.addStep(lat, lng)
+                    }
+                },
+                onSubmit = { state ->
+                    val userId = currentUserId
+                    if (userId.isNullOrBlank()) return@HuntBuilderDialog
+                    if (state.title.isBlank()) {
+                        huntBuilderError = "Please give your hunt a title."
+                        return@HuntBuilderDialog
+                    }
+                    if (state.steps.size < 2) {
+                        huntBuilderError = "A scavenger hunt needs at least 2 steps."
+                        return@HuntBuilderDialog
+                    }
+                    scope.launch {
+                        huntBuilderSubmitting = true
+                        huntBuilderError = null
+                        try {
+                            val totalSteps = state.steps.size
+                            val now = System.currentTimeMillis()
+                            val profile = userProfile
+                            // Save all drops atomically
+                            val dropIds = state.steps.mapIndexed { index, step ->
+                                val drop = Drop(
+                                    text = step.noteText,
+                                    description = step.description.takeIf { it.isNotBlank() },
+                                    lat = step.lat,
+                                    lng = step.lng,
+                                    createdBy = userId,
+                                    createdAt = now,
+                                    dropperUsername = if (step.dropAnonymously) null else
+                                        profile?.username ?: profile?.displayName,
+                                    isAnonymous = step.dropAnonymously,
+                                    dropType = step.dropType,
+                                    businessId = if (step.dropType != DropType.COMMUNITY) userId else null,
+                                    businessName = if (step.dropType != DropType.COMMUNITY) profile?.businessName else null,
+                                    contentType = DropContentType.TEXT,
+                                    decayDays = state.decayDays,
+                                    redemptionCode = step.redemptionCode.takeIf { it.isNotBlank() },
+                                    redemptionLimit = step.redemptionLimit,
+                                    huntStepIndex = index,
+                                    huntTotalSteps = totalSteps
+                                )
+                                repo.addDrop(drop)
+                            }
+                            // Create the chain document with all drop IDs
+                            val chain = HuntChain(
+                                createdBy = userId,
+                                createdAt = now,
+                                businessId = if (userProfile?.isBusiness() == true) userId else null,
+                                businessName = userProfile?.businessName,
+                                title = state.title.trim(),
+                                description = state.description.trim().takeIf { it.isNotBlank() },
+                                dropIds = dropIds,
+                                isActive = true,
+                                decayDays = state.decayDays,
+                                totalSteps = totalSteps
+                            )
+                            val huntId = repo.createHuntChain(chain)
+                            // Update each drop with the huntId (needed for visibility filtering)
+                            dropIds.forEachIndexed { index, dropId ->
+                                try {
+                                    repo.updateDropHuntId(dropId, huntId)
+                                } catch (_: Exception) { }
+                            }
+                            showHuntBuilder = false
+                            huntBuilderState = null
+                            snackbar.showMessage(scope, "Scavenger hunt created with ${totalSteps} stops!")
+                            Firebase.analytics.logEvent("hunt_created") {
+                                param("total_steps", totalSteps.toLong())
+                            }
+                            myDropsRefreshToken += 1
+                        } catch (error: Exception) {
+                            Firebase.crashlytics.recordException(error)
+                            huntBuilderError = error.localizedMessage ?: "Couldn't create hunt."
+                        } finally {
+                            huntBuilderSubmitting = false
+                        }
+                    }
+                },
+                onDismiss = {
+                    if (!huntBuilderSubmitting) {
+                        showHuntBuilder = false
+                        huntBuilderState = null
+                        huntBuilderError = null
                     }
                 }
             )
@@ -5561,6 +5716,7 @@ private fun DropComposerDialog(
     onDecayDaysChange: (TextFieldValue) -> Unit,
     onManageGroupCodes: () -> Unit,
     onSubmit: () -> Unit,
+    onCreateHunt: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -5617,6 +5773,37 @@ private fun DropComposerDialog(
                     enabled = !isSubmitting
                 ) {
                     Text("Close")
+                }
+            }
+
+            OutlinedCard(
+                onClick = onCreateHunt,
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isSubmitting
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.EmojiEvents,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Create Scavenger Hunt", style = MaterialTheme.typography.titleSmall)
+                        Text(
+                            "Drop a chain of connected clues for explorers to find.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Icon(
+                        imageVector = Icons.Rounded.ChevronRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
 
@@ -10257,6 +10444,7 @@ private fun MyDropsMap(
             val markerIcon = when {
                 isSelected -> BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE)
                 drop.isNsfw -> BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_MAGENTA)
+                drop.huntId != null -> BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ORANGE)
                 else -> BitmapDescriptorFactory.defaultMarker(likeHueFor(drop.likeCount))
             }
 
@@ -10301,6 +10489,36 @@ private fun DropNsfwBadge(
             Text(
                 text = "18+",
                 style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+    }
+}
+
+@Composable
+private fun DropHuntBadge(
+    label: String,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        color = MaterialTheme.colorScheme.tertiaryContainer,
+        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+        shape = RoundedCornerShape(999.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.EmojiEvents,
+                contentDescription = "Scavenger hunt",
+                modifier = Modifier.size(14.dp)
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.SemiBold
             )
         }
@@ -10505,6 +10723,10 @@ private fun OtherDropRow(
 
                 if (drop.isNsfw) {
                     DropNsfwBadge()
+                }
+                drop.huntStepLabel()?.let { label ->
+                    Spacer(Modifier.width(4.dp))
+                    DropHuntBadge(label = label)
                 }
 
                 Icon(
@@ -11062,6 +11284,7 @@ private fun OtherDropsMap(
                 drop.isBusinessDrop() && businessMarkerDescriptor != null -> businessMarkerDescriptor
                 isSelected -> descriptorForHue(BitmapDescriptorFactory.HUE_BLUE)
                 drop.isNsfw -> descriptorForHue(BitmapDescriptorFactory.HUE_MAGENTA)
+                drop.huntId != null -> descriptorForHue(BitmapDescriptorFactory.HUE_ORANGE)
                 else -> descriptorForHue(likeHueFor(drop.likeCount))
             }
 
@@ -12458,4 +12681,321 @@ private fun explorerDropCardColors(isSelected: Boolean): ExplorerDropCardColors 
         content = content,
         supporting = supporting
     )
+}
+
+// ── Scavenger Hunt Builder UI ────────────────────────────────────────────────
+
+@Composable
+private fun HuntBuilderDialog(
+    state: HuntBuilderState,
+    isSubmitting: Boolean,
+    error: String?,
+    isBusinessUser: Boolean,
+    businessName: String?,
+    businessCategories: List<BusinessCategory>,
+    onStateChange: (HuntBuilderState) -> Unit,
+    onAddStep: () -> Unit,
+    onSubmit: (HuntBuilderState) -> Unit,
+    onDismiss: () -> Unit
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnClickOutside = !isSubmitting)
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth(0.95f)
+                .fillMaxHeight(0.92f),
+            shape = MaterialTheme.shapes.large,
+            tonalElevation = 6.dp
+        ) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                // Header
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.EmojiEvents,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(28.dp)
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        text = "Create Scavenger Hunt",
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(onClick = onDismiss, enabled = !isSubmitting) {
+                        Icon(Icons.Rounded.Close, contentDescription = "Close")
+                    }
+                }
+                HorizontalDivider()
+
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 20.dp, vertical = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(20.dp)
+                ) {
+                    // Hunt meta
+                    Text("Hunt details", style = MaterialTheme.typography.titleSmall)
+                    OutlinedTextField(
+                        value = state.title,
+                        onValueChange = { onStateChange(state.copy(title = it)) },
+                        label = { Text("Title *") },
+                        placeholder = { Text("e.g. Downtown Coffee Trail") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        enabled = !isSubmitting
+                    )
+                    OutlinedTextField(
+                        value = state.description,
+                        onValueChange = { onStateChange(state.copy(description = it)) },
+                        label = { Text("Description (optional)") },
+                        placeholder = { Text("What's the hunt about?") },
+                        modifier = Modifier.fillMaxWidth(),
+                        maxLines = 3,
+                        enabled = !isSubmitting
+                    )
+                    OutlinedTextField(
+                        value = state.decayDays?.toString() ?: "",
+                        onValueChange = { input ->
+                            onStateChange(state.copy(decayDays = input.toIntOrNull()?.takeIf { it > 0 }))
+                        },
+                        label = { Text("Expires after N days (optional)") },
+                        placeholder = { Text("Leave blank for no expiry") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        enabled = !isSubmitting
+                    )
+
+                    HorizontalDivider()
+
+                    // Steps
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Steps (${state.steps.size})",
+                            style = MaterialTheme.typography.titleSmall,
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(
+                            onClick = onAddStep,
+                            enabled = !isSubmitting && state.steps.size < 10
+                        ) {
+                            Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Add step")
+                        }
+                    }
+
+                    Text(
+                        text = "The first step is visible to all explorers. Each subsequent step unlocks when the previous one is collected.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    state.steps.forEachIndexed { index, step ->
+                        HuntStepEditor(
+                            step = step,
+                            stepNumber = index + 1,
+                            totalSteps = state.steps.size,
+                            isFirst = index == 0,
+                            isLast = index == state.steps.lastIndex,
+                            isBusinessUser = isBusinessUser,
+                            businessName = businessName,
+                            businessCategories = businessCategories,
+                            enabled = !isSubmitting,
+                            onUpdate = { updated -> onStateChange(state.updateStep(index, { updated })) },
+                            onRemove = if (state.steps.size > 1) {
+                                { onStateChange(state.removeStep(index)) }
+                            } else null
+                        )
+                    }
+
+                    if (error != null) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.errorContainer,
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = error,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                modifier = Modifier.padding(12.dp)
+                            )
+                        }
+                    }
+                }
+
+                HorizontalDivider()
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (isSubmitting) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                    }
+                    TextButton(onClick = onDismiss, enabled = !isSubmitting) {
+                        Text("Cancel")
+                    }
+                    Button(
+                        onClick = { onSubmit(state) },
+                        enabled = !isSubmitting && state.title.isNotBlank() && state.steps.size >= 2
+                    ) {
+                        Text("Create Hunt (${state.steps.size} stops)")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HuntStepEditor(
+    step: HuntStepDraft,
+    stepNumber: Int,
+    totalSteps: Int,
+    isFirst: Boolean,
+    isLast: Boolean,
+    isBusinessUser: Boolean,
+    businessName: String?,
+    businessCategories: List<BusinessCategory>,
+    enabled: Boolean,
+    onUpdate: (HuntStepDraft) -> Unit,
+    onRemove: (() -> Unit)?
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        tonalElevation = 2.dp,
+        color = if (isLast) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+               else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = if (isLast) Icons.Rounded.EmojiEvents else Icons.Rounded.LocationOn,
+                    contentDescription = null,
+                    tint = if (isLast) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = if (isLast && totalSteps > 1) "Step $stepNumber — Final prize" else "Step $stepNumber",
+                    style = MaterialTheme.typography.titleSmall,
+                    modifier = Modifier.weight(1f)
+                )
+                if (onRemove != null) {
+                    IconButton(onClick = onRemove, enabled = enabled, modifier = Modifier.size(32.dp)) {
+                        Icon(Icons.Rounded.Delete, contentDescription = "Remove step", modifier = Modifier.size(18.dp))
+                    }
+                }
+            }
+
+            // Location — captured automatically from GPS when step was added
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.LocationOn,
+                    contentDescription = null,
+                    tint = if (step.lat != 0.0 || step.lng != 0.0) MaterialTheme.colorScheme.primary
+                           else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(16.dp)
+                )
+                Text(
+                    text = if (step.lat != 0.0 || step.lng != 0.0)
+                        "Location captured: %.5f, %.5f".format(step.lat, step.lng)
+                    else
+                        "Location not captured — GPS unavailable when step was added.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (step.lat != 0.0 || step.lng != 0.0) MaterialTheme.colorScheme.onSurface
+                            else MaterialTheme.colorScheme.error
+                )
+            }
+
+            OutlinedTextField(
+                value = step.noteText,
+                onValueChange = { onUpdate(step.copy(noteText = it)) },
+                label = { Text(if (isLast && totalSteps > 1) "Prize / reward message *" else "Clue text *") },
+                placeholder = {
+                    Text(if (isLast && totalSteps > 1) "Congratulations! Here's your reward..." else "Head to the blue door on Main St...")
+                },
+                modifier = Modifier.fillMaxWidth(),
+                maxLines = 4,
+                enabled = enabled
+            )
+
+            OutlinedTextField(
+                value = step.description,
+                onValueChange = { onUpdate(step.copy(description = it)) },
+                label = { Text("Hint (optional)") },
+                modifier = Modifier.fillMaxWidth(),
+                maxLines = 2,
+                enabled = enabled
+            )
+
+            if (isBusinessUser) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = step.redemptionCode,
+                        onValueChange = { onUpdate(step.copy(redemptionCode = it)) },
+                        label = { Text("Redemption code (optional)") },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                        enabled = enabled
+                    )
+                    OutlinedTextField(
+                        value = step.redemptionLimit?.toString() ?: "",
+                        onValueChange = { input -> onUpdate(step.copy(redemptionLimit = input.toIntOrNull()?.takeIf { it > 0 })) },
+                        label = { Text("Limit") },
+                        modifier = Modifier.width(88.dp),
+                        singleLine = true,
+                        enabled = enabled,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Checkbox(
+                    checked = step.dropAnonymously,
+                    onCheckedChange = { onUpdate(step.copy(dropAnonymously = it)) },
+                    enabled = enabled
+                )
+                Text(
+                    text = "Drop anonymously",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+        }
+    }
 }
