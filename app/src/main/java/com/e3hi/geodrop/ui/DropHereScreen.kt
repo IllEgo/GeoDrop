@@ -2531,10 +2531,22 @@ fun DropHereScreen(
     }
 
 
-    val filteredOtherDrops = remember(selectedExplorerGroupCode, otherDrops, explorerGroups) {
-        selectedExplorerGroupCode?.takeIf { code -> explorerGroups.any { it.code == code } }?.let { code ->
+    val filteredOtherDrops = remember(selectedExplorerGroupCode, otherDrops, explorerGroups, blockedCreatorIds, otherDropsCurrentLocation, notificationRadius) {
+        val groupFiltered = selectedExplorerGroupCode?.takeIf { code -> explorerGroups.any { it.code == code } }?.let { code ->
             otherDrops.filter { drop -> drop.groupCode == code }
         } ?: otherDrops
+        val unblocked = if (blockedCreatorIds.isEmpty()) groupFiltered
+        else groupFiltered.filter { drop -> drop.createdBy !in blockedCreatorIds }
+        val location = otherDropsCurrentLocation
+        unblocked.filter { drop ->
+            if (drop.isBusinessDrop()) {
+                true
+            } else {
+                location != null && distanceBetweenMeters(
+                    location.latitude, location.longitude, drop.lat, drop.lng
+                ) <= notificationRadius
+            }
+        }
     }
     var otherDropsSortKey by rememberSaveable { mutableStateOf(DropSortOption.NEAREST.name) }
     val otherDropsSortOption = remember(otherDropsSortKey) {
@@ -2793,6 +2805,7 @@ fun DropHereScreen(
     val handleBlockCreator: (creatorId: String) -> Unit = { creatorId ->
         val userId = currentUserId
         if (!userId.isNullOrBlank() && creatorId.isNotBlank()) {
+            blockedCreatorIds = (blockedCreatorIds + creatorId).distinct()
             scope.launch {
                 runCatching { repo.blockDropCreator(userId, creatorId) }
                 snackbar.showMessage(scope, "Creator blocked. Their drops won't appear for you.")
@@ -4053,6 +4066,7 @@ fun DropHereScreen(
                         scope.launch {
                             runCatching { repo.unblockDropCreator(userId, creatorId) }
                             blockedCreatorIds = blockedCreatorIds.filter { it != creatorId }
+                            otherDropsRefreshToken += 1
                             snackbar.showMessage(scope, "Creator unblocked.")
                         }
                     }
