@@ -253,9 +253,28 @@ service cloud.firestore {
           || hasCollectedDrop(after, userId);
       }
 
+      // Allows like/dislike/report updates without requiring collection check.
+      // Used for business drops where markDropCollected may not have completed yet.
+      function isLikeDislikeReportOnlyUpdate(before, after, userId) {
+        let allowedFields = [
+            'likedBy',
+            'likeCount',
+            'dislikedBy',
+            'dislikeCount',
+            'reportedBy',
+            'reportCount'
+          ]
+          .concat(['likedBy.' + userId])
+          .concat(['dislikedBy.' + userId])
+          .concat(['reportedBy.' + userId]);
+        return before.diff(after).affectedKeys().hasOnly(allowedFields);
+      }
+
       allow update: if isSignedIn()
           && (
-            (
+            // Any signed-in user may like/dislike/report (no collection check required).
+            isLikeDislikeReportOnlyUpdate(resource.data, request.resource.data, request.auth.uid)
+            || (
               isValidLikeReportCollectUpdate(resource.data, request.resource.data, request.auth.uid)
               && (
                 isDropOwner(resource.data, request.auth.uid)
