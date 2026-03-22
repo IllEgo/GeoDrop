@@ -3182,14 +3182,7 @@ fun DropHereScreen(
                             }
                         },
                         onUpdateBusinessProfile = { showBusinessOnboarding = true },
-                        onViewMyDrops = { openExplorerDestination(ExplorerDestination.MyDrops) },
-                        onCreateDrop = {
-                            if (!canParticipate) {
-                                snackbar.showMessage(scope, participationRestriction("share drops"))
-                            } else {
-                                showDropComposer = true
-                            }
-                        }
+                        onViewMyDrops = { openExplorerDestination(ExplorerDestination.MyDrops) }
                     )
                 } else {
                     Column(
@@ -4885,18 +4878,10 @@ private fun BusinessHomeDestination(
     onViewDashboard: () -> Unit,
     onUpdateBusinessProfile: () -> Unit,
     onViewMyDrops: () -> Unit,
-    onCreateDrop: () -> Unit,
 ) {
     Scaffold(
         modifier = modifier,
-        containerColor = MaterialTheme.colorScheme.background,
-        floatingActionButton = {
-            ExtendedFloatingActionButton(
-                text = { Text("Create a drop") },
-                icon = { Icon(Icons.Rounded.AddCircle, contentDescription = null) },
-                onClick = onCreateDrop
-            )
-        }
+        containerColor = MaterialTheme.colorScheme.background
     ) { innerPadding ->
         BusinessOverviewContent(
             modifier = Modifier
