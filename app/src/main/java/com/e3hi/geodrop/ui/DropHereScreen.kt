@@ -41,8 +41,12 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.background
@@ -3311,12 +3315,20 @@ fun DropHereScreen(
                                 bottom = bottomPadding
                             )
                     ) {
-                        when (effectiveExplorerDestination) {
+                        AnimatedContent(
+                            targetState = effectiveExplorerDestination,
+                            modifier = Modifier.fillMaxSize(),
+                            transitionSpec = {
+                                val forward = targetState.ordinal > initialState.ordinal
+                                slideInHorizontally { w -> if (forward) w else -w } togetherWith
+                                slideOutHorizontally { w -> if (forward) -w else w }
+                            },
+                            label = "ExplorerDestination"
+                        ) { destination ->
+                        when (destination) {
                             ExplorerDestination.Discover -> {
                                 Column(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .fillMaxWidth(),
+                                    modifier = Modifier.fillMaxSize(),
                                     verticalArrangement = Arrangement.spacedBy(20.dp)
                                 ) {
                                     if (readOnlyParticipationMessage != null) {
@@ -3438,9 +3450,7 @@ fun DropHereScreen(
                                 }
 
                                 Column(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .fillMaxWidth(),
+                                    modifier = Modifier.fillMaxSize(),
                                     verticalArrangement = Arrangement.spacedBy(16.dp)
                                 ) {
                                     Box(
@@ -3483,9 +3493,7 @@ fun DropHereScreen(
 
                             ExplorerDestination.Collected -> {
                                 Column(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .fillMaxWidth(),
+                                    modifier = Modifier.fillMaxSize(),
                                     verticalArrangement = Arrangement.spacedBy(16.dp)
                                 ) {
                                     Box(
@@ -3564,6 +3572,7 @@ fun DropHereScreen(
                                 }
                             }
                         }
+                        } // AnimatedContent
                     }
                 }
 
