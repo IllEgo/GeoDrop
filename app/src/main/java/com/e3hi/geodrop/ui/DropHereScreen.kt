@@ -2530,10 +2530,8 @@ fun DropHereScreen(
     }
 
     LaunchedEffect(selectedExplorerGroupCode, sortedCollectedNotes) {
-        val current = collectedSelectedId
-        if (current != null && sortedCollectedNotes.none { note -> note.id == current }) {
-            collectedSelectedId = null
-        }
+        collectedSelectedId = collectedSelectedId?.takeIf { id -> sortedCollectedNotes.any { it.id == id } }
+            ?: sortedCollectedNotes.firstOrNull()?.id
     }
 
     LaunchedEffect(selectedExplorerGroupCode, sortedOtherDrops) {
