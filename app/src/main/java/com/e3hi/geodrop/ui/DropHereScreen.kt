@@ -2855,56 +2855,43 @@ fun DropHereScreen(
                     .background(MaterialTheme.colorScheme.surface)
             ) {
                 Column(modifier = Modifier.fillMaxWidth()) {
-                    TopAppBar(
-                        modifier = Modifier.fillMaxWidth(),
-                        navigationIcon = {
-                            if (isBusinessUser && currentHomeDestination == HomeDestination.Explorer) {
-                                IconButton(onClick = {
-                                    selectedHomeDestination = HomeDestination.Business.name
-                                }) {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                                        contentDescription = "Back to business home"
+                    if (currentHomeDestination == HomeDestination.Explorer) {
+                        TopAppBar(
+                            modifier = Modifier.fillMaxWidth(),
+                            navigationIcon = {
+                                if (isBusinessUser) {
+                                    IconButton(onClick = {
+                                        selectedHomeDestination = HomeDestination.Business.name
+                                    }) {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                                            contentDescription = "Back to business home"
+                                        )
+                                    }
+                                }
+                            },
+                            title = {
+                                if (userMode != null) {
+                                    ExplorerDestinationTabs(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(end = 4.dp, bottom = 4.dp),
+                                        current = effectiveExplorerDestination,
+                                        onSelect = { destination -> openExplorerDestination(destination) },
+                                        showMyDrops = hasExplorerAccount,
+                                        showCollected = hasExplorerAccount
                                     )
                                 }
-                            }
-                        },
-                        title = {
-                            GeoDropHeader(
-                                onShowTutorial = { showOnboardingHelp = true },
-                                onShowFaq = { showFaqDialog = true },
-                                onShowTerms = { termsPrivacyDialogTab = 0 },
-                                onShowPrivacy = { termsPrivacyDialogTab = 1 }
+                            },
+                            colors = TopAppBarDefaults.topAppBarColors(
+                                containerColor = Color.Transparent,
+                                scrolledContainerColor = Color.Transparent,
+                                titleContentColor = MaterialTheme.colorScheme.onBackground,
+                                actionIconContentColor = MaterialTheme.colorScheme.onBackground
                             )
-                        },
-                        colors = TopAppBarDefaults.topAppBarColors(
-                            containerColor = Color.Transparent,
-                            scrolledContainerColor = Color.Transparent,
-                            titleContentColor = MaterialTheme.colorScheme.onBackground,
-                            actionIconContentColor = MaterialTheme.colorScheme.onBackground
                         )
-                    )
-
-                    if (currentHomeDestination == HomeDestination.Explorer && userMode != null) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .onSizeChanged { size -> explorerNavigationHeightPx = size.height }
-                        ) {
-                            ExplorerDestinationTabs(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 20.dp)
-                                    .padding(bottom = 4.dp),
-                                current = effectiveExplorerDestination,
-                                onSelect = { destination -> openExplorerDestination(destination) },
-                                showMyDrops = hasExplorerAccount,
-                                showCollected = hasExplorerAccount
-                            )
-                        }
-                    } else {
-                        SideEffect { explorerNavigationHeightPx = 0 }
                     }
+                    SideEffect { explorerNavigationHeightPx = 0 }
                 }
             }
             if (isBusinessUser) {
@@ -3048,6 +3035,41 @@ fun DropHereScreen(
                                     onClick = { handleSignOut() }
                                 )
                             }
+
+                            HorizontalDivider()
+
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.info_menu_tutorial)) },
+                                leadingIcon = { Icon(Icons.Rounded.PlayArrow, contentDescription = null) },
+                                onClick = {
+                                    showAccountMenu = false
+                                    showOnboardingHelp = true
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.info_menu_faq)) },
+                                leadingIcon = { Icon(Icons.Rounded.Help, contentDescription = null) },
+                                onClick = {
+                                    showAccountMenu = false
+                                    showFaqDialog = true
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.info_menu_terms)) },
+                                leadingIcon = { Icon(Icons.Rounded.Description, contentDescription = null) },
+                                onClick = {
+                                    showAccountMenu = false
+                                    termsPrivacyDialogTab = 0
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.info_menu_privacy)) },
+                                leadingIcon = { Icon(Icons.Rounded.Lock, contentDescription = null) },
+                                onClick = {
+                                    showAccountMenu = false
+                                    termsPrivacyDialogTab = 1
+                                }
+                            )
                         }
                     }
 
