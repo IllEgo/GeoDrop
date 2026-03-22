@@ -122,6 +122,12 @@ class NearbyDropRegistrar {
 
                 val snapshot = db.collection("drops").get().await()
                 val pendingIntent = GeofencePendingIntent.get(context)
+
+                // Remove all previously registered geofences before re-registering.
+                // Google Play Services caps geofences at 100 per app; clearing first
+                // prevents silent failures when the limit is reached.
+                runCatching { geos.removeGeofences(pendingIntent).await() }
+
                 val toAdd = mutableListOf<Geofence>()
 
                 for (doc in snapshot.documents) {
@@ -158,15 +164,23 @@ class NearbyDropRegistrar {
                     return@launch
                 }
 
+                // Stay well under the 100-geofence-per-app OS limit.
+                val capped = if (toAdd.size > 90) {
+                    Log.w(TAG, "Capping geofences at 90 (found ${toAdd.size}); increase radius or reduce drops to see all.")
+                    toAdd.subList(0, 90)
+                } else {
+                    toAdd
+                }
+
                 val request = GeofencingRequest.Builder()
                     .setInitialTrigger(GeofencingRequest.INITIAL_TRIGGER_ENTER)
-                    .addGeofences(toAdd)
+                    .addGeofences(capped)
                     .build()
 
                 try {
                     geos.addGeofences(request, pendingIntent).await()
-                    Log.d(TAG, "Geofences added: ${toAdd.size}")
-                    notifyStatus(onStatus, NearbySyncStatus.Success(toAdd.size))
+                    Log.d(TAG, "Geofences added: ${capped.size}")
+                    notifyStatus(onStatus, NearbySyncStatus.Success(capped.size))
                 } catch (error: Exception) {
                     Log.e(TAG, "addGeofences FAILED", error)
                     logPerms(context)

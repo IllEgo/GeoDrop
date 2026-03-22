@@ -1,6 +1,7 @@
 package com.e3hi.geodrop
 
 import android.Manifest
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -46,9 +47,22 @@ class MainActivity : ComponentActivity() {
         // add(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
     }.toTypedArray()
 
+    private val backgroundLocationLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (!granted) {
+            Log.w("GeoDrop", "Background location denied; geofences will only trigger while the app is in the foreground")
+        }
+    }
+
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
-    ) { /* handle if needed */ }
+    ) { results ->
+        val fineGranted = results[Manifest.permission.ACCESS_FINE_LOCATION] == true
+        if (fineGranted) {
+            ensureBackgroundLocation()
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -112,7 +126,22 @@ class MainActivity : ComponentActivity() {
         val need = requiredPermissions.any {
             ContextCompat.checkSelfPermission(this, it) != PermissionChecker.PERMISSION_GRANTED
         }
-        if (need) permissionLauncher.launch(requiredPermissions)
+        if (need) {
+            permissionLauncher.launch(requiredPermissions)
+        } else {
+            // Foreground location already granted; check background separately.
+            ensureBackgroundLocation()
+        }
+    }
+
+    private fun ensureBackgroundLocation() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
+        val granted = ContextCompat.checkSelfPermission(
+            this, Manifest.permission.ACCESS_BACKGROUND_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+        if (!granted) {
+            backgroundLocationLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+        }
     }
 
     private suspend fun ensureMessagingTokenRegistered(userId: String) {

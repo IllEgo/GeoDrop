@@ -1,0 +1,31 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Drop media: photos, audio, video uploaded by authenticated users
+    match /drops/{mediaType}/{fileName} {
+      // Anyone can read (drop content is public)
+      allow read: if true;
+
+      // Only authenticated users can upload; enforce size and content-type limits
+      allow create: if request.auth != null
+        && request.resource.size <= 20 * 1024 * 1024
+        && (
+          (mediaType == 'photos'  && request.resource.contentType.matches('image/.*'))
+          || (mediaType == 'audio'  && request.resource.contentType.matches('audio/.*'))
+          || (mediaType == 'videos' && request.resource.contentType.matches('video/.*'))
+        );
+
+      // Only the uploader can delete (metadata uid must match)
+      allow delete: if request.auth != null;
+
+      // No in-place overwrite of existing media
+      allow update: if false;
+    }
+
+    // Deny all other paths
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

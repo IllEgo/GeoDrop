@@ -7,7 +7,8 @@
       "Bash(JAVA_HOME=\"/c/Program Files/Android/Android Studio/jbr\" ./gradlew :app:dependencies --configuration debugCompileClasspath)",
       "Bash(JAVA_HOME=\"/c/Program Files/Android/Android Studio/jbr\" ./gradlew :app:compileDebugKotlin --refresh-dependencies)",
       "Bash(adb logcat:*)",
-      "Bash(find /c/Users/rober/AndroidStudioProjects/GeoDrop -type f \\\\\\(-name *usiness* -o -name *Business* \\\\\\))"
+      "Bash(find /c/Users/rober/AndroidStudioProjects/GeoDrop -type f \\\\\\(-name *usiness* -o -name *Business* \\\\\\))",
+      "Bash(firebase deploy:*)"
     ]
   }
 }
