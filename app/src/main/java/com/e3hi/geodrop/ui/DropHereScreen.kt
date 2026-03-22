@@ -4295,68 +4295,6 @@ private fun BusinessPlanStep(
 }
 
 @Composable
-private fun BusinessContentStep(
-    dropContentType: DropContentType,
-    onDropContentTypeChange: (DropContentType) -> Unit,
-    note: TextFieldValue,
-    onNoteChange: (TextFieldValue) -> Unit,
-    description: TextFieldValue,
-    onDescriptionChange: (TextFieldValue) -> Unit,
-    context: Context,
-    capturedPhotoPath: String?,
-    onCapturePhoto: () -> Unit,
-    onClearPhoto: () -> Unit,
-    capturedAudioUri: String?,
-    onRecordAudio: () -> Unit,
-    onClearAudio: () -> Unit,
-    capturedVideoUri: String?,
-    onRecordVideo: () -> Unit,
-    onClearVideo: () -> Unit,
-    previousStep: BusinessComposerStep?,
-    nextStep: BusinessComposerStep?,
-    canProceed: Boolean,
-    isSubmitting: Boolean,
-    onBack: (BusinessComposerStep) -> Unit,
-    onNext: (BusinessComposerStep) -> Unit,
-    onSubmit: () -> Unit
-) {
-    DropContentFormatSection(
-        dropContentType = dropContentType,
-        onDropContentTypeChange = onDropContentTypeChange
-    )
-    DropNoteAndDescriptionSection(
-        dropContentType = dropContentType,
-        note = note,
-        onNoteChange = onNoteChange,
-        description = description,
-        onDescriptionChange = onDescriptionChange
-    )
-    DropMediaAttachmentsSection(
-        context = context,
-        dropContentType = dropContentType,
-        capturedPhotoPath = capturedPhotoPath,
-        onCapturePhoto = onCapturePhoto,
-        onClearPhoto = onClearPhoto,
-        capturedAudioUri = capturedAudioUri,
-        onRecordAudio = onRecordAudio,
-        onClearAudio = onClearAudio,
-        capturedVideoUri = capturedVideoUri,
-        onRecordVideo = onRecordVideo,
-        onClearVideo = onClearVideo
-    )
-
-    BusinessComposerStepNavigation(
-        previousStep = previousStep,
-        nextStep = nextStep,
-        canProceed = canProceed,
-        isSubmitting = isSubmitting,
-        onBack = onBack,
-        onNext = onNext,
-        onSubmit = onSubmit
-    )
-}
-
-@Composable
 private fun BusinessOfferStep(
     redemptionCodeInput: TextFieldValue,
     onRedemptionCodeChange: (TextFieldValue) -> Unit,
@@ -4376,51 +4314,6 @@ private fun BusinessOfferStep(
             showHeader = false
         )
     }
-}
-
-@Composable
-private fun BusinessSettingsStep(
-    decayDaysInput: TextFieldValue,
-    onDecayDaysChange: (TextFieldValue) -> Unit,
-    dropVisibility: DropVisibility,
-    onDropVisibilityChange: (DropVisibility) -> Unit,
-    groupCodeInput: TextFieldValue,
-    onGroupCodeInputChange: (TextFieldValue) -> Unit,
-    joinedGroups: List<String>,
-    onSelectGroupCode: (String) -> Unit,
-    onManageGroupCodes: () -> Unit,
-    isSubmitting: Boolean,
-    previousStep: BusinessComposerStep?,
-    nextStep: BusinessComposerStep?,
-    canProceed: Boolean,
-    onBack: (BusinessComposerStep) -> Unit,
-    onNext: (BusinessComposerStep) -> Unit,
-    onSubmit: () -> Unit
-) {
-    DropAutoDeleteSection(
-        decayDaysInput = decayDaysInput,
-        onDecayDaysChange = onDecayDaysChange
-    )
-    DropVisibilitySectionCard(
-        dropVisibility = dropVisibility,
-        onDropVisibilityChange = onDropVisibilityChange,
-        groupCodeInput = groupCodeInput,
-        onGroupCodeInputChange = onGroupCodeInputChange,
-        joinedGroups = joinedGroups,
-        onSelectGroupCode = onSelectGroupCode,
-        onManageGroupCodes = onManageGroupCodes,
-        isSubmitting = isSubmitting
-    )
-
-    BusinessComposerStepNavigation(
-        previousStep = previousStep,
-        nextStep = nextStep,
-        isSubmitting = isSubmitting,
-        canProceed = canProceed,
-        onBack = onBack,
-        onNext = onNext,
-        onSubmit = onSubmit
-    )
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -5605,64 +5498,22 @@ private fun DropComposerDialog(
             }
 
             if (isBusinessUser) {
-                var currentStep by rememberSaveable { mutableStateOf(BusinessComposerStep.PLAN) }
-                val availableSteps = remember(dropType) {
-                    buildList {
-                        add(BusinessComposerStep.PLAN)
-                        add(BusinessComposerStep.CONTENT)
-                        if (dropType == DropType.RESTAURANT_COUPON) {
-                            add(BusinessComposerStep.OFFER)
-                        }
-                        add(BusinessComposerStep.SETTINGS)
-                    }
-                }
-                LaunchedEffect(availableSteps) {
-                    if (!availableSteps.contains(currentStep)) {
-                        currentStep = availableSteps.first()
-                    }
-                }
                 val templateSuggestions = remember(businessCategories) {
                     dropTemplatesFor(businessCategories)
                         .take(MAX_BUSINESS_TEMPLATE_SUGGESTIONS)
                 }
-
-                val offerIsValid = redemptionCodeInput.text.isNotBlank() || !availableSteps.contains(BusinessComposerStep.OFFER)
-                val canProceed = when (currentStep) {
-                    BusinessComposerStep.PLAN -> true
-                    BusinessComposerStep.CONTENT -> contentIsValid
-                    BusinessComposerStep.OFFER -> offerIsValid
-                    BusinessComposerStep.SETTINGS -> true
-                    else -> true
-                }
-
-                val currentIndex = availableSteps.indexOf(currentStep).coerceAtLeast(0)
-                val previousStep = availableSteps.getOrNull(currentIndex - 1)
-                val nextStep = availableSteps.getOrNull(currentIndex + 1)
-
-                BusinessComposerStepIndicator(
-                    steps = availableSteps,
-                    currentStep = currentStep,
-                    onStepSelected = { selected ->
-                        val currentIndex = availableSteps.indexOf(currentStep)
-                        val targetIndex = availableSteps.indexOf(selected)
-                        val canAdvance = canProceed && targetIndex == currentIndex + 1
-                        if (availableSteps.contains(selected) && (targetIndex <= currentIndex || canAdvance)) {
-                            currentStep = selected
-                        }
+                var settingsExpanded by rememberSaveable { mutableStateOf(false) }
+                val settingsSummary = remember(dropVisibility, decayDaysInput) {
+                    buildString {
+                        append(when (dropVisibility) {
+                            DropVisibility.Public -> "Public"
+                            DropVisibility.GroupOnly -> "Group only"
+                        })
+                        val days = decayDaysInput.text.toIntOrNull()
+                        if (days != null && days > 0) append(" · Expires in $days days")
                     }
-                )
-
-                Text(
-                    text = currentStep.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
-
-                Text(
-                    text = currentStep.helper,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                }
+                val isOfferValid = redemptionCodeInput.text.isNotBlank() || dropType != DropType.RESTAURANT_COUPON
 
                 Column(
                     modifier = Modifier
@@ -5670,54 +5521,91 @@ private fun DropComposerDialog(
                         .verticalScroll(scrollState),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    when (currentStep) {
-                        BusinessComposerStep.PLAN -> BusinessPlanStep(
-                            dropType = dropType,
-                            onDropTypeChange = onDropTypeChange,
-                            businessName = businessName,
-                            businessCategories = businessCategories,
-                            templateSuggestions = templateSuggestions,
-                            onDropContentTypeChange = onDropContentTypeChange,
-                            onNoteChange = onNoteChange,
-                            onDescriptionChange = onDescriptionChange
-                        )
-
-                        BusinessComposerStep.CONTENT -> BusinessContentStep(
-                            dropContentType = dropContentType,
-                            onDropContentTypeChange = onDropContentTypeChange,
-                            note = note,
-                            onNoteChange = onNoteChange,
-                            description = description,
-                            onDescriptionChange = onDescriptionChange,
-                            context = context,
-                            capturedPhotoPath = capturedPhotoPath,
-                            onCapturePhoto = onCapturePhoto,
-                            onClearPhoto = onClearPhoto,
-                            capturedAudioUri = capturedAudioUri,
-                            onRecordAudio = onRecordAudio,
-                            onClearAudio = onClearAudio,
-                            capturedVideoUri = capturedVideoUri,
-                            onRecordVideo = onRecordVideo,
-                            onClearVideo = onClearVideo,
-                            previousStep = previousStep,
-                            nextStep = nextStep,
-                            canProceed = canProceed,
-                            isSubmitting = isSubmitting,
-                            onBack = { step -> currentStep = step },
-                            onNext = { step -> currentStep = step },
-                            onSubmit = onSubmit
-                        )
-
-                        BusinessComposerStep.OFFER -> BusinessOfferStep(
+                    BusinessPlanStep(
+                        dropType = dropType,
+                        onDropTypeChange = onDropTypeChange,
+                        businessName = businessName,
+                        businessCategories = businessCategories,
+                        templateSuggestions = templateSuggestions,
+                        onDropContentTypeChange = onDropContentTypeChange,
+                        onNoteChange = onNoteChange,
+                        onDescriptionChange = onDescriptionChange
+                    )
+                    DropContentFormatSection(
+                        dropContentType = dropContentType,
+                        onDropContentTypeChange = onDropContentTypeChange
+                    )
+                    DropNoteAndDescriptionSection(
+                        dropContentType = dropContentType,
+                        note = note,
+                        onNoteChange = onNoteChange,
+                        description = description,
+                        onDescriptionChange = onDescriptionChange
+                    )
+                    DropMediaAttachmentsSection(
+                        context = context,
+                        dropContentType = dropContentType,
+                        capturedPhotoPath = capturedPhotoPath,
+                        onCapturePhoto = onCapturePhoto,
+                        onClearPhoto = onClearPhoto,
+                        capturedAudioUri = capturedAudioUri,
+                        onRecordAudio = onRecordAudio,
+                        onClearAudio = onClearAudio,
+                        capturedVideoUri = capturedVideoUri,
+                        onRecordVideo = onRecordVideo,
+                        onClearVideo = onClearVideo
+                    )
+                    if (dropType == DropType.RESTAURANT_COUPON) {
+                        BusinessOfferStep(
                             redemptionCodeInput = redemptionCodeInput,
                             onRedemptionCodeChange = onRedemptionCodeChange,
                             redemptionLimitInput = redemptionLimitInput,
                             onRedemptionLimitChange = onRedemptionLimitChange
                         )
+                    }
 
-                        BusinessComposerStep.SETTINGS -> BusinessSettingsStep(
+                    // Collapsible settings
+                    ElevatedCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = MaterialTheme.shapes.large
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { settingsExpanded = !settingsExpanded }
+                                .padding(horizontal = 16.dp, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Tune,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(Modifier.width(10.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Settings", style = MaterialTheme.typography.titleSmall)
+                                if (!settingsExpanded) {
+                                    Text(
+                                        text = settingsSummary,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                            Icon(
+                                imageVector = if (settingsExpanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                                contentDescription = if (settingsExpanded) "Collapse settings" else "Expand settings"
+                            )
+                        }
+                    }
+
+                    if (settingsExpanded) {
+                        DropAutoDeleteSection(
                             decayDaysInput = decayDaysInput,
-                            onDecayDaysChange = onDecayDaysChange,
+                            onDecayDaysChange = onDecayDaysChange
+                        )
+                        DropVisibilitySectionCard(
                             dropVisibility = dropVisibility,
                             onDropVisibilityChange = onDropVisibilityChange,
                             groupCodeInput = groupCodeInput,
@@ -5725,28 +5613,19 @@ private fun DropComposerDialog(
                             joinedGroups = joinedGroups,
                             onSelectGroupCode = onSelectGroupCode,
                             onManageGroupCodes = onManageGroupCodes,
-                            isSubmitting = isSubmitting,
-                            previousStep = previousStep,
-                            nextStep = nextStep,
-                            canProceed = canProceed,
-                            onBack = { step -> currentStep = step },
-                            onNext = { step -> currentStep = step },
-                            onSubmit = onSubmit
+                            isSubmitting = isSubmitting
                         )
+                    }
 
-                        else -> {}
-                    }
-                    if (currentStep != BusinessComposerStep.CONTENT && currentStep != BusinessComposerStep.SETTINGS) {
-                        BusinessComposerStepNavigation(
-                            previousStep = previousStep,
-                            nextStep = nextStep,
-                            isSubmitting = isSubmitting,
-                            canProceed = canProceed,
-                            onBack = { step -> currentStep = step },
-                            onNext = { step -> currentStep = step },
-                            onSubmit = onSubmit
-                        )
-                    }
+                    DropSubmitButton(
+                        isSubmitting = isSubmitting,
+                        onSubmit = onSubmit,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .alpha(if (contentIsValid && isOfferValid) 1f else 0.6f),
+                        enabled = contentIsValid && isOfferValid
+                    )
+                    Spacer(Modifier.height(8.dp))
                 }
             } else {
                 var settingsExpanded by rememberSaveable { mutableStateOf(false) }
@@ -6328,167 +6207,6 @@ private fun DropSubmitButton(
             Icon(Icons.Rounded.Place, contentDescription = null)
             Spacer(Modifier.width(8.dp))
             Text("Drop content")
-        }
-    }
-}
-
-
-private enum class BusinessComposerStep(
-    val title: String,
-    val helper: String,
-    val shortLabel: String
-) {
-    PLAN(
-        title = "Plan your drop",
-        helper = "Choose the goal that best matches what your business wants to share.",
-        shortLabel = "Plan"
-    ),
-    CONTENT(
-        title = "Create your content",
-        helper = "Select a format and add the story that will engage nearby explorers.",
-        shortLabel = "Content"
-    ),
-    OFFER(
-        title = "Secure your offer",
-        helper = "Protect promotions with a code and limit redemptions to avoid misuse.",
-        shortLabel = "Offer"
-    ),
-    SETTINGS(
-        title = "Finalize settings",
-        helper = "Decide how long the drop lasts and who should be able to discover it.",
-        shortLabel = "Settings"
-    ),
-    REVIEW(
-        title = "Review details",
-        helper = "Confirm your content, offer controls, and discovery rules before dropping.",
-        shortLabel = "Review"
-    )
-}
-
-private enum class BusinessStepStatus { Completed, Active, Upcoming }
-
-@Composable
-private fun BusinessComposerStepIndicator(
-    steps: List<BusinessComposerStep>,
-    currentStep: BusinessComposerStep,
-    onStepSelected: (BusinessComposerStep) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val scrollState = rememberScrollState()
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .horizontalScroll(scrollState),
-        horizontalArrangement = Arrangement.spacedBy(24.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        val currentIndex = steps.indexOf(currentStep).coerceAtLeast(0)
-        steps.forEachIndexed { index, step ->
-            val status = when {
-                index < currentIndex -> BusinessStepStatus.Completed
-                index == currentIndex -> BusinessStepStatus.Active
-                else -> BusinessStepStatus.Upcoming
-            }
-            BusinessComposerStepItem(
-                index = index,
-                step = step,
-                status = status,
-                onClick = { onStepSelected(step) }
-            )
-        }
-    }
-}
-
-@Composable
-private fun BusinessComposerStepItem(
-    index: Int,
-    step: BusinessComposerStep,
-    status: BusinessStepStatus,
-    onClick: () -> Unit
-) {
-    val (containerColor, contentColor) = when (status) {
-        BusinessStepStatus.Active -> MaterialTheme.colorScheme.primary to MaterialTheme.colorScheme.onPrimary
-        BusinessStepStatus.Completed -> MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.onSecondaryContainer
-        BusinessStepStatus.Upcoming -> MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
-    }
-    val labelColor = if (status == BusinessStepStatus.Upcoming) {
-        MaterialTheme.colorScheme.onSurfaceVariant
-    } else {
-        MaterialTheme.colorScheme.onSurface
-    }
-
-    Column(
-        modifier = Modifier
-            .widthIn(min = 72.dp)
-            .clickable(onClick = onClick),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Surface(
-            color = containerColor,
-            contentColor = contentColor,
-            shape = CircleShape,
-            tonalElevation = if (status == BusinessStepStatus.Active) 4.dp else 0.dp
-        ) {
-            Text(
-                text = (index + 1).toString(),
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold
-            )
-        }
-
-        Text(
-            text = step.title,
-            style = MaterialTheme.typography.labelMedium,
-            color = labelColor,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.widthIn(max = 160.dp)
-        )
-    }
-}
-
-@Composable
-private fun BusinessComposerStepNavigation(
-    previousStep: BusinessComposerStep?,
-    nextStep: BusinessComposerStep?,
-    isSubmitting: Boolean,
-    canProceed: Boolean,
-    onBack: (BusinessComposerStep) -> Unit,
-    onNext: (BusinessComposerStep) -> Unit,
-    onSubmit: () -> Unit
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        if (previousStep != null) {
-            OutlinedButton(
-                onClick = { onBack(previousStep) },
-                enabled = !isSubmitting
-            ) {
-                Text("Back")
-            }
-        }
-
-        Spacer(Modifier.weight(1f))
-
-        if (nextStep != null) {
-            Button(
-                onClick = { onNext(nextStep) },
-                enabled = !isSubmitting && canProceed
-            ) {
-                Text("Next: ${nextStep.shortLabel}")
-            }
-        } else {
-            DropSubmitButton(
-                isSubmitting = isSubmitting,
-                onSubmit = onSubmit,
-                modifier = Modifier
-                    .widthIn(min = 180.dp)
-                    .alpha(if (canProceed) 1f else 0.6f),
-                enabled = canProceed
-            )
         }
     }
 }
