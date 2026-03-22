@@ -2903,7 +2903,16 @@ fun DropHereScreen(
                                 }
 
                                 UserMode.SIGNED_IN -> {
-                                    if (!isBusinessUser) {
+                                    if (isBusinessUser) {
+                                        DropdownMenuItem(
+                                            text = { Text("Business Profile") },
+                                            leadingIcon = { Icon(Icons.Rounded.Storefront, contentDescription = null) },
+                                            onClick = {
+                                                showAccountMenu = false
+                                                showBusinessOnboarding = true
+                                            }
+                                        )
+                                    } else {
                                         val explorerUsername = userProfile?.username?.takeIf { it.isNotBlank() }
                                         DropdownMenuItem(
                                             text = {
@@ -4860,14 +4869,6 @@ private fun deriveBusinessHomeMetrics(
     )
 }
 
-private enum class BusinessDestination { Overview, Drops, Analytics, Profile }
-
-private data class BusinessNavigationItem(
-    val destination: BusinessDestination,
-    val icon: ImageVector,
-    val label: String
-)
-
 private data class BusinessKpiTile(
     val title: String,
     val icon: ImageVector,
@@ -4886,69 +4887,26 @@ private fun BusinessHomeDestination(
     onViewMyDrops: () -> Unit,
     onCreateDrop: () -> Unit,
 ) {
-    var selectedDestination by rememberSaveable { mutableStateOf(BusinessDestination.Overview) }
-    val navigationItems = remember {
-        listOf(
-            BusinessNavigationItem(BusinessDestination.Overview, Icons.Rounded.Dashboard, "Overview"),
-            BusinessNavigationItem(BusinessDestination.Drops, Icons.Rounded.Inbox, "Drops"),
-            BusinessNavigationItem(BusinessDestination.Analytics, Icons.Rounded.Lightbulb, "Analytics"),
-            BusinessNavigationItem(BusinessDestination.Profile, Icons.Rounded.Storefront, "Profile"),
-        )
-    }
-    val configuration = LocalConfiguration.current
-    val useNavRail = configuration.screenWidthDp >= 640
-
-    val onDestinationSelected: (BusinessDestination) -> Unit = { destination ->
-        when (destination) {
-            BusinessDestination.Overview -> selectedDestination = BusinessDestination.Overview
-            BusinessDestination.Drops -> onViewMyDrops()
-            BusinessDestination.Analytics -> onViewDashboard()
-            BusinessDestination.Profile -> onUpdateBusinessProfile()
-        }
-    }
-
     Scaffold(
         modifier = modifier,
         containerColor = MaterialTheme.colorScheme.background,
         floatingActionButton = {
-            if (selectedDestination == BusinessDestination.Overview) {
-                ExtendedFloatingActionButton(
-                    text = { Text("Create a drop") },
-                    icon = { Icon(Icons.Rounded.AddCircle, contentDescription = null) },
-                    onClick = onCreateDrop
-                )
-            }
-        },
-        bottomBar = {
-            if (!useNavRail) {
-                BusinessNavigationBar(
-                    items = navigationItems,
-                    selectedDestination = selectedDestination,
-                    onDestinationSelected = onDestinationSelected
-                )
-            }
-        }
-    ) { innerPadding ->
-        Row(modifier = Modifier.fillMaxSize()) {
-            if (useNavRail) {
-                BusinessNavigationRail(
-                    items = navigationItems,
-                    selectedDestination = selectedDestination,
-                    onDestinationSelected = onDestinationSelected,
-                    modifier = Modifier.padding(top = innerPadding.calculateTopPadding())
-                )
-            }
-
-            BusinessOverviewContent(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(innerPadding),
-                businessName = businessName,
-                businessCategories = businessCategories,
-                metrics = metrics,
-                onViewMyDrops = onViewMyDrops
+            ExtendedFloatingActionButton(
+                text = { Text("Create a drop") },
+                icon = { Icon(Icons.Rounded.AddCircle, contentDescription = null) },
+                onClick = onCreateDrop
             )
         }
+    ) { innerPadding ->
+        BusinessOverviewContent(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding),
+            businessName = businessName,
+            businessCategories = businessCategories,
+            metrics = metrics,
+            onViewMyDrops = onViewMyDrops
+        )
     }
 }
 
@@ -4996,43 +4954,6 @@ private fun BusinessOverviewContent(
             BusinessFulfillmentSection(
                 metrics = metrics,
                 onViewMyDrops = onViewMyDrops
-            )
-        }
-    }
-}
-
-@Composable
-private fun BusinessNavigationBar(
-    items: List<BusinessNavigationItem>,
-    selectedDestination: BusinessDestination,
-    onDestinationSelected: (BusinessDestination) -> Unit
-) {
-    NavigationBar {
-        items.forEach { item ->
-            NavigationBarItem(
-                selected = selectedDestination == item.destination,
-                onClick = { onDestinationSelected(item.destination) },
-                icon = { Icon(item.icon, contentDescription = item.label) },
-                label = { Text(item.label) }
-            )
-        }
-    }
-}
-
-@Composable
-private fun BusinessNavigationRail(
-    items: List<BusinessNavigationItem>,
-    selectedDestination: BusinessDestination,
-    onDestinationSelected: (BusinessDestination) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    NavigationRail(modifier = modifier) {
-        items.forEach { item ->
-            NavigationRailItem(
-                selected = selectedDestination == item.destination,
-                onClick = { onDestinationSelected(item.destination) },
-                icon = { Icon(item.icon, contentDescription = item.label) },
-                label = { Text(item.label) }
             )
         }
     }
