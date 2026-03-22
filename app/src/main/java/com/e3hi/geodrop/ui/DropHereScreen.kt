@@ -130,6 +130,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -1048,6 +1049,10 @@ fun DropHereScreen(
     var browseReportProcessing by remember { mutableStateOf(false) }
     var browseReportTarget by remember { mutableStateOf<ReportableDrop?>(null) }
     var browseReportingDropId by remember { mutableStateOf<String?>(null) }
+
+    var showBlockedCreators by remember { mutableStateOf(false) }
+    var blockedCreatorIds by remember { mutableStateOf<List<String>>(emptyList()) }
+    var blockedCreatorsLoading by remember { mutableStateOf(false) }
     var myDrops by remember { mutableStateOf<List<Drop>>(emptyList()) }
     var myDropsLoading by remember { mutableStateOf(false) }
     var myDropsError by remember { mutableStateOf<String?>(null) }
@@ -2719,6 +2724,16 @@ fun DropHereScreen(
         collectedPendingRemove = note
     }
 
+    val handleBlockCreator: (creatorId: String) -> Unit = { creatorId ->
+        val userId = currentUserId
+        if (!userId.isNullOrBlank() && creatorId.isNotBlank()) {
+            scope.launch {
+                runCatching { repo.blockDropCreator(userId, creatorId) }
+                snackbar.showMessage(scope, "Creator blocked. Their drops won't appear for you.")
+            }
+        }
+    }
+
     val handleCollectedReport: (CollectedNote) -> Unit = report@{ note ->
         if (browseReportProcessing) return@report
         val userId = currentUserId
@@ -2936,6 +2951,24 @@ fun DropHereScreen(
                                             }
                                         )
                                     }
+                                    DropdownMenuItem(
+                                        text = { Text("Blocked creators") },
+                                        leadingIcon = { Icon(Icons.Rounded.Block, contentDescription = null) },
+                                        onClick = {
+                                            showAccountMenu = false
+                                            val userId = currentUserId
+                                            if (!userId.isNullOrBlank()) {
+                                                blockedCreatorsLoading = true
+                                                showBlockedCreators = true
+                                                scope.launch {
+                                                    blockedCreatorIds = runCatching {
+                                                        repo.getBlockedCreatorIds(userId)
+                                                    }.getOrElse { emptyList() }
+                                                    blockedCreatorsLoading = false
+                                                }
+                                            }
+                                        }
+                                    )
                                 }
                             }
 
@@ -3256,6 +3289,11 @@ fun DropHereScreen(
                                                 onPickUp = { pickUpDrop(it) },
                                                 onReport = { handleOtherDropReport(it) },
                                                 onIgnoreForNow = { ignoreDropForNow(it) },
+                                                onBlock = { drop ->
+                                                    if (!drop.createdBy.isNullOrBlank()) {
+                                                        handleBlockCreator(drop.createdBy)
+                                                    }
+                                                },
                                                 onRefresh = { otherDropsRefreshToken += 1 }
                                             )
                                         }
@@ -3784,13 +3822,38 @@ fun DropHereScreen(
             )
         }
 
+        if (showBlockedCreators) {
+            BlockedCreatorsDialog(
+                creatorIds = blockedCreatorIds,
+                loading = blockedCreatorsLoading,
+                onUnblock = { creatorId ->
+                    val userId = currentUserId
+                    if (!userId.isNullOrBlank()) {
+                        scope.launch {
+                            runCatching { repo.unblockDropCreator(userId, creatorId) }
+                            blockedCreatorIds = blockedCreatorIds.filter { it != creatorId }
+                            snackbar.showMessage(scope, "Creator unblocked.")
+                        }
+                    }
+                },
+                onDismiss = { showBlockedCreators = false }
+            )
+        }
+
         if (showBusinessDashboard) {
             BusinessDashboardDialog(
                 drops = businessDrops,
                 loading = businessDashboardLoading,
                 error = businessDashboardError,
                 onDismiss = { showBusinessDashboard = false },
-                onRefresh = { businessDashboardRefreshToken += 1 }
+                onRefresh = { businessDashboardRefreshToken += 1 },
+                onDeleteDrop = { drop ->
+                    scope.launch {
+                        runCatching { repo.deleteDrop(drop.id) }
+                        businessDrops = businessDrops.filter { it.id != drop.id }
+                        snackbar.showMessage(scope, "Drop deleted.")
+                    }
+                }
             )
         }
 
@@ -4890,6 +4953,7 @@ private fun BusinessHomeDestination(
             businessName = businessName,
             businessCategories = businessCategories,
             metrics = metrics,
+            onViewDashboard = onViewDashboard,
             onViewMyDrops = onViewMyDrops
         )
     }
@@ -4902,6 +4966,7 @@ private fun BusinessOverviewContent(
     businessName: String?,
     businessCategories: List<BusinessCategory>,
     metrics: BusinessHomeMetrics,
+    onViewDashboard: () -> Unit,
     onViewMyDrops: () -> Unit
 ) {
     val kpiTiles = remember(metrics) {
@@ -4938,6 +5003,7 @@ private fun BusinessOverviewContent(
         item(span = { GridItemSpan(maxLineSpan) }) {
             BusinessFulfillmentSection(
                 metrics = metrics,
+                onViewDashboard = onViewDashboard,
                 onViewMyDrops = onViewMyDrops
             )
         }
@@ -4968,6 +5034,7 @@ private fun BusinessMetricCard(tile: BusinessKpiTile) {
 @Composable
 private fun BusinessFulfillmentSection(
     metrics: BusinessHomeMetrics,
+    onViewDashboard: () -> Unit,
     onViewMyDrops: () -> Unit
 ) {
     ElevatedCard {
@@ -4984,6 +5051,20 @@ private fun BusinessFulfillmentSection(
                 title = "Expiring offers",
                 subtitle = "${metrics.expiringOfferCount} offers expiring soon",
                 onClick = onViewMyDrops
+            )
+            if (metrics.pendingReviewCount > 0) {
+                BusinessActionRow(
+                    icon = Icons.Rounded.Flag,
+                    title = "Flagged drops",
+                    subtitle = "${metrics.pendingReviewCount} ${if (metrics.pendingReviewCount == 1) "drop has" else "drops have"} been reported",
+                    onClick = onViewDashboard
+                )
+            }
+            BusinessActionRow(
+                icon = Icons.Rounded.Lightbulb,
+                title = "Analytics",
+                subtitle = "View performance across all your drops",
+                onClick = onViewDashboard
             )
         }
     }
@@ -8147,7 +8228,8 @@ private fun BusinessDashboardDialog(
     loading: Boolean,
     error: String?,
     onDismiss: () -> Unit,
-    onRefresh: () -> Unit
+    onRefresh: () -> Unit,
+    onDeleteDrop: (Drop) -> Unit
 ) {
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -8258,14 +8340,44 @@ private fun BusinessDashboardDialog(
                             )
                         }
 
+                        val flaggedDrops = sorted.filter { it.reportCount > 0 }
+                        if (flaggedDrops.isNotEmpty()) {
+                            Text(
+                                text = "Flagged by users (${flaggedDrops.size})",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                            LazyColumn(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(max = 200.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                items(flaggedDrops, key = { it.id }) { drop ->
+                                    BusinessDropAnalyticsCard(
+                                        drop = drop,
+                                        onDeleteDrop = { onDeleteDrop(drop) }
+                                    )
+                                }
+                            }
+                            Divider()
+                            Text(
+                                text = "All drops",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                         LazyColumn(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .heightIn(max = 360.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            items(sorted, key = { it.id }) { drop ->
-                                BusinessDropAnalyticsCard(drop = drop)
+                            items(sorted, key = { "all_${it.id}" }) { drop ->
+                                BusinessDropAnalyticsCard(
+                                    drop = drop,
+                                    onDeleteDrop = { onDeleteDrop(drop) }
+                                )
                             }
                         }
                     }
@@ -8305,7 +8417,7 @@ private fun DashboardMetricCard(value: String, label: String, modifier: Modifier
 }
 
 @Composable
-private fun BusinessDropAnalyticsCard(drop: Drop) {
+private fun BusinessDropAnalyticsCard(drop: Drop, onDeleteDrop: (() -> Unit)? = null) {
     ElevatedCard(
         modifier = Modifier
             .fillMaxWidth()
@@ -8395,6 +8507,29 @@ private fun BusinessDropAnalyticsCard(drop: Drop) {
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+
+            if (drop.reportCount > 0) {
+                Text(
+                    text = "${drop.reportCount} user ${if (drop.reportCount == 1L) "report" else "reports"} — review and delete if needed",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+
+            if (onDeleteDrop != null) {
+                OutlinedButton(
+                    onClick = onDeleteDrop,
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    ),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f)),
+                    modifier = Modifier.align(Alignment.End)
+                ) {
+                    Icon(Icons.Filled.Delete, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Delete drop")
+                }
+            }
         }
     }
 }
@@ -8427,6 +8562,7 @@ private fun OtherDropsExplorerSection(
     onPickUp: (Drop) -> Unit,
     onReport: (Drop) -> Unit,
     onIgnoreForNow: (Drop) -> Unit,
+    onBlock: ((Drop) -> Unit)? = null,
     onRefresh: () -> Unit
 ) {
     Box(modifier = modifier.fillMaxSize()) {
@@ -8611,7 +8747,10 @@ private fun OtherDropsExplorerSection(
                                     onIgnoreForNow = { onIgnoreForNow(drop) },
                                     onSelect = { onSelect(drop) },
                                     onPickUp = { onPickUp(drop) },
-                                    onReport = { onReport(drop) }
+                                    onReport = { onReport(drop) },
+                                    onBlock = if (!isOwnDrop && isSignedIn && !drop.createdBy.isNullOrBlank()) {
+                                        { onBlock?.invoke(drop) }
+                                    } else null
                                 )
                             }
                         }
@@ -10228,7 +10367,8 @@ private fun OtherDropRow(
     onIgnoreForNow: () -> Unit,
     onSelect: () -> Unit,
     onPickUp: () -> Unit,
-    onReport: () -> Unit
+    onReport: () -> Unit,
+    onBlock: (() -> Unit)? = null
 ) {
     val (containerColor, contentColor, supportingColor) = explorerDropCardColors(isSelected)
     val distanceMeters = currentLocation?.let { location ->
@@ -10435,6 +10575,13 @@ private fun OtherDropRow(
                                             else -> "Report"
                                         }
                                     )
+                                }
+                            }
+                            if (onBlock != null) {
+                                OutlinedButton(onClick = onBlock) {
+                                    Icon(Icons.Rounded.Block, contentDescription = null)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Block")
                                 }
                             }
                         }
@@ -12115,6 +12262,98 @@ private data class ExplorerDropCardColors(
     val content: Color,
     val supporting: Color
 )
+
+@Composable
+private fun BlockedCreatorsDialog(
+    creatorIds: List<String>,
+    loading: Boolean,
+    onUnblock: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            shape = MaterialTheme.shapes.large,
+            tonalElevation = 6.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Blocked creators",
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Rounded.Close, contentDescription = "Close")
+                    }
+                }
+
+                when {
+                    loading -> {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 24.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator()
+                        }
+                    }
+                    creatorIds.isEmpty() -> {
+                        Text(
+                            text = "You haven't blocked any creators.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    else -> {
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 360.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(creatorIds) { creatorId ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Rounded.AccountCircle,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        text = creatorId,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        modifier = Modifier.weight(1f),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    OutlinedButton(onClick = { onUnblock(creatorId) }) {
+                                        Text("Unblock")
+                                    }
+                                }
+                                Divider()
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 
 @Composable
 private fun explorerDropCardColors(isSelected: Boolean): ExplorerDropCardColors {

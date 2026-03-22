@@ -727,6 +727,20 @@ class FirestoreRepo(
             .await()
     }
 
+    suspend fun unblockDropCreator(userId: String, creatorId: String) {
+        if (userId.isBlank() || creatorId.isBlank()) return
+        userBlockedCreatorsCollection(userId).document(creatorId.trim()).delete().await()
+    }
+
+    suspend fun getBlockedCreatorIds(userId: String): List<String> {
+        if (userId.isBlank()) return emptyList()
+        return userBlockedCreatorsCollection(userId).get().await()
+            .documents
+            .mapNotNull { doc ->
+                (doc.getString("creatorId") ?: doc.id).takeIf { it.isNotBlank() }
+            }
+    }
+
     suspend fun deleteDrop(dropId: String) {
         if (dropId.isBlank()) return
 
