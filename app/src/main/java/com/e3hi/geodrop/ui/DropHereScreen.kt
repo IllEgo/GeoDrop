@@ -2557,6 +2557,14 @@ fun DropHereScreen(
     val sortedOtherDrops = remember(filteredOtherDrops, otherDropsSortOption, otherDropsCurrentLocation) {
         sortDrops(filteredOtherDrops, otherDropsSortOption, otherDropsCurrentLocation)
     }
+    val closestCommunityDropMeters = remember(sortedOtherDrops, otherDropsCurrentLocation) {
+        val loc = otherDropsCurrentLocation ?: return@remember null
+        sortedOtherDrops
+            .filter { !it.isBusinessDrop() }
+            .minOfOrNull { drop ->
+                distanceBetweenMeters(loc.latitude, loc.longitude, drop.lat, drop.lng)
+            }
+    }
     val myDropsSortOption = remember(myDropsSortKey) {
         runCatching { DropSortOption.valueOf(myDropsSortKey) }
             .getOrDefault(DropSortOption.NEWEST)
@@ -3587,6 +3595,20 @@ fun DropHereScreen(
                         }
                         } // AnimatedContent
                     }
+                }
+
+                if (explorerHomeVisible && effectiveExplorerDestination == ExplorerDestination.Discover) {
+                    GhostMascot(
+                        closestDropMeters = closestCommunityDropMeters,
+                        triggerFound = pickupCelebrationVisible,
+                        triggerDropping = isSubmitting,
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .offset(x = (-16).dp)
+                            .padding(top = mapAwareTopPadding + 8.dp)
+                            .size(110.dp)
+                            .zIndex(1f)
+                    )
                 }
 
             }
@@ -5465,6 +5487,7 @@ private fun DropComposerDialog(
     ) {
         LaunchedEffect(Unit) { sheetState.expand() }
 
+        Box(modifier = Modifier.fillMaxWidth()) {
         val scrollState = rememberScrollState()
         Column(
             modifier = Modifier
@@ -5793,6 +5816,20 @@ private fun DropComposerDialog(
                 }
             }
         }
+
+        if (isSubmitting) {
+            GhostMascot(
+                closestDropMeters = null,
+                triggerFound = false,
+                triggerDropping = true,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 24.dp)
+                    .size(150.dp)
+                    .zIndex(1f)
+            )
+        }
+        } // Box
     }
 }
 

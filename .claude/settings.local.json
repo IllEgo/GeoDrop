@@ -17,7 +17,11 @@
       "Bash(JAVA_HOME=\"/c/Program Files/Android/Android Studio/jbr\" ./gradlew assembleDebug --quiet)",
       "Bash(JAVA_HOME=\"/c/Program Files/Android/Android Studio/jbr\" ./gradlew assembleDebug)",
       "Bash(awk:*)",
-      "Bash(firebase:*)"
+      "Bash(firebase:*)",
+      "Bash(./gradlew assembleDebug)",
+      "Bash(where java:*)",
+      "Bash(java -version)",
+      "Bash(JAVA_HOME=\"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\" ./gradlew assembleDebug)"
     ]
   }
 }
