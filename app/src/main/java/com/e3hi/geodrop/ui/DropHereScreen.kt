@@ -8305,27 +8305,6 @@ private fun OtherDropsExplorerSection(
                 }
             }
 
-            drops.isEmpty() -> {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 20.dp)
-                        .padding(top = topContentPadding),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Text(
-                        text = emptyMessage ?: "Nothing here yet — be the first to leave your mark.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    OutlinedButton(onClick = onRefresh) {
-                        Icon(Icons.Rounded.Refresh, contentDescription = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text(stringResource(R.string.action_retry_generic))
-                    }
-                }
-            }
-
             else -> {
                 val listState = rememberLazyListState()
                 var lastSortOption by remember { mutableStateOf(sortOption) }
@@ -8368,6 +8347,19 @@ private fun OtherDropsExplorerSection(
                         onDropClick = onSelect,
                         modifier = Modifier.fillMaxSize()
                     )
+
+                    if (drops.isEmpty()) {
+                        OutlinedButton(
+                            onClick = onRefresh,
+                            modifier = Modifier
+                                .align(Alignment.Center)
+                                .padding(top = topContentPadding)
+                        ) {
+                            Icon(Icons.Rounded.Refresh, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text(stringResource(R.string.action_retry_generic))
+                        }
+                    }
 
                     ExplorerDropListPanel(
                         modifier = Modifier
