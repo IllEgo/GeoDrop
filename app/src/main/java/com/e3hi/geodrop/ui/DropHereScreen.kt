@@ -3626,12 +3626,19 @@ fun DropHereScreen(
                         closestDropMeters = closestCommunityDropMeters,
                         triggerFound = pickupCelebrationVisible,
                         triggerDropping = isSubmitting,
-                        modifier = Modifier
-                            .align(Alignment.TopStart)
-                            .offset(x = (-16).dp)
-                            .padding(top = mapAwareTopPadding + 8.dp)
-                            .size(110.dp)
-                            .zIndex(1f)
+                        modifier = if (pickupCelebrationVisible) {
+                            Modifier
+                                .align(Alignment.Center)
+                                .size(160.dp)
+                                .zIndex(1f)
+                        } else {
+                            Modifier
+                                .align(Alignment.TopStart)
+                                .offset(x = 8.dp)
+                                .padding(top = mapAwareTopPadding + 8.dp)
+                                .size(80.dp)
+                                .zIndex(1f)
+                        }
                     )
                 }
 

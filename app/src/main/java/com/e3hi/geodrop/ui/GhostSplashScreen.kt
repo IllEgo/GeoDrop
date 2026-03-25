@@ -27,7 +27,9 @@ import androidx.compose.ui.unit.dp
 import com.e3hi.geodrop.R
 import kotlinx.coroutines.delay
 
-private const val INTRO_FRAMES     = 90
+private const val INTRO_FRAMES     = 120
+private const val INTRO_COLS       = 12
+private const val INTRO_ROWS       = 10
 private const val INTRO_FPS        = 15L
 private const val FADE_OUT_MS      = 400
 
@@ -36,11 +38,11 @@ fun GhostSplashScreen(onFinished: () -> Unit) {
     val context = LocalContext.current
 
     val spriteSheet: ImageBitmap = remember {
-        BitmapFactory.decodeResource(context.resources, R.drawable.intro_ghost_spritesheet)
+        BitmapFactory.decodeResource(context.resources, R.drawable.ghost_intro)
             .asImageBitmap()
     }
-    val frameWidth:  Int = remember(spriteSheet) { spriteSheet.width  / INTRO_FRAMES }
-    val frameHeight: Int = remember(spriteSheet) { spriteSheet.height }
+    val frameWidth:  Int = remember(spriteSheet) { spriteSheet.width  / INTRO_COLS }
+    val frameHeight: Int = remember(spriteSheet) { spriteSheet.height / INTRO_ROWS }
 
     var frame       by remember { mutableStateOf(0) }
     var fadingOut   by remember { mutableStateOf(false) }
@@ -70,9 +72,11 @@ fun GhostSplashScreen(onFinished: () -> Unit) {
         contentAlignment = Alignment.Center
     ) {
         Canvas(modifier = Modifier.size(240.dp)) {
+            val col = frame % INTRO_COLS
+            val row = frame / INTRO_COLS
             drawImage(
                 image     = spriteSheet,
-                srcOffset = IntOffset(frame * frameWidth, 0),
+                srcOffset = IntOffset(col * frameWidth, row * frameHeight),
                 srcSize   = IntSize(frameWidth, frameHeight),
                 dstOffset = IntOffset(0, 0),
                 dstSize   = IntSize(size.width.toInt(), size.height.toInt()),

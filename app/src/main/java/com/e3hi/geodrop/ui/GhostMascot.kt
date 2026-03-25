@@ -20,7 +20,7 @@ import androidx.compose.ui.unit.IntSize
 import com.e3hi.geodrop.R
 import kotlinx.coroutines.delay
 
-// All sheets are a single horizontal row of frames
+// Default single-row sheet frame count and FPS
 private const val GHOST_FRAMES = 10
 private const val GHOST_FPS    = 10L
 
@@ -33,16 +33,23 @@ private const val THRESHOLD_ATTACK        = 30.0  // pickup range
 /**
  * Each state pairs light-mode and dark-mode sprite sheet resources.
  * [loops] — true means the animation repeats; false plays once then returns to proximity.
+ * [frameCount], [cols], [rows] describe the sheet layout (single-row sheets have rows = 1).
  */
 enum class GhostState(
     @DrawableRes val lightRes: Int,
     @DrawableRes val darkRes: Int,
     val loops: Boolean,
+    val frameCount: Int = GHOST_FRAMES,
+    val cols: Int = GHOST_FRAMES,
+    val rows: Int = 1,
 ) {
     IDLE(
-        R.drawable.idle_white_spritesheet,
-        R.drawable.idle_blue_spritesheet,
+        R.drawable.ghost_idle,
+        R.drawable.ghost_idle,
         loops = true,
+        frameCount = 41,
+        cols = 8,
+        rows = 6,
     ),
     DETECTING(
         R.drawable.detecting_white_spritesheet,
@@ -55,15 +62,30 @@ enum class GhostState(
         loops = true,
     ),
     CLOSE_PROXIMITY(
-        R.drawable.close_proximity_white_spritesheet,
-        R.drawable.close_proximity_blue_spritesheet,
+        R.drawable.ghost_close_proximity,
+        R.drawable.ghost_close_proximity,
         loops = true,
+        frameCount = 18,
+        cols = 5,
+        rows = 4,
     ),
-    /** Looping when within pickup range; also used as a one-shot pickup celebration. */
+    /** Looping when within pickup range. */
     ATTACK(
-        R.drawable.attack_white_spritesheet,
-        R.drawable.attack_blue_spritesheet,
+        R.drawable.ghost_close_proximity,
+        R.drawable.ghost_close_proximity,
         loops = true,
+        frameCount = 18,
+        cols = 5,
+        rows = 4,
+    ),
+    /** One-shot played when the user taps the pick-up button. */
+    PICKUP(
+        R.drawable.ghost_pickup_drop,
+        R.drawable.ghost_pickup_drop,
+        loops = false,
+        frameCount = 15,
+        cols = 5,
+        rows = 3,
     ),
     DROPPING(
         R.drawable.dropping_white_spritesheet,
@@ -115,14 +137,14 @@ fun GhostMascot(
         val resId = if (darkTheme) currentState.darkRes else currentState.lightRes
         BitmapFactory.decodeResource(context.resources, resId).asImageBitmap()
     }
-    val frameWidth: Int  = remember(spriteSheet) { spriteSheet.width  / GHOST_FRAMES }
-    val frameHeight: Int = remember(spriteSheet) { spriteSheet.height }
+    val frameWidth: Int  = remember(spriteSheet, currentState) { spriteSheet.width  / currentState.cols }
+    val frameHeight: Int = remember(spriteSheet, currentState) { spriteSheet.height / currentState.rows }
 
     // ── One-shot: drop picked up ──────────────────────────────────────────────
     LaunchedEffect(triggerFound) {
         if (triggerFound) {
             oneShotActive = true
-            currentState  = GhostState.ATTACK
+            currentState  = GhostState.PICKUP
         }
     }
 
@@ -145,16 +167,17 @@ fun GhostMascot(
     LaunchedEffect(currentState) {
         val state     = currentState    // capture for this animation cycle
         val isOneShot = oneShotActive
+        val totalFrames = state.frameCount
         frame = 0
         while (true) {
             delay(1000L / GHOST_FPS)
             val next = frame + 1
-            if (next >= GHOST_FRAMES) {
+            if (next >= totalFrames) {
                 if (state.loops && !isOneShot) {
                     frame = 0
                 } else {
                     // One-shot complete — hold last frame briefly then return to proximity
-                    frame = GHOST_FRAMES - 1
+                    frame = totalFrames - 1
                     delay(80L)
                     oneShotActive = false
                     currentState  = latestProximity
@@ -168,9 +191,11 @@ fun GhostMascot(
 
     // ── Render ────────────────────────────────────────────────────────────────
     Canvas(modifier = modifier) {
+        val col = frame % currentState.cols
+        val row = frame / currentState.cols
         drawImage(
             image     = spriteSheet,
-            srcOffset = IntOffset(frame * frameWidth, 0),
+            srcOffset = IntOffset(col * frameWidth, row * frameHeight),
             srcSize   = IntSize(frameWidth, frameHeight),
             dstOffset = IntOffset(0, 0),
             dstSize   = IntSize(size.width.toInt(), size.height.toInt()),
