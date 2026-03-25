@@ -254,6 +254,7 @@ import com.e3hi.geodrop.data.requiresRedemption
 import com.e3hi.geodrop.data.userLikeStatus
 import com.e3hi.geodrop.data.isBusiness
 import com.e3hi.geodrop.data.VisionApiStatus
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
 import com.e3hi.geodrop.data.isExpired
 import com.e3hi.geodrop.data.remainingDecayMillis
@@ -270,6 +271,9 @@ import com.e3hi.geodrop.util.DropBlockedBySafetyException
 import com.e3hi.geodrop.util.DropSafetyAssessment
 import com.e3hi.geodrop.util.DropSafetyEvaluator
 import com.e3hi.geodrop.util.NoOpDropSafetyEvaluator
+import com.google.android.gms.location.LocationCallback
+import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
@@ -2427,6 +2431,26 @@ fun DropHereScreen(
                 browseReportError = null
                 browseReportingDropId = null
             }
+        }
+    }
+
+    LaunchedEffect(explorerHomeVisible) {
+        if (!explorerHomeVisible) return@LaunchedEffect
+        val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 5_000L)
+            .setMinUpdateIntervalMillis(2_000L)
+            .build()
+        val callback = object : LocationCallback() {
+            override fun onLocationResult(result: LocationResult) {
+                result.lastLocation?.let { loc ->
+                    otherDropsCurrentLocation = LatLng(loc.latitude, loc.longitude)
+                }
+            }
+        }
+        try {
+            fused.requestLocationUpdates(locationRequest, callback, android.os.Looper.getMainLooper())
+            awaitCancellation()
+        } finally {
+            fused.removeLocationUpdates(callback)
         }
     }
 
@@ -8347,19 +8371,6 @@ private fun OtherDropsExplorerSection(
                         onDropClick = onSelect,
                         modifier = Modifier.fillMaxSize()
                     )
-
-                    if (drops.isEmpty()) {
-                        OutlinedButton(
-                            onClick = onRefresh,
-                            modifier = Modifier
-                                .align(Alignment.Center)
-                                .padding(top = topContentPadding)
-                        ) {
-                            Icon(Icons.Rounded.Refresh, contentDescription = null)
-                            Spacer(Modifier.width(8.dp))
-                            Text(stringResource(R.string.action_retry_generic))
-                        }
-                    }
 
                     ExplorerDropListPanel(
                         modifier = Modifier
