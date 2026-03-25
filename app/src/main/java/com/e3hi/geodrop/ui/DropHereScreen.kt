@@ -8673,7 +8673,7 @@ private fun ExplorerDropListPanel(
     val coroutineScope = rememberCoroutineScope()
     val handleLabel = stringResource(R.string.drop_list_handle_label)
 
-    BoxWithConstraints(modifier = modifier.heightIn(max = panelMaxHeight)) {
+    BoxWithConstraints(modifier = modifier.fillMaxHeight().heightIn(max = panelMaxHeight)) {
         val collapsedPanelWidth = remember(panelWidth, maxWidth) {
             panelWidth.coerceAtMost(maxWidth)
         }
@@ -8726,11 +8726,6 @@ private fun ExplorerDropListPanel(
             )
         }
         val currentPanelHeight = panelHeightValue.dp
-        val handleSpace = if (isExpanded) 0.dp else handleWidth
-        val handleTopPadding = remember(currentPanelHeight) {
-            val handleHeight = 72.dp
-            ((currentPanelHeight - handleHeight) / 2).coerceAtLeast(0.dp)
-        }
 
         Box(
             modifier = Modifier
@@ -8738,7 +8733,7 @@ private fun ExplorerDropListPanel(
                 .padding(top = mapAwareTopPadding)
                 .height(currentPanelHeight)
                 .heightIn(min = effectiveMinPanelHeight, max = availablePanelHeight)
-                .width(currentPanelWidth + handleSpace)
+                .width(currentPanelWidth)
         ) {
             Surface(
                 modifier = Modifier
@@ -8831,53 +8826,45 @@ private fun ExplorerDropListPanel(
                     )
                 }
             }
+        }
 
-            AnimatedVisibility(
-                visible = !isExpanded,
+        AnimatedVisibility(
+            visible = !isExpanded,
+            modifier = Modifier.align(Alignment.CenterEnd)
+        ) {
+            Surface(
                 modifier = Modifier
-                    .align(if (isExpanded) Alignment.TopStart else Alignment.TopEnd)
-                    .padding(top = handleTopPadding)
-            ) {
-                Surface(
-                    modifier = Modifier
-                        .width(handleWidth)
-                        .clickable(
-                            indication = null,
-                            interactionSource = remember { MutableInteractionSource() }
-                        ) {
-                            coroutineScope.launch {
-                                state.animateTo(
-                                    if (isExpanded) {
-                                        ExplorerDropListPanelValue.Collapsed
-                                    } else {
-                                        ExplorerDropListPanelValue.Expanded
-                                    }
-                                )
-                            }
-                        },
-                    shape = RectangleShape,
-                    tonalElevation = 8.dp,
-                    shadowElevation = 0.dp,
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .padding(horizontal = 8.dp, vertical = 12.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.Top)
+                    .width(handleWidth)
+                    .clickable(
+                        indication = null,
+                        interactionSource = remember { MutableInteractionSource() }
                     ) {
-                        Icon(
-                            imageVector = Icons.Filled.ExpandLess,
-                            contentDescription = null,
-                            modifier = Modifier.rotate(if (isExpanded) 90f else -90f)
-                        )
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            text = handleLabel,
-                            style = MaterialTheme.typography.labelMedium,
-                            textAlign = TextAlign.Center
-                        )
-                    }
+                        coroutineScope.launch {
+                            state.animateTo(ExplorerDropListPanelValue.Expanded)
+                        }
+                    },
+                shape = RectangleShape,
+                tonalElevation = 8.dp,
+                shadowElevation = 0.dp,
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .padding(horizontal = 8.dp, vertical = 12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.Top)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.ExpandLess,
+                        contentDescription = null,
+                        modifier = Modifier.rotate(-90f)
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = handleLabel,
+                        style = MaterialTheme.typography.labelMedium,
+                        textAlign = TextAlign.Center
+                    )
                 }
             }
         }
