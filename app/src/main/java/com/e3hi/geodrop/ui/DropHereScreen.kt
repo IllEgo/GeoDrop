@@ -5854,8 +5854,7 @@ private fun DropComposerDialog(
                 triggerFound = false,
                 triggerDropping = true,
                 modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = 24.dp)
+                    .align(Alignment.Center)
                     .size(150.dp)
                     .zIndex(1f)
             )
@@ -9819,16 +9818,28 @@ private fun MyDropsMap(
 ) {
     val cameraPositionState = rememberCameraPositionState()
     val uiSettings = remember { MapUiSettings(zoomControlsEnabled = true) }
+    var cameraCenteredOnUser by remember { mutableStateOf(false) }
 
-    LaunchedEffect(drops, selectedDropId, currentLocation) {
+    // Move camera when selected drop changes or drops first load
+    LaunchedEffect(drops, selectedDropId) {
         val targetDrop = drops.firstOrNull { it.id == selectedDropId }
         val target = targetDrop?.let { LatLng(it.lat, it.lng) }
-            ?: currentLocation
+            ?: if (!cameraCenteredOnUser) currentLocation else null
             ?: drops.firstOrNull()?.let { LatLng(it.lat, it.lng) }
         if (target != null) {
             val zoomLevel = if (targetDrop != null) 18f else 15f
             val update = CameraUpdateFactory.newLatLngZoom(target, zoomLevel)
             cameraPositionState.animate(update)
+            if (targetDrop == null) cameraCenteredOnUser = true
+        }
+    }
+
+    // Center on user location only the first time it becomes available
+    LaunchedEffect(currentLocation) {
+        if (cameraCenteredOnUser || selectedDropId != null) return@LaunchedEffect
+        currentLocation?.let {
+            cameraPositionState.animate(CameraUpdateFactory.newLatLngZoom(it, 15f))
+            cameraCenteredOnUser = true
         }
     }
 
@@ -10665,16 +10676,28 @@ private fun OtherDropsMap(
 
     val cameraPositionState = rememberCameraPositionState()
     val uiSettings = remember { MapUiSettings(zoomControlsEnabled = true) }
+    var cameraCenteredOnUser by remember { mutableStateOf(false) }
 
-    LaunchedEffect(drops, selectedDropId, currentLocation) {
+    // Move camera when selected drop changes or drops first load
+    LaunchedEffect(drops, selectedDropId) {
         val targetDrop = drops.firstOrNull { it.id == selectedDropId }
         val target = targetDrop?.let { LatLng(it.lat, it.lng) }
-            ?: currentLocation
+            ?: if (!cameraCenteredOnUser) currentLocation else null
             ?: drops.firstOrNull()?.let { LatLng(it.lat, it.lng) }
         if (target != null) {
             val zoomLevel = if (targetDrop != null) 18f else 15f
             val update = CameraUpdateFactory.newLatLngZoom(target, zoomLevel)
             cameraPositionState.animate(update)
+            if (targetDrop == null) cameraCenteredOnUser = true
+        }
+    }
+
+    // Center on user location only the first time it becomes available
+    LaunchedEffect(currentLocation) {
+        if (cameraCenteredOnUser || selectedDropId != null) return@LaunchedEffect
+        currentLocation?.let {
+            cameraPositionState.animate(CameraUpdateFactory.newLatLngZoom(it, 15f))
+            cameraCenteredOnUser = true
         }
     }
 

@@ -47,9 +47,9 @@ enum class GhostState(
         R.drawable.ghost_idle,
         R.drawable.ghost_idle,
         loops = true,
-        frameCount = 41,
-        cols = 8,
-        rows = 6,
+        frameCount = 130,
+        cols = 13,
+        rows = 10,
     ),
     DETECTING(
         R.drawable.detecting_white_spritesheet,
@@ -65,18 +65,18 @@ enum class GhostState(
         R.drawable.ghost_close_proximity,
         R.drawable.ghost_close_proximity,
         loops = true,
-        frameCount = 18,
-        cols = 5,
-        rows = 4,
+        frameCount = 96,
+        cols = 12,
+        rows = 8,
     ),
     /** Looping when within pickup range. */
     ATTACK(
         R.drawable.ghost_close_proximity,
         R.drawable.ghost_close_proximity,
         loops = true,
-        frameCount = 18,
-        cols = 5,
-        rows = 4,
+        frameCount = 96,
+        cols = 12,
+        rows = 8,
     ),
     /** One-shot played when the user taps the pick-up button. */
     PICKUP(
@@ -91,6 +91,15 @@ enum class GhostState(
         R.drawable.dropping_white_spritesheet,
         R.drawable.dropping_blue_spritesheet,
         loops = false,
+    ),
+    /** One-shot played when the user adds a drop. */
+    GHOST_DROP(
+        R.drawable.ghost_drop,
+        R.drawable.ghost_drop,
+        loops = false,
+        frameCount = 96,
+        cols = 12,
+        rows = 8,
     );
 }
 
@@ -152,7 +161,7 @@ fun GhostMascot(
     LaunchedEffect(triggerDropping) {
         if (triggerDropping) {
             oneShotActive = true
-            currentState  = GhostState.DROPPING
+            currentState  = GhostState.GHOST_DROP
         }
     }
 
