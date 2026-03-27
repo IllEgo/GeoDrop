@@ -219,6 +219,7 @@ import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import coil.compose.AsyncImage
@@ -357,6 +358,7 @@ fun DropHereScreen(
     var showOnboardingHelp by remember { mutableStateOf(false) }
     var guestModeEnabled by rememberSaveable { mutableStateOf(false) }
     var showAccountSignIn by remember { mutableStateOf(false) }
+    var showRegisterScreen by remember { mutableStateOf(false) }
     var accountAuthMode by remember { mutableStateOf(AccountAuthMode.SIGN_IN) }
     var accountType by remember { mutableStateOf(AccountType.EXPLORER) }
     var accountTypeSelectionLocked by remember { mutableStateOf(false) }
@@ -444,6 +446,7 @@ fun DropHereScreen(
     fun dismissAccountAuthDialog() {
         if (accountAuthSubmitting || accountGoogleSigningIn) return
         showAccountSignIn = false
+        showRegisterScreen = false
         resetAccountAuthFields(clearEmail = false)
         accountAuthMode = AccountAuthMode.SIGN_IN
         accountType = AccountType.EXPLORER
@@ -975,6 +978,41 @@ fun DropHereScreen(
         )
     }
 
+    if (userMode == null && showRegisterScreen) {
+        RegisterScreen(
+            accountType = accountType,
+            onAccountTypeChange = { type ->
+                if (accountAuthSubmitting || accountGoogleSigningIn) return@RegisterScreen
+                accountType = type
+                accountAuthError = null
+                accountAuthStatus = null
+            },
+            mode = accountAuthMode,
+            onModeChange = { mode ->
+                if (accountAuthSubmitting || accountGoogleSigningIn) return@RegisterScreen
+                accountAuthMode = mode
+                accountAuthError = null
+                accountAuthStatus = null
+            },
+            email = accountEmail,
+            onEmailChange = { accountEmail = it },
+            password = accountPassword,
+            onPasswordChange = { accountPassword = it },
+            confirmPassword = accountConfirmPassword,
+            onConfirmPasswordChange = { accountConfirmPassword = it },
+            username = accountUsername,
+            onUsernameChange = { accountUsername = it },
+            isSubmitting = accountAuthSubmitting,
+            isGoogleSigningIn = accountGoogleSigningIn,
+            error = accountAuthError,
+            status = accountAuthStatus,
+            onSubmit = { performAccountAuth() },
+            onBack = { dismissAccountAuthDialog() },
+            onGoogleSignIn = { startAccountGoogleSignIn() }
+        )
+        return
+    }
+
     if (userMode == null) {
         UserModeSelectionScreen(
             onSelectGuest = {
@@ -990,11 +1028,10 @@ fun DropHereScreen(
             },
             onSelectRegister = {
                 guestModeEnabled = false
-                openAccountAuthDialog(
-                    initialType = AccountType.EXPLORER,
-                    initialMode = AccountAuthMode.REGISTER,
-                    lockAccountType = false
-                )
+                accountType = AccountType.EXPLORER
+                accountAuthMode = AccountAuthMode.REGISTER
+                resetAccountAuthFields(clearEmail = true)
+                showRegisterScreen = true
             }
         )
         return
@@ -4707,6 +4744,255 @@ Last updated: 10/02/2025
 By accepting, you acknowledge that you have read and understood how GeoDrop handles your data.
 """.trimIndent()
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun RegisterScreen(
+    accountType: AccountType,
+    onAccountTypeChange: (AccountType) -> Unit,
+    mode: AccountAuthMode,
+    onModeChange: (AccountAuthMode) -> Unit,
+    email: TextFieldValue,
+    onEmailChange: (TextFieldValue) -> Unit,
+    password: TextFieldValue,
+    onPasswordChange: (TextFieldValue) -> Unit,
+    confirmPassword: TextFieldValue,
+    onConfirmPasswordChange: (TextFieldValue) -> Unit,
+    username: TextFieldValue,
+    onUsernameChange: (TextFieldValue) -> Unit,
+    isSubmitting: Boolean,
+    isGoogleSigningIn: Boolean,
+    error: String?,
+    status: String?,
+    onSubmit: () -> Unit,
+    onBack: () -> Unit,
+    onGoogleSignIn: () -> Unit
+) {
+    val isBusy = isSubmitting || isGoogleSigningIn
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val scrollState = rememberScrollState()
+
+    val hideKeyboard = {
+        keyboardController?.hide()
+        focusManager.clearFocus(force = true)
+    }
+    val submit = { hideKeyboard(); onSubmit() }
+    val back   = { hideKeyboard(); onBack() }
+
+    val isRegister = mode == AccountAuthMode.REGISTER
+    val requiresUsername = isRegister && accountType == AccountType.EXPLORER
+
+    BackHandler(enabled = !isBusy) { back() }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        text = if (isRegister) "Join the World" else "Sign In",
+                        style = MaterialTheme.typography.titleLarge.copy(fontFamily = RalewayFontFamily)
+                    )
+                },
+                navigationIcon = {
+                    IconButton(onClick = { if (!isBusy) back() }) {
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
+                    }
+                }
+            )
+        }
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .padding(horizontal = 24.dp)
+                .imePadding()
+                .verticalScroll(scrollState),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Spacer(Modifier.height(8.dp))
+
+            // Account type selector
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                AccountType.entries.forEachIndexed { index, type ->
+                    SegmentedButton(
+                        shape = SegmentedButtonDefaults.itemShape(index, AccountType.entries.size),
+                        selected = accountType == type,
+                        onClick = { onAccountTypeChange(type) },
+                        enabled = !isBusy
+                    ) {
+                        Text(
+                            when (type) {
+                                AccountType.EXPLORER -> "Explorer"
+                                AccountType.BUSINESS -> "Business"
+                            }
+                        )
+                    }
+                }
+            }
+
+            // Description
+            Text(
+                text = when (accountType) {
+                    AccountType.EXPLORER -> "Explorer accounts let you drop, like, and collect rewards."
+                    AccountType.BUSINESS -> "Business accounts can publish offers and require business details."
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            // Sign in / Register toggle
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                AccountAuthMode.entries.forEachIndexed { index, option ->
+                    SegmentedButton(
+                        shape = SegmentedButtonDefaults.itemShape(index, AccountAuthMode.entries.size),
+                        selected = mode == option,
+                        onClick = { onModeChange(option) },
+                        enabled = !isBusy
+                    ) {
+                        Text(
+                            when (option) {
+                                AccountAuthMode.SIGN_IN -> "Sign in"
+                                AccountAuthMode.REGISTER -> "Create account"
+                            }
+                        )
+                    }
+                }
+            }
+
+            // Username (Explorer register only)
+            if (requiresUsername) {
+                OutlinedTextField(
+                    value = username,
+                    onValueChange = onUsernameChange,
+                    label = { Text(stringResource(R.string.explorer_profile_username_label)) },
+                    placeholder = { Text(stringResource(R.string.explorer_profile_username_placeholder)) },
+                    enabled = !isBusy,
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(
+                        capitalization = KeyboardCapitalization.None,
+                        autoCorrect = false,
+                        keyboardType = KeyboardType.Ascii,
+                        imeAction = ImeAction.Next
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onNext = { focusManager.moveFocus(FocusDirection.Next) }
+                    )
+                )
+                Text(
+                    text = stringResource(R.string.explorer_profile_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            // Email
+            OutlinedTextField(
+                value = email,
+                onValueChange = onEmailChange,
+                label = { Text("Email address") },
+                enabled = !isBusy,
+                modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Email,
+                    imeAction = ImeAction.Next
+                ),
+                keyboardActions = KeyboardActions(
+                    onNext = { focusManager.moveFocus(FocusDirection.Next) }
+                )
+            )
+
+            // Password
+            OutlinedTextField(
+                value = password,
+                onValueChange = onPasswordChange,
+                label = { Text("Password") },
+                enabled = !isBusy,
+                modifier = Modifier.fillMaxWidth(),
+                visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Password,
+                    imeAction = if (isRegister) ImeAction.Next else ImeAction.Done
+                ),
+                keyboardActions = if (isRegister) {
+                    KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Next) })
+                } else {
+                    KeyboardActions(onDone = { submit() })
+                }
+            )
+
+            // Confirm password (register only)
+            if (isRegister) {
+                OutlinedTextField(
+                    value = confirmPassword,
+                    onValueChange = onConfirmPasswordChange,
+                    label = { Text("Confirm password") },
+                    enabled = !isBusy,
+                    modifier = Modifier.fillMaxWidth(),
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Password,
+                        imeAction = ImeAction.Done
+                    ),
+                    keyboardActions = KeyboardActions(onDone = { submit() })
+                )
+            }
+
+            // Error / status
+            error?.let {
+                Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            }
+            status?.let {
+                Text(it, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            // Primary submit button
+            Button(
+                onClick = { submit() },
+                enabled = !isBusy,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                if (isSubmitting) {
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Working…")
+                } else {
+                    Text(if (isRegister) "Create account" else "Sign in")
+                }
+            }
+
+            Divider()
+            Text(
+                text = "Or continue with",
+                modifier = Modifier.fillMaxWidth(),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+
+            // Google sign-in button
+            OutlinedButton(
+                onClick = { hideKeyboard(); onGoogleSignIn() },
+                enabled = !isBusy,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                if (isGoogleSigningIn) {
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Connecting to Google…")
+                } else {
+                    Text("Sign in with Google")
+                }
+            }
+
+            Spacer(Modifier.height(24.dp))
+        }
+    }
+}
+
 @Composable
 private fun GhostWaveAnimation(modifier: Modifier = Modifier) {
     val context = LocalContext.current
@@ -4773,6 +5059,7 @@ private fun UserModeSelectionScreen(
                     fontFamily = RoundedMFontFamily,
                     fontWeight = FontWeight.Bold
                 ),
+                color = MaterialTheme.colorScheme.primary,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -4796,7 +5083,7 @@ private fun UserModeSelectionScreen(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .padding(bottom = 40.dp),
+                .padding(bottom = 72.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -4838,26 +5125,6 @@ private fun UserModeSelectionScreen(
                 ) {
                     Text(
                         "Join the World",
-                        style = MaterialTheme.typography.labelLarge.copy(fontFamily = RalewayFontFamily),
-                        modifier = Modifier.padding(vertical = 4.dp)
-                    )
-                }
-            }
-
-            // 3rd — subtle text button
-            AnimatedLandingButton { interactionSource, scale ->
-                TextButton(
-                    onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        onSelectSignIn()
-                    },
-                    interactionSource = interactionSource,
-                    modifier = Modifier
-                        .fillMaxWidth(0.92f)
-                        .graphicsLayer { scaleX = scale; scaleY = scale }
-                ) {
-                    Text(
-                        "Sign In",
                         style = MaterialTheme.typography.labelLarge.copy(fontFamily = RalewayFontFamily),
                         modifier = Modifier.padding(vertical = 4.dp)
                     )
