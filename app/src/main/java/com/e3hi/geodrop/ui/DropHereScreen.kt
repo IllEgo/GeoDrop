@@ -171,6 +171,8 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
@@ -2934,9 +2936,11 @@ fun DropHereScreen(
 
     var topBarHeightPx by remember { mutableStateOf(0) }
     var explorerNavigationHeightPx by remember { mutableStateOf(0) }
+    var fabRowBottomPx by remember { mutableStateOf(0f) }
     val density = LocalDensity.current
 
     Box(modifier = Modifier.fillMaxSize()) {
+        // Minimal top bar — only used for the business back-arrow; no height for explorer
         Column(
             modifier = Modifier
                 .align(Alignment.TopCenter)
@@ -2945,53 +2949,88 @@ fun DropHereScreen(
                 .onSizeChanged { size -> topBarHeightPx = size.height }
                 .zIndex(1f)
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surface)
-            ) {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    if (currentHomeDestination == HomeDestination.Explorer) {
+            if (currentHomeDestination == HomeDestination.Explorer && isBusinessUser) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.surface)
+                ) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
                         TopAppBar(
                             modifier = Modifier.fillMaxWidth(),
                             navigationIcon = {
-                                if (isBusinessUser) {
-                                    IconButton(onClick = {
-                                        selectedHomeDestination = HomeDestination.Business.name
-                                    }) {
-                                        Icon(
-                                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                                            contentDescription = "Back to business home"
-                                        )
-                                    }
-                                }
-                            },
-                            title = {
-                                if (userMode != null) {
-                                    ExplorerDestinationTabs(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(end = 4.dp, bottom = 4.dp),
-                                        current = effectiveExplorerDestination,
-                                        onSelect = { destination -> openExplorerDestination(destination) },
-                                        showMyDrops = hasExplorerAccount,
-                                        showCollected = hasExplorerAccount
+                                IconButton(onClick = {
+                                    selectedHomeDestination = HomeDestination.Business.name
+                                }) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                                        contentDescription = "Back to business home"
                                     )
                                 }
                             },
+                            title = {},
                             colors = TopAppBarDefaults.topAppBarColors(
                                 containerColor = Color.Transparent,
-                                scrolledContainerColor = Color.Transparent,
-                                titleContentColor = MaterialTheme.colorScheme.onBackground,
-                                actionIconContentColor = MaterialTheme.colorScheme.onBackground
+                                scrolledContainerColor = Color.Transparent
                             )
                         )
+                        SideEffect { explorerNavigationHeightPx = 0 }
                     }
-                    SideEffect { explorerNavigationHeightPx = 0 }
+                }
+                Divider()
+            } else {
+                SideEffect { explorerNavigationHeightPx = 0 }
+            }
+        }
+
+        // Floating destination FABs — overlaid at the top of the map
+        if (currentHomeDestination == HomeDestination.Explorer && userMode != null) {
+            val fabDestinations = remember(hasExplorerAccount) {
+                ExplorerDestination.values().filter { d ->
+                    when (d) {
+                        ExplorerDestination.MyDrops   -> hasExplorerAccount
+                        ExplorerDestination.Collected -> hasExplorerAccount
+                        ExplorerDestination.Discover  -> true
+                    }
                 }
             }
-            if (isBusinessUser) {
-                Divider()
+            Row(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .statusBarsPadding()
+                    .padding(top = 16.dp)
+                    .zIndex(2f)
+                    .onGloballyPositioned { coords ->
+                        fabRowBottomPx = coords.boundsInRoot().bottom
+                    },
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                fabDestinations.forEach { destination ->
+                    val selected = effectiveExplorerDestination == destination
+                    val (label, icon) = when (destination) {
+                        ExplorerDestination.Discover  -> Pair(stringResource(R.string.action_browse_map_title),    Icons.Rounded.Map)
+                        ExplorerDestination.MyDrops   -> Pair(stringResource(R.string.action_my_drops_title),      Icons.Rounded.Inbox)
+                        ExplorerDestination.Collected -> Pair(stringResource(R.string.action_collected_drops_title), Icons.Rounded.Bookmark)
+                    }
+                    SmallFloatingActionButton(
+                        onClick = { openExplorerDestination(destination) },
+                        containerColor = if (selected)
+                            MaterialTheme.colorScheme.primary
+                        else
+                            MaterialTheme.colorScheme.surface,
+                        contentColor = if (selected)
+                            MaterialTheme.colorScheme.onPrimary
+                        else
+                            MaterialTheme.colorScheme.onSurface,
+                        elevation = FloatingActionButtonDefaults.elevation(
+                            defaultElevation = 4.dp,
+                            pressedElevation = 2.dp
+                        )
+                    ) {
+                        Icon(imageVector = icon, contentDescription = label)
+                    }
+                }
             }
         }
 
@@ -3374,6 +3413,7 @@ fun DropHereScreen(
             val navAwareTopPadding = with(density) { navAwareTopPaddingPx.toDp() }
             val mapAwareTopPaddingPx = max(navAwareTopPaddingPx, topBarHeightPx.toFloat())
             val mapAwareTopPadding = with(density) { mapAwareTopPaddingPx.toDp() }
+            val fabClearanceDp = with(density) { fabRowBottomPx.toDp() } + 8.dp
 
             Box(modifier = Modifier.fillMaxSize()) {
                 if (isBusinessUser && currentHomeDestination == HomeDestination.Business) {
@@ -3444,6 +3484,8 @@ fun DropHereScreen(
                                             OtherDropsExplorerSection(
                                                 modifier = Modifier.fillMaxSize(),
                                                 topContentPadding = mapAwareTopPadding,
+                                                fabClearance = fabClearanceDp,
+                                                destinationLabel = stringResource(R.string.action_browse_map_title),
                                                 loading = otherDropsLoading,
                                                 refreshing = otherDropsRefreshing,
                                                 drops = sortedOtherDrops,
@@ -3553,6 +3595,7 @@ fun DropHereScreen(
                                         MyDropsContent(
                                             modifier = Modifier.fillMaxSize(),
                                             topContentPadding = mapAwareTopPadding,
+                                            fabClearance = fabClearanceDp,
                                             contentPadding = PaddingValues(bottom = 0.dp),
                                             loading = myDropsLoading,
                                             drops = sortedMyDrops,
@@ -3628,6 +3671,7 @@ fun DropHereScreen(
                                         CollectedDropsContent(
                                             modifier = Modifier.fillMaxSize(),
                                             topContentPadding = mapAwareTopPadding,
+                                            fabClearance = fabClearanceDp,
                                             contentPadding = PaddingValues(bottom = 0.dp),
                                             notes = sortedCollectedNotes,
                                             hiddenNsfwCount = hiddenNsfwCollectedCount,
@@ -7076,6 +7120,7 @@ private fun CollectedDropsContent(
     onRemove: (CollectedNote) -> Unit,
     emptyMessage: String? = null,
     topContentPadding: Dp = 0.dp,
+    fabClearance: Dp = 0.dp,
     contentPadding: PaddingValues = PaddingValues(vertical = 16.dp)
 ) {
     if (notes.isEmpty()) {
@@ -7129,7 +7174,11 @@ private fun CollectedDropsContent(
 
     val screenHeight = rememberScreenHeightDp()
     val panelState = rememberExplorerDropListPanelState()
-    val panelTopPadding = topContentPadding
+    val panelTopPadding = if (fabClearance > 0.dp) {
+        (fabClearance - topContentPadding).coerceAtLeast(topContentPadding)
+    } else {
+        topContentPadding
+    }
 
     Box(
         modifier = modifier
@@ -7192,19 +7241,24 @@ private fun CollectedDropsContent(
                         }
                     }
 
-                    Row(
+                    Box(
                         modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        contentAlignment = Alignment.Center
                     ) {
                         DropSortMenu(
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier.align(Alignment.CenterStart),
                             current = sortOption,
                             options = sortOptions,
                             onSelect = onSortOptionChange
                         )
-
-                        CountBadge(count = notes.size)
+                        Text(
+                            text = stringResource(R.string.action_collected_drops_title),
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Box(modifier = Modifier.align(Alignment.CenterEnd)) {
+                            CountBadge(count = notes.size)
+                        }
                     }
                 },
                 body = {
@@ -8602,6 +8656,8 @@ private fun BusinessDropAnalyticsCard(drop: Drop, onDeleteDrop: (() -> Unit)? = 
 private fun OtherDropsExplorerSection(
     modifier: Modifier = Modifier,
     topContentPadding: Dp = 0.dp,
+    fabClearance: Dp = 0.dp,
+    destinationLabel: String = "",
     loading: Boolean,
     refreshing: Boolean,
     drops: List<Drop>,
@@ -8698,7 +8754,11 @@ private fun OtherDropsExplorerSection(
 
                 val panelState = rememberExplorerDropListPanelState()
                 val screenHeight = rememberScreenHeightDp()
-                val panelTopPadding = topContentPadding
+                val panelTopPadding = if (fabClearance > 0.dp) {
+                    (fabClearance - topContentPadding).coerceAtLeast(topContentPadding)
+                } else {
+                    topContentPadding
+                }
                 val panelMaxHeight = screenHeight
                 Box(
                     modifier = Modifier
@@ -8724,20 +8784,27 @@ private fun OtherDropsExplorerSection(
                         expandWhen = selectedId != null,
                         listState = listState,
                         header = {
-                            Row(
+                            Box(
                                 modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                contentAlignment = Alignment.Center
                             ) {
                                 DropSortMenu(
-                                    modifier = Modifier.weight(1f),
+                                    modifier = Modifier.align(Alignment.CenterStart),
                                     current = sortOption,
                                     options = sortOptions,
                                     onSelect = onSortOptionChange
                                 )
-
+                                if (destinationLabel.isNotBlank()) {
+                                    Text(
+                                        text = destinationLabel,
+                                        style = MaterialTheme.typography.titleSmall,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
                                 if (drops.isNotEmpty()) {
-                                    CountBadge(count = drops.size)
+                                    Box(modifier = Modifier.align(Alignment.CenterEnd)) {
+                                        CountBadge(count = drops.size)
+                                    }
                                 }
                             }
 
@@ -8899,11 +8966,11 @@ private fun DropSortMenu(
     ) {
         AssistChip(
             onClick = { expanded = true },
-            label = { Text("Sort: ${current.displayName}") },
+            label = {},
             leadingIcon = {
                 Icon(
                     imageVector = Icons.Rounded.Sort,
-                    contentDescription = null
+                    contentDescription = "Sort"
                 )
             }
         )
@@ -9849,6 +9916,7 @@ private fun MyDropsContent(
     onView: (Drop) -> Unit,
     onDelete: (Drop) -> Unit,
     topContentPadding: Dp = 0.dp,
+    fabClearance: Dp = 0.dp,
     contentPadding: PaddingValues = PaddingValues(vertical = 16.dp)
 ) {
     Box(
@@ -9925,7 +9993,11 @@ private fun MyDropsContent(
 
                 val screenHeight = rememberScreenHeightDp()
                 val panelState = rememberExplorerDropListPanelState()
-                val panelTopPadding = topContentPadding
+                val panelTopPadding = if (fabClearance > 0.dp) {
+                    (fabClearance - topContentPadding).coerceAtLeast(topContentPadding)
+                } else {
+                    topContentPadding
+                }
 
                 Box(
                     modifier = Modifier
@@ -9951,20 +10023,25 @@ private fun MyDropsContent(
                         listState = listState,
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
                         header = {
-                            Row(
+                            Box(
                                 modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                contentAlignment = Alignment.Center
                             ) {
                                 DropSortMenu(
-                                    modifier = Modifier.weight(1f),
+                                    modifier = Modifier.align(Alignment.CenterStart),
                                     current = sortOption,
                                     options = sortOptions,
                                     onSelect = onSortOptionChange
                                 )
-
+                                Text(
+                                    text = stringResource(R.string.action_my_drops_title),
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
                                 if (drops.isNotEmpty()) {
-                                    CountBadge(count = drops.size)
+                                    Box(modifier = Modifier.align(Alignment.CenterEnd)) {
+                                        CountBadge(count = drops.size)
+                                    }
                                 }
                             }
 
