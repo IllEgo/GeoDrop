@@ -33,6 +33,7 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
@@ -77,7 +78,9 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -163,6 +166,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.layout.onSizeChanged
@@ -183,7 +188,10 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import com.e3hi.geodrop.ui.theme.RalewayFontFamily
+import com.e3hi.geodrop.ui.theme.RoundedMFontFamily
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.pointerInteropFilter
@@ -196,6 +204,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.coerceAtLeast
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.times
@@ -970,20 +980,20 @@ fun DropHereScreen(
             onSelectGuest = {
                 guestModeEnabled = true
             },
-            onSelectExplorerSignIn = {
+            onSelectSignIn = {
                 guestModeEnabled = false
                 openAccountAuthDialog(
                     initialType = AccountType.EXPLORER,
                     initialMode = AccountAuthMode.SIGN_IN,
-                    lockAccountType = true
+                    lockAccountType = false
                 )
             },
-            onSelectBusinessSignIn = {
+            onSelectRegister = {
                 guestModeEnabled = false
                 openAccountAuthDialog(
-                    initialType = AccountType.BUSINESS,
-                    initialMode = AccountAuthMode.SIGN_IN,
-                    lockAccountType = true
+                    initialType = AccountType.EXPLORER,
+                    initialMode = AccountAuthMode.REGISTER,
+                    lockAccountType = false
                 )
             }
         )
@@ -4698,118 +4708,177 @@ By accepting, you acknowledge that you have read and understood how GeoDrop hand
 """.trimIndent()
 
 @Composable
+private fun GhostWaveAnimation(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val spriteSheet: ImageBitmap = remember {
+        BitmapFactory.decodeResource(context.resources, R.drawable.ghost_wave).asImageBitmap()
+    }
+    val cols = 12
+    val rows = 9
+    val frameCount = cols * rows
+    val frameWidth  = remember(spriteSheet) { spriteSheet.width  / cols }
+    val frameHeight = remember(spriteSheet) { spriteSheet.height / rows }
+    var frame by remember { mutableStateOf(0) }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(1000L / 12L)
+            frame = (frame + 1) % frameCount
+        }
+    }
+
+    Canvas(modifier = modifier) {
+        val col = frame % cols
+        val row = frame / cols
+        drawImage(
+            image     = spriteSheet,
+            srcOffset = IntOffset(col * frameWidth, row * frameHeight),
+            srcSize   = IntSize(frameWidth, frameHeight),
+            dstOffset = IntOffset(0, 0),
+            dstSize   = IntSize(size.width.toInt(), size.height.toInt()),
+        )
+    }
+}
+
+@Composable
 private fun UserModeSelectionScreen(
     onSelectGuest: () -> Unit,
-    onSelectExplorerSignIn: () -> Unit,
-    onSelectBusinessSignIn: () -> Unit
+    onSelectSignIn: () -> Unit,
+    onSelectRegister: () -> Unit
 ) {
+    val haptic = LocalHapticFeedback.current
+
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(24.dp)
+            .padding(horizontal = 24.dp)
     ) {
+        // Header — pushed up from center to leave room for buttons
         Column(
             modifier = Modifier
                 .align(Alignment.Center)
-                .fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
+                .fillMaxWidth()
+                .padding(bottom = 200.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            GhostWaveAnimation(
+                modifier = Modifier
+                    .size(120.dp)
+                    .align(Alignment.CenterHorizontally)
+            )
             Text(
-                text = "Choose how to explore",
-                style = MaterialTheme.typography.headlineSmall,
+                text = "GeoDrop",
+                style = MaterialTheme.typography.displaySmall.copy(
+                    fontFamily = RoundedMFontFamily,
+                    fontWeight = FontWeight.Bold
+                ),
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth()
             )
             Text(
-                text = "You can browse GeoDrop without an account or sign in to participate.",
-                style = MaterialTheme.typography.bodyMedium,
+                text = "Step into a world of hidden drops",
+                style = MaterialTheme.typography.titleLarge.copy(fontFamily = RalewayFontFamily),
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Text(
+                text = "Discover messages, memories, and treasures left by others - or leave your own behind.",
+                style = MaterialTheme.typography.bodyMedium.copy(fontFamily = RalewayFontFamily),
                 textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.fillMaxWidth()
             )
+        }
 
-            ElevatedCard(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp)
-            ) {
-                Column(
+        // Buttons anchored to the bottom
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .padding(bottom = 40.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            // 1st — filled + elevated shadow
+            AnimatedLandingButton { interactionSource, scale ->
+                ElevatedButton(
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onSelectGuest()
+                    },
+                    interactionSource = interactionSource,
+                    elevation = ButtonDefaults.elevatedButtonElevation(
+                        defaultElevation = 6.dp,
+                        pressedElevation = 2.dp
+                    ),
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                        .fillMaxWidth(0.92f)
+                        .graphicsLayer { scaleX = scale; scaleY = scale }
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Icon(Icons.Rounded.Public, contentDescription = null)
-                        Text(
-                            text = "Continue as guest",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
                     Text(
-                        text = "Read drop details without creating an account.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        "Explore as Guest",
+                        style = MaterialTheme.typography.labelLarge.copy(fontFamily = RalewayFontFamily),
+                        modifier = Modifier.padding(vertical = 4.dp)
                     )
-                    Button(
-                        onClick = onSelectGuest,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Start reading")
-                    }
                 }
             }
 
-            ElevatedCard(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp)
-            ) {
-                Column(
+            // 2nd — outlined
+            AnimatedLandingButton { interactionSource, scale ->
+                OutlinedButton(
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onSelectRegister()
+                    },
+                    interactionSource = interactionSource,
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                        .fillMaxWidth(0.92f)
+                        .graphicsLayer { scaleX = scale; scaleY = scale }
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Icon(Icons.Rounded.AccountCircle, contentDescription = null)
-                        Text(
-                            text = "Sign in or create account",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
                     Text(
-                        text = "Choose the right sign-in experience for how you plan to use GeoDrop.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        "Join the World",
+                        style = MaterialTheme.typography.labelLarge.copy(fontFamily = RalewayFontFamily),
+                        modifier = Modifier.padding(vertical = 4.dp)
                     )
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Button(
-                            onClick = onSelectExplorerSignIn,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Explorer sign in")
-                        }
-                        OutlinedButton(
-                            onClick = onSelectBusinessSignIn,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Business sign in")
-                        }
-                    }
+                }
+            }
+
+            // 3rd — subtle text button
+            AnimatedLandingButton { interactionSource, scale ->
+                TextButton(
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onSelectSignIn()
+                    },
+                    interactionSource = interactionSource,
+                    modifier = Modifier
+                        .fillMaxWidth(0.92f)
+                        .graphicsLayer { scaleX = scale; scaleY = scale }
+                ) {
+                    Text(
+                        "Sign In",
+                        style = MaterialTheme.typography.labelLarge.copy(fontFamily = RalewayFontFamily),
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    )
                 }
             }
         }
     }
+}
+
+@Composable
+private fun AnimatedLandingButton(
+    content: @Composable (interactionSource: MutableInteractionSource, scale: Float) -> Unit
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.96f else 1f,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "landingButtonScale"
+    )
+    content(interactionSource, scale)
 }
 
 private data class BusinessHomeMetrics(

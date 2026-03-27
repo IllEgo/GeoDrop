@@ -4,7 +4,42 @@ import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.googlefonts.Font
+import androidx.compose.ui.text.googlefonts.GoogleFont
 import androidx.compose.ui.unit.sp
+import com.e3hi.geodrop.R
+
+private val googleFontProvider = GoogleFont.Provider(
+    providerAuthority = "com.google.android.gms.fonts",
+    providerPackage = "com.google.android.gms",
+    certificates = R.array.com_google_android_gms_fonts_certs
+)
+
+val RoundedMFontFamily = FontFamily(
+    Font(
+        googleFont = GoogleFont("M PLUS Rounded 1c"),
+        fontProvider = googleFontProvider,
+        weight = FontWeight.Bold
+    )
+)
+
+val RalewayFontFamily = FontFamily(
+    Font(
+        googleFont = GoogleFont("Raleway"),
+        fontProvider = googleFontProvider,
+        weight = FontWeight.Normal
+    ),
+    Font(
+        googleFont = GoogleFont("Raleway"),
+        fontProvider = googleFontProvider,
+        weight = FontWeight.SemiBold
+    ),
+    Font(
+        googleFont = GoogleFont("Raleway"),
+        fontProvider = googleFontProvider,
+        weight = FontWeight.Bold
+    )
+)
 
 val Typography = Typography(
     displayLarge = TextStyle(
