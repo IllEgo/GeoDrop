@@ -2,7 +2,7 @@
   "name": "firestore-tests",
   "private": true,
   "scripts": {
-    "test": "node groupMembershipRules.js && node voteRules.test.js && node inventoryRules.test.js && node adversarialRules.test.js && node storageRules.test.js && node migrationBaselineRules.test.js",
+    "test": "node groupMembershipRules.js && node voteRules.test.js && node inventoryRules.test.js && node adversarialRules.test.js && node storageRules.test.js && node migrationBaselineRules.test.js && node denyAnonymousCreation.test.js",
     "test:adversarial": "node adversarialRules.test.js && node storageRules.test.js"
   },
   "devDependencies": {

@@ -43,8 +43,10 @@ service firebase.storage {
       // or deleted before publication.
       allow read: if isMediaOwner() || isPublishedPublicMedia();
 
-      // Only authenticated users can upload; enforce size and content-type limits
+      // Only authenticated, non-anonymous users can upload; enforce size and
+      // content-type limits. Anonymous viewing stays legal via the read rule.
       allow create: if isActiveSignedInUser()
+        && request.auth.token.firebase.sign_in_provider != 'anonymous'
         && resource == null
         && request.resource.metadata.keys().hasAll([
           'ownerId', 'accessLevel', 'safetyStatus'

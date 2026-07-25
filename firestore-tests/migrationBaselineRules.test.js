@@ -17,10 +17,12 @@ const {deleteField} = require('firebase/firestore');
 // to `assertFails` as part of that task.
 //
 // When you edit a rule below, update the paired assertion here in the SAME PR:
-//   * 1.2 — force isAnonymous == false on create  → flip ANON-TOGGLE case
 //   * 1.3 — deny contentType == 'VIDEO' on create → flip VIDEO-DROP case
 //   * 1.3 — remove drops/videos + video/* storage → flip VIDEO-UPLOAD case
 //   * 1.3 — remove dislikedBy/dislikeCount writes  → flip DISLIKE case
+//
+// (1.2 anonymous-creation denial has shipped; its tests live in
+//  denyAnonymousCreation.test.js.)
 //
 // Do NOT weaken these into no-ops. A green run here means "current prototype
 // behavior is intact"; a red run after a rule edit is the intended signal.
@@ -76,22 +78,7 @@ async function seed(env, documents) {
   });
 
   try {
-    const anonymous = env.unauthenticatedContext();
     const creator = env.authenticatedContext('creator');
-
-    // ANON-TOGGLE (1.2 will flip the assertSucceeds below to assertFails).
-    // Baseline: a signed-in explorer may currently create a drop that hides the
-    // creator's display name via isAnonymous: true. Anonymous *auth* is already
-    // blocked — an unauthenticated create fails today and must keep failing.
-    currentCase = 'anonymous-posting toggle (1.2)';
-    await env.clearFirestore();
-    await seed(env, {'users/creator': {role: 'EXPLORER', nsfwEnabled: false}});
-    await assertFails(
-      anonymous.firestore().doc('drops/anon-unauth').set(dropData({isAnonymous: true}))
-    );
-    await assertSucceeds(
-      creator.firestore().doc('drops/anon-toggle').set(dropData({isAnonymous: true}))
-    );
 
     // VIDEO-DROP (1.3 will flip the assertSucceeds below to assertFails).
     // Baseline: a PUBLIC drop with contentType 'VIDEO' is accepted at create.

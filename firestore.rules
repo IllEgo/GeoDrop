@@ -14,6 +14,14 @@ service cloud.firestore {
     return name is string && name.matches('^[a-z0-9._]{3,20}$');
   }
 
+  // A non-suspended principal that did NOT authenticate anonymously. Drop and
+  // media creation require this; anonymous *viewing* remains allowed by the
+  // read rules, which do not call this helper.
+  function isNonAnonymousUser() {
+    return isSignedIn()
+      && request.auth.token.firebase.sign_in_provider != 'anonymous';
+  }
+
   match /databases/{database}/documents {
     match /users/{userId} {
       function preservesRole() {
@@ -300,6 +308,9 @@ service cloud.firestore {
       }
 
       allow create: if hasOnlyAllowedDropFields()
+        && isNonAnonymousUser()
+        && (!request.resource.data.keys().hasAny(['isAnonymous'])
+          || request.resource.data.isAnonymous == false)
         && request.resource.data.isDeleted == false
         && request.resource.data.isNsfw == false
         && hasValidVisibility(request.resource.data)
