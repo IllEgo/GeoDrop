@@ -1,11 +1,14 @@
 import SwiftUI
 
 struct TermsAcceptanceView: View {
+    let manifest: LegalPolicyManifest?
+    let isLoading: Bool
+    let isAccepting: Bool
+    let errorMessage: String?
+    let onRetry: () -> Void
     let onAccept: () -> Void
     var onDecline: (() -> Void)?
 
-    private let termsURL = URL(string: "https://www.geodrop.app/terms")
-    private let privacyURL = URL(string: "https://www.geodrop.app/privacy")
     @Environment(\.geoDropTheme) private var geoDropTheme
 
     var body: some View {
@@ -35,31 +38,58 @@ struct TermsAcceptanceView: View {
                     .cornerRadius(16)
 
                     VStack(spacing: 12) {
-                        if let termsURL {
-                            Link(destination: termsURL) {
+                        if let manifest {
+                            Text("Policy version \(manifest.version)")
+                                .font(.caption.monospaced())
+                                .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
+
+                            Link(destination: manifest.terms) {
                                 Label("Terms of Service", systemImage: "doc.text")
                                     .foregroundColor(geoDropTheme.colors.primary)
                             }
-                        }
-                        if let privacyURL {
-                            Link(destination: privacyURL) {
+                            Link(destination: manifest.privacy) {
                                 Label("Privacy Policy", systemImage: "hand.raised")
                                     .foregroundColor(geoDropTheme.colors.primary)
                             }
+                            Link("Community Guidelines", destination: manifest.communityGuidelines)
+                            Link("Promotion Terms", destination: manifest.promotionTerms)
+                            Link("Data retention", destination: manifest.retention)
+                            Link("Subprocessors", destination: manifest.processors)
+                            Link("Minors policy", destination: manifest.minors)
+                            Link("Support", destination: manifest.support)
+                            if let errorMessage {
+                                Text(errorMessage)
+                                    .foregroundColor(geoDropTheme.colors.tertiary)
+                                    .multilineTextAlignment(.center)
+                            }
+                        } else if isLoading {
+                            ProgressView("Loading approved policies…")
+                        } else {
+                            Text(errorMessage ?? "GeoDrop's approved legal policies are unavailable.")
+                                .foregroundColor(geoDropTheme.colors.tertiary)
+                                .multilineTextAlignment(.center)
+                            Button("Retry", action: onRetry)
+                                .buttonStyle(.bordered)
                         }
                     }
                     .font(.subheadline)
 
                     Button(action: onAccept) {
-                        Text("Accept and Continue")
-                            .font(.subheadline.weight(.semibold))
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(geoDropTheme.colors.primary)
-                            .foregroundColor(geoDropTheme.colors.onPrimary)
-                            .cornerRadius(12)
+                        if isAccepting {
+                            ProgressView()
+                                .tint(geoDropTheme.colors.onPrimary)
+                        } else {
+                            Text("Accept and Continue")
+                        }
                     }
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(geoDropTheme.colors.primary)
+                    .foregroundColor(geoDropTheme.colors.onPrimary)
+                    .cornerRadius(12)
                     .padding(.top)
+                    .disabled(manifest == nil || isLoading || isAccepting)
 
                     if let onDecline {
                         Button(action: onDecline) {

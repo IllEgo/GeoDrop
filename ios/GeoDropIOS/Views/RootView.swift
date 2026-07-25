@@ -51,12 +51,36 @@ struct RootView: View {
                 SafariView(url: item.url)
                     .ignoresSafeArea()
             }
+            .sheet(item: Binding(
+                get: {
+                    viewModel.lastAccountDeletionReceipt.map(
+                        IdentifiableDeletionReceipt.init(receipt:)
+                    )
+                },
+                set: { newValue in
+                    if newValue == nil {
+                        viewModel.dismissAccountDeletionReceipt()
+                    }
+                }
+            )) { item in
+                AccountDeletionReceiptView(
+                    receipt: item.receipt,
+                    onDismiss: viewModel.dismissAccountDeletionReceipt
+                )
+            }
     }
 
     @ViewBuilder
     private var content: some View {
         if !viewModel.hasAcceptedTerms {
-            TermsAcceptanceView(onAccept: viewModel.acceptTerms)
+            TermsAcceptanceView(
+                manifest: viewModel.legalManifest,
+                isLoading: viewModel.isLoadingLegalManifest,
+                isAccepting: viewModel.isRecordingLegalAcceptance,
+                errorMessage: viewModel.legalManifestError,
+                onRetry: viewModel.retryLegalManifest,
+                onAccept: viewModel.acceptTerms
+            )
         } else if !viewModel.hasCompletedOnboarding {
             OnboardingChecklistView(onContinue: viewModel.completeOnboarding)
         } else if let accountRole = viewModel.pendingAccountRole {
@@ -91,6 +115,39 @@ private struct IdentifiableError: Identifiable {
 private struct InfoLinkItem: Identifiable {
     let url: URL
     var id: String { url.absoluteString }
+}
+
+private struct IdentifiableDeletionReceipt: Identifiable {
+    let receipt: AccountDeletionReceipt
+    var id: String { receipt.receiptID }
+}
+
+private struct AccountDeletionReceiptView: View {
+    let receipt: AccountDeletionReceipt
+    let onDismiss: () -> Void
+
+    var body: some View {
+        NavigationView {
+            Form {
+                Section {
+                    Text("Your GeoDrop account deletion completed successfully.")
+                    LabeledContent("Receipt", value: receipt.receiptID)
+                    LabeledContent("Completed", value: receipt.completedAt)
+                    LabeledContent("Policy", value: receipt.policyVersion)
+                }
+                Section("Removed data") {
+                    LabeledContent("Drops", value: "\(receipt.deletedDrops)")
+                    LabeledContent("Media objects", value: "\(receipt.deletedMediaObjects)")
+                }
+            }
+            .navigationTitle("Account deleted")
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done", action: onDismiss)
+                }
+            }
+        }
+    }
 }
 
 private struct TutorialSlide: Identifiable {

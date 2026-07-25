@@ -1,5 +1,6 @@
 import SwiftUI
 import Firebase
+import FirebaseAppCheck
 import FirebaseMessaging
 import GoogleMaps
 import GoogleSignIn
@@ -35,23 +36,39 @@ final class AppDelegate: NSObject, UIApplicationDelegate, MessagingDelegate {
         if !AppConfiguration.shared.mapsApiKey.isEmpty {
             GMSServices.provideAPIKey(AppConfiguration.shared.mapsApiKey)
         }
+        #if DEBUG
+        AppCheck.setAppCheckProviderFactory(AppCheckDebugProviderFactory())
+        #else
+        AppCheck.setAppCheckProviderFactory(GeoDropAppCheckProviderFactory())
+        #endif
         FirebaseApp.configure()
+        PilotFeatureFlags.shared.start()
         Messaging.messaging().delegate = self
-        application.registerForRemoteNotifications()
         return true
     }
 
     func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        guard PilotFeatureFlags.shared.notificationsEnabled else { return }
         Messaging.messaging().apnsToken = deviceToken
     }
 
     func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
+        guard PilotFeatureFlags.shared.notificationsEnabled else { return }
         guard let token = fcmToken else { return }
         NotificationCenter.default.post(name: .messagingTokenUpdated, object: token)
     }
     
     func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey : Any] = [:]) -> Bool {
         return GIDSignIn.sharedInstance.handle(url)
+    }
+}
+
+final class GeoDropAppCheckProviderFactory: NSObject, AppCheckProviderFactory {
+    func createProvider(with app: FirebaseApp) -> AppCheckProvider? {
+        if #available(iOS 14.0, *) {
+            return AppAttestProvider(app: app)
+        }
+        return DeviceCheckProvider(app: app)
     }
 }
 

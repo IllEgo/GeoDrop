@@ -4,8 +4,8 @@ const {
   initializeTestEnvironment,
   assertFails,
   assertSucceeds,
-  firestore,
 } = require('@firebase/rules-unit-testing');
+const {deleteField} = require('firebase/firestore');
 
 const PROJECT_ID = 'geodrop-test';
 const DROP_PATH = 'drops/test-drop';
@@ -64,7 +64,7 @@ async function seedDrop(env, data) {
     await assertSucceeds(
       dropRef.update({
         likeCount: 0,
-        ['likedBy.voter']: firestore.FieldValue.delete(),
+        ['likedBy.voter']: deleteField(),
       })
     );
 
@@ -101,7 +101,7 @@ async function seedDrop(env, data) {
     }));
     await assertFails(
       dropRef.update({
-        ['likedBy.voter']: firestore.FieldValue.delete(),
+        ['likedBy.voter']: deleteField(),
         likeCount: 3,
       })
     );

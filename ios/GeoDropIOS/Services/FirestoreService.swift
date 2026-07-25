@@ -2,6 +2,18 @@ import Foundation
 import FirebaseFirestore
 import FirebaseFunctions
 
+private final class CombinedListenerRegistration: ListenerRegistration {
+    private let registrations: [ListenerRegistration]
+
+    init(_ registrations: [ListenerRegistration]) {
+        self.registrations = registrations
+    }
+
+    func remove() {
+        registrations.forEach { $0.remove() }
+    }
+}
+
 final class FirestoreService {
     static let shared = FirestoreService()
 
@@ -10,7 +22,6 @@ final class FirestoreService {
     private lazy var users = db.collection("users")
     private lazy var usernames = db.collection("usernames")
     private lazy var reports = db.collection("reports")
-    private lazy var groups = db.collection("groups")
     private lazy var functions = Functions.functions()
 
     private init() {}
@@ -225,6 +236,9 @@ final class FirestoreService {
     }
     
     func redeemDrop(dropId: String, userId: String, providedCode: String) async throws -> RedemptionResult {
+        guard PilotFeatureFlags.shared.couponsEnabled else {
+            return .error("Offers are disabled for this release")
+        }
         guard !dropId.isEmpty, !userId.isEmpty else { return .error("Missing identifiers") }
         let trimmed = providedCode.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return .invalidCode }
@@ -359,11 +373,6 @@ final class FirestoreService {
         if !context.isEmpty { report["context"] = context }
 
         let dropRef = drops.document(dropId)
-        let dropSnapshot = try? await getDocument(dropRef)
-        if let drop = dropSnapshot.flatMap(Drop.init(document:)) {
-            report["dropSnapshot"] = drop.toFirestoreData()
-        }
-
         _ = try await addDocument(reports, data: report)
 
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
@@ -403,27 +412,67 @@ final class FirestoreService {
         restrictToGroups: Bool,
         onChange: @escaping ([Drop]) -> Void
     ) -> ListenerRegistration {
-        drops.whereField("isDeleted", isEqualTo: false).addSnapshotListener { snapshot, error in
-            guard let documents = snapshot?.documents else {
-                print("GeoDrop: Failed to listen for drops: \(error?.localizedDescription ?? "unknown error")")
-                onChange([])
-                return
-            }
-            let normalized = allowedGroups.compactMap(self.normalize)
-            let filtered = documents.compactMap(Drop.init(document:)).filter { drop in
-                if drop.isDeleted { return false }
-                if let group = drop.groupCode {
-                    if !normalized.isEmpty && !normalized.contains(group) { return false }
-                } else if restrictToGroups && !normalized.isEmpty {
-                    return false
-                }
-                if drop.isNsfw && !allowNsfw && drop.createdBy != userId { return false }
-                if drop.hasBeenCollected { return false }
-                if drop.isExpired { return false }
-                return true
-            }
-            onChange(filtered.sorted { $0.createdAt > $1.createdAt })
+        let normalized = Array(Set(allowedGroups.compactMap(self.normalize))).sorted()
+        var queries: [Query] = []
+
+        if !restrictToGroups {
+            queries.append(
+                drops
+                    .whereField("isDeleted", isEqualTo: false)
+                    .whereField("visibility", isEqualTo: "PUBLIC")
+            )
         }
+
+        if userId != nil {
+            normalized.forEach { groupCode in
+                queries.append(
+                    drops
+                        .whereField("isDeleted", isEqualTo: false)
+                        .whereField("visibility", isEqualTo: "GROUP")
+                        .whereField("groupCode", isEqualTo: groupCode)
+                )
+            }
+        }
+
+        queries = queries.map { $0.whereField("isNsfw", isEqualTo: false) }
+
+        guard !queries.isEmpty else {
+            onChange([])
+            return CombinedListenerRegistration([])
+        }
+
+        let lock = NSLock()
+        var documentsByQuery = Array(repeating: [QueryDocumentSnapshot](), count: queries.count)
+        var registrations: [ListenerRegistration] = []
+
+        for (index, query) in queries.enumerated() {
+            let registration = query.addSnapshotListener { snapshot, error in
+                if let error {
+                    print("GeoDrop: Failed to listen for drops: \(error.localizedDescription)")
+                }
+
+                lock.lock()
+                documentsByQuery[index] = snapshot?.documents ?? []
+                let documents = documentsByQuery.flatMap { $0 }
+                lock.unlock()
+
+                var unique: [String: Drop] = [:]
+                documents.compactMap(Drop.init(document:)).forEach { drop in
+                    unique[drop.id] = drop
+                }
+                let filtered = unique.values.filter { drop in
+                    if drop.isDeleted { return false }
+                    if drop.isNsfw { return false }
+                    if drop.hasBeenCollected { return false }
+                    if drop.isExpired { return false }
+                    return true
+                }
+                onChange(filtered.sorted { $0.createdAt > $1.createdAt })
+            }
+            registrations.append(registration)
+        }
+
+        return CombinedListenerRegistration(registrations)
     }
 
     func getDropsForUser(userId: String) async throws -> [Drop] {
@@ -440,6 +489,7 @@ final class FirestoreService {
         let snapshot = try await getDocuments(
             drops
                 .whereField("businessId", isEqualTo: businessId)
+                .whereField("createdBy", isEqualTo: businessId)
                 .whereField("isDeleted", isEqualTo: false)
         )
         return snapshot.documents.compactMap(Drop.init(document:))
@@ -482,69 +532,39 @@ final class FirestoreService {
     func joinGroup(userId: String, code: String, allowCreate: Bool) async throws -> GroupMembership {
         guard !userId.isEmpty else { throw FirestoreError.invalidInput }
         guard let normalized = normalize(group: code) else { throw FirestoreError.invalidGroupCode }
-
-        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<GroupMembership, Error>) in
-            self.db.runTransaction({ transaction, errorPointer -> Any? in
-                do {
-                    let groupRef = self.groups.document(normalized)
-                    let snapshot = try transaction.getDocument(groupRef)
-                    let now = Timestamp(date: Date())
-
-                    let existingOwner = snapshot.get("ownerId") as? String
-                    let creating = !snapshot.exists || existingOwner == nil
-
-                    let resolvedOwner: String
-                    if creating {
-                        guard allowCreate else { throw FirestoreError.groupMissing }
-                        resolvedOwner = userId
-                        transaction.setData([
-                            "ownerId": userId,
-                            "createdAt": now,
-                            "updatedAt": now
-                        ], forDocument: groupRef, merge: true)
-                    } else {
-                        resolvedOwner = existingOwner ?? userId
-                        transaction.setData(["updatedAt": now], forDocument: groupRef, merge: true)
-                    }
-
-                    let role: GroupRole = resolvedOwner == userId ? .owner : .subscriber
-                    transaction.setData([
-                        "code": normalized,
-                        "role": role.rawValue,
-                        "ownerId": resolvedOwner,
-                        "updatedAt": now
-                    ], forDocument: self.users.document(userId).collection("groups").document(normalized), merge: true)
-
-                    return GroupMembership(code: normalized, ownerId: resolvedOwner, role: role)
-                } catch {
-                    errorPointer?.pointee = error as NSError
-                    return nil
-                }
-            }, completion: { result, error in
-                if let error = error {
-                    continuation.resume(throwing: error)
-                } else if let membership = result as? GroupMembership {
-                    continuation.resume(returning: membership)
-                } else {
-                    continuation.resume(throwing: FirestoreError.missingSnapshot)
-                }
-            })
+        let action = allowCreate ? "CREATE" : "JOIN"
+        let result = try await functions.httpsCallable("manageGroup").call([
+            "action": action,
+            "code": normalized
+        ])
+        guard let payload = result.data as? [String: Any],
+              let ownerId = payload["ownerId"] as? String,
+              !ownerId.isEmpty else {
+            throw FirestoreError.missingSnapshot
         }
+        let returnedCode = normalize(group: payload["code"] as? String ?? normalized) ?? normalized
+        let role = GroupRole.from(raw: payload["role"])
+        return GroupMembership(code: returnedCode, ownerId: ownerId, role: role)
     }
 
     func leaveGroup(userId: String, code: String) async throws {
         guard !userId.isEmpty else { return }
         guard let normalized = normalize(group: code) else { return }
-        try await deleteDocument(users.document(userId).collection("groups").document(normalized))
-        try await setDocument(groups.document(normalized), data: ["updatedAt": Timestamp(date: Date())])
+        _ = try await functions.httpsCallable("manageGroup").call([
+            "action": "LEAVE",
+            "code": normalized
+        ])
     }
 
     func isGroupOwner(userId: String, code: String) async throws -> Bool {
         guard !userId.isEmpty else { return false }
         guard let normalized = normalize(group: code) else { return false }
-        let snapshot = try await getDocument(groups.document(normalized))
+        let snapshot = try await getDocument(
+            users.document(userId).collection("groups").document(normalized)
+        )
         let owner = snapshot.get("ownerId") as? String
-        return owner == userId
+        let role = GroupRole.from(raw: snapshot.get("role"))
+        return snapshot.exists && owner == userId && role == .owner
     }
 
     // MARK: - Profiles
@@ -560,8 +580,8 @@ final class FirestoreService {
         let storedCategories = (snapshot.get("businessCategories") as? [String])?.compactMap(BusinessCategory.from) ?? []
         let storedUsername = snapshot.get("username") as? String
         let storedDisplayName = snapshot.get("displayName") as? String
-        let nsfwEnabled = snapshot.get("nsfwEnabled") as? Bool ?? false
-        let nsfwEnabledAt = (snapshot.get("nsfwEnabledAt") as? Timestamp)?.dateValue()
+        let nsfwEnabled = false
+        let nsfwEnabledAt: Date? = nil
 
         var updates: [String: Any] = [:]
         if !snapshot.exists {
@@ -571,13 +591,12 @@ final class FirestoreService {
             updates["businessCategories"] = storedCategories.map { $0.id }
             updates["username"] = storedUsername
             updates["nsfwEnabled"] = nsfwEnabled
-            if let date = nsfwEnabledAt { updates["nsfwEnabledAt"] = Timestamp(date: date) }
         } else {
             if snapshot.get("role") == nil { updates["role"] = storedRole.rawValue }
             if let displayName, storedDisplayName == nil { updates["displayName"] = displayName }
             if snapshot.get("businessCategories") == nil { updates["businessCategories"] = storedCategories.map { $0.id } }
-            if snapshot.get("nsfwEnabled") == nil { updates["nsfwEnabled"] = nsfwEnabled }
-            if snapshot.get("nsfwEnabledAt") == nil, let date = nsfwEnabledAt { updates["nsfwEnabledAt"] = Timestamp(date: date) }
+            if snapshot.get("nsfwEnabled") as? Bool != false { updates["nsfwEnabled"] = false }
+            if snapshot.get("nsfwEnabledAt") != nil { updates["nsfwEnabledAt"] = FieldValue.delete() }
         }
 
         if !updates.isEmpty {
@@ -596,23 +615,14 @@ final class FirestoreService {
         )
     }
 
-    func updateNsfwPreference(userId: String, enabled: Bool) async throws -> UserProfile {
+    func updateNsfwPreference(userId: String, enabled _: Bool) async throws -> UserProfile {
         var profile = try await ensureUserProfile(userId: userId, displayName: nil)
-        if enabled {
-            try await setDocument(users.document(userId), data: [
-                "nsfwEnabled": true,
-                "nsfwEnabledAt": Timestamp(date: Date())
-            ])
-            profile.nsfwEnabled = true
-            profile.nsfwEnabledAt = Date()
-        } else {
-            try await setDocument(users.document(userId), data: [
-                "nsfwEnabled": false,
-                "nsfwEnabledAt": FieldValue.delete()
-            ])
-            profile.nsfwEnabled = false
-            profile.nsfwEnabledAt = nil
-        }
+        try await setDocument(users.document(userId), data: [
+            "nsfwEnabled": false,
+            "nsfwEnabledAt": FieldValue.delete()
+        ])
+        profile.nsfwEnabled = false
+        profile.nsfwEnabledAt = nil
         return profile
     }
 
@@ -622,10 +632,9 @@ final class FirestoreService {
         guard !categories.isEmpty else { throw FirestoreError.invalidInput }
 
         var profile = try await ensureUserProfile(userId: userId, displayName: nil)
-        try await setDocument(users.document(userId), data: [
+        _ = try await callFunction(name: "updateBusinessProfile", data: [
             "businessName": sanitized,
-            "businessCategories": categories.map { $0.id },
-            "role": UserRole.business.rawValue
+            "businessCategories": categories.map { $0.id }
         ])
         profile.businessName = sanitized
         profile.businessCategories = categories

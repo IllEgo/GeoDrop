@@ -7,23 +7,17 @@ const {
 } = require('@firebase/rules-unit-testing');
 
 const PROJECT_ID = 'geodrop-test';
-const GROUP_PATH = 'groups/test-group';
-const USER_ID = 'member';
-const MEMBERSHIP_PATH = `users/${USER_ID}/groups/test-group`;
+const GROUP_PATH = 'groups/TEST-GROUP';
+const MEMBER_ID = 'member';
+const OWNER_ID = 'owner-123';
+const MEMBERSHIP_PATH = `users/${MEMBER_ID}/groups/TEST-GROUP`;
 
-function baseMembershipData(overrides = {}) {
-  return {
-    code: 'test-group',
-    role: 'SUBSCRIBER',
-    ownerId: 'owner-123',
-    updatedAt: 1,
-    ...overrides,
-  };
-}
-
-async function seedGroup(env, data) {
+async function seed(env, documents) {
   await env.withSecurityRulesDisabled(async (context) => {
-    await context.firestore().doc(GROUP_PATH).set(data);
+    const db = context.firestore();
+    for (const [documentPath, data] of Object.entries(documents)) {
+      await db.doc(documentPath).set(data);
+    }
   });
 }
 
@@ -36,71 +30,54 @@ async function seedGroup(env, data) {
   });
 
   try {
-    const authed = env.authenticatedContext(USER_ID);
-    const membershipRef = authed.firestore().doc(MEMBERSHIP_PATH);
+    const member = env.authenticatedContext(MEMBER_ID).firestore();
+    const owner = env.authenticatedContext(OWNER_ID).firestore();
+    const attacker = env.authenticatedContext('attacker').firestore();
 
-    // Subscribing to an existing group should succeed when the owner matches.
     await env.clearFirestore();
-    await seedGroup(env, {
-      ownerId: 'owner-123',
-      createdAt: 1,
-      updatedAt: 1,
+    await seed(env, {
+      [GROUP_PATH]: {
+        ownerId: OWNER_ID,
+        createdAt: 1,
+        updatedAt: 1,
+      },
+      [MEMBERSHIP_PATH]: {
+        code: 'TEST-GROUP',
+        role: 'SUBSCRIBER',
+        ownerId: OWNER_ID,
+        updatedAt: 1,
+      },
     });
-    await assertSucceeds(
-      membershipRef.set(
-        baseMembershipData({
-          role: 'SUBSCRIBER',
-          updatedAt: 10,
-        })
-      )
-    );
 
-    // Subscribing to a non-existent group should fail.
-    await env.clearFirestore();
-    await assertFails(
-      membershipRef.set(
-        baseMembershipData({
-          updatedAt: 20,
-        })
-      )
-    );
+    // Only an existing owner or member can resolve a known group code.
+    await assertSucceeds(owner.doc(GROUP_PATH).get());
+    await assertSucceeds(member.doc(GROUP_PATH).get());
+    await assertFails(attacker.doc(GROUP_PATH).get());
 
-    // Subscribing with an owner that differs from the group document should fail.
-    await env.clearFirestore();
-    await seedGroup(env, {
-      ownerId: 'different-owner',
-      createdAt: 1,
-      updatedAt: 1,
-    });
-    await assertFails(
-      membershipRef.set(
-        baseMembershipData({
-          ownerId: 'owner-123',
-          updatedAt: 30,
-        })
-      )
-    );
+    // Group-code enumeration is denied even to owners and members.
+    await assertFails(owner.collection('groups').get());
+    await assertFails(member.collection('groups').get());
 
-    // Subscribing without providing an owner should fail when the group doesn't exist.
-    await env.clearFirestore();
-    const ownerlessMissingGroup = baseMembershipData({
-      updatedAt: 35,
-    });
-    delete ownerlessMissingGroup.ownerId;
-    await assertFails(membershipRef.set(ownerlessMissingGroup));
+    // Membership lifecycle is callable-only. A client cannot self-enroll,
+    // elevate its role, remove the server record, or create a group directly.
+    const attackerMembership = attacker.doc('users/attacker/groups/TEST-GROUP');
+    await assertFails(attackerMembership.set({
+      code: 'TEST-GROUP',
+      role: 'SUBSCRIBER',
+      ownerId: OWNER_ID,
+      updatedAt: 2,
+    }));
+    await assertFails(member.doc(MEMBERSHIP_PATH).update({role: 'OWNER'}));
+    await assertFails(member.doc(MEMBERSHIP_PATH).delete());
+    await assertFails(attacker.doc('groups/ATTACKER-GROUP').set({
+      ownerId: 'attacker',
+      createdAt: 2,
+      updatedAt: 2,
+    }));
 
-    // Subscribing without providing an owner should succeed when the group exists.
-    await env.clearFirestore();
-    await seedGroup(env, {
-      ownerId: 'owner-123',
-      createdAt: 1,
-      updatedAt: 1,
-    });
-    const ownerlessMembership = baseMembershipData({
-      updatedAt: 40,
-    });
-    delete ownerlessMembership.ownerId;
-    await assertSucceeds(membershipRef.set(ownerlessMembership));
+    // Users retain read access to only their own membership documents.
+    await assertSucceeds(member.doc(MEMBERSHIP_PATH).get());
+    await assertFails(attacker.doc(MEMBERSHIP_PATH).get());
 
     console.log('All group membership rule tests passed.');
   } catch (err) {

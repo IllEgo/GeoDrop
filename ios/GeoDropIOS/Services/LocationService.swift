@@ -8,18 +8,43 @@ final class LocationService: NSObject, ObservableObject {
     @Published private(set) var authorizationStatus: CLAuthorizationStatus = .notDetermined
 
     private let manager = CLLocationManager()
+    private var authorizationCompletion: ((CLAuthorizationStatus) -> Void)?
 
     private override init() {
         super.init()
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyNearestTenMeters
+        authorizationStatus = manager.authorizationStatus
     }
 
-    func requestAuthorization() {
+    func requestWhenInUseAuthorization() {
         manager.requestWhenInUseAuthorization()
     }
 
+    func requestAlwaysAuthorization(
+        completion: ((CLAuthorizationStatus) -> Void)? = nil
+    ) {
+        guard authorizationStatus == .authorizedWhenInUse else {
+            completion?(authorizationStatus)
+            return
+        }
+        authorizationCompletion = completion
+        manager.requestAlwaysAuthorization()
+    }
+
+    func refreshAuthorizationStatus() {
+        authorizationStatus = manager.authorizationStatus
+        if authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways {
+            startUpdating()
+        } else {
+            stopUpdating()
+        }
+    }
+
     func startUpdating() {
+        guard authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways else {
+            return
+        }
         manager.startUpdatingLocation()
     }
 
@@ -33,6 +58,12 @@ extension LocationService: CLLocationManagerDelegate {
         authorizationStatus = manager.authorizationStatus
         if authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways {
             startUpdating()
+        } else {
+            stopUpdating()
+        }
+        if let completion = authorizationCompletion {
+            authorizationCompletion = nil
+            completion(authorizationStatus)
         }
     }
 

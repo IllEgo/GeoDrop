@@ -1,9 +1,12 @@
 package com.e3hi.geodrop.geo
 
+import android.Manifest
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.util.Log
+import androidx.core.content.ContextCompat
 import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofencingClient
 import com.google.android.gms.location.GeofencingRequest
@@ -13,6 +16,14 @@ private const val RADIUS_METERS = 10f
 
 class GeofenceManager {
     fun addGeofence(context: Context, id: String, lat: Double, lng: Double) {
+        if (
+            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            Log.w("GeoDrop", "Skipping geofence $id because precise location permission is unavailable")
+            return
+        }
+
         val geofence = Geofence.Builder()
             .setRequestId(id)
             .setCircularRegion(lat, lng, RADIUS_METERS) // hard 10 m

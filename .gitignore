@@ -14,6 +14,19 @@
 .cxx
 local.properties
 
+# Local JavaScript dependencies and Firebase emulator output
+**/node_modules/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+
+# Service account keys / credentials — never commit
+.secrets/
+**/serviceAccount*.json
+**/*service-account*.json
+**/*-adminsdk-*.json
+application_default_credentials.json
+
 # iOS build artifacts
 ios/Pods/
 ios/GeoDropIOS.xcworkspace/

@@ -1,7 +1,10 @@
 package com.e3hi.geodrop.data
 
+import android.net.Uri
 import android.webkit.MimeTypeMap
+import com.e3hi.geodrop.util.PilotFeatureFlags
 import com.google.firebase.FirebaseApp
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.ktx.Firebase
 import com.google.firebase.storage.FirebaseStorage
 import com.google.firebase.storage.StorageMetadata
@@ -17,6 +20,9 @@ class MediaStorageRepo(
         data: ByteArray,
         mimeType: String?
     ): MediaUploadResult {
+        check(PilotFeatureFlags.creationEnabled && PilotFeatureFlags.mediaEnabled) {
+            "Media uploads are disabled for this release."
+        }
         val (folder, defaultMime, defaultExtension) = when (contentType) {
             DropContentType.TEXT -> Triple("other", "text/plain", "txt")
             DropContentType.PHOTO -> Triple("photos", "image/jpeg", "jpg")
@@ -31,16 +37,28 @@ class MediaStorageRepo(
         val fileName = "${System.currentTimeMillis()}-${UUID.randomUUID()}.$extension"
         val ref = storage.reference.child("drops/$folder/$fileName")
 
+        val ownerId = FirebaseAuth.getInstance().currentUser?.uid
+            ?: throw IllegalStateException("Sign in before uploading media")
+
         val metadata = StorageMetadata.Builder()
             .setContentType(resolvedMime)
+            .setCustomMetadata("ownerId", ownerId)
+            .setCustomMetadata("accessLevel", "PRIVATE")
+            .setCustomMetadata("safetyStatus", "PENDING")
             .build()
 
         ref.putBytes(data, metadata).await()
-        val downloadUrl = ref.downloadUrl.await().toString()
+        val downloadUrl = rulesCheckedMediaUrl(ref.bucket, ref.path)
         return MediaUploadResult(
             downloadUrl = downloadUrl,
             storagePath = ref.path.trimStart('/')
         )
+    }
+
+    suspend fun deleteMedia(storagePath: String) {
+        val normalizedPath = storagePath.trim().trimStart('/')
+        if (normalizedPath.isEmpty()) return
+        storage.reference.child(normalizedPath).delete().await()
     }
 
     companion object {
@@ -64,6 +82,12 @@ class MediaStorageRepo(
             val canonicalBucket = withoutScheme.removeSuffix("/")
 
             return "gs://$canonicalBucket"
+        }
+
+        private fun rulesCheckedMediaUrl(bucket: String, storagePath: String): String {
+            val encodedBucket = Uri.encode(bucket)
+            val encodedPath = Uri.encode(storagePath.trimStart('/'))
+            return "https://firebasestorage.googleapis.com/v0/b/$encodedBucket/o/$encodedPath?alt=media"
         }
     }
 }

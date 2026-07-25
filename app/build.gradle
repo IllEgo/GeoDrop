@@ -5,6 +5,19 @@ plugins {
     id 'com.google.firebase.crashlytics'
 }
 
+def booleanBuildFlag = { String propertyName, boolean defaultValue ->
+    def configuredValue = project.findProperty(propertyName) ?: System.getenv(propertyName)
+    if (configuredValue == null) {
+        return defaultValue.toString()
+    }
+
+    def normalizedValue = configuredValue.toString().trim().toLowerCase()
+    if (!(normalizedValue in ['true', 'false'])) {
+        throw new GradleException("${propertyName} must be either true or false")
+    }
+    return normalizedValue
+}
+
 android {
     namespace 'com.e3hi.geodrop'
     compileSdk 34
@@ -15,14 +28,6 @@ android {
         targetSdk 34
         versionCode 1
         versionName "1.0"
-
-        def visionApiKey = (
-                project.findProperty('GOOGLE_VISION_API_KEY')
-                        ?: System.getenv('GOOGLE_VISION_API_KEY')
-        ) ?: ""
-
-        def escapedVisionKey = visionApiKey.toString().replace('"', '\\"')
-        buildConfigField 'String', 'GOOGLE_VISION_API_KEY', '"' + escapedVisionKey + '"'
 
         def functionsRegion = (
                 project.findProperty('FIREBASE_FUNCTIONS_REGION')
@@ -44,6 +49,21 @@ android {
                 'GOOGLE_WEB_CLIENT_ID',
                 '"' + escapedGoogleWebClientId + '"'
         )
+
+        def googleMapsApiKey = (
+                project.findProperty('GOOGLE_MAPS_API_KEY')
+                        ?: System.getenv('GOOGLE_MAPS_API_KEY')
+        ) ?: ""
+        resValue 'string', 'google_maps_key', googleMapsApiKey.toString()
+
+        // Build-time upper bounds for the Remote Config controls. A feature is
+        // enabled only when this value and its pilot_* Remote Config value are true.
+        buildConfigField 'boolean', 'FEATURE_CREATION_ENABLED', booleanBuildFlag('GEODROP_FEATURE_CREATION_ENABLED', false)
+        buildConfigField 'boolean', 'FEATURE_NOTIFICATIONS_ENABLED', booleanBuildFlag('GEODROP_FEATURE_NOTIFICATIONS_ENABLED', false)
+        buildConfigField 'boolean', 'FEATURE_COUPONS_ENABLED', booleanBuildFlag('GEODROP_FEATURE_COUPONS_ENABLED', false)
+        buildConfigField 'boolean', 'FEATURE_MEDIA_ENABLED', booleanBuildFlag('GEODROP_FEATURE_MEDIA_ENABLED', false)
+        buildConfigField 'boolean', 'FEATURE_NSFW_ENABLED', booleanBuildFlag('GEODROP_FEATURE_NSFW_ENABLED', false)
+        buildConfigField 'boolean', 'FEATURE_HUNTS_ENABLED', booleanBuildFlag('GEODROP_FEATURE_HUNTS_ENABLED', false)
     }
 
     compileOptions {
@@ -57,6 +77,20 @@ android {
         buildConfig true
     }
     composeOptions { kotlinCompilerExtensionVersion '1.5.14' }
+
+    buildTypes {
+        release {
+            buildConfigField 'boolean', 'USE_PLAY_INTEGRITY_APPCHECK', 'true'
+        }
+        internal {
+            initWith release
+            matchingFallbacks = ['release']
+            buildConfigField 'boolean', 'USE_PLAY_INTEGRITY_APPCHECK', 'false'
+        }
+        debug {
+            buildConfigField 'boolean', 'USE_PLAY_INTEGRITY_APPCHECK', 'false'
+        }
+    }
 }
 
 dependencies {
@@ -70,8 +104,10 @@ dependencies {
     implementation platform('com.google.firebase:firebase-bom:33.2.0')
     implementation 'com.google.firebase:firebase-storage-ktx'
     implementation 'com.google.firebase:firebase-functions-ktx'
+    implementation 'com.google.firebase:firebase-config'
     implementation 'com.google.firebase:firebase-appcheck-playintegrity'
     debugImplementation 'com.google.firebase:firebase-appcheck-debug'
+    internalImplementation 'com.google.firebase:firebase-appcheck-debug'
 
     // Firebase Auth (PLAIN, not -ktx)
     implementation 'com.google.firebase:firebase-auth'
@@ -102,6 +138,7 @@ dependencies {
     implementation 'com.google.android.material:material:1.12.0'
 
     testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.robolectric:robolectric:4.12.1'
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
 

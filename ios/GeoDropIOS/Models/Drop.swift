@@ -237,6 +237,7 @@ extension Drop {
             "createdAt": Timestamp(date: createdAt),
             "isAnonymous": isAnonymous,
             "isDeleted": isDeleted,
+            "visibility": groupCode == nil ? "PUBLIC" : "GROUP",
             "dropType": dropType.rawValue,
             "contentType": contentType.rawValue,
             "isNsfw": isNsfw,

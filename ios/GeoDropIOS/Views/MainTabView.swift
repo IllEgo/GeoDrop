@@ -67,6 +67,16 @@ struct MainTabView: View {
                 viewModel.setNotificationRadius(newValue)
             }
         }
+        .sheet(isPresented: Binding(
+            get: { viewModel.isShowingAccountData },
+            set: { newValue in
+                if !newValue {
+                    viewModel.dismissAccountData()
+                }
+            }
+        )) {
+            AccountDataView(onDeleted: viewModel.completeAccountDeletion)
+        }
     }
 
     private var accountMenuBinding: Binding<Bool> {
@@ -77,6 +87,7 @@ struct MainTabView: View {
     }
 
     private var canPresentDropComposer: Bool {
+        guard viewModel.isDropCreationEnabled else { return false }
         guard viewModel.userMode?.canParticipate == true else { return false }
         if case .signedIn = viewModel.authState {
             return true

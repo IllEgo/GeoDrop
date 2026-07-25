@@ -1,0 +1,159 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android:
+    name: Android unit, lint, and build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Run Android checks
+        run: ./gradlew --no-daemon testDebugUnitTest lintDebug assembleDebug
+
+  functions:
+    name: Functions lint and build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: functions
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint functions
+        run: npm run lint
+
+      - name: Build functions
+        run: npm run build
+
+      - name: Validate fail-closed Remote Config template
+        run: npm run remoteconfig:validate
+
+  firebase-rules:
+    name: Firebase rules emulator tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: firestore-tests/package-lock.json
+
+      - name: Install rules-test dependencies
+        run: npm ci --prefix firestore-tests
+
+      - name: Install Firebase CLI
+        run: npm install --global firebase-tools@14.17.0
+
+      - name: Run Firestore and Storage rules tests
+        env:
+          GCLOUD_PROJECT: geodrop-ci
+        run: firebase emulators:exec --only firestore,storage --project geodrop-ci "npm --prefix firestore-tests test"
+
+  p0-rehearsals:
+    name: P0 lifecycle emulator rehearsals
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+
+      - name: Install Functions dependencies
+        run: npm ci --prefix functions
+
+      - name: Build Functions
+        run: npm --prefix functions run build
+
+      - name: Install Firebase CLI
+        run: npm install --global firebase-tools@14.17.0
+
+      - name: Rehearse migration, account lifecycle, and moderation
+        env:
+          GCLOUD_PROJECT: geodrop-ci
+        run: >-
+          firebase emulators:exec
+          --only auth,firestore,storage,functions
+          --project geodrop-ci
+          "npm --prefix functions run migrate:launch:rehearse &&
+          npm --prefix functions run account:rehearse &&
+          npm --prefix functions run moderation:rehearse"
+
+  ios:
+    name: iOS simulator build
+    runs-on: macos-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install CocoaPods dependencies
+        working-directory: ios
+        run: pod install --repo-update
+
+      - name: Build for iOS Simulator
+        working-directory: ios
+        run: >-
+          xcodebuild
+          -workspace GeoDropIOS.xcworkspace
+          -scheme GeoDropIOS
+          -configuration Debug
+          -sdk iphonesimulator
+          -destination 'generic/platform=iOS Simulator'
+          CODE_SIGNING_ALLOWED=NO
+          CODE_SIGNING_REQUIRED=NO
+          build

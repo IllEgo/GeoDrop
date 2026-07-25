@@ -78,10 +78,15 @@ final class AppViewModel: ObservableObject {
     @Published private(set) var inventory: NoteInventoryService.Inventory
     @Published private(set) var explorerMyDrops: [Drop] = []
     @Published private(set) var explorerCollectedDrops: [Drop] = []
+    @Published private(set) var legalManifest: LegalPolicyManifest?
+    @Published private(set) var legalManifestError: String?
+    @Published private(set) var isLoadingLegalManifest: Bool = false
+    @Published private(set) var isRecordingLegalAcceptance: Bool = false
     @Published var selectedExplorerDestination: ExplorerDestination = .nearby
     @Published var explorerRestrictionMessage: String?
     @Published var allowNsfw: Bool = false
     @Published var notificationRadiusMeters: Double
+    @Published private(set) var nearbyAlertsEnabled: Bool
     @Published var errorMessage: String?
     @Published var isPerformingAction: Bool = false
     @Published var pendingAccountRole: UserRole?
@@ -90,6 +95,7 @@ final class AppViewModel: ObservableObject {
     @Published var authFlowError: String?
     @Published var authFlowStatus: String?
     @Published var isShowingAccountMenu: Bool = false
+    @Published var isShowingAccountData: Bool = false
     @Published var isShowingDropComposer: Bool = false
     @Published var isShowingGroupMenu: Bool = false
     @Published var isShowingGroupManagement: Bool = false
@@ -97,12 +103,15 @@ final class AppViewModel: ObservableObject {
     @Published var isShowingTutorialSlides: Bool = false
     @Published var isShowingFaq: Bool = false
     @Published var infoMenuURL: URL?
+    @Published private(set) var lastAccountDeletionReceipt: AccountDeletionReceipt?
 
     private let authService = AuthService.shared
     private let firestore = FirestoreService.shared
     private let messagingService = MessagingService.shared
     private let locationService = LocationService.shared
-    private lazy var safeSearch = SafeSearchService(apiKey: AppConfiguration.shared.visionApiKey)
+    private let legalConsentService = LegalConsentService.shared
+    private let featureFlags = PilotFeatureFlags.shared
+    private lazy var safeSearch = SafeSearchService()
     private let inventoryService = NoteInventoryService.shared
     private let notificationPreferences: NotificationPreferences
     private var groupListener: ListenerRegistration?
@@ -112,7 +121,8 @@ final class AppViewModel: ObservableObject {
     private var inventoryUserId: String?
 
     private enum DefaultsKeys {
-        static let acceptedTerms = "geodrop.termsAccepted"
+        static let acceptedLegalVersion = "geodrop.acceptedLegalVersion"
+        static let serverAcceptedLegalVersionPrefix = "geodrop.serverAcceptedLegalVersion."
         static let completedOnboarding = "geodrop.onboardingCompleted"
         static let userMode = "geodrop.userMode"
     }
@@ -122,10 +132,16 @@ final class AppViewModel: ObservableObject {
         let initialUserId = authService.currentUser?.uid
         self.inventoryUserId = initialUserId
         self.inventory = inventoryService.inventory(for: initialUserId)
-        self.notificationPreferences = NotificationPreferences(userDefaults: userDefaults)
-        self.notificationRadiusMeters = notificationPreferences.radiusMeters()
-        let accepted = userDefaults.bool(forKey: DefaultsKeys.acceptedTerms)
-        self.hasAcceptedTerms = accepted
+        let storedNotificationPreferences = NotificationPreferences(userDefaults: userDefaults)
+        self.notificationPreferences = storedNotificationPreferences
+        self.notificationRadiusMeters = storedNotificationPreferences.radiusMeters()
+        self.nearbyAlertsEnabled = PilotFeatureFlags.shared.notificationsEnabled &&
+            storedNotificationPreferences.nearbyAlertsEnabled()
+        self.legalManifest = nil
+        self.legalManifestError = nil
+        // Acceptance is version-bound and cannot be restored until the approved
+        // server manifest has loaded successfully.
+        self.hasAcceptedTerms = false
         let onboarding = userDefaults.bool(forKey: DefaultsKeys.completedOnboarding)
         self.hasCompletedOnboarding = onboarding
         if let rawMode = userDefaults.string(forKey: DefaultsKeys.userMode),
@@ -148,6 +164,22 @@ final class AppViewModel: ObservableObject {
                     self.inventory = self.inventoryService.inventory(for: self.inventoryUserId)
                     self.rebuildExplorerCollections()
                 }
+            }
+            .store(in: &cancellables)
+
+        NotificationCenter.default.publisher(for: PilotFeatureFlags.didUpdateNotification)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                guard let self else { return }
+                if !self.featureFlags.notificationsEnabled {
+                    self.notificationPreferences.setNearbyAlertsEnabled(false)
+                    self.nearbyAlertsEnabled = false
+                }
+                if !self.featureFlags.nsfwEnabled {
+                    self.allowNsfw = false
+                }
+                self.objectWillChange.send()
+                Task { await self.refreshDrops() }
             }
             .store(in: &cancellables)
         
@@ -189,9 +221,11 @@ final class AppViewModel: ObservableObject {
     }
 
     func bootstrap() {
-        messagingService.requestAuthorization()
-        locationService.requestAuthorization()
-        locationService.startUpdating()
+        // Refresh existing grants without displaying a system prompt at startup.
+        // Nearby discovery and alert setup own their contextual request flows.
+        messagingService.refreshAuthorizationStatus()
+        locationService.refreshAuthorizationStatus()
+        Task { await refreshLegalManifest() }
 
         messagingService.$currentToken
             .receive(on: DispatchQueue.main)
@@ -273,9 +307,40 @@ final class AppViewModel: ObservableObject {
     
     // MARK: - Onboarding & Mode Selection
 
+    func retryLegalManifest() {
+        Task { await refreshLegalManifest() }
+    }
+
+    var isDropCreationEnabled: Bool {
+        featureFlags.creationEnabled
+    }
+
     func acceptTerms() {
-        hasAcceptedTerms = true
-        defaults.set(true, forKey: DefaultsKeys.acceptedTerms)
+        guard let manifest = legalManifest else {
+            legalManifestError = "GeoDrop's approved legal policies are unavailable. Try again later."
+            hasAcceptedTerms = false
+            return
+        }
+
+        isRecordingLegalAcceptance = true
+        legalManifestError = nil
+        Task {
+            do {
+                if let userID = authService.currentUser?.uid {
+                    try await legalConsentService.recordAcceptance(policyVersion: manifest.version)
+                    defaults.set(
+                        manifest.version,
+                        forKey: DefaultsKeys.serverAcceptedLegalVersionPrefix + userID
+                    )
+                }
+                defaults.set(manifest.version, forKey: DefaultsKeys.acceptedLegalVersion)
+                hasAcceptedTerms = true
+            } catch {
+                hasAcceptedTerms = false
+                legalManifestError = error.localizedDescription
+            }
+            isRecordingLegalAcceptance = false
+        }
     }
 
     func completeOnboarding() {
@@ -367,6 +432,37 @@ final class AppViewModel: ObservableObject {
             errorMessage = error.localizedDescription
         }
     }
+
+    func completeAccountDeletion(_ receipt: AccountDeletionReceipt) {
+        lastAccountDeletionReceipt = receipt
+        groupListener?.remove()
+        groupListener = nil
+        dropsListener?.remove()
+        dropsListener = nil
+
+        do {
+            try authService.signOut()
+        } catch {
+            print("GeoDrop: Account was deleted, but Firebase local sign-out reported: \(error)")
+        }
+
+        groups = []
+        drops = []
+        selectedGroupCode = nil
+        blockedCreatorIDs = []
+        switchInventory(to: nil)
+        authState = .signedOut
+        hideTransientOverlays()
+        setUserMode(nil)
+        pendingAccountRole = nil
+        isAuthenticating = false
+        isGoogleSigningIn = false
+        resetAuthFlowMessages()
+    }
+
+    func dismissAccountDeletionReceipt() {
+        lastAccountDeletionReceipt = nil
+    }
     
     func signInWithGoogle(presenting viewController: UIViewController) {
         isGoogleSigningIn = true
@@ -410,7 +506,13 @@ final class AppViewModel: ObservableObject {
                 guard let self = self else { return }
                 let filtered = drops.filter { drop in
                     let creator = drop.createdBy.trimmingCharacters(in: .whitespacesAndNewlines)
-                    return creator.isEmpty || !self.blockedCreatorIDs.contains(creator)
+                    let creatorAllowed = creator.isEmpty || !self.blockedCreatorIDs.contains(creator)
+                    let couponAllowed = self.featureFlags.couponsEnabled ||
+                        drop.dropType != .restaurantCoupon
+                    let mediaAllowed = self.featureFlags.mediaEnabled ||
+                        drop.contentType == .text
+                    let nsfwAllowed = self.featureFlags.nsfwEnabled || !drop.isNsfw
+                    return creatorAllowed && couponAllowed && mediaAllowed && nsfwAllowed
                 }
                 self.inventoryService.merge(remoteDrops: filtered, for: self.inventoryUserId)
                 self.reloadInventorySnapshot()
@@ -420,6 +522,18 @@ final class AppViewModel: ObservableObject {
     }
 
     func createDrop(request: NewDropRequest) async {
+        guard featureFlags.creationEnabled else {
+            errorMessage = "Drop creation is disabled for this release."
+            return
+        }
+        guard featureFlags.couponsEnabled || request.dropType != .restaurantCoupon else {
+            errorMessage = "Offers are disabled for this release."
+            return
+        }
+        guard featureFlags.mediaEnabled || request.media == nil else {
+            errorMessage = "Media drops are disabled for this release."
+            return
+        }
         guard case let .signedIn(session) = authState else { return }
         guard let location = locationService.currentLocation else {
             errorMessage = "Current location unavailable"
@@ -435,6 +549,11 @@ final class AppViewModel: ObservableObject {
             groupCode = nil
         case .group(let code):
             groupCode = code
+        }
+
+        if groupCode != nil && request.media != nil {
+            errorMessage = "Private group drops are text-only during the market pilot."
+            return
         }
 
         var drop = Drop(
@@ -507,6 +626,14 @@ final class AppViewModel: ObservableObject {
         )
         drop.isNsfw = assessment.isNsfw
         drop.nsfwLabels = assessment.reasons
+
+        if assessment.isNsfw {
+            if let path = drop.mediaStoragePath {
+                await StorageService.shared.delete(path: path)
+            }
+            errorMessage = "Mature content cannot be published during the market pilot."
+            return
+        }
 
         do {
             _ = try await firestore.addDrop(drop)
@@ -646,6 +773,9 @@ final class AppViewModel: ObservableObject {
     }
     
     func redeem(drop: Drop, code: String) async -> RedemptionResult {
+        guard featureFlags.couponsEnabled else {
+            return .error("Offers are disabled for this release.")
+        }
         guard let userId = currentUserID else {
             return .error("Sign in to redeem offers.")
         }
@@ -721,11 +851,7 @@ final class AppViewModel: ObservableObject {
     }
 
     func shouldHideContent(for drop: Drop) -> Bool {
-        guard drop.isNsfw else { return false }
-        if let ownerId = currentUserID, ownerId == drop.createdBy {
-            return false
-        }
-        return !allowNsfw
+        return drop.isNsfw
     }
 
     func likePermission(for drop: Drop) -> LikePermission {
@@ -805,6 +931,7 @@ final class AppViewModel: ObservableObject {
             guard !ignored.contains(dropId) else { continue }
             if seen.contains(dropId) { continue }
             if !matchesSelectedGroup(storedDrop) { continue }
+            if storedDrop.isNsfw { continue }
             collected.append(storedDrop)
         }
 
@@ -877,7 +1004,7 @@ final class AppViewModel: ObservableObject {
                 session.profile = updated
                 await MainActor.run {
                     self.authState = .signedIn(session)
-                    self.allowNsfw = enabled
+                    self.allowNsfw = false
                     Task { await self.refreshDrops() }
                 }
             } catch {
@@ -930,12 +1057,69 @@ final class AppViewModel: ObservableObject {
     
     // MARK: - Private
 
+    private func refreshLegalManifest() async {
+        isLoadingLegalManifest = true
+        legalManifestError = nil
+        hasAcceptedTerms = false
+        do {
+            let manifest = try await legalConsentService.fetchManifest()
+            legalManifest = manifest
+            await reconcileLegalAcceptance(for: authService.currentUser?.uid)
+        } catch {
+            legalManifest = nil
+            hasAcceptedTerms = false
+            legalManifestError = error.localizedDescription
+        }
+        isLoadingLegalManifest = false
+    }
+
+    private func reconcileLegalAcceptance(for userID: String?) async {
+        guard let manifest = legalManifest else {
+            hasAcceptedTerms = false
+            return
+        }
+        guard defaults.string(forKey: DefaultsKeys.acceptedLegalVersion) == manifest.version else {
+            hasAcceptedTerms = false
+            return
+        }
+        guard let userID else {
+            hasAcceptedTerms = true
+            return
+        }
+
+        let serverKey = DefaultsKeys.serverAcceptedLegalVersionPrefix + userID
+        if defaults.string(forKey: serverKey) == manifest.version {
+            hasAcceptedTerms = true
+            return
+        }
+
+        do {
+            try await legalConsentService.recordAcceptance(policyVersion: manifest.version)
+            defaults.set(manifest.version, forKey: serverKey)
+            hasAcceptedTerms = true
+        } catch {
+            // Signed-in participation fails closed until the callable stores the
+            // current acceptance with a server timestamp.
+            hasAcceptedTerms = false
+            legalManifestError = error.localizedDescription
+        }
+    }
+
     private func handleAuthChange(user: FirebaseAuth.User?) async {
         groupListener?.remove()
         dropsListener?.remove()
         if let user = user {
+            if let manifest = legalManifest {
+                let serverKey = DefaultsKeys.serverAcceptedLegalVersionPrefix + user.uid
+                if defaults.string(forKey: serverKey) != manifest.version {
+                    hasAcceptedTerms = false
+                }
+            } else {
+                hasAcceptedTerms = false
+            }
             authState = .loading
             await loadSession(user: user)
+            await reconcileLegalAcceptance(for: user.uid)
         } else {
             groups = []
             drops = []
@@ -952,6 +1136,7 @@ final class AppViewModel: ObservableObject {
             } else {
                 setUserMode(nil)
             }
+            await reconcileLegalAcceptance(for: nil)
         }
     }
 
@@ -964,7 +1149,7 @@ final class AppViewModel: ObservableObject {
                 user: AuthenticatedUser(uid: user.uid, email: user.email, displayName: user.displayName),
                 profile: profile
             )
-            allowNsfw = profile.nsfwEnabled
+            allowNsfw = false
             groups = memberships
             selectedGroupCode = nil
             blockedCreatorIDs = blocked
@@ -1031,7 +1216,25 @@ final class AppViewModel: ObservableObject {
         }
     }
 
+    func openAccountData() {
+        guard case .signedIn = authState else {
+            errorMessage = "Sign in to manage account data."
+            return
+        }
+        isShowingAccountMenu = false
+        isShowingGroupMenu = false
+        isShowingAccountData = true
+    }
+
+    func dismissAccountData() {
+        isShowingAccountData = false
+    }
+
     func presentDropComposer() {
+        guard featureFlags.creationEnabled else {
+            errorMessage = "Drop creation is disabled for this release."
+            return
+        }
         guard canParticipate else {
             errorMessage = participationRestrictionMessage(action: "share drops")
             return
@@ -1080,6 +1283,10 @@ final class AppViewModel: ObservableObject {
     }
 
     func openNotificationRadiusSettings() {
+        guard featureFlags.notificationsEnabled else {
+            errorMessage = "Nearby notifications are disabled for this release."
+            return
+        }
         guard canParticipate else {
             errorMessage = participationRestrictionMessage(action: "manage notifications")
             return
@@ -1096,6 +1303,12 @@ final class AppViewModel: ObservableObject {
     func setNotificationRadius(_ meters: Double) {
         notificationPreferences.setRadiusMeters(meters)
         notificationRadiusMeters = notificationPreferences.radiusMeters()
+    }
+
+    func setNearbyAlertsEnabled(_ enabled: Bool) {
+        let allowedValue = featureFlags.notificationsEnabled && enabled
+        notificationPreferences.setNearbyAlertsEnabled(allowedValue)
+        nearbyAlertsEnabled = allowedValue
     }
     
     func showTutorialSlides() {
@@ -1118,12 +1331,20 @@ final class AppViewModel: ObservableObject {
 
     func showTermsOfService() {
         hideTransientOverlays()
-        infoMenuURL = URL(string: "https://www.geodrop.app/terms")
+        guard let url = legalManifest?.terms else {
+            errorMessage = "Approved Terms are currently unavailable."
+            return
+        }
+        infoMenuURL = url
     }
 
     func showPrivacyPolicy() {
         hideTransientOverlays()
-        infoMenuURL = URL(string: "https://www.geodrop.app/privacy")
+        guard let url = legalManifest?.privacy else {
+            errorMessage = "The approved Privacy Policy is currently unavailable."
+            return
+        }
+        infoMenuURL = url
     }
 
     func dismissInfoMenuLink() {
@@ -1131,6 +1352,11 @@ final class AppViewModel: ObservableObject {
     }
 
     func toggleAllowNsfw() {
+        guard featureFlags.nsfwEnabled else {
+            setAllowNsfw(false)
+            errorMessage = "Mature content is disabled for this release."
+            return
+        }
         setAllowNsfw(!allowNsfw)
     }
 
@@ -1151,6 +1377,7 @@ final class AppViewModel: ObservableObject {
 
     private func hideTransientOverlays() {
         isShowingAccountMenu = false
+        isShowingAccountData = false
         isShowingDropComposer = false
         isShowingGroupMenu = false
         isShowingGroupManagement = false

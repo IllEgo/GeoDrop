@@ -40,6 +40,13 @@ class NotificationPreferences(context: Context) {
         prefs.edit().putFloat(userRadiusKey(), clamped.toFloat()).apply()
     }
 
+    fun areNearbyAlertsEnabled(): Boolean =
+        prefs.getBoolean(userAlertsEnabledKey(), false)
+
+    fun setNearbyAlertsEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(userAlertsEnabledKey(), enabled).apply()
+    }
+
     fun getDefaultExplorerDestination(): String? {
         return prefs.getString(userDefaultExplorerDestinationKey(), null)
             ?.takeIf { it.isNotBlank() }
@@ -56,6 +63,7 @@ class NotificationPreferences(context: Context) {
     }
 
     private fun userRadiusKey(): String = "$KEY_RADIUS_METERS_PREFIX$activeUserKey"
+    private fun userAlertsEnabledKey(): String = "$KEY_ALERTS_ENABLED_PREFIX$activeUserKey"
     private fun userDefaultExplorerDestinationKey(): String =
         "$KEY_DEFAULT_EXPLORER_DESTINATION_PREFIX$activeUserKey"
 
@@ -63,6 +71,7 @@ class NotificationPreferences(context: Context) {
         private const val PREFS_NAME = "geodrop_notification_settings"
         private const val KEY_RADIUS_METERS_LEGACY = "nearby_drop_radius_meters"
         private const val KEY_RADIUS_METERS_PREFIX = "nearby_drop_radius_meters_user_"
+        private const val KEY_ALERTS_ENABLED_PREFIX = "nearby_drop_alerts_enabled_user_"
         private const val KEY_DEFAULT_EXPLORER_DESTINATION_PREFIX = "default_explorer_destination_user_"
         private const val USER_KEY_ANONYMOUS = "anon"
 

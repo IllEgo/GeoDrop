@@ -15,20 +15,13 @@ struct ProfileView: View {
                 if case let .signedIn(session) = viewModel.authState {
                     Section {
                         Text(session.user.email ?? "")
-                        Toggle("Allow NSFW drops", isOn: Binding(
-                            get: { viewModel.allowNsfw },
-                            set: { viewModel.setAllowNsfw($0) }
-                        ))
+                        LabeledContent("Mature content", value: "Unavailable during pilot")
                     } header: {
                         FormSectionHeader(
                             title: "Account",
                             subtitle: "Manage sign-in details and personalize the content you see in GeoDrop.",
                             systemImage: "envelope"
                         )
-                    } footer: {
-                        Text("Toggle mature content if you are comfortable viewing NSFW drops in the feed.")
-                            .font(.footnote)
-                            .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
                     }
 
                     Section {

@@ -1,16 +1,21 @@
 package com.e3hi.geodrop.messaging
 
+import android.Manifest
 import android.app.PendingIntent
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.TaskStackBuilder
+import androidx.core.content.ContextCompat
 import com.e3hi.geodrop.R
 import com.e3hi.geodrop.data.FirestoreRepo
 import com.e3hi.geodrop.ui.DropDetailActivity
 import com.e3hi.geodrop.util.CHANNEL_USER_UPDATES
 import com.e3hi.geodrop.util.MessagingTokenStore
+import com.e3hi.geodrop.util.PilotFeatureFlags
 import com.e3hi.geodrop.util.createNotificationChannelIfNeeded
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.messaging.FirebaseMessagingService
@@ -27,6 +32,7 @@ class GeoDropMessagingService : FirebaseMessagingService() {
 
     override fun onNewToken(token: String) {
         super.onNewToken(token)
+        if (!PilotFeatureFlags.notificationsEnabled) return
         val trimmed = token.trim()
         if (trimmed.isEmpty()) return
 
@@ -46,6 +52,7 @@ class GeoDropMessagingService : FirebaseMessagingService() {
 
     override fun onMessageReceived(message: RemoteMessage) {
         super.onMessageReceived(message)
+        if (!PilotFeatureFlags.notificationsEnabled) return
         createNotificationChannelIfNeeded(this)
 
         val data = message.data
@@ -87,6 +94,15 @@ class GeoDropMessagingService : FirebaseMessagingService() {
 
         if (contentIntent != null) {
             builder.setContentIntent(contentIntent)
+        }
+
+        if (
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            Log.w(TAG, "Skipping push notification because notification permission is unavailable.")
+            return
         }
 
         NotificationManagerCompat.from(this).notify(notificationId, builder.build())

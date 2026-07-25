@@ -26,4 +26,6 @@ enum class UserRole {
 
 fun UserProfile.isBusiness(): Boolean = role == UserRole.BUSINESS
 
-fun UserProfile.canViewNsfw(): Boolean = nsfwEnabled
+// Mature content stays unavailable for the market pilot, including profiles
+// that may still contain a legacy opt-in value.
+fun UserProfile.canViewNsfw(): Boolean = false

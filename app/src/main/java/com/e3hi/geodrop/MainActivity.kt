@@ -6,7 +6,6 @@ import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.getValue
@@ -14,7 +13,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
-import androidx.core.content.PermissionChecker
 import androidx.lifecycle.lifecycleScope
 import android.util.Log
 import com.e3hi.geodrop.BuildConfig
@@ -26,6 +24,7 @@ import com.e3hi.geodrop.util.GoogleVisionSafeSearchEvaluator
 import com.e3hi.geodrop.util.GroupPreferences
 import com.e3hi.geodrop.util.MessagingTokenStore
 import com.e3hi.geodrop.util.NotificationPreferences
+import com.e3hi.geodrop.util.PilotFeatureFlags
 import com.e3hi.geodrop.util.createNotificationChannelIfNeeded
 import com.e3hi.geodrop.geo.NearbyDropRegistrar
 import com.google.firebase.FirebaseApp
@@ -45,35 +44,10 @@ class MainActivity : ComponentActivity() {
     private val firestoreRepo by lazy { FirestoreRepo() }
     private val messagingTokenStore by lazy { MessagingTokenStore(this) }
 
-    private val requiredPermissions = buildList {
-        add(Manifest.permission.ACCESS_FINE_LOCATION)
-        add(Manifest.permission.ACCESS_COARSE_LOCATION)
-        if (Build.VERSION.SDK_INT >= 33) add(Manifest.permission.POST_NOTIFICATIONS)
-        // If you want true background geofence triggers, request this separately with rationale:
-        // add(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
-    }.toTypedArray()
-
-    private val backgroundLocationLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (!granted) {
-            Log.w("GeoDrop", "Background location denied; geofences will only trigger while the app is in the foreground")
-        }
-    }
-
-    private val permissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { results ->
-        val fineGranted = results[Manifest.permission.ACCESS_FINE_LOCATION] == true
-        if (fineGranted) {
-            ensureBackgroundLocation()
-        }
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        PilotFeatureFlags.start()
         createNotificationChannelIfNeeded(this)
-        ensureRuntimePermissions()
 
         val groupPrefs = GroupPreferences(this)
         val notificationPrefs = NotificationPreferences(this)
@@ -87,20 +61,21 @@ class MainActivity : ComponentActivity() {
             }
 
             notificationPrefs.setActiveUser(currentUser.uid)
-            lifecycleScope.launch {
-                ensureMessagingTokenRegistered(currentUser.uid)
+            if (!PilotFeatureFlags.notificationsEnabled) {
+                notificationPrefs.setNearbyAlertsEnabled(false)
+                messagingTokenStore.clearSynced()
+                registrar.unregisterNearby(this)
+            } else if (notificationPrefs.areNearbyAlertsEnabled() && hasNearbyAlertPermissions()) {
+                enableNearbyAlerts(
+                    currentUser.uid,
+                    notificationPrefs.getNotificationRadiusMeters(),
+                    groupPrefs.getMemberships().map { it.code }.toSet()
+                )
             }
-
-            registrar.registerNearby(
-                this,
-                maxMeters = notificationPrefs.getNotificationRadiusMeters(),
-                groupCodes = groupPrefs.getMemberships().map { it.code }.toSet()
-            )
         }
         authListener?.let { auth.addAuthStateListener(it) }
 
         setContent {
-            val apiKey = remember { fetchVisionApiKey() }
             val safeSearchCallable = remember {
                 val functions = FirebaseFunctions.getInstance(BuildConfig.FIREBASE_FUNCTIONS_REGION)
                 GoogleVisionSafeSearchEvaluator.SafeSearchCallable { payload ->
@@ -112,9 +87,8 @@ class MainActivity : ComponentActivity() {
                     result.data as? Map<String, Any?>
                 }
             }
-            val dropSafetyEvaluator = remember(apiKey) {
+            val dropSafetyEvaluator = remember {
                 GoogleVisionSafeSearchEvaluator(
-                    apiKey = apiKey,
                     safeSearchCallable = safeSearchCallable
                 )
             }
@@ -126,7 +100,17 @@ class MainActivity : ComponentActivity() {
                     label = "SplashToMain"
                 ) { done ->
                     if (done) {
-                        DropHereScreen(dropSafetyEvaluator = dropSafetyEvaluator)
+                        DropHereScreen(
+                            dropSafetyEvaluator = dropSafetyEvaluator,
+                            onNearbyAlertsEnabled = { radius, groups ->
+                                auth.currentUser?.uid?.let { userId ->
+                                    enableNearbyAlerts(userId, radius, groups)
+                                }
+                            },
+                            onNearbyAlertsDisabled = {
+                                registrar.unregisterNearby(this)
+                            }
+                        )
                     } else {
                         GhostSplashScreen(onFinished = { splashDone = true })
                     }
@@ -139,29 +123,42 @@ class MainActivity : ComponentActivity() {
         Log.d("GeoDrop", "Firebase projectId=${opts.projectId}, appId=${opts.applicationId}")
     }
 
-    private fun ensureRuntimePermissions() {
-        val need = requiredPermissions.any {
-            ContextCompat.checkSelfPermission(this, it) != PermissionChecker.PERMISSION_GRANTED
-        }
-        if (need) {
-            permissionLauncher.launch(requiredPermissions)
-        } else {
-            // Foreground location already granted; check background separately.
-            ensureBackgroundLocation()
-        }
+    private fun hasNearbyAlertPermissions(): Boolean {
+        val foregroundGranted = ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+        val notificationsGranted = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+        val backgroundGranted = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ||
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_BACKGROUND_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+        return foregroundGranted && notificationsGranted && backgroundGranted
     }
 
-    private fun ensureBackgroundLocation() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
-        val granted = ContextCompat.checkSelfPermission(
-            this, Manifest.permission.ACCESS_BACKGROUND_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
-        if (!granted) {
-            backgroundLocationLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+    private fun enableNearbyAlerts(userId: String, radius: Double, groups: Set<String>) {
+        if (!PilotFeatureFlags.notificationsEnabled) {
+            registrar.unregisterNearby(this)
+            return
         }
+        if (!hasNearbyAlertPermissions()) return
+        lifecycleScope.launch {
+            ensureMessagingTokenRegistered(userId)
+        }
+        registrar.registerNearby(
+            this,
+            maxMeters = radius,
+            groupCodes = groups
+        )
     }
 
     private suspend fun ensureMessagingTokenRegistered(userId: String) {
+        if (!PilotFeatureFlags.notificationsEnabled) return
         if (userId.isBlank()) return
 
         val token = runCatching { Firebase.messaging.token.await() }
@@ -181,27 +178,6 @@ class MainActivity : ComponentActivity() {
             messagingTokenStore.markSynced(token)
         }.onFailure { error ->
             Log.e("GeoDrop", "Failed to register messaging token for $userId", error)
-        }
-    }
-
-    private fun fetchVisionApiKey(): String {
-        return try {
-            val field = BuildConfig::class.java.getField("GOOGLE_VISION_API_KEY")
-            (field.get(null) as? String).orEmpty()
-        } catch (noField: NoSuchFieldException) {
-            Log.w(
-                "GeoDrop",
-                "GOOGLE_VISION_API_KEY missing from BuildConfig; NSFW detection will be disabled.",
-                noField
-            )
-            ""
-        } catch (illegal: IllegalAccessException) {
-            Log.w(
-                "GeoDrop",
-                "Unable to access GOOGLE_VISION_API_KEY from BuildConfig; NSFW detection will be disabled.",
-                illegal
-            )
-            ""
         }
     }
 

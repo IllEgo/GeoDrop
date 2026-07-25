@@ -6,6 +6,8 @@ import UIKit
 struct DropFeedView: View {
     @EnvironmentObject private var viewModel: AppViewModel
     @Environment(\.geoDropTheme) private var geoDropTheme
+    @Environment(\.scenePhase) private var scenePhase
+    @ObservedObject private var locationService = LocationService.shared
     @State private var mapCameraState = GoogleMapCameraState(
         latitude: Self.defaultCoordinate.latitude,
         longitude: Self.defaultCoordinate.longitude,
@@ -26,6 +28,10 @@ struct DropFeedView: View {
     var body: some View {
         GeoDropNavigationContainer {
             VStack(spacing: 0) {
+                if viewModel.selectedExplorerDestination == .nearby,
+                   !hasForegroundLocationAccess {
+                    nearbyLocationAccessCard
+                }
                 if shouldShowGroupPrompt {
                     VStack(spacing: 16) {
                         Text("Join a group to start discovering drops.")
@@ -44,7 +50,15 @@ struct DropFeedView: View {
                 }
             }
         }
-        .onAppear { updateSelection(for: displayedDrops) }
+        .onAppear {
+            locationService.refreshAuthorizationStatus()
+            updateSelection(for: displayedDrops)
+        }
+        .onChange(of: scenePhase) { phase in
+            if phase == .active {
+                locationService.refreshAuthorizationStatus()
+            }
+        }
         .onChange(of: viewModel.drops) { _ in updateSelection(for: displayedDrops) }
         .onChange(of: viewModel.inventory) { _ in updateSelection(for: displayedDrops) }
         .onChange(of: viewModel.selectedExplorerDestination) { destination in
@@ -66,6 +80,54 @@ struct DropFeedView: View {
             Button("OK", role: .cancel) { }
         } message: {
             Text(viewModel.explorerRestrictionMessage ?? "Sign in to continue.")
+        }
+    }
+
+    private var hasForegroundLocationAccess: Bool {
+        locationService.authorizationStatus == .authorizedWhenInUse ||
+            locationService.authorizationStatus == .authorizedAlways
+    }
+
+    private var nearbyLocationAccessCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("Use your location for Nearby", systemImage: "location.circle")
+                .font(.headline)
+                .foregroundColor(geoDropTheme.colors.onSurface)
+            Text(
+                "GeoDrop uses foreground location after you choose this control to show drops around you and verify pickup distance. You can keep browsing after declining."
+            )
+            .font(.footnote)
+            .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
+
+            Button(locationActionTitle, action: handleLocationAction)
+                .buttonStyle(.borderedProminent)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .background(geoDropTheme.colors.surfaceVariant)
+    }
+
+    private var locationActionTitle: String {
+        switch locationService.authorizationStatus {
+        case .denied, .restricted:
+            return "Open Settings"
+        default:
+            return "Use my location"
+        }
+    }
+
+    private func handleLocationAction() {
+        switch locationService.authorizationStatus {
+        case .notDetermined:
+            locationService.requestWhenInUseAuthorization()
+        case .denied, .restricted:
+            guard let settingsURL = URL(string: UIApplication.openSettingsURLString) else { return }
+            UIApplication.shared.open(settingsURL)
+        case .authorizedAlways, .authorizedWhenInUse:
+            locationService.startUpdating()
+        @unknown default:
+            guard let settingsURL = URL(string: UIApplication.openSettingsURLString) else { return }
+            UIApplication.shared.open(settingsURL)
         }
     }
     
@@ -731,7 +793,7 @@ struct DropRowView: View {
             Label("Adult content hidden", systemImage: "eye.slash")
                 .font(.subheadline.weight(.semibold))
                 .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
-            Text("Enable adult content in Profile settings to view this drop.")
+            Text("Adult content is unavailable during the GeoDrop pilot.")
                 .font(.caption)
                 .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
         }
@@ -743,6 +805,7 @@ struct DropRowView: View {
     }
 
     private var hasMediaPreview: Bool {
+        guard PilotFeatureFlags.shared.mediaEnabled else { return false }
         switch drop.contentType {
         case .photo:
             return drop.mediaURL != nil || inlinePhoto != nil

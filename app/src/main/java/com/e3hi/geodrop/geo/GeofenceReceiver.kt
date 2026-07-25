@@ -12,11 +12,13 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.TaskStackBuilder
 import com.e3hi.geodrop.R
 import com.e3hi.geodrop.data.DropContentType
+import com.e3hi.geodrop.data.DropType
 import com.e3hi.geodrop.data.NoteInventory
 import com.e3hi.geodrop.geo.DropDecisionReceiver
 import com.e3hi.geodrop.ui.DropDetailActivity
 import com.e3hi.geodrop.util.EXTRA_SHOW_DECISION_OPTIONS
 import com.e3hi.geodrop.util.ExplorerAccountStore
+import com.e3hi.geodrop.util.PilotFeatureFlags
 import com.e3hi.geodrop.util.CHANNEL_NEARBY
 import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofencingEvent
@@ -32,6 +34,7 @@ import java.util.concurrent.TimeUnit
 
 class GeofenceReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
+        if (!PilotFeatureFlags.notificationsEnabled) return
         val event = GeofencingEvent.fromIntent(intent) ?: return
         if (event.hasError()) {
             Log.e("GeoDrop", "Geofence err: ${event.errorCode}")
@@ -86,6 +89,17 @@ class GeofenceReceiver : BroadcastReceiver() {
                 val huntId = doc.getString("huntId")?.takeIf { it.isNotBlank() }
                 val huntStepIndex = doc.getLong("huntStepIndex")?.toInt()
                 val huntTotalSteps = doc.getLong("huntTotalSteps")?.toInt()?.takeIf { it > 0 }
+                val isNsfw = doc.getBoolean("isNsfw") == true || doc.getBoolean("nsfw") == true
+                val dropType = DropType.fromRaw(doc.getString("dropType"))
+                val disabledForRelease =
+                    (!PilotFeatureFlags.nsfwEnabled && isNsfw) ||
+                        (!PilotFeatureFlags.couponsEnabled && dropType == DropType.RESTAURANT_COUPON) ||
+                        (!PilotFeatureFlags.mediaEnabled && dropContentType != DropContentType.TEXT) ||
+                        (!PilotFeatureFlags.huntsEnabled && huntId != null)
+                if (disabledForRelease) {
+                    Log.d("GeoDrop", "Skipping notification for drop $id because its feature is disabled.")
+                    return@launch
+                }
                 val expiresAt = if (decayDays != null && dropCreatedAt != null) {
                     dropCreatedAt + TimeUnit.DAYS.toMillis(decayDays.toLong())
                 } else {
