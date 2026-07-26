@@ -1,19 +1,23 @@
 package com.e3hi.geodrop.geo
 
+import android.Manifest
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.location.Location
 import android.os.Build
 import android.os.SystemClock
 import android.util.Log
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import com.e3hi.geodrop.data.CollectedNote
 import com.e3hi.geodrop.data.DropContentType
 import com.e3hi.geodrop.data.DropType
 import com.e3hi.geodrop.data.FirestoreRepo
 import com.e3hi.geodrop.data.NoteInventory
 import com.e3hi.geodrop.util.ExplorerAccountStore
+import com.e3hi.geodrop.util.PilotFeatureFlags
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
@@ -32,6 +36,7 @@ class DropDecisionReceiver : BroadcastReceiver() {
     private val repo by lazy { FirestoreRepo() }
 
     override fun onReceive(context: Context, intent: Intent) {
+        if (!PilotFeatureFlags.notificationsEnabled) return
         val action = intent.action ?: return
         val dropId = intent.getStringExtra(EXTRA_DROP_ID) ?: return
 
@@ -196,7 +201,25 @@ class DropDecisionReceiver : BroadcastReceiver() {
         dropLat: Double?,
         dropLng: Double?
     ): Boolean {
-        if (dropLat == null || dropLng == null) return true
+        if (dropLat == null || dropLng == null) {
+            Log.w(TAG, "Drop coordinates are unavailable; rejecting pickup.")
+            return false
+        }
+
+        val finePermission = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        )
+        val coarsePermission = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        )
+        val hasFineLocation = finePermission == PackageManager.PERMISSION_GRANTED
+        val hasCoarseLocation = coarsePermission == PackageManager.PERMISSION_GRANTED
+        if (!hasFineLocation && !hasCoarseLocation) {
+            Log.w(TAG, "Location permission unavailable for pickup validation; rejecting pickup.")
+            return false
+        }
 
         val fused = LocationServices.getFusedLocationProviderClient(context)
         val currentLocation = runCatching {
@@ -207,19 +230,19 @@ class DropDecisionReceiver : BroadcastReceiver() {
         }.getOrNull()
 
         val location = currentLocation ?: run {
-            Log.w(TAG, "Couldn't obtain current location to validate drop proximity; allowing pickup.")
-            return true
+            Log.w(TAG, "Couldn't obtain current location to validate drop proximity; rejecting pickup.")
+            return false
         }
 
         if (isLocationStale(location)) {
-            Log.w(TAG, "Location reading for pickup check is stale; allowing pickup.")
-            return true
+            Log.w(TAG, "Location reading for pickup check is stale; rejecting pickup.")
+            return false
         }
 
         val accuracy = location.accuracy.takeIf { location.hasAccuracy() && it > 0f }
         if (accuracy == null || accuracy > PICKUP_RADIUS_METERS) {
-            Log.w(TAG, "Location accuracy is insufficient (${accuracy ?: Float.NaN}m); allowing pickup.")
-            return true
+            Log.w(TAG, "Location accuracy is insufficient (${accuracy ?: Float.NaN}m); rejecting pickup.")
+            return false
         }
         val results = FloatArray(1)
         Location.distanceBetween(location.latitude, location.longitude, dropLat, dropLng, results)

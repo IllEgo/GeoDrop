@@ -79,7 +79,7 @@ struct DropDetailView: View {
 
                     shareSection(for: resolvedDrop)
 
-                    if resolvedDrop.requiresRedemption() {
+                    if PilotFeatureFlags.shared.couponsEnabled && resolvedDrop.requiresRedemption() {
                         redemptionSection(
                             for: resolvedDrop,
                             alreadyRedeemed: alreadyRedeemed,
@@ -144,7 +144,8 @@ struct DropDetailView: View {
 
     @ViewBuilder
     private func mediaSection(for drop: Drop) -> some View {
-        switch drop.contentType {
+        if PilotFeatureFlags.shared.mediaEnabled {
+            switch drop.contentType {
         case .photo:
             if let url = drop.mediaURL {
                 StorageAsyncImage(
@@ -189,6 +190,7 @@ struct DropDetailView: View {
             DropAudioPlayerView(url: drop.mediaURL, inlineBase64: drop.mediaData)
         case .text:
             EmptyView()
+            }
         }
     }
     
@@ -418,7 +420,7 @@ struct DropDetailView: View {
         VStack(alignment: .leading, spacing: 12) {
             Label("Adult content hidden", systemImage: "eye.slash")
                 .font(.subheadline.weight(.semibold))
-            Text("Enable adult content in Profile settings to view this drop.")
+            Text("Adult content is unavailable during the GeoDrop pilot.")
                 .font(.callout)
                 .foregroundColor(.primary)
             if !labels.isEmpty {

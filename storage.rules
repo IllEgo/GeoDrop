@@ -2,25 +2,86 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
 
-    // Drop media: photos, audio, video uploaded by authenticated users
-    match /drops/{mediaType}/{fileName} {
-      // Anyone can read (drop content is public)
-      allow read: if true;
+    // New uploads start private and pending. A trusted backend associates the
+    // object with a canonical, public, safe Firestore drop before non-owners
+    // can read it. The first path segment remains flexible for compatibility
+    // with both client layouts.
+    match /drops/{pathOwnerOrMediaType}/{fileName} {
+      function isActiveSignedInUser() {
+        return request.auth != null
+          && (!request.auth.token.keys().hasAny(['suspended'])
+            || request.auth.token.suspended != true);
+      }
 
-      // Only authenticated users can upload; enforce size and content-type limits
-      allow create: if request.auth != null
+      function objectPath() {
+        return 'drops/' + pathOwnerOrMediaType + '/' + fileName;
+      }
+
+      function isMediaOwner() {
+        return isActiveSignedInUser()
+          && ((resource.metadata.keys().hasAll(['ownerId'])
+              && resource.metadata.ownerId == request.auth.uid)
+            || pathOwnerOrMediaType == request.auth.uid);
+      }
+
+      function isPublishedPublicMedia() {
+        let dropPath = /databases/(default)/documents/drops/$(resource.metadata.dropId);
+        let drop = firestore.get(dropPath);
+        return resource.metadata.keys().hasAll([
+            'dropId', 'accessLevel', 'safetyStatus'
+          ])
+          && resource.metadata.accessLevel == 'PUBLIC'
+          && resource.metadata.safetyStatus == 'SAFE'
+          && drop.data.isDeleted == false
+          && drop.data.isNsfw == false
+          && drop.data.visibility == 'PUBLIC'
+          && drop.data.mediaStoragePath == objectPath();
+      }
+
+      // Guests may read only media bound to an active, public, pilot-safe drop.
+      // Owners retain access to their own pending upload so it can be previewed
+      // or deleted before publication.
+      allow read: if isMediaOwner() || isPublishedPublicMedia();
+
+      // Only authenticated, non-anonymous users can upload; enforce size and
+      // content-type limits. Anonymous viewing stays legal via the read rule.
+      // Video uploads are deferred (task 1.3): neither the drops/videos/
+      // prefix nor a video/* content type is accepted on any path. Existing
+      // video objects remain readable under the read rule above.
+      allow create: if isActiveSignedInUser()
+        && request.auth.token.firebase.sign_in_provider != 'anonymous'
+        && resource == null
+        && request.resource.metadata.keys().hasAll([
+          'ownerId', 'accessLevel', 'safetyStatus'
+        ])
+        && request.resource.metadata.ownerId == request.auth.uid
+        && request.resource.metadata.accessLevel == 'PRIVATE'
+        && request.resource.metadata.safetyStatus == 'PENDING'
         && request.resource.size <= 20 * 1024 * 1024
         && (
-          (mediaType == 'photos'  && request.resource.contentType.matches('image/.*'))
-          || (mediaType == 'audio'  && request.resource.contentType.matches('audio/.*'))
-          || (mediaType == 'videos' && request.resource.contentType.matches('video/.*'))
+          (pathOwnerOrMediaType == 'photos'
+            && request.resource.contentType.matches('image/.*'))
+          || (pathOwnerOrMediaType == 'audio'
+            && request.resource.contentType.matches('audio/.*'))
+          || (pathOwnerOrMediaType == request.auth.uid
+            && (
+              request.resource.contentType.matches('image/.*')
+              || request.resource.contentType.matches('audio/.*')
+            ))
         );
 
-      // Only the uploader can delete (metadata uid must match)
-      allow delete: if request.auth != null;
+      // Metadata covers all new uploads. The path check preserves deletion for
+      // legacy iOS objects that used drops/{uid}/{fileName}.
+      allow delete: if isMediaOwner();
 
       // No in-place overwrite of existing media
       allow update: if false;
+    }
+
+    // Account exports are delivered only through short-lived backend signed
+    // URLs after reauthentication. Firebase client SDK access is never allowed.
+    match /account-exports/{allPaths=**} {
+      allow read, write: if false;
     }
 
     // Deny all other paths

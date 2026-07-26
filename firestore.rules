@@ -1,7 +1,9 @@
 rules_version = '2';
 service cloud.firestore {
   function isSignedIn() {
-    return request.auth != null;
+    return request.auth != null
+      && (!request.auth.token.keys().hasAny(['suspended'])
+        || request.auth.token.suspended != true);
   }
 
   function isCurrentUser(userId) {
@@ -12,8 +14,31 @@ service cloud.firestore {
     return name is string && name.matches('^[a-z0-9._]{3,20}$');
   }
 
+  // A non-suspended principal that did NOT authenticate anonymously. Drop and
+  // media creation require this; anonymous *viewing* remains allowed by the
+  // read rules, which do not call this helper.
+  function isNonAnonymousUser() {
+    return isSignedIn()
+      && request.auth.token.firebase.sign_in_provider != 'anonymous';
+  }
+
   match /databases/{database}/documents {
     match /users/{userId} {
+      function preservesRole() {
+        return (resource.data.keys().hasAny(['role'])
+            && request.resource.data.role == resource.data.role)
+          || (!resource.data.keys().hasAny(['role'])
+            && request.resource.data.role == 'EXPLORER');
+      }
+
+      function preservesUsername() {
+        return (!resource.data.keys().hasAny(['username'])
+            && !request.resource.data.keys().hasAny(['username']))
+          || (resource.data.keys().hasAny(['username'])
+            && request.resource.data.keys().hasAny(['username'])
+            && request.resource.data.username == resource.data.username);
+      }
+
       function hasOnlyAllowedUserFields() {
         return request.resource.data.keys().hasOnly([
           'displayName',
@@ -27,10 +52,24 @@ service cloud.firestore {
         ]);
       }
 
+      function hasPilotSafeContentPreference() {
+        return !request.resource.data.keys().hasAny(['nsfwEnabled'])
+          || request.resource.data.nsfwEnabled == false;
+      }
+
       allow read: if isSignedIn();
 
-      allow create, update: if isCurrentUser(userId)
+      allow create: if isCurrentUser(userId)
         && hasOnlyAllowedUserFields()
+        && hasPilotSafeContentPreference()
+        && request.resource.data.role == 'EXPLORER'
+        && !request.resource.data.keys().hasAny(['username']);
+
+      allow update: if isCurrentUser(userId)
+        && hasOnlyAllowedUserFields()
+        && hasPilotSafeContentPreference()
+        && preservesRole()
+        && preservesUsername()
         && (!request.resource.data.keys().hasAny(['username'])
             || isValidUsername(request.resource.data.username));
     }
@@ -38,32 +77,77 @@ service cloud.firestore {
     match /usernames/{username} {
       allow read: if isSignedIn();
 
-      allow create, update: if isSignedIn()
+      allow create: if isSignedIn()
         && request.resource.data.keys().hasOnly(['userId'])
         && request.resource.data.userId == request.auth.uid;
+
+      allow update: if isSignedIn()
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.keys().hasOnly(['userId'])
+        && request.resource.data.userId == resource.data.userId;
 
       allow delete: if isSignedIn()
         && resource.data.userId == request.auth.uid;
     }
 
     match /reports/{reportId} {
-      allow create: if isSignedIn();
+      function hasValidReportShape() {
+        return request.resource.data.keys().hasOnly([
+          'dropId',
+          'reportedBy',
+          'reportedAt',
+          'reasonCodes',
+          'status',
+          'context'
+        ])
+          && request.resource.data.dropId is string
+          && request.resource.data.dropId.size() > 0
+          && request.resource.data.dropId.size() <= 128
+          && request.resource.data.reportedBy == request.auth.uid
+          && (request.resource.data.reportedAt is int
+            || request.resource.data.reportedAt is timestamp)
+          && request.resource.data.reasonCodes is list
+          && request.resource.data.reasonCodes.size() > 0
+          && request.resource.data.reasonCodes.size() <= 5
+          && request.resource.data.reasonCodes.hasOnly([
+            'spam', 'harassment', 'nsfw', 'violence', 'other', 'unspecified'
+          ])
+          && request.resource.data.status == 'pending'
+          && (!request.resource.data.keys().hasAny(['context'])
+            || (request.resource.data.context is map
+              && request.resource.data.context.keys().hasOnly([
+                'source', 'contentType', 'hasMedia', 'dropType'
+              ])))
+          && exists(/databases/$(database)/documents/drops/$(request.resource.data.dropId));
+      }
+
+      allow create: if isSignedIn() && hasValidReportShape();
+      allow read, update, delete: if false;
     }
 
     match /groups/{groupCode} {
-      allow read: if isSignedIn();
+      function isGroupOwner() {
+        return isSignedIn()
+          && resource.data.keys().hasAny(['ownerId'])
+          && resource.data.ownerId == request.auth.uid;
+      }
 
-      allow create: if isSignedIn()
-        && request.resource.data.keys().hasOnly(['ownerId', 'createdAt', 'updatedAt'])
-        && request.resource.data.ownerId == request.auth.uid;
+      function hasGroupMembership() {
+        return isSignedIn()
+          && exists(/databases/$(database)/documents/users/$(request.auth.uid)/groups/$(groupCode));
+      }
 
-      allow update: if isSignedIn()
-        && resource.data.keys().hasAny(['ownerId'])
-        && resource.data.ownerId == request.auth.uid
-        && request.resource.data.keys().hasOnly(['ownerId', 'createdAt', 'updatedAt'])
-        && request.resource.data.ownerId == resource.data.ownerId;
-
-      allow delete: if false;
+      // A group code is an invitation capability. Document reads are limited
+      // to people who already possess membership, and collection enumeration
+      // is always denied. The manageGroup callable uses the Admin SDK for all
+      // group and membership mutations.
+      //
+      // These denies are also the enforcement for deferred public group
+      // creation (task 1.3): a client can neither create a group nor discover
+      // one it was not invited to. Do not loosen without reversing the
+      // direction doc's deferred list.
+      allow get: if isGroupOwner() || hasGroupMembership();
+      allow list, create, update, delete: if false;
     }
 
     match /drops/{dropId} {
@@ -97,23 +181,35 @@ service cloud.firestore {
       }
 
       function isNsfwDrop(data) {
-        return (data.keys().hasAny(['isNsfw']) && data.isNsfw == true)
-          || (data.keys().hasAny(['nsfw']) && data.nsfw == true);
+        return data.keys().hasAny(['isNsfw']) && data.isNsfw == true;
       }
 
-      function hasEnabledNsfw(userId) {
-        let userRef = /databases/$(database)/documents/users/$(userId);
-        let userDoc = exists(userRef) ? get(userRef) : null;
-        return isSignedIn()
-          && userDoc != null
-          && userDoc.data.keys().hasAny(['nsfwEnabled'])
-          && userDoc.data.nsfwEnabled == true;
+      function isPublicDrop(data) {
+        return data.keys().hasAny(['visibility'])
+          && data.visibility == 'PUBLIC';
+      }
+
+      function isGroupDrop(data) {
+        return data.keys().hasAny(['visibility', 'groupCode'])
+          && data.visibility == 'GROUP'
+          && data.groupCode is string
+          && data.groupCode.size() > 0;
+      }
+
+      function isGroupMember(data, userId) {
+        return isGroupDrop(data)
+          && exists(/databases/$(database)/documents/users/$(userId)/groups/$(data.groupCode));
+      }
+
+      function canAccessVisibility(data, userId) {
+        return isPublicDrop(data)
+          || isDropOwner(data, userId)
+          || isGroupMember(data, userId);
       }
 
       function canBrowseDrop(data, userId) {
-        return (!isNsfwDrop(data)
-            || isDropOwner(data, userId)
-            || hasEnabledNsfw(userId))
+        return canAccessVisibility(data, userId)
+          && !isNsfwDrop(data)
           && (isDropOwner(data, userId)
             || isActiveDrop(data)
             || hasCollectedDrop(data, userId));
@@ -122,12 +218,22 @@ service cloud.firestore {
       allow get: if (isSignedIn()
           && canBrowseDrop(resource.data, request.auth.uid))
         || (!isSignedIn()
+          && isPublicDrop(resource.data)
           && isActiveDrop(resource.data)
           && !isNsfwDrop(resource.data));
 
-      // Query level checks rely on the per-document get rule above. Avoid accessing
-      // `resource` in a list rule because it is undefined for collection reads.
-      allow list: if true;
+      // Query authorization uses canonical, required booleans so Firestore can
+      // prove the result set is safe. Client-side filtering is never trusted.
+      allow list: if resource.data.isDeleted == false
+        && resource.data.isNsfw == false
+        && (
+          resource.data.visibility == 'PUBLIC'
+          || (isSignedIn() && isDropOwner(resource.data, request.auth.uid))
+          || (isSignedIn()
+            && resource.data.visibility == 'GROUP'
+            && resource.data.groupCode is string
+            && exists(/databases/$(database)/documents/users/$(request.auth.uid)/groups/$(resource.data.groupCode)))
+        );
       function hasOnlyAllowedDropFields() {
         return request.resource.data.keys().hasOnly([
           'text',
@@ -138,6 +244,7 @@ service cloud.firestore {
           'createdAt',
           'isDeleted',
           'deletedAt',
+          'visibility',
           'groupCode',
           'isAnonymous',
           'dropType',
@@ -186,7 +293,64 @@ service cloud.firestore {
         return data.dropType is string && data.dropType != 'COMMUNITY';
       }
 
+      function hasValidVisibility(data) {
+        return (data.visibility == 'PUBLIC'
+            && (!data.keys().hasAny(['groupCode']) || data.groupCode == null))
+          || (data.visibility == 'GROUP'
+            && data.groupCode is string
+            && data.groupCode.size() > 0
+            && isSignedIn()
+            && exists(/databases/$(database)/documents/users/$(request.auth.uid)/groups/$(data.groupCode)));
+      }
+
+      // --- Deferred-feature denials (task 1.3) ----------------------------
+      // Video content, client-authored NSFW flags, and seeded vote records are
+      // rejected at create. These close WRITES only; existing documents stay
+      // readable under the rules above.
+
+      function isVideoContent(data) {
+        return (data.keys().hasAny(['contentType']) && data.contentType == 'VIDEO')
+          || (data.keys().hasAny(['mediaMimeType'])
+            && data.mediaMimeType is string
+            && data.mediaMimeType.matches('video/.*'));
+      }
+
+      // Only the backend moderation pipeline (Admin SDK, which bypasses rules)
+      // may flag content. A client can never author an NSFW state.
+      function hasNoClientNsfwFlags(data) {
+        return data.isNsfw == false
+          && (!data.keys().hasAny(['nsfw']) || data.nsfw == false)
+          && (!data.keys().hasAny(['nsfwLabels'])
+            || data.nsfwLabels == null
+            || (data.nsfwLabels is list && data.nsfwLabels.size() == 0));
+      }
+
+      function hasNoSeededVotes(data) {
+        return (!data.keys().hasAny(['dislikeCount']) || data.dislikeCount == 0)
+          && (!data.keys().hasAny(['dislikedBy'])
+            || data.dislikedBy == null
+            || (data.dislikedBy is map && data.dislikedBy.size() == 0));
+      }
+
+      function groupDropHasNoMedia(data) {
+        return data.visibility != 'GROUP'
+          || (data.contentType == 'TEXT'
+            && (!data.keys().hasAny(['mediaUrl']) || data.mediaUrl == null)
+            && (!data.keys().hasAny(['mediaMimeType']) || data.mediaMimeType == null)
+            && (!data.keys().hasAny(['mediaData']) || data.mediaData == null)
+            && (!data.keys().hasAny(['mediaStoragePath']) || data.mediaStoragePath == null));
+      }
+
       allow create: if hasOnlyAllowedDropFields()
+        && isNonAnonymousUser()
+        && (!request.resource.data.keys().hasAny(['isAnonymous'])
+          || request.resource.data.isAnonymous == false)
+        && request.resource.data.isDeleted == false
+        && hasNoClientNsfwFlags(request.resource.data)
+        && !isVideoContent(request.resource.data)
+        && hasNoSeededVotes(request.resource.data)
+        && hasValidVisibility(request.resource.data)
+        && groupDropHasNoMedia(request.resource.data)
         && request.resource.data.createdBy == request.auth.uid
         && (
           (isExplorer() && !isBusinessDrop(request.resource.data))
@@ -201,6 +365,75 @@ service cloud.firestore {
         let beforeCollectedBy = (before.collectedBy is map) ? before.collectedBy : {};
         let afterCollectedBy = (after.collectedBy is map) ? after.collectedBy : {};
         return beforeCollectedBy.diff(afterCollectedBy).affectedKeys().hasOnly([userId]);
+      }
+
+      function isValidReactionTransition(before, after, userId, mapField, countField) {
+        let beforeMap = (before[mapField] is map) ? before[mapField] : {};
+        let afterMap = (after[mapField] is map) ? after[mapField] : {};
+        let beforeCount = (before[countField] is int) ? before[countField] : 0;
+        let afterCount = (after[countField] is int) ? after[countField] : 0;
+        let beforeHas = beforeMap.keys().hasAny([userId]);
+        let afterHas = afterMap.keys().hasAny([userId]);
+        return beforeCount >= 0
+          && afterCount >= 0
+          && beforeMap.diff(afterMap).affectedKeys().hasOnly([userId])
+          && (!afterHas || afterMap[userId] == true)
+          && (
+            (beforeHas == afterHas && afterCount == beforeCount)
+            || (!beforeHas && afterHas && afterCount == beforeCount + 1)
+            || (beforeHas && !afterHas && afterCount == beforeCount - 1)
+          );
+      }
+
+      function isValidReportTransition(before, after, userId) {
+        let beforeMap = (before.reportedBy is map) ? before.reportedBy : {};
+        let afterMap = (after.reportedBy is map) ? after.reportedBy : {};
+        let beforeCount = (before.reportCount is int) ? before.reportCount : 0;
+        let afterCount = (after.reportCount is int) ? after.reportCount : 0;
+        let beforeHas = beforeMap.keys().hasAny([userId]);
+        let afterHas = afterMap.keys().hasAny([userId]);
+        return beforeCount >= 0
+          && afterCount >= 0
+          && beforeMap.diff(afterMap).affectedKeys().hasOnly([userId])
+          && (!afterHas
+            || afterMap[userId] is int
+            || afterMap[userId] is timestamp)
+          && (
+            (beforeHas && afterHas && afterCount == beforeCount)
+            || (!beforeHas && afterHas && afterCount == beforeCount + 1)
+            || (!beforeHas && !afterHas && afterCount == beforeCount)
+          );
+      }
+
+      // Dislikes are a deferred voting feature (task 1.3). No new dislike may
+      // be recorded and no count may grow; retracting an existing dislike stays
+      // legal so clients can clear prototype votes. Simple likes are launch
+      // scope and keep their full transition rules.
+      function isDislikeRemovalOnly(before, after, userId) {
+        // get(field, default) — the fields are absent on drops created after
+        // this task, so plain property access would raise an evaluation error.
+        let beforeRawMap = before.get('dislikedBy', {});
+        let afterRawMap = after.get('dislikedBy', {});
+        let beforeRawCount = before.get('dislikeCount', 0);
+        let afterRawCount = after.get('dislikeCount', 0);
+        let beforeMap = (beforeRawMap is map) ? beforeRawMap : {};
+        let afterMap = (afterRawMap is map) ? afterRawMap : {};
+        let beforeCount = (beforeRawCount is int) ? beforeRawCount : 0;
+        let afterCount = (afterRawCount is int) ? afterRawCount : 0;
+        return !afterMap.keys().hasAny([userId])
+          && beforeMap.diff(afterMap).affectedKeys().hasOnly([userId])
+          && afterCount <= beforeCount
+          && afterCount >= beforeCount - 1;
+      }
+
+      function hasValidSocialTransitions(before, after, userId) {
+        let affected = before.diff(after).affectedKeys();
+        return (!affected.hasAny(['likedBy', 'likeCount'])
+            || isValidReactionTransition(before, after, userId, 'likedBy', 'likeCount'))
+          && (!affected.hasAny(['dislikedBy', 'dislikeCount'])
+            || isDislikeRemovalOnly(before, after, userId))
+          && (!affected.hasAny(['reportedBy', 'reportCount'])
+            || isValidReportTransition(before, after, userId));
       }
 
       function isValidLikeReportCollectUpdate(before, after, userId) {
@@ -220,8 +453,10 @@ service cloud.firestore {
         let hasOnlyAllowedFields = before.diff(after).affectedKeys().hasOnly(allowedWriteFields);
         let collectedChanged = before.collectedBy != after.collectedBy;
 
-        return hasOnlyAllowedFields
-          && (!collectedChanged || hasOnlyUserCollectedChange(before, after, userId));
+        return collectedChanged
+          && hasOnlyAllowedFields
+          && hasValidSocialTransitions(before, after, userId)
+          && hasOnlyUserCollectedChange(before, after, userId);
       }
 
       function isRedeemableDrop(data) {
@@ -270,7 +505,8 @@ service cloud.firestore {
           .concat(['likedBy.' + userId])
           .concat(['dislikedBy.' + userId])
           .concat(['reportedBy.' + userId]);
-        return before.diff(after).affectedKeys().hasOnly(allowedFields);
+        return before.diff(after).affectedKeys().hasOnly(allowedFields)
+          && hasValidSocialTransitions(before, after, userId);
       }
 
       allow update: if isSignedIn()
@@ -305,36 +541,8 @@ service cloud.firestore {
     }
 
     match /users/{userId}/groups/{groupCode} {
-      function groupDocMatchesOwner() {
-        let groupPath = /databases/$(database)/documents/groups/$(groupCode);
-        let groupDoc = existsAfter(groupPath)
-          ? getAfter(groupPath)
-          : (exists(groupPath) ? get(groupPath) : null);
-        return groupDoc != null
-          && groupDoc.data.keys().hasAny(['ownerId'])
-          && groupDoc.data.ownerId is string
-          && groupDoc.data.ownerId.size() > 0
-          && (
-            !request.resource.data.keys().hasAny(['ownerId'])
-            || groupDoc.data.ownerId == request.resource.data.ownerId
-          );
-      }
-
       allow read: if isCurrentUser(userId);
-
-      allow create, update: if isCurrentUser(userId)
-        && request.resource.data.keys().hasOnly(['code', 'role', 'ownerId', 'updatedAt'])
-        && (!request.resource.data.keys().hasAny(['code'])
-          || request.resource.data.code is string)
-        && (!request.resource.data.keys().hasAny(['role'])
-          || request.resource.data.role in ['OWNER', 'SUBSCRIBER'])
-        && (!request.resource.data.keys().hasAny(['ownerId'])
-          || request.resource.data.ownerId is string)
-        && (!request.resource.data.keys().hasAny(['updatedAt'])
-          || request.resource.data.updatedAt is int)
-        && groupDocMatchesOwner();
-
-      allow delete: if isCurrentUser(userId);
+      allow create, update, delete: if false;
     }
 
     match /users/{userId}/blockedCreators/{blockedId} {
@@ -437,7 +645,6 @@ service cloud.firestore {
 
       allow delete: if isCurrentUser(userId);
     }
-  }
 
     match /huntChains/{huntId} {
       allow read: if isSignedIn();
@@ -496,4 +703,46 @@ service cloud.firestore {
 
       allow delete: if isCurrentUser(userId);
     }
+
+    match /users/{userId}/reportStatuses/{reportId} {
+      allow read: if isCurrentUser(userId);
+      allow create, update, delete: if false;
+    }
+
+    // Open direct messaging is deferred (task 1.3). No DM collection exists
+    // today, so these are defense-in-depth on top of the default deny: if one
+    // is ever created by accident, it is unwritable and unreadable from a
+    // client rather than silently inheriting a permissive rule.
+    match /messages/{document=**} {
+      allow read, write: if false;
+    }
+
+    match /threads/{document=**} {
+      allow read, write: if false;
+    }
+
+    match /conversations/{document=**} {
+      allow read, write: if false;
+    }
+
+    match /directMessages/{document=**} {
+      allow read, write: if false;
+    }
+
+    match /dms/{document=**} {
+      allow read, write: if false;
+    }
+
+    match /users/{userId}/messages/{document=**} {
+      allow read, write: if false;
+    }
+
+    match /users/{userId}/threads/{document=**} {
+      allow read, write: if false;
+    }
+
+    match /users/{userId}/conversations/{document=**} {
+      allow read, write: if false;
+    }
+  }
 }

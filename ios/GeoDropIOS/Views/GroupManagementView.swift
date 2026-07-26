@@ -85,10 +85,12 @@ extension GroupManagementView {
                             viewModel.selectedGroupCode = group.code
                         }
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                            Button(role: .destructive) {
-                                viewModel.leaveGroup(code: group.code)
-                            } label: {
-                                Label("Leave", systemImage: "trash")
+                            if group.role != .owner {
+                                Button(role: .destructive) {
+                                    viewModel.leaveGroup(code: group.code)
+                                } label: {
+                                    Label("Leave", systemImage: "trash")
+                                }
                             }
                         }
                     }

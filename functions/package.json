@@ -8,10 +8,23 @@
     "shell": "npm run build && firebase functions:shell",
     "start": "npm run shell",
     "deploy": "firebase deploy --only functions",
-    "logs": "firebase functions:log"
+    "logs": "firebase functions:log",
+    "migrate:launch:check": "node scripts/backfill-launch-fields.js",
+    "migrate:launch:apply": "node scripts/backfill-launch-fields.js --apply",
+    "migrate:launch:quarantine": "node scripts/backfill-launch-fields.js --apply --quarantine-group-media --quarantine-unsafe-media",
+    "migrate:launch:rehearse": "node scripts/rehearse-launch-migration.js",
+    "moderator:check": "node scripts/set-moderator-claim.js",
+    "moderator:apply": "node scripts/set-moderator-claim.js --apply",
+    "moderation:console": "node scripts/moderation-console.js",
+    "moderation:rehearse": "node scripts/rehearse-moderation-operations.js",
+    "account:audit": "node scripts/account-lifecycle-audit.js",
+    "account:rehearse": "node scripts/rehearse-account-lifecycle.js",
+    "data:inventory": "node scripts/data-inventory.js",
+    "data:inventory:json": "node scripts/data-inventory.js --json",
+    "remoteconfig:validate": "node scripts/validate-remote-config-template.js"
   },
   "engines": {
-    "node": "18"
+    "node": "22"
   },
   "main": "lib/index.js",
   "dependencies": {

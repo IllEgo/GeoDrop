@@ -16,6 +16,7 @@ import com.google.firebase.functions.FirebaseFunctionsException
 import com.google.firebase.functions.ktx.functions
 import com.google.firebase.ktx.Firebase
 import com.e3hi.geodrop.util.GroupPreferences
+import com.e3hi.geodrop.util.PilotFeatureFlags
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicBoolean
@@ -34,7 +35,6 @@ class FirestoreRepo(
     private val users = db.collection("users")
     private val usernames = db.collection("usernames")
     private val reports = db.collection("reports")
-    private val groups = db.collection("groups")
     private val functions = Firebase.functions(BuildConfig.FIREBASE_FUNCTIONS_REGION)
     private val claimExplorerUsernameCallableUnavailable = AtomicBoolean(false)
 
@@ -59,6 +59,7 @@ class FirestoreRepo(
      * NEW: Suspend API. Writes a drop and returns the new document id.
      */
     suspend fun addDrop(drop: Drop): String {
+        validateEnabledDropFeatures(drop)
         val dropToSave = drop.prepareForSave()
         val ref: DocumentReference = drops.add(dropToSave).await()
         Log.d("GeoDrop", "Created drop ${ref.id}")
@@ -73,6 +74,11 @@ class FirestoreRepo(
         onId: (String) -> Unit = {},
         onError: (Throwable) -> Unit = {}
     ) {
+        val validationError = runCatching { validateEnabledDropFeatures(drop) }.exceptionOrNull()
+        if (validationError != null) {
+            onError(validationError)
+            return
+        }
         val dropToSave = drop.prepareForSave()
 
         drops.add(dropToSave)
@@ -163,71 +169,46 @@ class FirestoreRepo(
         if (userId.isBlank()) throw IllegalArgumentException("User id required to join group")
         val normalized = GroupPreferences.normalizeGroupCode(code)
             ?: throw IllegalArgumentException("Invalid group code")
-
-        val result = db.runTransaction { transaction ->
-            val groupRef = groups.document(normalized)
-            val groupSnapshot = transaction.get(groupRef)
-            val now = System.currentTimeMillis()
-            val existingOwner = groupSnapshot.getString("ownerId")?.takeIf { it.isNotBlank() }
-            val creatingGroup = !groupSnapshot.exists() || existingOwner == null
-            if (!creatingGroup && allowCreateIfMissing && existingOwner != null && existingOwner != userId) {
-                throw GroupAlreadyExistsException(normalized)
+        val action = if (allowCreateIfMissing) "CREATE" else "JOIN"
+        val result = try {
+            functions.getHttpsCallable("manageGroup")
+                .call(mapOf("action" to action, "code" to normalized))
+                .await()
+        } catch (error: FirebaseFunctionsException) {
+            when (error.code) {
+                FirebaseFunctionsException.Code.ALREADY_EXISTS ->
+                    throw GroupAlreadyExistsException(normalized)
+                FirebaseFunctionsException.Code.NOT_FOUND ->
+                    throw GroupNotFoundException(normalized)
+                else -> throw error
             }
-            val resolvedOwner = when {
-                creatingGroup && allowCreateIfMissing -> userId
-                creatingGroup -> throw GroupNotFoundException(normalized)
-                else -> existingOwner!!
-            }
-            val role = if (resolvedOwner == userId) GroupRole.OWNER else GroupRole.SUBSCRIBER
-
-            if (creatingGroup) {
-                val data = hashMapOf(
-                    "ownerId" to resolvedOwner,
-                    "createdAt" to (groupSnapshot.getLong("createdAt") ?: now),
-                    "updatedAt" to now
-                )
-                transaction.set(groupRef, data, SetOptions.merge())
-            } else if (resolvedOwner == userId) {
-                transaction.set(groupRef, mapOf("updatedAt" to now), SetOptions.merge())
-            }
-
-            val membershipData = hashMapOf(
-                "code" to normalized,
-                "role" to role.name,
-                "ownerId" to resolvedOwner,
-                "updatedAt" to now
-            )
-            transaction.set(
-                userGroupsCollection(userId).document(normalized),
-                membershipData,
-                SetOptions.merge()
-            )
-
-            GroupMembership(
-                code = normalized,
-                ownerId = resolvedOwner,
-                role = role
-            )
         }
-
-        return result.await()
+        val payload = result.data as? Map<*, *>
+            ?: throw IllegalStateException("Group service returned an invalid response")
+        val returnedCode = payload["code"]?.toString()
+            ?.let(GroupPreferences::normalizeGroupCode)
+            ?: normalized
+        val ownerId = payload["ownerId"]?.toString()?.takeIf { it.isNotBlank() }
+            ?: throw IllegalStateException("Group service returned no owner")
+        val role = GroupRole.fromRaw(payload["role"]?.toString())
+        return GroupMembership(code = returnedCode, ownerId = ownerId, role = role)
     }
 
     suspend fun leaveGroup(userId: String, code: String) {
         if (userId.isBlank()) return
         val normalized = GroupPreferences.normalizeGroupCode(code) ?: return
-
-        userGroupsCollection(userId).document(normalized).delete().await()
-        groups.document(normalized).set(mapOf("updatedAt" to System.currentTimeMillis()), SetOptions.merge())
+        functions.getHttpsCallable("manageGroup")
+            .call(mapOf("action" to "LEAVE", "code" to normalized))
+            .await()
     }
 
     suspend fun isGroupOwner(userId: String, code: String): Boolean {
         if (userId.isBlank()) return false
         val normalized = GroupPreferences.normalizeGroupCode(code) ?: return false
-
-        val snapshot = groups.document(normalized).get().await()
+        val snapshot = userGroupsCollection(userId).document(normalized).get().await()
         val ownerId = snapshot.getString("ownerId")?.takeIf { it.isNotBlank() }
-        return ownerId == userId
+        return snapshot.exists() && ownerId == userId &&
+            GroupRole.fromRaw(snapshot.getString("role")) == GroupRole.OWNER
     }
 
     suspend fun fetchUserInventory(userId: String): NoteInventory.Snapshot {
@@ -375,9 +356,7 @@ class FirestoreRepo(
         }
         val storedDisplayName = snapshot.getString("displayName")?.takeIf { it.isNotBlank() }
         val storedUsername = snapshot.getString("username")?.takeIf { it.isNotBlank() }
-        val storedNsfwEnabled = snapshot.getBoolean("nsfwEnabled") == true
-        val storedNsfwEnabledAtRaw = snapshot.get("nsfwEnabledAt")
-        val storedNsfwEnabledAt = storedNsfwEnabledAtRaw.toMillisOrNull()
+        val storedNsfwEnabled = false
         val storedCreatedAtRaw = snapshot.get("createdAt")
         val storedCreatedAt = storedCreatedAtRaw.toMillisOrNull()
         val resolvedCreatedAt = storedCreatedAt ?: System.currentTimeMillis()
@@ -390,8 +369,7 @@ class FirestoreRepo(
             updates["businessCategories"] = existingBusinessCategories.map { it.id }
             updates["displayName"] = resolvedDisplayName
             storedUsername?.let { updates["username"] = it }
-            updates["nsfwEnabled"] = storedNsfwEnabled
-            storedNsfwEnabledAtRaw?.let { updates["nsfwEnabledAt"] = it }
+            updates["nsfwEnabled"] = false
             updates["createdAt"] = storedCreatedAtRaw ?: resolvedCreatedAt
         } else {
             if (snapshot.getString("role").isNullOrBlank()) {
@@ -403,11 +381,11 @@ class FirestoreRepo(
             if (!snapshot.contains("businessCategories")) {
                 updates["businessCategories"] = existingBusinessCategories.map { it.id }
             }
-            if (!snapshot.contains("nsfwEnabled")) {
-                updates["nsfwEnabled"] = storedNsfwEnabled
+            if (snapshot.getBoolean("nsfwEnabled") != false) {
+                updates["nsfwEnabled"] = false
             }
-            if (!snapshot.contains("nsfwEnabledAt")) {
-                storedNsfwEnabledAtRaw?.let { updates["nsfwEnabledAt"] = it }
+            if (snapshot.contains("nsfwEnabledAt")) {
+                updates["nsfwEnabledAt"] = FieldValue.delete()
             }
             if (!snapshot.contains("createdAt")) {
                 updates["createdAt"] = resolvedCreatedAt
@@ -427,31 +405,21 @@ class FirestoreRepo(
             businessName = existingBusinessName,
             businessCategories = existingBusinessCategories,
             nsfwEnabled = storedNsfwEnabled,
-            nsfwEnabledAt = storedNsfwEnabledAt
+            nsfwEnabledAt = null
         )
     }
 
-    suspend fun updateNsfwPreference(userId: String, enabled: Boolean): UserProfile {
+    suspend fun updateNsfwPreference(userId: String, @Suppress("UNUSED_PARAMETER") enabled: Boolean): UserProfile {
         val profile = ensureUserProfile(userId)
         if (userId.isBlank()) return profile
-
-        val updates = hashMapOf<String, Any?>(
-            "nsfwEnabled" to enabled
-        )
-
-        val timestamp = if (enabled) {
-            Timestamp.now().also { updates["nsfwEnabledAt"] = it }
-        } else {
-            updates["nsfwEnabledAt"] = FieldValue.delete()
-            null
-        }
-
-        users.document(userId).set(updates, SetOptions.merge()).await()
-
-        return profile.copy(
-            nsfwEnabled = enabled,
-            nsfwEnabledAt = timestamp?.toDate()?.time
-        )
+        users.document(userId).set(
+            mapOf(
+                "nsfwEnabled" to false,
+                "nsfwEnabledAt" to FieldValue.delete()
+            ),
+            SetOptions.merge()
+        ).await()
+        return profile.copy(nsfwEnabled = false, nsfwEnabledAt = null)
     }
 
     private fun Any?.toMillisOrNull(): Long? = when (this) {
@@ -478,12 +446,14 @@ class FirestoreRepo(
             throw IllegalArgumentException("Select at least one business category")
         }
 
-        val updates = hashMapOf<String, Any?>(
-            "businessName" to sanitizedName,
-            "businessCategories" to categories.map { it.id },
-            "role" to UserRole.BUSINESS.name
-        )
-        users.document(userId).set(updates, SetOptions.merge()).await()
+        functions.getHttpsCallable("updateBusinessProfile")
+            .call(
+                mapOf(
+                    "businessName" to sanitizedName,
+                    "businessCategories" to categories.map { it.id }
+                )
+            )
+            .await()
 
         return profile.copy(
             role = UserRole.BUSINESS,
@@ -528,6 +498,7 @@ class FirestoreRepo(
 
             when {
                 drop.isDeleted -> null
+                !drop.isEnabledForRelease() -> null
                 drop.isBusinessDrop() && drop.isExpired() -> null
                 else -> drop
             }
@@ -539,6 +510,7 @@ class FirestoreRepo(
 
         val snapshot = drops
             .whereEqualTo("businessId", businessId)
+            .whereEqualTo("createdBy", businessId)
             .whereEqualTo("isDeleted", false)
             .get()
             .await()
@@ -548,6 +520,7 @@ class FirestoreRepo(
 
             when {
                 drop.isDeleted -> null
+                !drop.isEnabledForRelease() -> null
                 drop.isBusinessDrop() && drop.isExpired() -> null
                 else -> drop
             }
@@ -632,11 +605,13 @@ class FirestoreRepo(
         }
 
         val lockedDropIds = if (!userId.isNullOrBlank()) {
-            runCatching { fetchLockedHuntDropIds(userId) }.getOrElse { emptySet() }
+            runCatching { fetchLockedHuntDropIds(userId, allowNsfw, normalizedGroups) }
+                .getOrElse { emptySet() }
         } else {
             // Guests see only step-0 drops for any hunt; fetch locked (step > 0) drops to hide
             runCatching {
-                drops.whereEqualTo("isDeleted", false).get().await().documents.mapNotNull { doc ->
+                fetchVisibleActiveDropDocuments(null, emptySet(), false)
+                    .mapNotNull { doc ->
                     val stepIndex = (doc.get("huntStepIndex") as? Number)?.toInt()
                     val huntId = doc.getString("huntId")?.takeIf { it.isNotBlank() }
                     if (stepIndex != null && stepIndex > 0 && huntId != null) doc.id else null
@@ -644,15 +619,17 @@ class FirestoreRepo(
             }.getOrElse { emptySet() }
         }
 
-        val snapshot = drops
-            .whereEqualTo("isDeleted", false)
-            .get()
-            .await()
+        val visibleDocuments = fetchVisibleActiveDropDocuments(
+            userId,
+            normalizedGroups,
+            allowNsfw
+        )
 
-        return snapshot.documents.mapNotNull { doc ->
+        return visibleDocuments.mapNotNull { doc ->
             val drop = doc.toDrop()
 
             if (drop.isDeleted) return@mapNotNull null
+            if (!drop.isEnabledForRelease()) return@mapNotNull null
             if (drop.id in lockedDropIds) return@mapNotNull null
 
             if (!drop.isVisibleTo(userId, normalizedGroups)) return@mapNotNull null
@@ -685,11 +662,6 @@ class FirestoreRepo(
         val dropRef = drops.document(dropId)
         val dropSnapshot = runCatching { dropRef.get().await() }.getOrNull()
         val dropExists = dropSnapshot?.exists() == true
-        val dropMetadata = dropSnapshot
-            ?.takeIf { it.exists() }
-            ?.toDrop()
-            ?.toModerationSnapshot()
-
         val reportData = hashMapOf<String, Any?>(
             "dropId" to dropId,
             "reportedBy" to reporterId,
@@ -701,10 +673,6 @@ class FirestoreRepo(
         if (additionalContext.isNotEmpty()) {
             reportData["context"] = additionalContext
         }
-        if (dropMetadata != null) {
-            reportData["dropSnapshot"] = dropMetadata
-        }
-
         reports.add(reportData).await()
 
         if (!dropExists) return
@@ -920,6 +888,9 @@ class FirestoreRepo(
         userId: String,
         providedCode: String
     ): RedemptionResult {
+        if (!PilotFeatureFlags.couponsEnabled) {
+            return RedemptionResult.Error("Offers are disabled for this release.")
+        }
         if (dropId.isBlank() || userId.isBlank()) return RedemptionResult.Error("Missing identifiers")
         val trimmedCode = providedCode.trim()
         if (trimmedCode.isEmpty()) return RedemptionResult.InvalidCode
@@ -1158,6 +1129,9 @@ class FirestoreRepo(
     // ── Scavenger Hunt ───────────────────────────────────────────────────────
 
     suspend fun createHuntChain(chain: HuntChain): String {
+        check(PilotFeatureFlags.huntsEnabled) {
+            "Scavenger hunts are disabled for this release."
+        }
         val data = hashMapOf<String, Any?>(
             "createdBy" to chain.createdBy,
             "createdAt" to chain.createdAt,
@@ -1212,6 +1186,7 @@ class FirestoreRepo(
         nextStepIndex: Int,
         totalSteps: Int
     ) {
+        if (!PilotFeatureFlags.huntsEnabled) return
         if (userId.isBlank() || huntId.isBlank()) return
         val progressRef = userHuntProgressCollection(userId).document(huntId)
         val now = System.currentTimeMillis()
@@ -1252,7 +1227,12 @@ class FirestoreRepo(
      * Returns the set of drop IDs that are currently locked for the given user
      * (i.e. the user has not yet unlocked those hunt steps).
      */
-    suspend fun fetchLockedHuntDropIds(userId: String): Set<String> {
+    suspend fun fetchLockedHuntDropIds(
+        userId: String,
+        allowNsfw: Boolean = false,
+        allowedGroups: Set<String> = emptySet()
+    ): Set<String> {
+        if (!PilotFeatureFlags.huntsEnabled) return emptySet()
         if (userId.isBlank()) return emptySet()
         val progressSnapshot = userHuntProgressCollection(userId).get().await()
         val progressByHuntId = progressSnapshot.documents.mapNotNull { doc ->
@@ -1264,10 +1244,12 @@ class FirestoreRepo(
         if (progressByHuntId.isEmpty()) {
             // User has no progress at all — only step-0 drops are visible, all others are locked.
             // We need to find all drops with huntStepIndex > 0 to exclude them.
-            val allHuntDrops = drops
-                .whereEqualTo("isDeleted", false)
-                .get().await()
-            return allHuntDrops.documents.mapNotNull { doc ->
+            val allHuntDrops = fetchVisibleActiveDropDocuments(
+                userId,
+                allowedGroups,
+                allowNsfw
+            )
+            return allHuntDrops.mapNotNull { doc ->
                 val stepIndex = (doc.get("huntStepIndex") as? Number)?.toInt()
                 val huntId = doc.getString("huntId")?.takeIf { it.isNotBlank() }
                 if (stepIndex != null && stepIndex > 0 && huntId != null) doc.id else null
@@ -1278,11 +1260,13 @@ class FirestoreRepo(
         // For hunts the user has NOT started, lock all steps > 0.
         val startedHuntIds = progressByHuntId.keys
 
-        val allHuntDrops = drops
-            .whereEqualTo("isDeleted", false)
-            .get().await()
+        val allHuntDrops = fetchVisibleActiveDropDocuments(
+            userId,
+            allowedGroups,
+            allowNsfw
+        )
 
-        return allHuntDrops.documents.mapNotNull { doc ->
+        return allHuntDrops.mapNotNull { doc ->
             val stepIndex = (doc.get("huntStepIndex") as? Number)?.toInt() ?: return@mapNotNull null
             val huntId = doc.getString("huntId")?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
             val currentStep = progressByHuntId[huntId]
@@ -1294,6 +1278,41 @@ class FirestoreRepo(
             }
             if (isLocked) doc.id else null
         }.toSet()
+    }
+
+    private suspend fun fetchVisibleActiveDropDocuments(
+        userId: String?,
+        allowedGroups: Set<String>,
+        allowNsfw: Boolean
+    ): List<DocumentSnapshot> {
+        fun applySafetyFilter(query: com.google.firebase.firestore.Query): com.google.firebase.firestore.Query {
+            return query.whereEqualTo("isNsfw", false)
+        }
+
+        val documentsById = linkedMapOf<String, DocumentSnapshot>()
+        val publicQuery = applySafetyFilter(
+            drops
+                .whereEqualTo("isDeleted", false)
+                .whereEqualTo("visibility", "PUBLIC")
+        )
+        publicQuery.get().await().documents.forEach { documentsById[it.id] = it }
+
+        if (!userId.isNullOrBlank()) {
+            allowedGroups
+                .mapNotNull { GroupPreferences.normalizeGroupCode(it) }
+                .distinct()
+                .forEach { groupCode ->
+                    val groupQuery = applySafetyFilter(
+                        drops
+                            .whereEqualTo("isDeleted", false)
+                            .whereEqualTo("visibility", "GROUP")
+                            .whereEqualTo("groupCode", groupCode)
+                    )
+                    groupQuery.get().await().documents.forEach { documentsById[it.id] = it }
+                }
+        }
+
+        return documentsById.values.toList()
     }
 
     private fun DocumentSnapshot.toHuntProgress(): HuntProgress {
@@ -1310,6 +1329,9 @@ class FirestoreRepo(
 
     /** Sets the huntId field on a drop document after chain creation. */
     suspend fun updateDropHuntId(dropId: String, huntId: String) {
+        check(PilotFeatureFlags.huntsEnabled) {
+            "Scavenger hunts are disabled for this release."
+        }
         if (dropId.isBlank() || huntId.isBlank()) return
         drops.document(dropId).update("huntId", huntId).await()
     }
@@ -1348,6 +1370,7 @@ class FirestoreRepo(
             "isAnonymous" to sanitized.isAnonymous,
             "isDeleted" to false,
             "deletedAt" to null,
+            "visibility" to if (sanitized.groupCode.isNullOrBlank()) "PUBLIC" else "GROUP",
             "groupCode" to sanitized.groupCode?.takeIf { it.isNotBlank() },
             "dropType" to sanitized.dropType.name,
             "businessId" to sanitized.businessId,
@@ -1381,6 +1404,43 @@ class FirestoreRepo(
                 }
             }
         }
+    }
+
+    private fun validateEnabledDropFeatures(drop: Drop) {
+        check(PilotFeatureFlags.creationEnabled) {
+            "Drop creation is disabled for this release."
+        }
+        check(PilotFeatureFlags.couponsEnabled || drop.dropType != DropType.RESTAURANT_COUPON) {
+            "Offers are disabled for this release."
+        }
+        val hasMedia = drop.contentType != DropContentType.TEXT ||
+            !drop.mediaUrl.isNullOrBlank() ||
+            !drop.mediaMimeType.isNullOrBlank() ||
+            !drop.mediaData.isNullOrBlank() ||
+            !drop.mediaStoragePath.isNullOrBlank()
+        check(PilotFeatureFlags.mediaEnabled || !hasMedia) {
+            "Media drops are disabled for this release."
+        }
+        check(PilotFeatureFlags.nsfwEnabled || !drop.isNsfw) {
+            "Mature content is disabled for this release."
+        }
+        val isHuntDrop = !drop.huntId.isNullOrBlank() ||
+            drop.huntStepIndex != null || drop.huntTotalSteps != null
+        check(PilotFeatureFlags.huntsEnabled || !isHuntDrop) {
+            "Scavenger hunts are disabled for this release."
+        }
+    }
+
+    private fun Drop.isEnabledForRelease(): Boolean {
+        if (!PilotFeatureFlags.couponsEnabled && dropType == DropType.RESTAURANT_COUPON) {
+            return false
+        }
+        if (!PilotFeatureFlags.mediaEnabled && contentType != DropContentType.TEXT) {
+            return false
+        }
+        if (!PilotFeatureFlags.nsfwEnabled && isNsfw) return false
+        if (!PilotFeatureFlags.huntsEnabled && !huntId.isNullOrBlank()) return false
+        return true
     }
 
     private fun DocumentSnapshot.toCollectedNoteOrNull(): CollectedNote? {
@@ -1497,41 +1557,6 @@ class FirestoreRepo(
         huntId?.takeIf { it.isNotBlank() }?.let { data["huntId"] = it }
         huntStepIndex?.let { data["huntStepIndex"] = it }
         huntTotalSteps?.takeIf { it > 0 }?.let { data["huntTotalSteps"] = it }
-        return data
-    }
-
-    private fun Drop.toModerationSnapshot(): Map<String, Any?> {
-        val data = mutableMapOf<String, Any?>()
-        if (id.isNotBlank()) data["id"] = id
-        if (text.isNotBlank()) data["text"] = text
-        data["contentType"] = contentType.name
-        data["createdAt"] = createdAt
-        if (createdBy.isNotBlank()) data["createdBy"] = createdBy
-        if (!dropperUsername.isNullOrBlank() && !isAnonymous) {
-            data["dropperUsername"] = dropperUsername
-        }
-        data["isAnonymous"] = isAnonymous
-        lat.takeIf { it != 0.0 }?.let { data["lat"] = it }
-        lng.takeIf { it != 0.0 }?.let { data["lng"] = it }
-        groupCode?.takeIf { it.isNotBlank() }?.let { data["groupCode"] = it }
-        data["dropType"] = dropType.name
-        businessId?.takeIf { it.isNotBlank() }?.let { data["businessId"] = it }
-        businessName?.takeIf { it.isNotBlank() }?.let { data["businessName"] = it }
-        if (!mediaUrl.isNullOrBlank()) data["mediaUrl"] = mediaUrl
-        if (!mediaMimeType.isNullOrBlank()) data["mediaMimeType"] = mediaMimeType
-        if (!mediaStoragePath.isNullOrBlank()) data["mediaStoragePath"] = mediaStoragePath
-        data["isNsfw"] = isNsfw
-        if (nsfwLabels.isNotEmpty()) data["nsfwLabels"] = nsfwLabels
-        data["likeCount"] = likeCount
-        data["dislikeCount"] = dislikeCount
-        if (decayDays != null) data["decayDays"] = decayDays
-        if (likedBy.isNotEmpty()) data["likedBy"] = likedBy
-        if (dislikedBy.isNotEmpty()) data["dislikedBy"] = dislikedBy
-        if (reportCount > 0) data["reportCount"] = reportCount
-        if (reportedBy.isNotEmpty()) data["reportedBy"] = reportedBy.keys
-        if (redemptionLimit != null) data["redemptionLimit"] = redemptionLimit
-        if (redemptionCount > 0) data["redemptionCount"] = redemptionCount
-        if (redeemedBy.isNotEmpty()) data["redeemedBy"] = redeemedBy
         return data
     }
 

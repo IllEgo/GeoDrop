@@ -1,11 +1,14 @@
 import * as functions from "firebase-functions/v1";
 import * as admin from "firebase-admin";
+import {FieldValue} from "firebase-admin/firestore";
 import {ImageAnnotatorClient} from "@google-cloud/vision";
 
 admin.initializeApp();
 const vision = new ImageAnnotatorClient();
 const messaging = admin.messaging();
 const MODERATION_QUEUE_COLLECTION = "dropModerationQueue";
+const MAX_SAFE_SEARCH_BYTES = 6 * 1024 * 1024;
+const MAX_SAFE_SEARCH_BASE64_LENGTH = Math.ceil(MAX_SAFE_SEARCH_BYTES / 3) * 4;
 
 const encodeStoragePath = (path: string): string =>
   Buffer.from(path, "utf8")
@@ -46,7 +49,7 @@ const extractCollectorIds = (raw: unknown): Set<string> => {
   if (!raw || typeof raw !== "object") return new Set();
   const entries = Object.entries(raw as Record<string, unknown>);
   const ids = entries
-    .map(([uid, flag]) => uid?.trim())
+    .map(([uid]) => uid?.trim())
     .filter((uid) => typeof uid === "string" && uid.length > 0) as string[];
 
   const truthyIds = new Set<string>();
@@ -133,14 +136,14 @@ const resolveDropLabel = (data: admin.firestore.DocumentData | undefined | null)
   }
   const contentTypeRaw = typeof data.contentType === "string" ? data.contentType.trim().toUpperCase() : "TEXT";
   switch (contentTypeRaw) {
-    case "PHOTO":
-      return "your photo drop";
-    case "AUDIO":
-      return "your audio drop";
-    case "VIDEO":
-      return "your video drop";
-    default:
-      return "your drop";
+  case "PHOTO":
+    return "your photo drop";
+  case "AUDIO":
+    return "your audio drop";
+  case "VIDEO":
+    return "your video drop";
+  default:
+    return "your drop";
   }
 };
 
@@ -178,10 +181,33 @@ const sendToUserTokens = async (
 const USERNAME_MIN_LENGTH = 3;
 const USERNAME_MAX_LENGTH = 20;
 const USERNAME_PATTERN = /^[a-z0-9._]+$/;
+const GROUP_CODE_MIN_LENGTH = 4;
+const GROUP_CODE_MAX_LENGTH = 32;
+const GROUP_CODE_PATTERN = /^[A-Z0-9][A-Z0-9_-]*$/;
 
 type ClaimExplorerUsernameRequest = {
   desiredUsername?: string;
-  allowTransferFrom?: string;
+};
+
+type ManageGroupRequest = {
+  action?: unknown;
+  code?: unknown;
+};
+
+type GroupRole = "OWNER" | "SUBSCRIBER";
+
+const sanitizeGroupCode = (raw: unknown): string => {
+  const value = typeof raw === "string" ? raw : String(raw ?? "");
+  const normalized = value.trim().toLocaleUpperCase("en-US");
+  if (normalized.length < GROUP_CODE_MIN_LENGTH ||
+      normalized.length > GROUP_CODE_MAX_LENGTH ||
+      !GROUP_CODE_PATTERN.test(normalized)) {
+    throw new functions.https.HttpsError(
+      "invalid-argument",
+      "Group codes must be 4 to 32 letters, numbers, underscores, or hyphens."
+    );
+  }
+  return normalized;
 };
 
 const sanitizeExplorerUsername = (raw: unknown): string => {
@@ -214,35 +240,66 @@ const sanitizeExplorerUsername = (raw: unknown): string => {
   return normalized;
 };
 
-const normalizeTransferId = (raw: unknown): string | undefined => {
-  if (typeof raw !== "string") return undefined;
-  const trimmed = raw.trim();
-  return trimmed.length > 0 ? trimmed : undefined;
-};
-
 // HTTPS callable — SafeSearch from base64
 export const safeSearch = functions
   .region("us-central1")
-  .https.onCall(async (data: { base64?: string }) => {
-    const base64 = data?.base64 ?? "";
-    if (!base64) {
+  .runWith({enforceAppCheck: true, timeoutSeconds: 30, memory: "512MB"})
+  .https.onCall(async (data: { base64?: unknown }, context) => {
+    const uid = context.auth?.uid;
+    if (!uid) {
       throw new functions.https.HttpsError(
-        "invalid-argument",
-        "Provide data.base64"
+        "unauthenticated",
+        "Sign in before scanning media."
       );
     }
-    const [result] = await vision.annotateImage({
-      image: {content: base64},
-      features: [{type: "SAFE_SEARCH_DETECTION"}],
-    });
-    const s = result.safeSearchAnnotation;
-    return {
-      adult: s?.adult,
-      spoof: s?.spoof,
-      medical: s?.medical,
-      violence: s?.violence,
-      racy: s?.racy,
-    };
+
+    if (typeof data?.base64 !== "string") {
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "Provide a base64-encoded image."
+      );
+    }
+
+    const base64 = data.base64.trim();
+    if (!base64 || base64.length > MAX_SAFE_SEARCH_BASE64_LENGTH ||
+        !/^[A-Za-z0-9+/]+={0,2}$/.test(base64)) {
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "The image payload is empty, malformed, or too large."
+      );
+    }
+
+    const image = Buffer.from(base64, "base64");
+    if (!image.length || image.length > MAX_SAFE_SEARCH_BYTES) {
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "The decoded image is empty or too large."
+      );
+    }
+
+    try {
+      const [result] = await vision.annotateImage({
+        image: {content: image},
+        features: [{type: "SAFE_SEARCH_DETECTION"}],
+      });
+      const s = result.safeSearchAnnotation;
+      if (!s) {
+        throw new Error("Vision returned no SafeSearch annotation");
+      }
+      return {
+        adult: s.adult,
+        spoof: s.spoof,
+        medical: s.medical,
+        violence: s.violence,
+        racy: s.racy,
+      };
+    } catch (error) {
+      console.error("SafeSearch Vision request failed", error);
+      throw new functions.https.HttpsError(
+        "unavailable",
+        "Media safety scanning is temporarily unavailable."
+      );
+    }
   });
 
 export const claimExplorerUsername = functions
@@ -257,8 +314,6 @@ export const claimExplorerUsername = functions
     }
 
     const sanitized = sanitizeExplorerUsername(data?.desiredUsername);
-    const allowTransferFrom = normalizeTransferId(data?.allowTransferFrom);
-
     const firestore = admin.firestore();
     const usernames = firestore.collection("usernames");
     const users = firestore.collection("users");
@@ -276,12 +331,10 @@ export const claimExplorerUsername = functions
       const existingOwner = usernameSnapshot.get("userId") as string | undefined;
 
       if (existingOwner && existingOwner !== uid) {
-        if (!allowTransferFrom || allowTransferFrom !== existingOwner) {
-          throw new functions.https.HttpsError(
-            "already-exists",
-            "That username is already taken. Try another one."
-          );
-        }
+        throw new functions.https.HttpsError(
+          "already-exists",
+          "That username is already taken. Try another one."
+        );
       }
 
       transaction.set(usernameRef, {userId: uid}, {merge: true});
@@ -294,6 +347,254 @@ export const claimExplorerUsername = functions
     });
 
     return {username: sanitized};
+  });
+
+type UpdateBusinessProfileRequest = {
+  businessName?: unknown;
+  businessCategories?: unknown;
+};
+
+export const updateBusinessProfile = functions
+  .region("us-central1")
+  .runWith({enforceAppCheck: true})
+  .https.onCall(async (data: UpdateBusinessProfileRequest, context) => {
+    const uid = context.auth?.uid;
+    if (!uid) {
+      throw new functions.https.HttpsError(
+        "unauthenticated",
+        "Sign in before updating a business profile."
+      );
+    }
+    if (context.auth?.token.email_verified !== true) {
+      throw new functions.https.HttpsError(
+        "failed-precondition",
+        "Verify your email before creating a business profile."
+      );
+    }
+
+    const businessName = typeof data?.businessName === "string" ?
+      data.businessName.trim() : "";
+    const rawCategories = Array.isArray(data?.businessCategories) ?
+      data.businessCategories : [];
+    const businessCategories = Array.from(new Set(rawCategories
+      .filter((value): value is string => typeof value === "string")
+      .map((value) => value.trim())
+      .filter((value) => value.length > 0)));
+
+    if (!businessName || businessName.length > 100 ||
+        businessCategories.length < 1 || businessCategories.length > 10 ||
+        businessCategories.some((value) => value.length > 50)) {
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "Provide a valid business name and 1 to 10 categories."
+      );
+    }
+
+    await admin.firestore().collection("users").doc(uid).set({
+      businessName,
+      businessCategories,
+      role: "BUSINESS",
+    }, {merge: true});
+
+    return {businessName, businessCategories, role: "BUSINESS"};
+  });
+
+/**
+ * Group codes are invitation capabilities. Clients may read their own
+ * membership documents, but all group and membership writes are performed by
+ * this callable so a signed-in user cannot enumerate groups or self-authorize
+ * with a direct Firestore write.
+ */
+export const manageGroup = functions
+  .region("us-central1")
+  .runWith({enforceAppCheck: true})
+  .https.onCall(async (data: ManageGroupRequest, context) => {
+    const uid = context.auth?.uid;
+    if (!uid) {
+      throw new functions.https.HttpsError(
+        "unauthenticated",
+        "Sign in before managing groups."
+      );
+    }
+    if (context.auth?.token.suspended === true) {
+      throw new functions.https.HttpsError(
+        "permission-denied",
+        "This account is suspended."
+      );
+    }
+
+    const action = typeof data?.action === "string" ?
+      data.action.trim().toLocaleUpperCase("en-US") : "";
+    if (!(["CREATE", "JOIN", "LEAVE"] as const).includes(
+      action as "CREATE" | "JOIN" | "LEAVE"
+    )) {
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "Choose CREATE, JOIN, or LEAVE."
+      );
+    }
+
+    const code = sanitizeGroupCode(data?.code);
+    const firestore = admin.firestore();
+    const groupRef = firestore.collection("groups").doc(code);
+    const membershipRef = firestore
+      .collection("users")
+      .doc(uid)
+      .collection("groups")
+      .doc(code);
+
+    if (action === "LEAVE") {
+      await firestore.runTransaction(async (transaction) => {
+        const [groupSnapshot, membershipSnapshot] = await Promise.all([
+          transaction.get(groupRef),
+          transaction.get(membershipRef),
+        ]);
+        if (!membershipSnapshot.exists) return;
+        if (groupSnapshot.get("ownerId") === uid) {
+          throw new functions.https.HttpsError(
+            "failed-precondition",
+            "Group owners cannot leave until ownership transfer is supported."
+          );
+        }
+        transaction.delete(membershipRef);
+      });
+      return {code, left: true};
+    }
+
+    const membership = await firestore.runTransaction(async (transaction) => {
+      const [groupSnapshot, membershipSnapshot] = await Promise.all([
+        transaction.get(groupRef),
+        transaction.get(membershipRef),
+      ]);
+      const existingOwner = groupSnapshot.get("ownerId");
+      let ownerId: string;
+      let role: GroupRole;
+
+      if (action === "CREATE") {
+        if (groupSnapshot.exists && existingOwner !== uid) {
+          throw new functions.https.HttpsError(
+            "already-exists",
+            "That group code is already in use."
+          );
+        }
+        ownerId = uid;
+        role = "OWNER";
+        if (!groupSnapshot.exists) {
+          transaction.create(groupRef, {
+            ownerId,
+            createdAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+        }
+      } else {
+        if (!groupSnapshot.exists || typeof existingOwner !== "string" ||
+            existingOwner.trim().length === 0) {
+          throw new functions.https.HttpsError(
+            "not-found",
+            "That group does not exist."
+          );
+        }
+        ownerId = existingOwner;
+        role = ownerId === uid ? "OWNER" : "SUBSCRIBER";
+      }
+
+      const currentRole = membershipSnapshot.get("role");
+      const currentOwnerId = membershipSnapshot.get("ownerId");
+      if (!membershipSnapshot.exists || currentRole !== role ||
+          currentOwnerId !== ownerId) {
+        transaction.set(membershipRef, {
+          code,
+          role,
+          ownerId,
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      }
+
+      return {code, ownerId, role};
+    });
+
+    return membership;
+  });
+
+const normalizeDropMediaPath = (raw: unknown): string | null => {
+  if (typeof raw !== "string") return null;
+  const normalized = raw.trim().replace(/^\/+/, "");
+  if (!/^drops\/[^/]+\/[^/]+$/.test(normalized)) return null;
+  return normalized;
+};
+
+const setDropMediaAccess = async (
+  storagePath: string,
+  dropId: string,
+  ownerId: string,
+  accessLevel: "PUBLIC" | "PRIVATE",
+  safetyStatus: "SAFE" | "BLOCKED"
+): Promise<void> => {
+  const file = admin.storage().bucket().file(storagePath);
+  const [exists] = await file.exists();
+  if (!exists) {
+    console.error(`Drop ${dropId} references missing media ${storagePath}.`);
+    return;
+  }
+
+  const [fileMetadata] = await file.getMetadata();
+  const existingOwnerId = fileMetadata.metadata?.ownerId;
+  const existingDropId = fileMetadata.metadata?.dropId;
+  if (existingOwnerId !== ownerId ||
+      (existingDropId && existingDropId !== dropId)) {
+    console.error(
+      `Refused to bind media ${storagePath} to drop ${dropId}: ` +
+      "object ownership or existing association did not match."
+    );
+    return;
+  }
+  const customMetadata = {
+    ...(fileMetadata.metadata ?? {}),
+    ownerId,
+    dropId,
+    accessLevel,
+    safetyStatus,
+  } as Record<string, string | null>;
+
+  // Firebase download URLs contain a bearer token and bypass Storage Rules.
+  // Remove every legacy token; clients store a token-free REST URL whose read
+  // is evaluated by Storage Rules instead.
+  customMetadata.firebaseStorageDownloadTokens = null;
+  await file.setMetadata({
+    metadata: customMetadata as unknown as Record<string, string>,
+  });
+};
+
+export const synchronizeDropMediaAccess = functions
+  .region("us-central1")
+  .firestore.document("drops/{dropId}")
+  .onWrite(async (change, context) => {
+    const after = change.after.exists ? change.after.data() : undefined;
+    const before = change.before.exists ? change.before.data() : undefined;
+    const data = after ?? before;
+    if (!data) return;
+
+    const storagePath = normalizeDropMediaPath(data.mediaStoragePath);
+    if (!storagePath) return;
+    const ownerId = typeof data.createdBy === "string" ?
+      data.createdBy.trim() : "";
+    if (!ownerId) {
+      console.error(`Drop ${context.params.dropId} has media without an owner.`);
+      return;
+    }
+
+    const isPublicAndSafe = Boolean(after) &&
+      after?.isDeleted === false &&
+      after?.isNsfw === false &&
+      after?.visibility === "PUBLIC";
+
+    await setDropMediaAccess(
+      storagePath,
+      String(context.params.dropId),
+      ownerId,
+      isPublicAndSafe ? "PUBLIC" : "PRIVATE",
+      isPublicAndSafe ? "SAFE" : "BLOCKED"
+    );
   });
 
 // Storage trigger — analyze photo uploads under drops/photos
@@ -321,14 +622,13 @@ export const analyzeOnUpload = functions
     const s = result.safeSearchAnnotation;
 
 
-
     const moderation = {
       adult: s?.adult,
       spoof: s?.spoof,
       medical: s?.medical,
       violence: s?.violence,
       racy: s?.racy,
-      analyzedAt: admin.firestore.FieldValue.serverTimestamp(),
+      analyzedAt: FieldValue.serverTimestamp(),
       sourceObject: name,
     };
 
@@ -388,6 +688,7 @@ export const notifyDropCreatorOnCollection = functions
     if (!after) return;
 
     if (after.isDeleted === true) return;
+    if (after.isNsfw === true || after.visibility !== "PUBLIC") return;
 
     const creatorRaw = after.createdBy;
     const creatorId = typeof creatorRaw === "string" ? creatorRaw.trim() : "";
@@ -423,9 +724,9 @@ export const notifyDropCreatorOnCollection = functions
     const dropId = String(context.params.dropId ?? "");
     if (!dropId) return;
 
-    const contentType = typeof after.contentType === "string"
-      ? after.contentType
-      : "TEXT";
+    const contentType = typeof after.contentType === "string" ?
+      after.contentType :
+      "TEXT";
 
     const data: Record<string, string> = {
       event: "DROP_COLLECTED",
@@ -508,3 +809,25 @@ export const cleanupCollectedNotesOnDropDelete = functions
       `Removed drop ${dropId} from ${collectorIds.length} collected inventories after deletion.`
     );
   });
+
+export {
+  deleteAccount,
+  purgeExpiredAccountExports,
+  purgeExpiredDeletionReceipts,
+  requestAccountExport,
+} from "./accountLifecycle";
+
+export {
+  getLegalPolicyManifest,
+  recordLegalAcceptance,
+} from "./legalConsent";
+
+export {
+  alertOverdueModerationCases,
+  decideModerationAppeal,
+  decideModerationCase,
+  ingestUserReport,
+  listModerationQueue,
+  submitModerationAppeal,
+  triageModerationCase,
+} from "./moderationOperations";

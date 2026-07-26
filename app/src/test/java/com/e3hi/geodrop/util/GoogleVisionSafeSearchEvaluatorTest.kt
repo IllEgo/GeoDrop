@@ -76,8 +76,12 @@ class GoogleVisionSafeSearchEvaluatorTest {
 
     @Test
     fun `callable fallback flags nsfw content for other unsafe categories`() = runBlocking {
+        // The default threshold is VERY_LIKELY, so a LIKELY signal is set
+        // explicitly here — this case is about non-adult categories flagging at
+        // all, not about where the production bar sits.
         val evaluator = GoogleVisionSafeSearchEvaluator(
             apiKey = "",
+            minimumLikelihood = GoogleVisionSafeSearchEvaluator.Likelihood.LIKELY,
             safeSearchCallable = GoogleVisionSafeSearchEvaluator.SafeSearchCallable {
                 mapOf(
                     "violence" to "LIKELY",

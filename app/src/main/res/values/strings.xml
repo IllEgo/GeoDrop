@@ -2,7 +2,6 @@
     <string name="app_name">GeoDrop</string>
     <string name="notif_channel_name">GeoDrop Nearby</string>
     <string name="notif_channel_desc">Alerts when you enter a drop area</string>
-    <string name="google_maps_key">AIzaSyDD9c_0xHim_ITvXZlHY67b_m_SR-9DUJs</string>
     <string name="default_web_client_id">1017151605782-7is7mob6prbujsepnuo83r4klk8h994q.apps.googleusercontent.com</string>
     <string name="drag_to_resize">Drag to resize</string>
     <string name="content_description_expand_video">Expand video to full screen</string>
@@ -62,7 +61,7 @@
     <string name="drop_detail_title">Drop details</string>
     <string name="content_description_back">Back</string>
     <string name="drop_detail_adult_content_hidden">Adult content hidden</string>
-    <string name="drop_detail_enable_adult_content_hint">Enable 18+ drops from the GeoDrop home screen account menu to view this drop.</string>
+    <string name="drop_detail_enable_adult_content_hint">Adult content is unavailable during the GeoDrop pilot.</string>
     <string name="audio_recorder_prepare_error">Couldn\'t prepare space for the recording. Try again.</string>
     <string name="audio_recorder_unavailable_device">Recording unavailable on this device.</string>
     <string name="audio_recorder_start_error">Couldn\'t start recording. Try again.</string>
@@ -99,7 +98,7 @@
     <string name="explorer_profile_error_taken">That username is already taken. Try another one.</string>
     <string name="explorer_profile_error_generic">Couldn\'t update your profile. Try again.</string>
     <string name="explorer_profile_save">Save profile</string>
-    <string name="explorer_profile_status_saved">Profile updated.</string>
+    <string name="explorer_profile_status_saved">Profile updated for %1$s.</string>
     <string name="explorer_profile_status_claiming">Finishing your explorer setup…</string>
     <string name="faq_title">Get to know GeoDrop</string>
     <string name="faq_intro">GeoDrop is built around sharing location-based drops. Here\'s a quick overview of how everything fits together.</string>

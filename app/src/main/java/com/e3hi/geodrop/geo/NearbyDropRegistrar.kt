@@ -10,12 +10,14 @@ import android.os.Looper
 import android.util.Log
 import androidx.core.content.ContextCompat
 import com.e3hi.geodrop.data.Drop
+import com.e3hi.geodrop.data.DropContentType
+import com.e3hi.geodrop.data.DropType
 import com.e3hi.geodrop.data.FirestoreRepo
 import com.e3hi.geodrop.data.decayAtMillis
 import com.e3hi.geodrop.data.isExpired
-import com.e3hi.geodrop.data.toDrop
 import com.e3hi.geodrop.data.NoteInventory
 import com.e3hi.geodrop.util.GroupPreferences
+import com.e3hi.geodrop.util.PilotFeatureFlags
 import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofencingClient
 import com.google.android.gms.location.GeofencingRequest
@@ -53,6 +55,11 @@ class NearbyDropRegistrar {
         groupCodes: Set<String> = emptySet(),
         onStatus: (NearbySyncStatus) -> Unit = {}
     ) {
+        if (!PilotFeatureFlags.notificationsEnabled) {
+            unregisterNearby(context)
+            notifyStatus(onStatus, NearbySyncStatus.Success(0))
+            return
+        }
         if (!hasPreciseLocation(context)) {
             Log.e(TAG, "No precise location permission (ACCESS_FINE_LOCATION=false). Skipping geofence registration.")
             logPerms(context)
@@ -85,6 +92,19 @@ class NearbyDropRegistrar {
         )
     }
 
+    fun unregisterNearby(
+        context: Context,
+        onComplete: (Boolean) -> Unit = {}
+    ) {
+        val geos = LocationServices.getGeofencingClient(context)
+        geos.removeGeofences(GeofencePendingIntent.get(context))
+            .addOnSuccessListener { onComplete(true) }
+            .addOnFailureListener { error ->
+                Log.w(TAG, "Couldn't remove nearby geofences", error)
+                onComplete(false)
+            }
+    }
+
     /**
      * Testing helper: force a specific origin (e.g., emulator Extended controls → Location).
      * This bypasses FusedLocation so you can validate geofences at known coords.
@@ -97,6 +117,11 @@ class NearbyDropRegistrar {
         groupCodes: Set<String> = emptySet(),
         onStatus: (NearbySyncStatus) -> Unit = {}
     ) {
+        if (!PilotFeatureFlags.notificationsEnabled) {
+            unregisterNearby(context)
+            notifyStatus(onStatus, NearbySyncStatus.Success(0))
+            return
+        }
         if (!hasPreciseLocation(context)) {
             Log.e(TAG, "No precise location permission; cannot add geofences.")
             logPerms(context)
@@ -123,12 +148,14 @@ class NearbyDropRegistrar {
 
                 val repo = FirestoreRepo()
                 val lockedDropIds = if (!me.isNullOrBlank()) {
-                    runCatching { repo.fetchLockedHuntDropIds(me) }.getOrElse { emptySet() }
+                    runCatching {
+                        repo.fetchLockedHuntDropIds(me, allowNsfw, allowedGroups)
+                    }.getOrElse { emptySet() }
                 } else {
                     emptySet()
                 }
 
-                val snapshot = db.collection("drops").get().await()
+                val visibleDrops = repo.getVisibleDropsForUser(me, allowedGroups, allowNsfw)
                 val pendingIntent = GeofencePendingIntent.get(context)
 
                 // Remove all previously registered geofences before re-registering.
@@ -138,10 +165,10 @@ class NearbyDropRegistrar {
 
                 val toAdd = mutableListOf<Geofence>()
 
-                for (doc in snapshot.documents) {
-                    val drop = doc.toDrop()
+                for (drop in visibleDrops) {
                     if (drop.isDeleted) continue
-                    val id = doc.id
+                    if (!drop.isReleaseFeatureEnabled()) continue
+                    val id = drop.id
 
                     if (inventory.isCollected(id) || inventory.isIgnored(id)) continue
                     if (drop.createdBy == me) continue
@@ -289,4 +316,10 @@ class NearbyDropRegistrar {
     companion object {
         private const val TAG = "GeoDrop"
     }
+
+    private fun Drop.isReleaseFeatureEnabled(): Boolean =
+        (PilotFeatureFlags.nsfwEnabled || !isNsfw) &&
+            (PilotFeatureFlags.couponsEnabled || dropType != DropType.RESTAURANT_COUPON) &&
+            (PilotFeatureFlags.mediaEnabled || contentType == DropContentType.TEXT) &&
+            (PilotFeatureFlags.huntsEnabled || huntId.isNullOrBlank())
 }

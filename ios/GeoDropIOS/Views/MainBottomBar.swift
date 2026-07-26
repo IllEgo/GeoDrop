@@ -1,4 +1,7 @@
 import SwiftUI
+import CoreLocation
+import UserNotifications
+import UIKit
 
 struct MainBottomBar<AccountMenuContent: View>: View {
     @Binding var isAccountMenuPresented: Bool
@@ -177,16 +180,15 @@ struct AccountMenuView: View {
                     viewModel.openNotificationRadiusSettings()
                 }
 
-                if session.profile.role != .business {
-                    MenuActionButton(
-                        title: viewModel.allowNsfw ? "Disable NSFW drops" : "Enable NSFW drops",
-                        systemImage: "flag",
-                        theme: geoDropTheme
-                    ) {
-                        onDismiss()
-                        viewModel.toggleAllowNsfw()
-                    }
+                MenuActionButton(
+                    title: "Your data",
+                    systemImage: "lock.doc",
+                    theme: geoDropTheme
+                ) {
+                    onDismiss()
+                    viewModel.openAccountData()
                 }
+
             }
 
             MenuActionButton(
@@ -403,12 +405,18 @@ private struct GroupMenuRow: View {
 }
 
 struct NotificationRadiusSheet: View {
+    @EnvironmentObject private var viewModel: AppViewModel
     @Environment(\.geoDropTheme) private var geoDropTheme
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var scenePhase
+    @ObservedObject private var locationService = LocationService.shared
+    @ObservedObject private var messagingService = MessagingService.shared
 
     private static let step: Double = 50
 
     @State private var sliderValue: Double
+    @State private var setupPrompt: NearbyAlertSetupPrompt?
+    @State private var pendingAlertEnablement = false
     let onSave: (Double) -> Void
 
     init(initialRadius: Double, onSave: @escaping (Double) -> Void) {
@@ -434,6 +442,32 @@ struct NotificationRadiusSheet: View {
 
     private var content: some View {
         VStack(alignment: .leading, spacing: 24) {
+            Toggle(
+                isOn: Binding(
+                    get: { viewModel.nearbyAlertsEnabled },
+                    set: { enabled in
+                        if enabled {
+                            beginAlertEnablement()
+                        } else {
+                            pendingAlertEnablement = false
+                            viewModel.setNearbyAlertsEnabled(false)
+                        }
+                    }
+                )
+            ) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Nearby alerts")
+                        .font(.headline)
+                    Text(
+                        viewModel.nearbyAlertsEnabled
+                            ? "On — GeoDrop can alert you within your chosen radius."
+                            : "Off — Nearby browsing still works without alerts."
+                    )
+                    .font(.footnote)
+                    .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
+                }
+            }
+
             Text("Choose how close a drop should be before we alert you.")
                 .font(geoDropTheme.typography.body)
                 .foregroundColor(geoDropTheme.colors.onSurface)
@@ -457,6 +491,17 @@ struct NotificationRadiusSheet: View {
         .padding(24)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(geoDropTheme.colors.background)
+        .onAppear {
+            refreshPermissionState(resumeSetup: false)
+        }
+        .onChange(of: scenePhase) { phase in
+            if phase == .active {
+                refreshPermissionState(resumeSetup: pendingAlertEnablement)
+            }
+        }
+        .alert(item: $setupPrompt) { prompt in
+            alert(for: prompt)
+        }
     }
 
     @ToolbarContentBuilder
@@ -481,4 +526,197 @@ struct NotificationRadiusSheet: View {
         let maxValue = NotificationPreferences.maxRadius
         return min(maxValue, max(minValue, value))
     }
+
+    private func beginAlertEnablement() {
+        pendingAlertEnablement = true
+        refreshPermissionState(resumeSetup: true)
+    }
+
+    private func refreshPermissionState(resumeSetup: Bool) {
+        locationService.refreshAuthorizationStatus()
+        messagingService.refreshAuthorizationStatus { _ in
+            if resumeSetup {
+                continueAlertEnablement()
+            } else if viewModel.nearbyAlertsEnabled && !allAlertPermissionsGranted {
+                viewModel.setNearbyAlertsEnabled(false)
+            }
+        }
+    }
+
+    private var allAlertPermissionsGranted: Bool {
+        locationService.authorizationStatus == .authorizedAlways &&
+            notificationPermissionGranted
+    }
+
+    private var notificationPermissionGranted: Bool {
+        switch messagingService.authorizationStatus {
+        case .authorized, .provisional, .ephemeral:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func continueAlertEnablement() {
+        switch locationService.authorizationStatus {
+        case .authorizedAlways, .authorizedWhenInUse:
+            break
+        case .notDetermined:
+            setupPrompt = .foregroundLocationRequired
+            return
+        case .denied, .restricted:
+            setupPrompt = .foregroundLocationSettings
+            return
+        @unknown default:
+            setupPrompt = .foregroundLocationRequired
+            return
+        }
+
+        switch messagingService.authorizationStatus {
+        case .notDetermined:
+            setupPrompt = .notificationRationale
+            return
+        case .denied:
+            setupPrompt = .notificationSettings
+            return
+        case .authorized, .provisional, .ephemeral:
+            messagingService.requestAuthorization { granted in
+                if granted {
+                    continueBackgroundLocationEnablement()
+                } else {
+                    setupPrompt = .notificationSettings
+                }
+            }
+        @unknown default:
+            setupPrompt = .notificationSettings
+        }
+    }
+
+    private func continueBackgroundLocationEnablement() {
+        switch locationService.authorizationStatus {
+        case .authorizedAlways:
+            pendingAlertEnablement = false
+            setupPrompt = nil
+            viewModel.setNearbyAlertsEnabled(true)
+        case .authorizedWhenInUse:
+            setupPrompt = .backgroundLocationRationale
+        case .notDetermined:
+            setupPrompt = .foregroundLocationRequired
+        case .denied, .restricted:
+            setupPrompt = .foregroundLocationSettings
+        @unknown default:
+            setupPrompt = .backgroundLocationSettings
+        }
+    }
+
+    private func requestNotificationAuthorization() {
+        messagingService.requestAuthorization { granted in
+            if granted {
+                continueBackgroundLocationEnablement()
+            } else {
+                setupPrompt = .notificationSettings
+            }
+        }
+    }
+
+    private func requestBackgroundLocationAuthorization() {
+        locationService.requestAlwaysAuthorization { status in
+            if status == .authorizedAlways {
+                pendingAlertEnablement = false
+                setupPrompt = nil
+                viewModel.setNearbyAlertsEnabled(true)
+            } else {
+                setupPrompt = .backgroundLocationSettings
+            }
+        }
+    }
+
+    private func openApplicationSettings() {
+        guard let settingsURL = URL(string: UIApplication.openSettingsURLString) else { return }
+        UIApplication.shared.open(settingsURL)
+    }
+
+    private func cancelAlertEnablement() {
+        pendingAlertEnablement = false
+        setupPrompt = nil
+        viewModel.setNearbyAlertsEnabled(false)
+    }
+
+    private func returnToNearby() {
+        pendingAlertEnablement = false
+        setupPrompt = nil
+        viewModel.setNearbyAlertsEnabled(false)
+        viewModel.setExplorerDestination(.nearby)
+        dismiss()
+    }
+
+    private func alert(for prompt: NearbyAlertSetupPrompt) -> Alert {
+        switch prompt {
+        case .foregroundLocationRequired:
+            return Alert(
+                title: Text("Set up location from Nearby first"),
+                message: Text(
+                    "Nearby alerts need location access. Return to Nearby and choose “Use my location” so the request stays connected to discovery; browsing remains available if you decline."
+                ),
+                primaryButton: .default(Text("Go to Nearby"), action: returnToNearby),
+                secondaryButton: .cancel(cancelAlertEnablement)
+            )
+        case .foregroundLocationSettings:
+            return Alert(
+                title: Text("Location is off"),
+                message: Text(
+                    "Turn on GeoDrop location access in Settings, then return to finish Nearby alert setup. Browsing still works without location."
+                ),
+                primaryButton: .default(Text("Open Settings"), action: openApplicationSettings),
+                secondaryButton: .cancel(cancelAlertEnablement)
+            )
+        case .notificationRationale:
+            return Alert(
+                title: Text("Allow Nearby notifications?"),
+                message: Text(
+                    "GeoDrop will use alerts only after you enable this feature, to tell you when a drop is within your chosen radius. You can turn alerts off at any time."
+                ),
+                primaryButton: .default(Text("Continue"), action: requestNotificationAuthorization),
+                secondaryButton: .cancel(cancelAlertEnablement)
+            )
+        case .notificationSettings:
+            return Alert(
+                title: Text("Notifications are off"),
+                message: Text(
+                    "Turn on GeoDrop notifications in Settings to finish Nearby alert setup. Nearby browsing still works without notifications."
+                ),
+                primaryButton: .default(Text("Open Settings"), action: openApplicationSettings),
+                secondaryButton: .cancel(cancelAlertEnablement)
+            )
+        case .backgroundLocationRationale:
+            return Alert(
+                title: Text("Allow alerts while GeoDrop is closed?"),
+                message: Text(
+                    "Background location is used only for Nearby alerts you are enabling now. Choosing Always lets GeoDrop detect nearby drops without keeping the app open."
+                ),
+                primaryButton: .default(Text("Continue"), action: requestBackgroundLocationAuthorization),
+                secondaryButton: .cancel(cancelAlertEnablement)
+            )
+        case .backgroundLocationSettings:
+            return Alert(
+                title: Text("Background location is off"),
+                message: Text(
+                    "In Settings, set Location to Always to receive Nearby alerts while GeoDrop is closed. You can keep using Nearby without it."
+                ),
+                primaryButton: .default(Text("Open Settings"), action: openApplicationSettings),
+                secondaryButton: .cancel(cancelAlertEnablement)
+            )
+        }
+    }
+}
+
+private enum NearbyAlertSetupPrompt: String, Identifiable {
+    case foregroundLocationRequired
+    case foregroundLocationSettings
+    case notificationRationale
+    case notificationSettings
+    case backgroundLocationRationale
+    case backgroundLocationSettings
+
+    var id: String { rawValue }
 }

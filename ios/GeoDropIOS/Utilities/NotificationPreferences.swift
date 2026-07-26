@@ -7,6 +7,7 @@ struct NotificationPreferences {
 
     private enum Keys {
         static let radius = "geodrop.notificationRadiusMeters"
+        static let alertsEnabled = "geodrop.nearbyAlertsEnabled"
     }
 
     private let defaults: UserDefaults
@@ -25,6 +26,14 @@ struct NotificationPreferences {
 
     func setRadiusMeters(_ meters: Double) {
         defaults.set(clamp(meters), forKey: Keys.radius)
+    }
+
+    func nearbyAlertsEnabled() -> Bool {
+        defaults.bool(forKey: Keys.alertsEnabled)
+    }
+
+    func setNearbyAlertsEnabled(_ enabled: Bool) {
+        defaults.set(enabled, forKey: Keys.alertsEnabled)
     }
 
     private func clamp(_ value: Double) -> Double {

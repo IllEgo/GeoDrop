@@ -15,6 +15,8 @@ import android.graphics.Paint
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffColorFilter
 import android.net.Uri
+import android.os.Build
+import android.provider.Settings
 import android.util.Base64
 import android.util.Log
 import android.util.Patterns
@@ -228,6 +230,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.e3hi.geodrop.BuildConfig
 import com.e3hi.geodrop.R
+import com.e3hi.geodrop.data.AccountDeletionReceipt
 import com.e3hi.geodrop.data.BusinessCategory
 import com.e3hi.geodrop.data.CollectedNote
 import com.e3hi.geodrop.data.BusinessDropTemplate
@@ -242,6 +245,8 @@ import com.e3hi.geodrop.data.displayTitleParts
 import com.e3hi.geodrop.data.mediaLabel
 import com.e3hi.geodrop.data.FirestoreRepo
 import com.e3hi.geodrop.data.DropLikeStatus
+import com.e3hi.geodrop.data.LegalConsentRepo
+import com.e3hi.geodrop.data.LegalPolicyManifest
 import com.e3hi.geodrop.data.MediaStorageRepo
 import com.e3hi.geodrop.data.NoteInventory
 import com.e3hi.geodrop.data.UserDataSyncRepository
@@ -274,10 +279,13 @@ import com.e3hi.geodrop.data.remainingDecayMillis
 import com.e3hi.geodrop.data.decayAtMillis
 import com.e3hi.geodrop.data.likeStatus
 import com.e3hi.geodrop.geo.DropDecisionReceiver
-import com.e3hi.geodrop.geo.NearbyDropRegistrar
 import com.e3hi.geodrop.util.ExplorerAccountStore
 import com.e3hi.geodrop.util.GroupPreferences
 import com.e3hi.geodrop.util.NotificationPreferences
+import com.e3hi.geodrop.util.ContextualPermissionAction
+import com.e3hi.geodrop.util.ContextualPermissionIntent
+import com.e3hi.geodrop.util.ContextualPermissionPolicy
+import com.e3hi.geodrop.util.PermissionGrantState
 import com.e3hi.geodrop.util.formatTimestamp
 import com.e3hi.geodrop.util.TermsPreferences
 import com.e3hi.geodrop.util.DropBlockedBySafetyException
@@ -310,6 +318,7 @@ import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.ktx.Firebase
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerControlView
 import com.google.maps.android.compose.Circle
@@ -321,6 +330,7 @@ import com.google.maps.android.compose.rememberCameraPositionState
 import androidx.core.content.ContextCompat
 import androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED
 import androidx.core.content.FileProvider
+import androidx.core.app.ActivityCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import kotlinx.coroutines.CoroutineScope
@@ -347,7 +357,9 @@ import kotlin.math.sqrt
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DropHereScreen(
-    dropSafetyEvaluator: DropSafetyEvaluator = NoOpDropSafetyEvaluator
+    dropSafetyEvaluator: DropSafetyEvaluator = NoOpDropSafetyEvaluator,
+    onNearbyAlertsEnabled: (radiusMeters: Double, groupCodes: Set<String>) -> Unit = { _, _ -> },
+    onNearbyAlertsDisabled: () -> Unit = {}
 ) {
     val ctx = LocalContext.current
     val haptic = LocalHapticFeedback.current
@@ -355,7 +367,14 @@ fun DropHereScreen(
     val auth = remember { FirebaseAuth.getInstance() }
     var currentUser by remember { mutableStateOf(auth.currentUser) }
     val termsPrefs = remember(ctx) { TermsPreferences(ctx) }
-    var hasAcceptedTerms by remember { mutableStateOf(termsPrefs.hasAcceptedTerms()) }
+    val legalConsentRepo = remember { LegalConsentRepo() }
+    var legalManifest by remember { mutableStateOf<LegalPolicyManifest?>(null) }
+    var legalManifestError by remember { mutableStateOf<String?>(null) }
+    var legalManifestLoading by remember { mutableStateOf(true) }
+    var legalAcceptanceSubmitting by remember { mutableStateOf(false) }
+    var legalManifestRefreshToken by remember { mutableIntStateOf(0) }
+    var legalAcceptanceRequestToken by remember { mutableIntStateOf(0) }
+    var hasAcceptedTerms by remember { mutableStateOf(false) }
     var hasViewedOnboarding by remember { mutableStateOf(termsPrefs.hasViewedFirstRunOnboarding()) }
     var showOnboardingHelp by remember { mutableStateOf(false) }
     var guestModeEnabled by rememberSaveable { mutableStateOf(false) }
@@ -376,8 +395,16 @@ fun DropHereScreen(
     var showBusinessWelcome by remember { mutableStateOf(false) }
     var accountGoogleSigningIn by remember { mutableStateOf(false) }
     var showAccountMenu by remember { mutableStateOf(false) }
+    var showAccountDataDialog by remember { mutableStateOf(false) }
+    var accountDeletionReceipt by remember { mutableStateOf<AccountDeletionReceipt?>(null) }
     var showFaqDialog by remember { mutableStateOf(false) }
     var termsPrivacyDialogTab by remember { mutableStateOf<Int?>(null) }
+    var permissionStateVersion by remember { mutableIntStateOf(0) }
+    var foregroundLocationRequested by rememberSaveable { mutableStateOf(false) }
+    var notificationPermissionRequested by rememberSaveable { mutableStateOf(false) }
+    var backgroundLocationRequested by rememberSaveable { mutableStateOf(false) }
+    var alertPermissionFlowToken by remember { mutableIntStateOf(0) }
+    var resumeAlertPermissionFlow by remember { mutableStateOf(false) }
     var showExplorerProfile by remember { mutableStateOf(false) }
     var explorerDestination by rememberSaveable { mutableStateOf(ExplorerDestination.Discover.name) }
     var explorerUsernameField by rememberSaveable(stateSaver = TextFieldValue.Saver) {
@@ -389,9 +416,6 @@ fun DropHereScreen(
     var explorerProfileSubmitting by remember { mutableStateOf(false) }
     var explorerProfileError by remember { mutableStateOf<String?>(null) }
     var signingOut by remember { mutableStateOf(false) }
-    var showNsfwDialog by remember { mutableStateOf(false) }
-    var nsfwUpdating by remember { mutableStateOf(false) }
-    var nsfwUpdateError by remember { mutableStateOf<String?>(null) }
     var pickupCelebrationDrop by remember { mutableStateOf<Drop?>(null) }
     var pickupCelebrationVisible by remember { mutableStateOf(false) }
     var waitingForEmailVerification by remember { mutableStateOf(false) }
@@ -441,8 +465,6 @@ fun DropHereScreen(
         accountUsername = TextFieldValue("")
         accountAuthError = null
         accountAuthStatus = null
-        nsfwUpdateError = null
-        nsfwUpdating = false
     }
 
     fun dismissAccountAuthDialog() {
@@ -762,6 +784,87 @@ fun DropHereScreen(
         onDispose { auth.removeAuthStateListener(listener) }
     }
 
+    LaunchedEffect(legalManifestRefreshToken) {
+        legalManifestLoading = true
+        legalManifestError = null
+        hasAcceptedTerms = false
+        runCatching { legalConsentRepo.fetchManifest() }
+            .onSuccess { manifest ->
+                legalManifest = manifest
+            }
+            .onFailure { error ->
+                legalManifest = null
+                legalManifestError = error.localizedMessage?.takeIf { it.isNotBlank() }
+                    ?: "GeoDrop's approved legal policies are unavailable."
+            }
+        legalManifestLoading = false
+    }
+
+    LaunchedEffect(legalManifest?.version, currentUser?.uid) {
+        val manifest = legalManifest ?: run {
+            hasAcceptedTerms = false
+            return@LaunchedEffect
+        }
+        if (!termsPrefs.hasAcceptedTerms(manifest.version)) {
+            hasAcceptedTerms = false
+            return@LaunchedEffect
+        }
+
+        val userId = currentUser?.uid
+        if (userId == null) {
+            hasAcceptedTerms = true
+            return@LaunchedEffect
+        }
+        if (termsPrefs.hasRecordedServerAcceptance(userId, manifest.version)) {
+            hasAcceptedTerms = true
+            return@LaunchedEffect
+        }
+
+        hasAcceptedTerms = false
+        legalAcceptanceSubmitting = true
+        runCatching { legalConsentRepo.recordAcceptance(manifest.version) }
+            .onSuccess {
+                termsPrefs.recordServerAcceptance(userId, manifest.version)
+                hasAcceptedTerms = true
+                legalManifestError = null
+            }
+            .onFailure { error ->
+                legalManifestError = error.localizedMessage?.takeIf { it.isNotBlank() }
+                    ?: "Couldn't record acceptance. Try again."
+            }
+        legalAcceptanceSubmitting = false
+    }
+
+    LaunchedEffect(legalAcceptanceRequestToken) {
+        if (legalAcceptanceRequestToken == 0) return@LaunchedEffect
+        val manifest = legalManifest ?: run {
+            hasAcceptedTerms = false
+            legalManifestError = "GeoDrop's approved legal policies are unavailable."
+            return@LaunchedEffect
+        }
+
+        legalAcceptanceSubmitting = true
+        legalManifestError = null
+        val userId = currentUser?.uid
+        val result = runCatching {
+            if (userId != null) {
+                legalConsentRepo.recordAcceptance(manifest.version)
+            }
+        }
+        if (result.isSuccess) {
+            termsPrefs.recordAcceptance(manifest.version)
+            if (userId != null) {
+                termsPrefs.recordServerAcceptance(userId, manifest.version)
+            }
+            hasAcceptedTerms = true
+        } else {
+            hasAcceptedTerms = false
+            legalManifestError = result.exceptionOrNull()?.localizedMessage?.takeIf { it.isNotBlank() }
+                ?: "Couldn't record acceptance. Try again."
+        }
+        legalAcceptanceSubmitting = false
+    }
+
     val verifiedUser = currentUser?.takeIf { user ->
         user.isEmailVerified
     }
@@ -797,6 +900,7 @@ fun DropHereScreen(
     ) {
         if (currentUser == null) {
             showAccountMenu = false
+            showAccountDataDialog = false
             if (!accountAuthSubmitting && !accountGoogleSigningIn && !showAccountSignIn) {
                 accountAuthMode = AccountAuthMode.SIGN_IN
                 accountType = AccountType.EXPLORER
@@ -876,6 +980,11 @@ fun DropHereScreen(
             if (event == Lifecycle.Event.ON_RESUME) {
                 collectedNotes = noteInventory.getCollectedNotes()
                 ignoredDropIds = noteInventory.getIgnoredDropIds()
+                permissionStateVersion += 1
+                if (resumeAlertPermissionFlow) {
+                    resumeAlertPermissionFlow = false
+                    alertPermissionFlowToken += 1
+                }
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -905,12 +1014,55 @@ fun DropHereScreen(
         }
     }
 
-    if (!hasAcceptedTerms) {
-        TermsAcceptanceScreen(
-            onAccept = {
-                termsPrefs.recordAcceptance()
-                hasAcceptedTerms = true
+    accountDeletionReceipt?.let { receipt ->
+        AlertDialog(
+            onDismissRequest = { accountDeletionReceipt = null },
+            title = { Text("Account deleted") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Your GeoDrop account deletion completed successfully.")
+                    Text("Receipt: ${receipt.receiptId}")
+                    Text("Completed: ${receipt.completedAt}")
+                    Text("Policy: ${receipt.policyVersion}")
+                    Text(
+                        "Removed ${receipt.deletedDrops} drops and ${receipt.deletedMediaObjects} media objects.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
             },
+            confirmButton = {
+                TextButton(onClick = { accountDeletionReceipt = null }) {
+                    Text("Done")
+                }
+            }
+        )
+    }
+
+    val legalUserId = currentUser?.uid
+    val legalConsentSatisfied = legalManifest?.let { manifest ->
+        hasAcceptedTerms &&
+            termsPrefs.hasAcceptedTerms(manifest.version) &&
+            (legalUserId == null || termsPrefs.hasRecordedServerAcceptance(
+                legalUserId,
+                manifest.version
+            ))
+    } == true
+
+    if (!legalConsentSatisfied) {
+        TermsAcceptanceScreen(
+            manifest = legalManifest,
+            isLoading = legalManifestLoading,
+            isAccepting = legalAcceptanceSubmitting,
+            errorMessage = legalManifestError,
+            onRetry = { legalManifestRefreshToken += 1 },
+            onOpenPolicy = { url ->
+                runCatching {
+                    ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                }.onFailure {
+                    legalManifestError = "No browser is available to open this policy."
+                }
+            },
+            onAccept = { legalAcceptanceRequestToken += 1 },
             onExit = {
                 (ctx as? Activity)?.finish()
             }
@@ -1046,7 +1198,6 @@ fun DropHereScreen(
     val fused = remember { LocationServices.getFusedLocationProviderClient(ctx) }
     val repo = remember { FirestoreRepo() }
     val mediaStorage = remember { MediaStorageRepo() }
-    val registrar = remember { NearbyDropRegistrar() }
     val groupPrefs = remember { GroupPreferences(ctx) }
     val explorerAccountStore = remember { ExplorerAccountStore(ctx) }
     val notificationPrefs = remember { NotificationPreferences(ctx) }
@@ -1159,8 +1310,193 @@ fun DropHereScreen(
     var businessDashboardRefreshToken by remember { mutableStateOf(0) }
     var selectedHomeDestination by rememberSaveable { mutableStateOf(HomeDestination.Explorer.name) }
     var notificationRadius by remember { mutableStateOf(notificationPrefs.getNotificationRadiusMeters()) }
+    var nearbyAlertsEnabled by remember { mutableStateOf(notificationPrefs.areNearbyAlertsEnabled()) }
     var showNotificationRadiusDialog by remember { mutableStateOf(false) }
     var defaultExplorerDestinationName by remember { mutableStateOf(notificationPrefs.getDefaultExplorerDestination()) }
+    var showLocationNeededForAlerts by remember { mutableStateOf(false) }
+    var showNotificationPermissionRecovery by remember { mutableStateOf(false) }
+    var showBackgroundLocationRationale by remember { mutableStateOf(false) }
+    var showBackgroundPermissionRecovery by remember { mutableStateOf(false) }
+
+    val permissionActivity = ctx as? Activity
+    val hasFineLocation = remember(permissionStateVersion) {
+        ContextCompat.checkSelfPermission(
+            ctx,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+    val hasCoarseLocation = remember(permissionStateVersion) {
+        ContextCompat.checkSelfPermission(
+            ctx,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+    val hasForegroundLocation = hasFineLocation || hasCoarseLocation
+    val hasNotificationPermission = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+        ContextCompat.checkSelfPermission(
+            ctx,
+            Manifest.permission.POST_NOTIFICATIONS
+        ) == PackageManager.PERMISSION_GRANTED
+    val hasBackgroundLocation = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ||
+        ContextCompat.checkSelfPermission(
+            ctx,
+            Manifest.permission.ACCESS_BACKGROUND_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+
+    val foregroundLocationState = when {
+        hasFineLocation -> PermissionGrantState.GRANTED
+        !foregroundLocationRequested -> PermissionGrantState.REQUESTABLE
+        permissionActivity != null && (
+            ActivityCompat.shouldShowRequestPermissionRationale(
+                permissionActivity,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) || ActivityCompat.shouldShowRequestPermissionRationale(
+                permissionActivity,
+                Manifest.permission.ACCESS_COARSE_LOCATION
+            )
+        ) -> PermissionGrantState.REQUESTABLE
+        else -> PermissionGrantState.BLOCKED
+    }
+    val notificationPermissionState = when {
+        hasNotificationPermission -> PermissionGrantState.GRANTED
+        !notificationPermissionRequested -> PermissionGrantState.REQUESTABLE
+        permissionActivity != null && ActivityCompat.shouldShowRequestPermissionRationale(
+            permissionActivity,
+            Manifest.permission.POST_NOTIFICATIONS
+        ) -> PermissionGrantState.REQUESTABLE
+        else -> PermissionGrantState.BLOCKED
+    }
+    val backgroundLocationState = when {
+        hasBackgroundLocation -> PermissionGrantState.GRANTED
+        !backgroundLocationRequested -> PermissionGrantState.REQUESTABLE
+        else -> PermissionGrantState.BLOCKED
+    }
+
+    val foregroundLocationLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { results ->
+        foregroundLocationRequested = true
+        permissionStateVersion += 1
+        val granted = results[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+            results[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        if (granted) {
+            otherDropsRefreshToken += 1
+            snackbar.showMessage(scope, "Location enabled for Nearby.")
+        } else {
+            snackbar.showMessage(
+                scope,
+                "Location is off. You can keep browsing and enable it later from Nearby."
+            )
+        }
+    }
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        notificationPermissionRequested = true
+        permissionStateVersion += 1
+        if (granted) {
+            alertPermissionFlowToken += 1
+        } else {
+            showNotificationPermissionRecovery = true
+        }
+    }
+    val backgroundLocationLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        backgroundLocationRequested = true
+        permissionStateVersion += 1
+        if (granted) {
+            alertPermissionFlowToken += 1
+        } else {
+            showBackgroundPermissionRecovery = true
+        }
+    }
+
+    fun openApplicationSettings(resumeAlertFlow: Boolean = false) {
+        resumeAlertPermissionFlow = resumeAlertFlow
+        ctx.startActivity(
+            Intent(
+                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                Uri.fromParts("package", ctx.packageName, null)
+            )
+        )
+    }
+
+    fun requestNearbyLocationAccess() {
+        when (
+            ContextualPermissionPolicy.nextAction(
+                intent = ContextualPermissionIntent.NEARBY_DISCOVERY,
+                onboardingComplete = hasViewedOnboarding,
+                foregroundLocation = foregroundLocationState
+            )
+        ) {
+            ContextualPermissionAction.REQUEST_FOREGROUND_LOCATION -> {
+                foregroundLocationRequested = true
+                foregroundLocationLauncher.launch(
+                    arrayOf(
+                        Manifest.permission.ACCESS_FINE_LOCATION,
+                        Manifest.permission.ACCESS_COARSE_LOCATION
+                    )
+                )
+            }
+            ContextualPermissionAction.OPEN_FOREGROUND_LOCATION_SETTINGS ->
+                openApplicationSettings()
+            else -> Unit
+        }
+    }
+
+    LaunchedEffect(
+        alertPermissionFlowToken,
+        foregroundLocationState,
+        notificationPermissionState,
+        backgroundLocationState
+    ) {
+        if (alertPermissionFlowToken == 0) return@LaunchedEffect
+        when (
+            ContextualPermissionPolicy.nextAction(
+                intent = ContextualPermissionIntent.ENABLE_NEARBY_ALERTS,
+                onboardingComplete = hasViewedOnboarding,
+                foregroundLocation = foregroundLocationState,
+                notificationsRequired = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU,
+                notifications = notificationPermissionState,
+                backgroundLocationRequired = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q,
+                backgroundLocation = backgroundLocationState
+            )
+        ) {
+            ContextualPermissionAction.REQUIRE_NEARBY_LOCATION_FIRST -> {
+                alertPermissionFlowToken = 0
+                showLocationNeededForAlerts = true
+            }
+            ContextualPermissionAction.REQUEST_NOTIFICATIONS -> {
+                alertPermissionFlowToken = 0
+                notificationPermissionRequested = true
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+            ContextualPermissionAction.OPEN_NOTIFICATION_SETTINGS -> {
+                alertPermissionFlowToken = 0
+                showNotificationPermissionRecovery = true
+            }
+            ContextualPermissionAction.SHOW_BACKGROUND_LOCATION_RATIONALE -> {
+                alertPermissionFlowToken = 0
+                showBackgroundLocationRationale = true
+            }
+            ContextualPermissionAction.OPEN_BACKGROUND_LOCATION_SETTINGS -> {
+                alertPermissionFlowToken = 0
+                showBackgroundPermissionRecovery = true
+            }
+            ContextualPermissionAction.ENABLE_NEARBY_ALERTS -> {
+                alertPermissionFlowToken = 0
+                nearbyAlertsEnabled = true
+                notificationPrefs.setNearbyAlertsEnabled(true)
+                onNearbyAlertsEnabled(
+                    notificationRadius,
+                    groupPrefs.getMemberships().map { it.code }.toSet()
+                )
+                snackbar.showMessage(scope, "Nearby alerts are on.")
+            }
+            else -> alertPermissionFlowToken = 0
+        }
+    }
 
     DisposableEffect(groupPrefs) {
         val listener = GroupPreferences.ChangeListener { groups, _ ->
@@ -1230,7 +1566,6 @@ fun DropHereScreen(
         showDropComposer = false
         showManageGroups = false
         showAccountSignIn = false
-        showNsfwDialog = false
         status = null
         showExplorerProfile = false
         accountAuthError = null
@@ -1282,6 +1617,7 @@ fun DropHereScreen(
     LaunchedEffect(currentUserId, hasExplorerAccount) {
         notificationPrefs.setActiveUser(currentUserId)
         notificationRadius = notificationPrefs.getNotificationRadiusMeters()
+        nearbyAlertsEnabled = notificationPrefs.areNearbyAlertsEnabled()
         defaultExplorerDestinationName = notificationPrefs.getDefaultExplorerDestination()
         if (hasExplorerAccount) {
             val preferredDestination = defaultExplorerDestinationName
@@ -1291,6 +1627,23 @@ fun DropHereScreen(
                 selectedHomeDestination = HomeDestination.Explorer.name
                 explorerDestination = destination.name
             }
+        }
+    }
+
+    LaunchedEffect(
+        permissionStateVersion,
+        hasFineLocation,
+        hasNotificationPermission,
+        hasBackgroundLocation,
+        nearbyAlertsEnabled
+    ) {
+        if (
+            nearbyAlertsEnabled &&
+            (!hasFineLocation || !hasNotificationPermission || !hasBackgroundLocation)
+        ) {
+            nearbyAlertsEnabled = false
+            notificationPrefs.setNearbyAlertsEnabled(false)
+            onNearbyAlertsDisabled()
         }
     }
 
@@ -1343,6 +1696,7 @@ fun DropHereScreen(
     }
 
     suspend fun getLatestLocation(): Pair<Double, Double>? = withContext(Dispatchers.IO) {
+        if (!hasForegroundLocation) return@withContext null
         val fresh = try {
             val cts = CancellationTokenSource()
             Tasks.await(fused.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cts.token))
@@ -1419,7 +1773,13 @@ fun DropHereScreen(
                 }
                 userProfile = updated
                 showExplorerProfile = false
-                snackbar.showMessage(scope, ctx.getString(R.string.explorer_profile_status_saved))
+                val profileLabel = updated.username?.takeIf { it.isNotBlank() }?.let { "@$it" }
+                    ?: updated.displayName?.takeIf { it.isNotBlank() }
+                    ?: "your account"
+                snackbar.showMessage(
+                    scope,
+                    ctx.getString(R.string.explorer_profile_status_saved, profileLabel)
+                )
             } catch (error: ExplorerUsername.InvalidUsernameException) {
                 explorerProfileError = when (error.reason) {
                     ExplorerUsername.ValidationError.TOO_SHORT -> ctx.getString(R.string.explorer_profile_error_too_short)
@@ -1716,13 +2076,11 @@ fun DropHereScreen(
         }
     }
 
-    // Optional: also sync nearby on first open if already signed in
-    LaunchedEffect(joinedGroups, notificationRadius) {
-        if (FirebaseAuth.getInstance().currentUser != null) {
-            registrar.registerNearby(
-                ctx,
-                maxMeters = notificationRadius,
-                groupCodes = joinedGroups.map { it.code }.toSet()
+    LaunchedEffect(joinedGroups, notificationRadius, nearbyAlertsEnabled) {
+        if (nearbyAlertsEnabled && FirebaseAuth.getInstance().currentUser != null) {
+            onNearbyAlertsEnabled(
+                notificationRadius,
+                joinedGroups.map { it.code }.toSet()
             )
         }
     }
@@ -1994,8 +2352,7 @@ fun DropHereScreen(
         redemptionCode: String?,
         redemptionLimit: Int?,
         decayDays: Int?,
-        dropAnonymously: Boolean,
-        nsfwAllowed: Boolean
+        dropAnonymously: Boolean
     ): DropSafetyAssessment {
         val uid = FirebaseAuth.getInstance().currentUser?.uid ?: "anon"
         val sanitizedMedia = mediaInput?.takeIf { it.isNotBlank() }
@@ -2050,7 +2407,10 @@ fun DropHereScreen(
             mediaUrl = sanitizedMedia
         )
 
-        if (safety.isNsfw && !nsfwAllowed) {
+        if (safety.isNsfw) {
+            mediaStoragePath?.let { path ->
+                runCatching { mediaStorage.deleteMedia(path) }
+            }
             throw DropBlockedBySafetyException(safety)
         }
 
@@ -2123,6 +2483,14 @@ fun DropHereScreen(
                         snackbar.showMessage(
                             scope,
                             "Only the creator of $selectedGroupCode can share drops with that group."
+                        )
+                        return@launch
+                    }
+                    if (dropContentType != DropContentType.TEXT) {
+                        isSubmitting = false
+                        snackbar.showMessage(
+                            scope,
+                            "Private group drops are text-only during the market pilot."
                         )
                         return@launch
                     }
@@ -2335,8 +2703,7 @@ fun DropHereScreen(
                     redemptionCode = redemptionCodeResult,
                     redemptionLimit = redemptionLimitResult,
                     decayDays = decayDaysResult,
-                    dropAnonymously = anonymizeDrop,
-                    nsfwAllowed = userProfile?.canViewNsfw() == true
+                    dropAnonymously = anonymizeDrop
                 )
                 Firebase.analytics.logEvent("drop_created") {
                     param("drop_type", dropType.name)
@@ -2352,17 +2719,14 @@ fun DropHereScreen(
                     baseStatusMessage.isNullOrBlank() -> visionMessage
                     else -> listOf(baseStatusMessage, visionMessage).joinToString(separator = "\n")
                 }
-                if (safety.isNsfw) {
-                    snackbar.showMessage(scope, "Drop saved with an 18+ warning.")
-                }
             } catch (e: Exception) {
                 when (e) {
                     is DropBlockedBySafetyException -> {
                         isSubmitting = false
                         val reason = e.assessment.reasons.firstOrNull()
                         val message = buildString {
-                            append("This drop looks like adult content. ")
-                            append("Enable 18+ drops from your account menu to share it.")
+                            append("This drop appears to contain adult content. ")
+                            append("Adult content cannot be published during the market pilot.")
                             if (!reason.isNullOrBlank()) {
                                 append('\n')
                                 append(reason)
@@ -2391,6 +2755,7 @@ fun DropHereScreen(
 
     LaunchedEffect(
         explorerHomeVisible,
+        hasForegroundLocation,
         joinedGroups,
         otherDropsRefreshToken,
         collectedDropIds,
@@ -2429,7 +2794,11 @@ fun DropHereScreen(
                         allowNsfw = userProfile?.canViewNsfw() == true && canParticipate
                     )
                         .sortedByDescending { it.createdAt }
-                    val latestLocation = getLatestLocation()?.let { (lat, lng) -> LatLng(lat, lng) }
+                    val latestLocation = if (hasForegroundLocation) {
+                        getLatestLocation()?.let { (lat, lng) -> LatLng(lat, lng) }
+                    } else {
+                        null
+                    }
                     dismissedBrowseDropIds.removeAll { id -> drops.none { it.id == id } }
                     val filteredDrops = drops.filterNot { drop ->
                         val id = drop.id
@@ -2483,8 +2852,8 @@ fun DropHereScreen(
         }
     }
 
-    LaunchedEffect(explorerHomeVisible) {
-        if (!explorerHomeVisible) return@LaunchedEffect
+    LaunchedEffect(explorerHomeVisible, hasForegroundLocation) {
+        if (!explorerHomeVisible || !hasForegroundLocation) return@LaunchedEffect
         val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 5_000L)
             .setMinUpdateIntervalMillis(2_000L)
             .build()
@@ -2612,13 +2981,9 @@ fun DropHereScreen(
         else groupFiltered.filter { drop -> drop.createdBy !in blockedCreatorIds }
         val location = otherDropsCurrentLocation
         unblocked.filter { drop ->
-            if (drop.isBusinessDrop()) {
-                true
-            } else {
-                location != null && distanceBetweenMeters(
+            location == null || drop.isBusinessDrop() || distanceBetweenMeters(
                     location.latitude, location.longitude, drop.lat, drop.lng
                 ) <= notificationRadius
-            }
         }
     }
     var otherDropsSortKey by rememberSaveable { mutableStateOf(DropSortOption.NEAREST.name) }
@@ -3153,6 +3518,14 @@ fun DropHereScreen(
                                             }
                                         }
                                     )
+                                    DropdownMenuItem(
+                                        text = { Text("Your data") },
+                                        leadingIcon = { Icon(Icons.Rounded.Lock, contentDescription = null) },
+                                        onClick = {
+                                            showAccountMenu = false
+                                            showAccountDataDialog = true
+                                        }
+                                    )
                                 }
                             }
 
@@ -3490,6 +3863,10 @@ fun DropHereScreen(
                                                 refreshing = otherDropsRefreshing,
                                                 drops = sortedOtherDrops,
                                                 currentLocation = otherDropsCurrentLocation,
+                                                preciseLocationEnabled = hasFineLocation,
+                                                approximateLocationEnabled = hasCoarseLocation,
+                                                locationNeedsSettings = foregroundLocationState == PermissionGrantState.BLOCKED,
+                                                onRequestLocation = { requestNearbyLocationAccess() },
                                                 notificationRadiusMeters = notificationRadius,
                                                 error = otherDropsError,
                                                 emptyMessage = selectedExplorerGroupCode?.let { code ->
@@ -4005,6 +4382,32 @@ fun DropHereScreen(
             )
         }
 
+        if (showAccountDataDialog) {
+            AccountDataDialog(
+                scope = scope,
+                onDismiss = { showAccountDataDialog = false },
+                onDeleted = { receipt ->
+                    showAccountDataDialog = false
+                    showAccountMenu = false
+                    showBusinessDashboard = false
+                    showBusinessOnboarding = false
+                    showDropComposer = false
+                    showManageGroups = false
+                    showExplorerProfile = false
+                    nearbyAlertsEnabled = false
+                    notificationPrefs.setNearbyAlertsEnabled(false)
+                    onNearbyAlertsDisabled()
+                    selectedHomeDestination = HomeDestination.Explorer.name
+                    explorerDestination = ExplorerDestination.Discover.name
+                    guestModeEnabled = false
+                    accountDeletionReceipt = receipt
+                    runCatching { googleSignInClient.signOut() }
+                    runCatching { auth.signOut() }
+                    currentUser = null
+                }
+            )
+        }
+
         if (showExplorerProfile) {
             ExplorerProfileDialog(
                 memberSince = userProfile?.memberSince,
@@ -4015,13 +4418,21 @@ fun DropHereScreen(
                 isSubmitting = explorerProfileSubmitting,
                 error = explorerProfileError,
                 notificationRadius = notificationRadius,
-                nsfwEnabled = userProfile?.canViewNsfw() == true,
+                nearbyAlertsEnabled = nearbyAlertsEnabled,
+                nsfwEnabled = false,
                 defaultExplorerDestination = defaultExplorerDestinationName,
                 onEditNotificationRadius = { showNotificationRadiusDialog = true },
-                onToggleNsfw = {
-                    nsfwUpdateError = null
-                    showNsfwDialog = true
+                onNearbyAlertsChange = { enabled ->
+                    if (enabled) {
+                        alertPermissionFlowToken += 1
+                    } else {
+                        nearbyAlertsEnabled = false
+                        notificationPrefs.setNearbyAlertsEnabled(false)
+                        onNearbyAlertsDisabled()
+                        snackbar.showMessage(scope, "Nearby alerts are off. Browsing still works.")
+                    }
                 },
+                onToggleNsfw = {},
                 onDefaultExplorerDestinationChange = { destinationName ->
                     defaultExplorerDestinationName = destinationName
                     notificationPrefs.setDefaultExplorerDestination(destinationName)
@@ -4046,6 +4457,131 @@ fun DropHereScreen(
             )
         }
 
+        if (showLocationNeededForAlerts) {
+            AlertDialog(
+                onDismissRequest = { showLocationNeededForAlerts = false },
+                title = { Text("Set up location from Nearby first") },
+                text = {
+                    Text(
+                        if (hasCoarseLocation) {
+                            "Nearby alerts need precise location. Go to Nearby and use its location control so the request stays connected to discovery."
+                        } else {
+                            "Nearby alerts use your location to detect drops around you. Go to Nearby and choose “Use my location” first; browsing remains available if you decide not to."
+                        }
+                    )
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            showLocationNeededForAlerts = false
+                            showExplorerProfile = false
+                            openExplorerDestination(ExplorerDestination.Discover)
+                        }
+                    ) {
+                        Text("Go to Nearby")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showLocationNeededForAlerts = false }) {
+                        Text("Not now")
+                    }
+                }
+            )
+        }
+
+        if (showNotificationPermissionRecovery) {
+            AlertDialog(
+                onDismissRequest = { showNotificationPermissionRecovery = false },
+                title = { Text("Notifications are off") },
+                text = {
+                    Text(
+                        "GeoDrop only asks for notifications after you enable Nearby alerts. Turn them on in Settings to finish alert setup; Nearby browsing still works without them."
+                    )
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            showNotificationPermissionRecovery = false
+                            resumeAlertPermissionFlow = true
+                            ctx.startActivity(
+                                Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                                    putExtra(Settings.EXTRA_APP_PACKAGE, ctx.packageName)
+                                }
+                            )
+                        }
+                    ) {
+                        Text("Open Settings")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showNotificationPermissionRecovery = false }) {
+                        Text("Not now")
+                    }
+                }
+            )
+        }
+
+        if (showBackgroundLocationRationale) {
+            AlertDialog(
+                onDismissRequest = { showBackgroundLocationRationale = false },
+                title = { Text("Allow alerts when GeoDrop is closed?") },
+                text = {
+                    Text(
+                        "Background location is used only for the Nearby alerts you just enabled. Choose “Allow all the time” so GeoDrop can detect a drop without keeping the app open. You can keep browsing without it."
+                    )
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            showBackgroundLocationRationale = false
+                            backgroundLocationRequested = true
+                            if (Build.VERSION.SDK_INT == Build.VERSION_CODES.Q) {
+                                backgroundLocationLauncher.launch(
+                                    Manifest.permission.ACCESS_BACKGROUND_LOCATION
+                                )
+                            } else {
+                                openApplicationSettings(resumeAlertFlow = true)
+                            }
+                        }
+                    ) {
+                        Text("Continue")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showBackgroundLocationRationale = false }) {
+                        Text("Not now")
+                    }
+                }
+            )
+        }
+
+        if (showBackgroundPermissionRecovery) {
+            AlertDialog(
+                onDismissRequest = { showBackgroundPermissionRecovery = false },
+                title = { Text("Background location is off") },
+                text = {
+                    Text(
+                        "To receive Nearby alerts while GeoDrop is closed, open Settings → Permissions → Location and choose “Allow all the time”."
+                    )
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            showBackgroundPermissionRecovery = false
+                            openApplicationSettings(resumeAlertFlow = true)
+                        }
+                    ) {
+                        Text("Open Settings")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showBackgroundPermissionRecovery = false }) {
+                        Text("Not now")
+                    }
+                }
+            )
+        }
+
         if (showNotificationRadiusDialog) {
             NotificationRadiusDialog(
                 initialRadius = notificationRadius,
@@ -4055,13 +4591,18 @@ fun DropHereScreen(
                     showNotificationRadiusDialog = false
                     snackbar.showMessage(
                         scope,
-                        "We'll alert you to drops within ${newRadius.roundToInt()} meters."
+                        if (nearbyAlertsEnabled) {
+                            "Nearby alert radius set to ${newRadius.roundToInt()} meters."
+                        } else {
+                            "Radius saved. Enable Nearby alerts when you're ready."
+                        }
                     )
-                    registrar.registerNearby(
-                        ctx,
-                        maxMeters = newRadius,
-                        groupCodes = groupPrefs.getMemberships().map { it.code }.toSet()
-                    )
+                    if (nearbyAlertsEnabled) {
+                        onNearbyAlertsEnabled(
+                            newRadius,
+                            groupPrefs.getMemberships().map { it.code }.toSet()
+                        )
+                    }
                 },
                 onDismiss = { showNotificationRadiusDialog = false }
             )
@@ -4070,53 +4611,20 @@ fun DropHereScreen(
         termsPrivacyDialogTab?.let { tab ->
             TermsPrivacyDialog(
                 initialTab = tab,
+                manifest = legalManifest,
+                onOpenPolicy = { url ->
+                    runCatching {
+                        ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                    }.onFailure {
+                        snackbar.showMessage(scope, "No browser is available to open this policy.")
+                    }
+                },
                 onDismiss = { termsPrivacyDialogTab = null }
             )
         }
 
         if (showFaqDialog) {
             FaqDialog(onDismiss = { showFaqDialog = false })
-        }
-
-        if (showNsfwDialog) {
-            NsfwPreferenceDialog(
-                enabled = userProfile?.canViewNsfw() == true,
-                isProcessing = nsfwUpdating,
-                error = nsfwUpdateError,
-                onConfirm = { enable ->
-                    val userId = currentUserId
-                    if (userId.isNullOrBlank()) {
-                        nsfwUpdateError = "Sign in again to update content settings."
-                        return@NsfwPreferenceDialog
-                    }
-                    nsfwUpdating = true
-                    nsfwUpdateError = null
-                    scope.launch {
-                        try {
-                            val updated = repo.updateNsfwPreference(userId, enable)
-                            userProfile = updated
-                            otherDropsRefreshToken += 1
-                            showNsfwDialog = false
-                            val message = if (enable) {
-                                "NSFW drops enabled."
-                            } else {
-                                "NSFW drops disabled."
-                            }
-                            snackbar.showMessage(scope, message)
-                            registrar.registerNearby(
-                                ctx,
-                                maxMeters = notificationRadius,
-                                groupCodes = groupPrefs.getMemberships().map { it.code }.toSet()
-                            )
-                        } catch (error: Exception) {
-                            nsfwUpdateError = error.localizedMessage ?: "Couldn't update settings."
-                        } finally {
-                            nsfwUpdating = false
-                        }
-                    }
-                },
-                onDismiss = { showNsfwDialog = false }
-            )
         }
 
         if (showBusinessWelcome) {
@@ -4347,19 +4855,15 @@ fun DropHereScreen(
 
 @Composable
 private fun TermsAcceptanceScreen(
+    manifest: LegalPolicyManifest?,
+    isLoading: Boolean,
+    isAccepting: Boolean,
+    errorMessage: String?,
+    onRetry: () -> Unit,
+    onOpenPolicy: (String) -> Unit,
     onAccept: () -> Unit,
     onExit: () -> Unit
 ) {
-    val scrollState = rememberScrollState()
-    var selectedTab by remember { mutableStateOf(0) }
-    val agreementText = remember(selectedTab) {
-        if (selectedTab == 0) TERMS_OF_SERVICE_TEXT else PRIVACY_POLICY_TEXT
-    }
-
-    LaunchedEffect(selectedTab) {
-        scrollState.scrollTo(0)
-    }
-
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -4385,43 +4889,70 @@ private fun TermsAcceptanceScreen(
                     modifier = Modifier.fillMaxWidth()
                 )
                 Text(
-                    text = TERMS_PRIVACY_SUMMARY,
+                    text = "Before you explore GeoDrop, review the current approved Terms of Service and Privacy Policy. Acceptance is tied to the policy version shown below.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Divider()
-                TabRow(
-                    selectedTabIndex = selectedTab,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    TERMS_PRIVACY_TABS.forEachIndexed { index, title ->
-                        Tab(
-                            selected = selectedTab == index,
-                            onClick = { selectedTab = index },
-                            text = { Text(title) }
+
+                when {
+                    manifest != null -> {
+                        Text(
+                            text = "Policy version: ${manifest.version}",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 320.dp)
+                                .verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            PolicyLinkButton("Terms of Service", manifest.terms, onOpenPolicy)
+                            PolicyLinkButton("Privacy Policy", manifest.privacy, onOpenPolicy)
+                            PolicyLinkButton(
+                                "Community Guidelines",
+                                manifest.communityGuidelines,
+                                onOpenPolicy
+                            )
+                            PolicyLinkButton("Promotion Terms", manifest.promotionTerms, onOpenPolicy)
+                            PolicyLinkButton("Data retention", manifest.retention, onOpenPolicy)
+                            PolicyLinkButton("Subprocessors", manifest.processors, onOpenPolicy)
+                            PolicyLinkButton("Minors policy", manifest.minors, onOpenPolicy)
+                            PolicyLinkButton("Support", manifest.support, onOpenPolicy)
+                        }
+                    }
+                    isLoading -> {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            CircularProgressIndicator()
+                        }
+                    }
+                    else -> {
+                        Text(
+                            text = errorMessage
+                                ?: "GeoDrop's approved legal policies are unavailable.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                        OutlinedButton(onClick = onRetry) {
+                            Text("Retry")
+                        }
                     }
                 }
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 200.dp, max = 360.dp)
-                        .verticalScroll(scrollState)
-                        .border(
-                            BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                            RoundedCornerShape(12.dp)
-                        )
-                        .padding(16.dp)
-                ) {
+
+                if (manifest != null && errorMessage != null) {
                     Text(
-                        text = agreementText,
+                        text = errorMessage,
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        lineHeight = MaterialTheme.typography.bodySmall.lineHeight
+                        color = MaterialTheme.colorScheme.error
                     )
                 }
                 Text(
-                    text = "By tapping Accept & Continue you agree to these terms and policies.",
+                    text = "By tapping Accept & Continue you agree to the current version of these policies.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -4434,12 +4965,36 @@ private fun TermsAcceptanceScreen(
                         Text("Exit app")
                     }
                     Spacer(modifier = Modifier.width(8.dp))
-                    Button(onClick = onAccept) {
-                        Text("Accept & Continue")
+                    Button(
+                        onClick = onAccept,
+                        enabled = manifest != null && !isLoading && !isAccepting
+                    ) {
+                        if (isAccepting) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Text("Accept & Continue")
+                        }
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun PolicyLinkButton(
+    label: String,
+    url: String,
+    onOpenPolicy: (String) -> Unit
+) {
+    OutlinedButton(
+        onClick = { onOpenPolicy(url) },
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text(label)
     }
 }
 
@@ -4683,110 +5238,10 @@ private data class OnboardingSlide(
     val description: String
 )
 
-private const val TERMS_PRIVACY_SUMMARY =
-    "GeoDrop uses your location and saved preferences to help you discover nearby drops. " +
-            "Use the tabs below to review our Terms of Service and Privacy Policy, then accept to continue."
-
 private val TERMS_PRIVACY_TABS = listOf(
     "Terms of Service",
     "Privacy Policy"
 )
-
-private val TERMS_OF_SERVICE_TEXT = """
-📜 GeoDrop – Terms of Service
-Last updated: 10/02/2025
-Welcome to GeoDrop! By using our app, you agree to the following:
-
-1. Use of the App
-You may use GeoDrop to create and discover location-based messages, media, or coupons (“drops”).
-You agree not to post harmful, illegal, hateful, or malicious content.
-You agree not to spam, harass, or misuse the service.
-
-2. Location Services
-GeoDrop uses your device’s location to notify you of nearby drops.
-You must grant location permissions for the app to function properly.
-
-3. User Content
-You are responsible for any content you drop.
-GeoDrop may remove content that violates these terms.
-Coupons, promotions, or offers from businesses are managed by those businesses — GeoDrop is not responsible for their accuracy or fulfillment.
-
-4. NSFW Content
-GeoDrop includes an optional NSFW (Not Safe For Work) feature.
-By enabling NSFW mode, you confirm you are at least 18 years old (or the age of majority in your country).
-NSFW content may include mature, adult, or offensive material.
-GeoDrop is not responsible for the nature of user-generated NSFW content.
-Businesses are prohibited from posting NSFW coupons or promotions.
-
-5. Accounts & Data
-GeoDrop collects only the information needed to operate the service, such as your device ID, location (while you use the app), and any drops you create.
-We never sell your personal data.
-You may delete your account at any time from the in-app settings.
-
-6. Business Accounts
-Business users must keep their account information up to date.
-Business users are responsible for honoring coupons or offers they distribute through GeoDrop.
-GeoDrop may suspend business accounts that violate these terms or applicable laws.
-
-7. Changes to the Terms
-We may update these terms from time to time. If the changes are material, we'll notify you in the app.
-Continuing to use GeoDrop after an update means you accept the revised terms.
-
-8. Contact
-Questions? Reach us at support@geodrop.app.
-
-📍 Location Notice
-GeoDrop relies on accurate GPS data. Turn on high accuracy mode for the best experience.
-
-📢 Notifications
-GeoDrop may send push notifications about nearby drops, reminders, or account updates. You can opt out in your device settings.
-
-🔒 Data Security
-We use industry-standard safeguards to protect your data. However, we cannot guarantee the security of information transmitted over the internet.
-
-By accepting, you agree to follow these terms whenever you use GeoDrop.
-""".trimIndent()
-
-private val PRIVACY_POLICY_TEXT = """
-🔐 GeoDrop – Privacy Policy
-Last updated: 10/02/2025
-
-1. Information We Collect
-• Account basics: email address for explorer and business accounts.
-• Location data: precise GPS coordinates while you use key features like the map and background alerts for nearby drops.
-• Content you provide: text, media, and coupons that you create or redeem.
-• Device data: app version, device model, and crash diagnostics.
-
-2. How We Use Information
-• Deliver core features such as finding and unlocking drops near you.
-• Maintain the safety of the community by moderating content and preventing abuse.
-• Provide analytics to improve app performance and plan future features.
-• Notify you about nearby drops, redemption reminders, or account changes.
-
-3. Sharing & Disclosure
-• We never sell your personal information.
-• Drop content is shared with other explorers in the area based on your privacy settings.
-• Business partners only see analytics for drops they create.
-• Service providers (like cloud hosting and crash reporting) process data on our behalf under strict confidentiality agreements.
-
-4. Your Choices
-• You can disable push notifications or location permissions at any time in system settings.
-• You may delete drops you posted or remove collected notes from your inventory.
-• Request account deletion or data export by emailing support@geodrop.app.
-
-5. Data Retention
-• Account and drop data are retained as long as your account is active.
-• We keep minimal logs for fraud prevention, typically no longer than 30 days.
-
-6. Children’s Privacy
-• GeoDrop is not intended for children under 13.
-• NSFW mode is restricted to users 18+ only.
-
-7. Updates
-• We will notify you in-app or via email (for business accounts) when this policy changes.
-
-By accepting, you acknowledge that you have read and understood how GeoDrop handles your data.
-""".trimIndent()
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -6745,77 +7200,6 @@ private fun DialogMessageContent(
     }
 }
 
-@Composable
-private fun NsfwPreferenceDialog(
-    enabled: Boolean,
-    isProcessing: Boolean,
-    error: String?,
-    onConfirm: (Boolean) -> Unit,
-    onDismiss: () -> Unit
-) {
-    var confirmChecked by remember(enabled) { mutableStateOf(false) }
-    var localError by remember { mutableStateOf<String?>(null) }
-
-    val description = if (enabled) {
-        "Turn off access to adult content in GeoDrop. You'll stop seeing NSFW drops and won't be able to create them."
-    } else {
-        "Enable access to adult (18+) drops. This allows you to view and share NSFW content when you are legally permitted to do so."
-    }
-
-    AlertDialog(
-        onDismissRequest = { if (!isProcessing) onDismiss() },
-        icon = { Icon(Icons.Rounded.Flag, contentDescription = null) },
-        title = { Text("18+ content") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(description)
-                if (!enabled) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(
-                            checked = confirmChecked,
-                            onCheckedChange = { checked ->
-                                confirmChecked = checked
-                                if (checked) localError = null
-                            },
-                            enabled = !isProcessing
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text("I confirm that I am at least 18 years old.")
-                    }
-                }
-                val message = error ?: localError
-                if (!message.isNullOrBlank()) {
-                    Text(
-                        text = message,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    if (!enabled && !confirmChecked) {
-                        localError = "Confirm that you are 18 or older."
-                    } else if (!isProcessing) {
-                        localError = null
-                        onConfirm(!enabled)
-                    }
-                },
-                enabled = !isProcessing && (enabled || confirmChecked)
-            ) {
-                Text(if (enabled) "Disable" else "Enable")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = { if (!isProcessing) onDismiss() }, enabled = !isProcessing) {
-                Text("Cancel")
-            }
-        }
-    )
-}
-
 private fun visionStatusMessage(
     assessment: DropSafetyAssessment,
     contentType: DropContentType
@@ -7001,22 +7385,16 @@ private fun FaqEntryContent(
 @Composable
 private fun TermsPrivacyDialog(
     initialTab: Int,
+    manifest: LegalPolicyManifest?,
+    onOpenPolicy: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
     val tabCount = TERMS_PRIVACY_TABS.size
     var selectedTab by remember { mutableStateOf(initialTab.coerceIn(0, tabCount - 1)) }
-    val scrollState = rememberScrollState()
-    val agreementText = remember(selectedTab) {
-        if (selectedTab == 0) TERMS_OF_SERVICE_TEXT else PRIVACY_POLICY_TEXT
-    }
 
     LaunchedEffect(initialTab) {
         val clamped = initialTab.coerceIn(0, tabCount - 1)
         selectedTab = clamped
-    }
-
-    LaunchedEffect(selectedTab) {
-        scrollState.scrollTo(0)
     }
 
     Dialog(onDismissRequest = onDismiss) {
@@ -7039,9 +7417,14 @@ private fun TermsPrivacyDialog(
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
-                    text = TERMS_PRIVACY_SUMMARY,
+                    text = manifest?.let { "Approved policy version: ${it.version}" }
+                        ?: "Approved policies are currently unavailable.",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = if (manifest == null) {
+                        MaterialTheme.colorScheme.error
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    }
                 )
                 Divider()
                 TabRow(
@@ -7056,22 +7439,20 @@ private fun TermsPrivacyDialog(
                         )
                     }
                 }
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 200.dp, max = 360.dp)
-                        .verticalScroll(scrollState)
-                        .border(
-                            BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                            RoundedCornerShape(12.dp)
-                        )
-                        .padding(16.dp)
+                OutlinedButton(
+                    onClick = {
+                        val url = if (selectedTab == 0) manifest?.terms else manifest?.privacy
+                        if (url != null) onOpenPolicy(url)
+                    },
+                    enabled = manifest != null,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        text = agreementText,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        lineHeight = MaterialTheme.typography.bodySmall.lineHeight
+                        if (selectedTab == 0) {
+                            "Open Terms of Service"
+                        } else {
+                            "Open Privacy Policy"
+                        }
                     )
                 }
                 Row(
@@ -7827,9 +8208,11 @@ private fun ExplorerProfileDialog(
     isSubmitting: Boolean,
     error: String?,
     notificationRadius: Double,
+    nearbyAlertsEnabled: Boolean,
     nsfwEnabled: Boolean,
     defaultExplorerDestination: String?,
     onEditNotificationRadius: () -> Unit,
+    onNearbyAlertsChange: (Boolean) -> Unit,
     onToggleNsfw: () -> Unit,
     onDefaultExplorerDestinationChange: (String?) -> Unit,
     onAvatarUploadClick: () -> Unit,
@@ -7909,10 +8292,12 @@ private fun ExplorerProfileDialog(
 
                 ExplorerPreferencesSection(
                     notificationRadius = notificationRadius,
+                    nearbyAlertsEnabled = nearbyAlertsEnabled,
                     nsfwEnabled = nsfwEnabled,
                     defaultExplorerDestination = defaultExplorerDestination,
                     enabled = !isSubmitting,
                     onEditNotificationRadius = onEditNotificationRadius,
+                    onNearbyAlertsChange = onNearbyAlertsChange,
                     onToggleNsfw = onToggleNsfw,
                     onDefaultExplorerDestinationChange = onDefaultExplorerDestinationChange
                 )
@@ -8006,10 +8391,12 @@ private fun ExplorerProfileHeader(
 @Composable
 private fun ExplorerPreferencesSection(
     notificationRadius: Double,
+    nearbyAlertsEnabled: Boolean,
     nsfwEnabled: Boolean,
     defaultExplorerDestination: String?,
     enabled: Boolean,
     onEditNotificationRadius: () -> Unit,
+    onNearbyAlertsChange: (Boolean) -> Unit,
     onToggleNsfw: () -> Unit,
     onDefaultExplorerDestinationChange: (String?) -> Unit
 ) {
@@ -8035,6 +8422,25 @@ private fun ExplorerPreferencesSection(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Column(modifier = Modifier.weight(1f)) {
+                    Text("Nearby alerts", style = MaterialTheme.typography.labelMedium)
+                    Text(
+                        if (nearbyAlertsEnabled) "On" else "Off — browsing is unaffected",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+                Switch(
+                    checked = nearbyAlertsEnabled,
+                    onCheckedChange = { if (enabled) onNearbyAlertsChange(it) },
+                    enabled = enabled
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
                     Text("Nearby notification radius", style = MaterialTheme.typography.labelMedium)
                     Text("${notificationRadius.roundToInt()} meters", style = MaterialTheme.typography.bodyMedium)
                 }
@@ -8049,16 +8455,13 @@ private fun ExplorerPreferencesSection(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Show 18+ drops", style = MaterialTheme.typography.labelMedium)
-                    Text(
-                        if (nsfwEnabled) "Enabled" else "Disabled",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
+                    Text("Mature content", style = MaterialTheme.typography.labelMedium)
+                    Text("Unavailable during the market pilot", style = MaterialTheme.typography.bodyMedium)
                 }
                 Switch(
                     checked = nsfwEnabled,
                     onCheckedChange = { if (enabled) onToggleNsfw() },
-                    enabled = enabled
+                    enabled = false
                 )
             }
 
@@ -8662,6 +9065,10 @@ private fun OtherDropsExplorerSection(
     refreshing: Boolean,
     drops: List<Drop>,
     currentLocation: LatLng?,
+    preciseLocationEnabled: Boolean,
+    approximateLocationEnabled: Boolean,
+    locationNeedsSettings: Boolean,
+    onRequestLocation: () -> Unit,
     notificationRadiusMeters: Double,
     error: String?,
     emptyMessage: String? = null,
@@ -8685,6 +9092,45 @@ private fun OtherDropsExplorerSection(
     onRefresh: () -> Unit
 ) {
     Box(modifier = modifier.fillMaxSize()) {
+        if (!preciseLocationEnabled) {
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(horizontal = 20.dp)
+                    .padding(top = topContentPadding + 12.dp)
+                    .zIndex(3f),
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
+                tonalElevation = 6.dp
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = if (approximateLocationEnabled) {
+                            "Use precise location for accurate distance"
+                        } else {
+                            "Browse without sharing your location"
+                        },
+                        style = MaterialTheme.typography.titleSmall
+                    )
+                    Text(
+                        text = if (approximateLocationEnabled) {
+                            "Nearby still works with approximate location. Precise access is needed for accurate pickup distance and optional nearby alerts."
+                        } else {
+                            "All visible drops remain available. Turn on location here when you want distance, pickup, and map positioning."
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    TextButton(onClick = onRequestLocation) {
+                        Text(if (locationNeedsSettings) "Open Settings" else "Use my location")
+                    }
+                }
+            }
+        }
+
         if (refreshing && !loading) {
             LinearProgressIndicator(
                 modifier = Modifier
@@ -10102,11 +10548,13 @@ private fun GroupCodeRow(
 
             Spacer(Modifier.width(8.dp))
 
-            IconButton(onClick = { onRemove(code) }) {
-                Icon(
-                    imageVector = Icons.Filled.Delete,
-                    contentDescription = "Remove group code"
-                )
+            if (!isOwner) {
+                IconButton(onClick = { onRemove(code) }) {
+                    Icon(
+                        imageVector = Icons.Filled.Delete,
+                        contentDescription = "Leave group"
+                    )
+                }
             }
         }
     }
@@ -11589,6 +12037,7 @@ private fun ManageDropRow(
     }
 }
 
+@androidx.annotation.OptIn(UnstableApi::class)
 @Composable
 private fun DropAudioPlayer(
     audioUri: Uri,

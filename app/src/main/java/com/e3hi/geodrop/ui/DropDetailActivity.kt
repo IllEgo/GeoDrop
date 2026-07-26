@@ -88,6 +88,7 @@ import com.e3hi.geodrop.data.DropLikeStatus
 import com.e3hi.geodrop.data.applyUserLike
 import com.e3hi.geodrop.data.FirestoreRepo
 import com.e3hi.geodrop.data.NoteInventory
+import com.e3hi.geodrop.util.PilotFeatureFlags
 import com.e3hi.geodrop.data.RedemptionResult
 import com.e3hi.geodrop.data.requiresRedemption
 import com.e3hi.geodrop.data.isRedeemedBy
@@ -626,8 +627,7 @@ class DropDetailActivity : ComponentActivity() {
                         verticalArrangement = Arrangement.spacedBy(20.dp)
                     ) {
                         val loadedState = state as? DropDetailUiState.Loaded
-                        val ownerMatches = loadedState?.createdBy?.takeIf { it.isNotBlank() } == currentUserId
-                        val shouldHideContent = loadedState?.isNsfw == true && !ownerMatches && !nsfwAllowed
+                        val shouldHideContent = loadedState?.isNsfw == true
                         val nsfwReasons = loadedState?.nsfwLabels.orEmpty()
 
                         if (shouldHideContent) {
@@ -742,8 +742,9 @@ class DropDetailActivity : ComponentActivity() {
                                 else -> null
                             }
 
-                            val mediaAttachment = when (loadedState) {
-                                null -> null
+                            val mediaAttachment = when {
+                                !PilotFeatureFlags.mediaEnabled -> null
+                                loadedState == null -> null
                                 else -> remember(
                                     loadedState.mediaUrl,
                                     loadedState.mediaData,
@@ -860,6 +861,7 @@ class DropDetailActivity : ComponentActivity() {
                                         val alreadyRedeemed = detail.redeemedBy.containsKey(currentUserId)
                                                 || detail.isRedeemed
                                         val redemptionRestrictionMessage = when {
+                                            !PilotFeatureFlags.couponsEnabled -> "Offers are disabled for this release."
                                             !canParticipate -> "Sign in to redeem offers."
 
                                             else -> null
@@ -1104,7 +1106,7 @@ class DropDetailActivity : ComponentActivity() {
                                         )
                                     }
 
-                                    if (loadedState?.contentType == DropContentType.PHOTO) {
+                                    if (PilotFeatureFlags.mediaEnabled && loadedState?.contentType == DropContentType.PHOTO) {
                                         val link = loadedState.mediaUrl
                                         if (!link.isNullOrBlank()) {
                                             val imageRequest = remember(link) {
@@ -1127,7 +1129,7 @@ class DropDetailActivity : ComponentActivity() {
                                             )
                                         }
                                     }
-                                    if (loadedState?.contentType == DropContentType.VIDEO) {
+                                    if (PilotFeatureFlags.mediaEnabled && loadedState?.contentType == DropContentType.VIDEO) {
                                         Spacer(Modifier.height(12.dp))
                                         val videoUri = mediaAttachment?.asUriOrNull()
 

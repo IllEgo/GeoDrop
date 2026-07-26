@@ -29,6 +29,8 @@
 	</dict>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>GeoDrop needs your location to show nearby drops.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>GeoDrop uses background location only after you enable Nearby alerts, so it can notify you about drops within your chosen radius while the app is closed.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>GeoDrop uses the camera to attach photos to drops.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
@@ -38,8 +40,18 @@
 	<key>FirebaseAppDelegateProxyEnabled</key>
 	<true/>
 	<key>GOOGLE_MAPS_API_KEY</key>
-	<string>AIzaSyAPrfdD0LrMqreZG6iXb0r73RT_3uWwsAU</string>
-	<key>GOOGLE_VISION_API_KEY</key>
-	<string>AIzaSyDD9c_0xHim_ITvXZlHY67b_m_SR-9DUJs</string>
+	<string>$(GOOGLE_MAPS_API_KEY)</string>
+	<key>GEODROP_FEATURE_CREATION_ENABLED</key>
+	<string>$(GEODROP_FEATURE_CREATION_ENABLED)</string>
+	<key>GEODROP_FEATURE_NOTIFICATIONS_ENABLED</key>
+	<string>$(GEODROP_FEATURE_NOTIFICATIONS_ENABLED)</string>
+	<key>GEODROP_FEATURE_COUPONS_ENABLED</key>
+	<string>$(GEODROP_FEATURE_COUPONS_ENABLED)</string>
+	<key>GEODROP_FEATURE_MEDIA_ENABLED</key>
+	<string>$(GEODROP_FEATURE_MEDIA_ENABLED)</string>
+	<key>GEODROP_FEATURE_NSFW_ENABLED</key>
+	<string>$(GEODROP_FEATURE_NSFW_ENABLED)</string>
+	<key>GEODROP_FEATURE_HUNTS_ENABLED</key>
+	<string>$(GEODROP_FEATURE_HUNTS_ENABLED)</string>
 </dict>
 </plist>

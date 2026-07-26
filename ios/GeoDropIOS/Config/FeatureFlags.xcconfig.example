@@ -1,0 +1,9 @@
+// Copy these keys into the build configuration selected by the release pipeline.
+// These are upper bounds for the pilot_* Firebase Remote Config controls.
+// Runtime entry points require both the build value and the remote value to be true.
+GEODROP_FEATURE_CREATION_ENABLED = NO
+GEODROP_FEATURE_NOTIFICATIONS_ENABLED = NO
+GEODROP_FEATURE_COUPONS_ENABLED = NO
+GEODROP_FEATURE_MEDIA_ENABLED = NO
+GEODROP_FEATURE_NSFW_ENABLED = NO
+GEODROP_FEATURE_HUNTS_ENABLED = NO
