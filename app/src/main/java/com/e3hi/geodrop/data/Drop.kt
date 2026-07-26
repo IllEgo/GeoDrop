@@ -9,7 +9,6 @@ data class Drop(
     val createdBy: String = "",
     val createdAt: Long = 0L,
     val dropperUsername: String? = null,
-    val isAnonymous: Boolean = false,
     val isDeleted: Boolean = false,
     val deletedAt: Long? = null,
     val decayDays: Int? = null,
@@ -144,7 +143,7 @@ fun Drop.displayTitleParts(): Pair<String?, String> {
     }
 
     val username = dropperUsername?.trim()?.takeIf { it.isNotEmpty() }
-    val handle = if (!isAnonymous && !username.isNullOrEmpty()) {
+    val handle = if (!username.isNullOrEmpty()) {
         if (username.startsWith("@")) username else "@$username"
     } else {
         null

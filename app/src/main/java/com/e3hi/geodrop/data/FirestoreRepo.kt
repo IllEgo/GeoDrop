@@ -3,6 +3,8 @@ package com.e3hi.geodrop.data
 import android.util.Log
 import com.e3hi.geodrop.BuildConfig
 import com.google.firebase.Timestamp
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.ktx.auth
 import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldPath
@@ -29,7 +31,8 @@ import kotlinx.coroutines.tasks.await
 
 
 class FirestoreRepo(
-    private val db: FirebaseFirestore = Firebase.firestore
+    private val db: FirebaseFirestore = Firebase.firestore,
+    private val auth: FirebaseAuth = Firebase.auth
 ) {
     private val drops = db.collection("drops")
     private val users = db.collection("users")
@@ -859,9 +862,6 @@ class FirestoreRepo(
             val dropSnapshot = drops.document(dropId).get().await()
             if (!dropSnapshot.exists()) return null
 
-            val isAnonymous = dropSnapshot.getBoolean("isAnonymous") == true
-            if (isAnonymous) return null
-
             val creatorId = dropSnapshot.getString("createdBy")?.takeIf { it.isNotBlank() }
             val storedUsername = when {
                 dropSnapshot.contains("dropperUsername") ->
@@ -1367,7 +1367,6 @@ class FirestoreRepo(
             "lng" to sanitized.lng,
             "createdBy" to sanitized.createdBy,
             "createdAt" to sanitized.createdAt,
-            "isAnonymous" to sanitized.isAnonymous,
             "isDeleted" to false,
             "deletedAt" to null,
             "visibility" to if (sanitized.groupCode.isNullOrBlank()) "PUBLIC" else "GROUP",
@@ -1398,15 +1397,30 @@ class FirestoreRepo(
             "huntStepIndex" to sanitized.huntStepIndex,
             "huntTotalSteps" to sanitized.huntTotalSteps
         ).apply {
-            if (!sanitized.isAnonymous) {
-                sanitized.dropperUsername?.takeIf { it.isNotBlank() }?.let { username ->
-                    this["dropperUsername"] = username
-                }
+            sanitized.dropperUsername?.takeIf { it.isNotBlank() }?.let { username ->
+                this["dropperUsername"] = username
             }
         }
     }
 
+    /**
+     * Task 2.1 — every drop write must carry an authenticated, non-anonymous
+     * creator. The Firestore rules enforce this server-side (task 1.2); this is
+     * the client-side counterpart so no code path can even attempt the write.
+     * Guest browsing and guest unlocking are unaffected — they do not write drops.
+     */
+    private fun requireIdentifiedCreator(drop: Drop) {
+        val user = auth.currentUser
+        check(user != null && !user.isAnonymous) {
+            "Creating a drop requires a signed-in account."
+        }
+        check(drop.createdBy.isNotBlank() && drop.createdBy == user.uid) {
+            "Drop creator must match the signed-in account."
+        }
+    }
+
     private fun validateEnabledDropFeatures(drop: Drop) {
+        requireIdentifiedCreator(drop)
         check(PilotFeatureFlags.creationEnabled) {
             "Drop creation is disabled for this release."
         }

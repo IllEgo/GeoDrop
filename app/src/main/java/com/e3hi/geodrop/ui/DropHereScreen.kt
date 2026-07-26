@@ -1231,7 +1231,6 @@ fun DropHereScreen(
         (createdGroups + subscribedGroups).distinctBy { it.code }
     }
     var dropVisibility by remember { mutableStateOf(DropVisibility.Public) }
-    var dropAnonymously by remember { mutableStateOf(false) }
     var dropContentType by remember { mutableStateOf(DropContentType.TEXT) }
     var dropType by remember { mutableStateOf(DropType.COMMUNITY) }
     var note by remember { mutableStateOf(TextFieldValue("")) }
@@ -2132,12 +2131,6 @@ fun DropHereScreen(
         }
     }
 
-    LaunchedEffect(userProfile?.isBusiness()) {
-        if (userProfile?.isBusiness() == true) {
-            dropAnonymously = false
-        }
-    }
-
     LaunchedEffect(dropContentType) {
         when (dropContentType) {
             DropContentType.TEXT -> {
@@ -2292,7 +2285,6 @@ fun DropHereScreen(
         clearAudio()
         clearVideo()
         showDropComposer = false
-        dropAnonymously = false
         if (dropType == DropType.RESTAURANT_COUPON) {
             redemptionCodeInput = TextFieldValue("")
             redemptionLimitInput = TextFieldValue("")
@@ -2351,10 +2343,15 @@ fun DropHereScreen(
         mediaStoragePath: String?,
         redemptionCode: String?,
         redemptionLimit: Int?,
-        decayDays: Int?,
-        dropAnonymously: Boolean
+        decayDays: Int?
     ): DropSafetyAssessment {
-        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: "anon"
+        // Task 2.1 — no fabricated creator id. A drop is authored by a real,
+        // non-anonymous account or it is not authored at all. The repository
+        // enforces the same rule, and so do the Firestore rules (task 1.2).
+        val uid = FirebaseAuth.getInstance().currentUser
+            ?.takeIf { !it.isAnonymous }
+            ?.uid
+            ?: error("Creating a drop requires a signed-in account.")
         val sanitizedMedia = mediaInput?.takeIf { it.isNotBlank() }
         val sanitizedMime = mediaMimeType?.takeIf { it.isNotBlank() }
         val sanitizedRedemptionCode = redemptionCode?.trim()?.takeIf { it.isNotEmpty() }
@@ -2364,11 +2361,7 @@ fun DropHereScreen(
         val sanitizedDecayDays = decayDays?.takeIf { it > 0 }
         val sanitizedText = noteText.trim()
         val sanitizedDescription = descriptionText?.trim()?.takeIf { it.isNotEmpty() }
-        val dropperUsername = if (dropAnonymously) {
-            null
-        } else {
-            userProfile?.username?.trim()?.takeIf { it.isNotEmpty() }
-        }
+        val dropperUsername = userProfile?.username?.trim()?.takeIf { it.isNotEmpty() }
         val d = Drop(
             text = sanitizedText,
             description = sanitizedDescription,
@@ -2377,7 +2370,6 @@ fun DropHereScreen(
             createdBy = uid,
             createdAt = System.currentTimeMillis(),
             dropperUsername = dropperUsername,
-            isAnonymous = dropAnonymously,
             groupCode = groupCode,
             dropType = dropType,
             businessId = if (dropType != DropType.COMMUNITY) uid else null,
@@ -2686,7 +2678,6 @@ fun DropHereScreen(
                 }
 
                 val dropDescription = dropDescriptionText.trim().takeIf { it.isNotEmpty() }
-                val anonymizeDrop = dropAnonymously && userProfile?.isBusiness() != true
                 val safety = addDropAt(
                     lat = lat,
                     lng = lng,
@@ -2702,8 +2693,7 @@ fun DropHereScreen(
                     mediaStoragePath = mediaStoragePathResult,
                     redemptionCode = redemptionCodeResult,
                     redemptionLimit = redemptionLimitResult,
-                    decayDays = decayDaysResult,
-                    dropAnonymously = anonymizeDrop
+                    decayDays = decayDaysResult
                 )
                 Firebase.analytics.logEvent("drop_created") {
                     param("drop_type", dropType.name)
@@ -4140,8 +4130,6 @@ fun DropHereScreen(
                 onClearVideo = { clearVideo() },
                 dropVisibility = dropVisibility,
                 onDropVisibilityChange = { dropVisibility = it },
-                dropAnonymously = dropAnonymously,
-                onDropAnonymouslyChange = { dropAnonymously = it },
                 groupCodeInput = groupCodeInput,
                 onGroupCodeInputChange = { groupCodeInput = it },
                 joinedGroups = createdGroups.map { it.code },
@@ -4219,9 +4207,7 @@ fun DropHereScreen(
                                     lng = step.lng,
                                     createdBy = userId,
                                     createdAt = now,
-                                    dropperUsername = if (step.dropAnonymously) null else
-                                        profile?.username ?: profile?.displayName,
-                                    isAnonymous = step.dropAnonymously,
+                                    dropperUsername = profile?.username ?: profile?.displayName,
                                     dropType = step.dropType,
                                     businessId = if (step.dropType != DropType.COMMUNITY) userId else null,
                                     businessName = if (step.dropType != DropType.COMMUNITY) profile?.businessName else null,
@@ -6309,8 +6295,6 @@ private fun DropComposerDialog(
     onClearVideo: () -> Unit,
     dropVisibility: DropVisibility,
     onDropVisibilityChange: (DropVisibility) -> Unit,
-    dropAnonymously: Boolean,
-    onDropAnonymouslyChange: (Boolean) -> Unit,
     groupCodeInput: TextFieldValue,
     onGroupCodeInputChange: (TextFieldValue) -> Unit,
     joinedGroups: List<String>,
@@ -6568,10 +6552,8 @@ private fun DropComposerDialog(
                 }
             } else {
                 var settingsExpanded by rememberSaveable { mutableStateOf(false) }
-                val settingsSummary = remember(dropAnonymously, dropVisibility, decayDaysInput) {
+                val settingsSummary = remember(dropVisibility, decayDaysInput) {
                     buildString {
-                        append(if (dropAnonymously) "Anonymous" else "Named")
-                        append(" · ")
                         append(when (dropVisibility) {
                             DropVisibility.Public -> "Public"
                             DropVisibility.GroupOnly -> "Group only"
@@ -6652,11 +6634,6 @@ private fun DropComposerDialog(
                         DropAutoDeleteSection(
                             decayDaysInput = decayDaysInput,
                             onDecayDaysChange = onDecayDaysChange
-                        )
-                        DropIdentitySection(
-                            dropAnonymously = dropAnonymously,
-                            onDropAnonymouslyChange = onDropAnonymouslyChange,
-                            isSubmitting = isSubmitting
                         )
                         DropVisibilitySectionCard(
                             dropVisibility = dropVisibility,
@@ -7056,42 +7033,6 @@ private fun DropMediaAttachmentsSection(
         }
 
         DropContentType.TEXT -> Unit
-    }
-}
-
-@Composable
-private fun DropIdentitySection(
-    dropAnonymously: Boolean,
-    onDropAnonymouslyChange: (Boolean) -> Unit,
-    isSubmitting: Boolean
-) {
-    DropComposerSection(
-        title = "Identity",
-        description = "Choose whether your username appears to people who collect this drop.",
-        leadingIcon = Icons.Rounded.AccountCircle
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Drop anonymously",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = "Hides your username from the drop while keeping ownership in your account.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Switch(
-                checked = dropAnonymously,
-                onCheckedChange = onDropAnonymouslyChange,
-                enabled = !isSubmitting
-            )
-        }
     }
 }
 
@@ -10879,7 +10820,7 @@ private fun PickupCelebrationBanner(
     val subline = when {
         isHuntComplete -> "You completed the entire trail. Well done."
         drop.huntId != null -> "The next step is now unlocked on the map."
-        drop.isAnonymous || drop.dropperUsername.isNullOrBlank() ->
+        drop.dropperUsername.isNullOrBlank() ->
             "Left by a stranger just for you."
         else -> "Left by @${drop.dropperUsername}"
     }
@@ -13326,22 +13267,6 @@ private fun HuntStepEditor(
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                     )
                 }
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Checkbox(
-                    checked = step.dropAnonymously,
-                    onCheckedChange = { onUpdate(step.copy(dropAnonymously = it)) },
-                    enabled = enabled
-                )
-                Text(
-                    text = "Drop anonymously",
-                    style = MaterialTheme.typography.bodyMedium
-                )
             }
         }
     }
