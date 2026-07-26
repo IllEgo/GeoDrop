@@ -15,12 +15,10 @@ import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import android.util.Log
-import com.e3hi.geodrop.BuildConfig
 import com.e3hi.geodrop.data.FirestoreRepo
 import com.e3hi.geodrop.ui.DropHereScreen
 import com.e3hi.geodrop.ui.GhostSplashScreen
 import com.e3hi.geodrop.ui.theme.GeoDropTheme
-import com.e3hi.geodrop.util.GoogleVisionSafeSearchEvaluator
 import com.e3hi.geodrop.util.GroupPreferences
 import com.e3hi.geodrop.util.MessagingTokenStore
 import com.e3hi.geodrop.util.NotificationPreferences
@@ -30,7 +28,6 @@ import com.e3hi.geodrop.geo.NearbyDropRegistrar
 import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuth.AuthStateListener
-import com.google.firebase.functions.FirebaseFunctions
 import com.google.firebase.ktx.Firebase
 import com.google.firebase.messaging.ktx.messaging
 import kotlinx.coroutines.launch
@@ -76,22 +73,6 @@ class MainActivity : ComponentActivity() {
         authListener?.let { auth.addAuthStateListener(it) }
 
         setContent {
-            val safeSearchCallable = remember {
-                val functions = FirebaseFunctions.getInstance(BuildConfig.FIREBASE_FUNCTIONS_REGION)
-                GoogleVisionSafeSearchEvaluator.SafeSearchCallable { payload ->
-                    val result = functions
-                        .getHttpsCallable("safeSearch")
-                        .call(mapOf("base64" to payload))
-                        .await()
-                    @Suppress("UNCHECKED_CAST")
-                    result.data as? Map<String, Any?>
-                }
-            }
-            val dropSafetyEvaluator = remember {
-                GoogleVisionSafeSearchEvaluator(
-                    safeSearchCallable = safeSearchCallable
-                )
-            }
             GeoDropTheme {
                 var splashDone by remember { mutableStateOf(false) }
                 Crossfade(
@@ -101,7 +82,6 @@ class MainActivity : ComponentActivity() {
                 ) { done ->
                     if (done) {
                         DropHereScreen(
-                            dropSafetyEvaluator = dropSafetyEvaluator,
                             onNearbyAlertsEnabled = { radius, groups ->
                                 auth.currentUser?.uid?.let { userId ->
                                     enableNearbyAlerts(userId, radius, groups)

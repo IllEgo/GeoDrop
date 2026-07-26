@@ -271,7 +271,6 @@ import com.e3hi.geodrop.data.remainingRedemptions
 import com.e3hi.geodrop.data.requiresRedemption
 import com.e3hi.geodrop.data.userLikeStatus
 import com.e3hi.geodrop.data.isBusiness
-import com.e3hi.geodrop.data.VisionApiStatus
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
 import com.e3hi.geodrop.data.isExpired
@@ -288,10 +287,6 @@ import com.e3hi.geodrop.util.ContextualPermissionPolicy
 import com.e3hi.geodrop.util.PermissionGrantState
 import com.e3hi.geodrop.util.formatTimestamp
 import com.e3hi.geodrop.util.TermsPreferences
-import com.e3hi.geodrop.util.DropBlockedBySafetyException
-import com.e3hi.geodrop.util.DropSafetyAssessment
-import com.e3hi.geodrop.util.DropSafetyEvaluator
-import com.e3hi.geodrop.util.NoOpDropSafetyEvaluator
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
@@ -357,7 +352,6 @@ import kotlin.math.sqrt
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DropHereScreen(
-    dropSafetyEvaluator: DropSafetyEvaluator = NoOpDropSafetyEvaluator,
     onNearbyAlertsEnabled: (radiusMeters: Double, groupCodes: Set<String>) -> Unit = { _, _ -> },
     onNearbyAlertsDisabled: () -> Unit = {}
 ) {
@@ -2339,12 +2333,11 @@ fun DropHereScreen(
         mediaInput: String?,
         mediaMimeType: String?,
         mediaData: String?,
-        mediaDataForSafety: String?,
         mediaStoragePath: String?,
         redemptionCode: String?,
         redemptionLimit: Int?,
         decayDays: Int?
-    ): DropSafetyAssessment {
+    ) {
         // Task 2.1 — no fabricated creator id. A drop is authored by a real,
         // non-anonymous account or it is not authored at all. The repository
         // enforces the same rule, and so do the Firestore rules (task 1.2).
@@ -2357,7 +2350,6 @@ fun DropHereScreen(
         val sanitizedRedemptionCode = redemptionCode?.trim()?.takeIf { it.isNotEmpty() }
         val sanitizedRedemptionLimit = redemptionLimit?.takeIf { it > 0 }
         val sanitizedData = mediaData?.takeIf { it.isNotBlank() }
-        val sanitizedSafetyData = mediaDataForSafety?.takeIf { it.isNotBlank() }
         val sanitizedDecayDays = decayDays?.takeIf { it > 0 }
         val sanitizedText = noteText.trim()
         val sanitizedDescription = descriptionText?.trim()?.takeIf { it.isNotEmpty() }
@@ -2384,36 +2376,17 @@ fun DropHereScreen(
             decayDays = sanitizedDecayDays
         )
 
-        val safetyPieces = mutableListOf<String>()
-        if (sanitizedText.isNotBlank()) {
-            safetyPieces += sanitizedText
-        }
-        sanitizedDescription?.let { safetyPieces += it }
-        val safetyText = safetyPieces.takeIf { it.isNotEmpty() }
-            ?.joinToString(separator = "\n")
-        val safety = dropSafetyEvaluator.assess(
-            text = safetyText,
-            contentType = contentType,
-            mediaMimeType = sanitizedMime,
-            mediaData = sanitizedSafetyData,
-            mediaUrl = sanitizedMedia
-        )
-
-        if (safety.isNsfw) {
-            mediaStoragePath?.let { path ->
-                runCatching { mediaStorage.deleteMedia(path) }
-            }
-            throw DropBlockedBySafetyException(safety)
-        }
-
+        // Task 2.2 - no client-side NSFW classification. isNsfw/nsfwLabels are
+        // server-owned: only the backend moderation pipeline (analyzeOnUpload)
+        // may set them. The client always writes the safe values, which the
+        // Firestore rules require to be present and false on create.
         val dropToSave = d.copy(
-            isNsfw = safety.isNsfw,
-            nsfwLabels = safety.reasons
+            isNsfw = false,
+            nsfwLabels = emptyList()
         )
 
         repo.addDrop(dropToSave) // suspend (uses Firestore .await() internally)
         uiDone(lat, lng, groupCode, contentType, dropType)
-        return safety
     }
 
     fun submitDrop() {
@@ -2491,7 +2464,6 @@ fun DropHereScreen(
                 var mediaStoragePathResult: String? = null
                 var mediaMimeTypeResult: String? = null
                 var mediaDataResult: String? = null
-                var mediaDataForSafetyResult: String? = null
                 var dropNoteText = note.text
                 var dropDescriptionText = description.text
                 var redemptionCodeResult: String? = null
@@ -2549,7 +2521,6 @@ fun DropHereScreen(
                         mediaUrlResult = uploadResult.downloadUrl
                         mediaMimeTypeResult = "image/jpeg"
                         mediaDataResult = null
-                        mediaDataForSafetyResult = Base64.encodeToString(photoBytes, Base64.NO_WRAP)
                         mediaStoragePathResult = uploadResult.storagePath
                     }
 
@@ -2591,7 +2562,6 @@ fun DropHereScreen(
                         mediaUrlResult = uploadResult.downloadUrl
                         mediaMimeTypeResult = mimeType
                         mediaDataResult = Base64.encodeToString(audioBytes, Base64.NO_WRAP)
-                        mediaDataForSafetyResult = mediaDataResult
                         mediaStoragePathResult = uploadResult.storagePath
                     }
 
@@ -2629,7 +2599,6 @@ fun DropHereScreen(
                         mediaUrlResult = uploadResult.downloadUrl
                         mediaMimeTypeResult = mimeType
                         mediaDataResult = null
-                        mediaDataForSafetyResult = null
                         mediaStoragePathResult = uploadResult.storagePath
                     }
                 }
@@ -2678,7 +2647,7 @@ fun DropHereScreen(
                 }
 
                 val dropDescription = dropDescriptionText.trim().takeIf { it.isNotEmpty() }
-                val safety = addDropAt(
+                addDropAt(
                     lat = lat,
                     lng = lng,
                     groupCode = selectedGroupCode,
@@ -2689,7 +2658,6 @@ fun DropHereScreen(
                     mediaInput = mediaUrlResult,
                     mediaMimeType = mediaMimeTypeResult,
                     mediaData = mediaDataResult,
-                    mediaDataForSafety = mediaDataForSafetyResult ?: mediaDataResult,
                     mediaStoragePath = mediaStoragePathResult,
                     redemptionCode = redemptionCodeResult,
                     redemptionLimit = redemptionLimitResult,
@@ -2699,33 +2667,7 @@ fun DropHereScreen(
                     param("drop_type", dropType.name)
                     param("content_type", dropContentType.name)
                 }
-                val baseStatusMessage = status
-                val visionMessage = visionStatusMessage(
-                    assessment = safety,
-                    contentType = dropContentType
-                )
-                status = when {
-                    visionMessage == null -> baseStatusMessage
-                    baseStatusMessage.isNullOrBlank() -> visionMessage
-                    else -> listOf(baseStatusMessage, visionMessage).joinToString(separator = "\n")
-                }
             } catch (e: Exception) {
-                when (e) {
-                    is DropBlockedBySafetyException -> {
-                        isSubmitting = false
-                        val reason = e.assessment.reasons.firstOrNull()
-                        val message = buildString {
-                            append("This drop appears to contain adult content. ")
-                            append("Adult content cannot be published during the market pilot.")
-                            if (!reason.isNullOrBlank()) {
-                                append('\n')
-                                append(reason)
-                            }
-                        }
-                        snackbar.showMessage(scope, message)
-                        return@launch
-                    }
-                }
                 isSubmitting = false
                 snackbar.showMessage(scope, "Error: ${e.message}")
             }
@@ -7136,39 +7078,6 @@ private fun DialogMessageContent(
         onDismiss?.let {
             TextButton(onClick = it) {
                 Text("Back to main page")
-            }
-        }
-    }
-}
-
-private fun visionStatusMessage(
-    assessment: DropSafetyAssessment,
-    contentType: DropContentType
-): String? {
-    return when (assessment.visionStatus) {
-        VisionApiStatus.NOT_CONFIGURED ->
-            "Google Vision SafeSearch isn't configured, so this drop wasn't scanned."
-
-        VisionApiStatus.NOT_ELIGIBLE -> when (contentType) {
-            DropContentType.PHOTO ->
-                "Google Vision SafeSearch skipped this photo because it couldn't be processed."
-
-            else ->
-                "Google Vision SafeSearch only scans photo drops, so this one was skipped."
-        }
-
-        VisionApiStatus.ERROR ->
-            "Google Vision SafeSearch couldn't be reached, so the drop was saved without a scan."
-
-        VisionApiStatus.CLEARED ->
-            "Google Vision SafeSearch scanned the drop and cleared it."
-
-        VisionApiStatus.FLAGGED -> {
-            val reason = assessment.reasons.firstOrNull()?.takeIf { it.isNotBlank() }
-            if (reason != null) {
-                "Google Vision SafeSearch flagged this drop: $reason"
-            } else {
-                "Google Vision SafeSearch flagged this drop as potentially unsafe content."
             }
         }
     }
