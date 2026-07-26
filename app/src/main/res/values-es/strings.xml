@@ -18,7 +18,6 @@
     <string name="push_drop_default_label">tu drop</string>
     <string name="push_drop_label_photo">tu drop de foto</string>
     <string name="push_drop_label_audio">tu drop de audio</string>
-    <string name="push_drop_label_video">tu drop de video</string>
     <string name="menu_disable_nsfw_drops">Desactivar drops NSFW</string>
     <string name="menu_enable_nsfw_drops">Activar drops NSFW</string>
     <string name="status_signing_out">Cerrando sesión…</string>
@@ -73,8 +72,6 @@
     <string name="info_menu_privacy">Política de privacidad</string>
     <string name="terms_privacy_dialog_title">Términos y políticas de GeoDrop</string>
     <string name="terms_privacy_dialog_close">Cerrar</string>
-    <string name="content_description_expand_video">Ampliar video a pantalla completa</string>
-    <string name="content_description_collapse_video">Salir del video en pantalla completa</string>
     <string name="bottom_nav_profile">Perfil</string>
     <string name="drop_list_handle_label">Control para redimensionar la lista de drops</string>
     <string name="action_retry_generic">Intentar de nuevo</string>
@@ -112,7 +109,7 @@
     <string name="faq_question_core_features">¿Cuáles son las funciones principales de GeoDrop?</string>
     <string name="faq_answer_core_features">Crea drops en lugares reales, explora lo que hay cerca y conecta con personas y lugares mediante historias, ofertas y novedades interactivas.</string>
     <string name="faq_question_drop_contents">¿Qué puede incluir un drop?</string>
-    <string name="faq_answer_drop_contents">Los drops pueden incluir notas de texto, fotos, videos cortos, clips de voz e incluso recompensas o cupones de negocios. Combina lo que mejor se adapte al momento.</string>
+    <string name="faq_answer_drop_contents">Los drops pueden incluir notas de texto, fotos, clips de voz e incluso recompensas o cupones de negocios. Combina lo que mejor se adapte al momento.</string>
     <string name="faq_question_explorer_usage">¿Cómo usan los exploradores los drops?</string>
     <string name="faq_answer_explorer_usage">Los exploradores siguen el mapa o las notificaciones para visitar drops, abrir el contenido, reaccionar o recogerlo y guardar sus favoritos para futuras aventuras.</string>
     <string name="faq_question_groups">¿Cómo funcionan los grupos de GeoDrop?</string>

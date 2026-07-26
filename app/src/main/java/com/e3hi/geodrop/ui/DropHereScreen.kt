@@ -120,7 +120,6 @@ import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.material.icons.rounded.Place
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Public
-import androidx.compose.material.icons.rounded.Videocam
 import androidx.compose.material.icons.rounded.Storefront
 import androidx.compose.material.icons.rounded.Flag
 import androidx.compose.material.icons.rounded.Report
@@ -1231,7 +1230,6 @@ fun DropHereScreen(
     var description by remember { mutableStateOf(TextFieldValue("")) }
     var capturedPhotoPath by rememberSaveable { mutableStateOf<String?>(null) }
     var capturedAudioUri by rememberSaveable { mutableStateOf<String?>(null) }
-    var capturedVideoUri by rememberSaveable { mutableStateOf<String?>(null) }
     var isSubmitting by remember { mutableStateOf(false) }
     var groupCodeInput by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
     var redemptionCodeInput by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
@@ -1717,10 +1715,6 @@ fun DropHereScreen(
         }
     }
 
-    fun clearVideo() {
-        capturedVideoUri = null
-    }
-
     fun saveExplorerProfile() {
         if (explorerProfileSubmitting) return
 
@@ -2130,23 +2124,16 @@ fun DropHereScreen(
             DropContentType.TEXT -> {
                 capturedPhotoPath = null
                 clearAudio()
-                clearVideo()
-            }
+                    }
 
             DropContentType.PHOTO -> {
                 clearAudio()
-                clearVideo()
-            }
+                    }
 
             DropContentType.AUDIO -> {
                 capturedPhotoPath = null
-                clearVideo()
-            }
+                    }
 
-            DropContentType.VIDEO -> {
-                capturedPhotoPath = null
-                clearAudio()
-            }
         }
     }
 
@@ -2178,17 +2165,6 @@ fun DropHereScreen(
                 capturedAudioUri = uri.toString()
             } else {
                 snackbar.showMessage(scope, "Recording unavailable. Try again.")
-            }
-        }
-    }
-
-    val captureVideoLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            val uri = result.data?.data
-            if (uri != null) {
-                capturedVideoUri = uri.toString()
-            } else {
-                snackbar.showMessage(scope, "Video unavailable. Try again.")
             }
         }
     }
@@ -2251,20 +2227,6 @@ fun DropHereScreen(
         }
     }
 
-    fun ensureVideoAndLaunch() {
-        val permission = Manifest.permission.CAMERA
-        if (ContextCompat.checkSelfPermission(ctx, permission) == PackageManager.PERMISSION_GRANTED) {
-            val intent = Intent(MediaStore.ACTION_VIDEO_CAPTURE)
-            runCatching { captureVideoLauncher.launch(intent) }
-                .onFailure {
-                    snackbar.showMessage(scope, "Couldn't open the camera for video.")
-                }
-        } else {
-            pendingPermissionAction = { ensureVideoAndLaunch() }
-            cameraPermissionLauncher.launch(permission)
-        }
-    }
-
     fun uiDone(
         lat: Double,
         lng: Double,
@@ -2277,7 +2239,6 @@ fun DropHereScreen(
         description = TextFieldValue("")
         capturedPhotoPath = null
         clearAudio()
-        clearVideo()
         showDropComposer = false
         if (dropType == DropType.RESTAURANT_COUPON) {
             redemptionCodeInput = TextFieldValue("")
@@ -2295,7 +2256,6 @@ fun DropHereScreen(
                 DropContentType.TEXT -> "note"
                 DropContentType.PHOTO -> "photo drop"
                 DropContentType.AUDIO -> "audio drop"
-                DropContentType.VIDEO -> "video drop"
             }
         }
         val typeSummary = dropTypeTitle?.takeIf { it.isNotBlank() }
@@ -2315,7 +2275,6 @@ fun DropHereScreen(
                 DropContentType.TEXT -> "Your note is out in the world."
                 DropContentType.PHOTO -> "Your photo is out there waiting to be found."
                 DropContentType.AUDIO -> "Your audio drop is out there."
-                DropContentType.VIDEO -> "Your video drop is out there."
             }
         }
         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -2565,42 +2524,6 @@ fun DropHereScreen(
                         mediaStoragePathResult = uploadResult.storagePath
                     }
 
-                    DropContentType.VIDEO -> {
-                        val uriString = capturedVideoUri ?: run {
-                            isSubmitting = false
-                            snackbar.showMessage(scope, "Record a video before dropping.")
-                            return@launch
-                        }
-                        val uri = Uri.parse(uriString)
-
-                        val videoBytes = withContext(Dispatchers.IO) {
-                            try {
-                                ctx.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                            } catch (e: IOException) {
-                                null
-                            }
-                        } ?: run {
-                            isSubmitting = false
-                            snackbar.showMessage(
-                                scope,
-                                "Couldn't read the recorded video. Try again."
-                            )
-                            return@launch
-                        }
-
-                        val mimeType = ctx.contentResolver.getType(uri) ?: "video/mp4"
-
-                        val uploadResult = mediaStorage.uploadMedia(
-                            DropContentType.VIDEO,
-                            videoBytes,
-                            mimeType
-                        )
-
-                        mediaUrlResult = uploadResult.downloadUrl
-                        mediaMimeTypeResult = mimeType
-                        mediaDataResult = null
-                        mediaStoragePathResult = uploadResult.storagePath
-                    }
                 }
 
                 if (dropType == DropType.RESTAURANT_COUPON) {
@@ -4067,9 +3990,6 @@ fun DropHereScreen(
                 capturedAudioUri = capturedAudioUri,
                 onRecordAudio = { ensureAudioAndLaunch() },
                 onClearAudio = { clearAudio() },
-                capturedVideoUri = capturedVideoUri,
-                onRecordVideo = { ensureVideoAndLaunch() },
-                onClearVideo = { clearVideo() },
                 dropVisibility = dropVisibility,
                 onDropVisibilityChange = { dropVisibility = it },
                 groupCodeInput = groupCodeInput,
@@ -6232,9 +6152,6 @@ private fun DropComposerDialog(
     capturedAudioUri: String?,
     onRecordAudio: () -> Unit,
     onClearAudio: () -> Unit,
-    capturedVideoUri: String?,
-    onRecordVideo: () -> Unit,
-    onClearVideo: () -> Unit,
     dropVisibility: DropVisibility,
     onDropVisibilityChange: (DropVisibility) -> Unit,
     groupCodeInput: TextFieldValue,
@@ -6258,12 +6175,11 @@ private fun DropComposerDialog(
         confirmValueChange = { it != SheetValue.Hidden }
     )
     val bottomNavHeightPx = with(LocalDensity.current) { 36.dp.roundToPx() }
-    val contentIsValid = remember(dropContentType, note, capturedPhotoPath, capturedAudioUri, capturedVideoUri) {
+    val contentIsValid = remember(dropContentType, note, capturedPhotoPath, capturedAudioUri) {
         when (dropContentType) {
             DropContentType.TEXT -> note.text.isNotBlank()
             DropContentType.PHOTO -> capturedPhotoPath != null
             DropContentType.AUDIO -> capturedAudioUri != null
-            DropContentType.VIDEO -> capturedVideoUri != null
         }
     }
 
@@ -6416,9 +6332,6 @@ private fun DropComposerDialog(
                         capturedAudioUri = capturedAudioUri,
                         onRecordAudio = onRecordAudio,
                         onClearAudio = onClearAudio,
-                        capturedVideoUri = capturedVideoUri,
-                        onRecordVideo = onRecordVideo,
-                        onClearVideo = onClearVideo
                     )
                     if (dropType == DropType.RESTAURANT_COUPON) {
                         BusinessOfferStep(
@@ -6531,9 +6444,6 @@ private fun DropComposerDialog(
                         capturedAudioUri = capturedAudioUri,
                         onRecordAudio = onRecordAudio,
                         onClearAudio = onClearAudio,
-                        capturedVideoUri = capturedVideoUri,
-                        onRecordVideo = onRecordVideo,
-                        onClearVideo = onClearVideo
                     )
 
                     // Collapsible settings
@@ -6706,13 +6616,12 @@ private fun DropNoteAndDescriptionSection(
 ) {
     val noteLabel = when (dropContentType) {
         DropContentType.TEXT -> "Your note"
-        DropContentType.PHOTO, DropContentType.AUDIO, DropContentType.VIDEO -> "Caption (optional)"
+        DropContentType.PHOTO, DropContentType.AUDIO -> "Caption (optional)"
     }
     val noteSupporting = when (dropContentType) {
         DropContentType.TEXT -> "Share a friendly message, hint, or story for people who find this drop."
         DropContentType.PHOTO -> "Add a short caption to go with your photo."
         DropContentType.AUDIO -> "Add a short caption to go with your audio clip."
-        DropContentType.VIDEO -> "Add a short caption to go with your video clip."
     }
     val noteMinLines = if (dropContentType == DropContentType.TEXT) 3 else 1
 
@@ -6784,9 +6693,6 @@ private fun DropMediaAttachmentsSection(
     capturedAudioUri: String?,
     onRecordAudio: () -> Unit,
     onClearAudio: () -> Unit,
-    capturedVideoUri: String?,
-    onRecordVideo: () -> Unit,
-    onClearVideo: () -> Unit
 ) {
     when (dropContentType) {
         DropContentType.PHOTO -> {
@@ -6905,74 +6811,6 @@ private fun DropMediaAttachmentsSection(
             }
         }
 
-        DropContentType.VIDEO -> {
-            val hasVideo = capturedVideoUri != null
-            val videoPreview: (@Composable () -> Unit)? = if (hasVideo) {
-                {
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Start
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.PlayArrow,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                            Spacer(Modifier.width(12.dp))
-                            Column {
-                                Text(
-                                    text = "Video attached",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                                Text(
-                                    text = "Ready to drop your clip.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    }
-                }
-            } else {
-                null
-            }
-            DropComposerSection(
-                title = "Video attachment",
-                description = "Record a short clip to share at this location.",
-                leadingIcon = Icons.Rounded.Videocam
-            ) {
-                MediaCaptureCard(
-                    title = "Record video",
-                    description = "Capture a short clip to share at this location.",
-                    status = if (hasVideo) "Video ready to upload." else "No video recorded yet.",
-                    isReady = hasVideo,
-                    primaryLabel = if (hasVideo) "Record again" else "Record video",
-                    primaryIcon = Icons.Rounded.Videocam,
-                    onPrimary = {
-                        if (hasVideo) {
-                            onClearVideo()
-                        }
-                        onRecordVideo()
-                    },
-                    secondaryLabel = if (hasVideo) "Remove video" else null,
-                    onSecondary = if (hasVideo) {
-                        { onClearVideo() }
-                    } else {
-                        null
-                    },
-                    previewContent = videoPreview
-                )
-            }
-        }
 
         DropContentType.TEXT -> Unit
     }
@@ -9626,7 +9464,6 @@ private fun CollectedDropsMap(
                     DropContentType.TEXT -> "Text note"
                     DropContentType.PHOTO -> "Photo drop"
                     DropContentType.AUDIO -> "Audio drop"
-                    DropContentType.VIDEO -> "Video drop"
                 }
                 val snippetParts = mutableListOf<String>()
                 snippetParts.add("Type: $typeLabel")
@@ -9644,7 +9481,6 @@ private fun CollectedDropsMap(
                         DropContentType.TEXT -> "Collected text drop"
                         DropContentType.PHOTO -> "Collected photo drop"
                         DropContentType.AUDIO -> "Collected audio drop"
-                        DropContentType.VIDEO -> "Collected video drop"
                     }
                 }
 
@@ -9696,7 +9532,6 @@ private fun CollectedNoteCard(
         DropContentType.TEXT -> "Text note"
         DropContentType.PHOTO -> "Photo drop"
         DropContentType.AUDIO -> "Audio drop"
-        DropContentType.VIDEO -> "Video drop"
     }
     val dropperHandle = note.dropperUsername?.takeIf { it.isNotBlank() }?.let { "@${it}" }
     val previewText = note.description?.takeIf { it.isNotBlank() }
@@ -9705,7 +9540,6 @@ private fun CollectedNoteCard(
             DropContentType.TEXT -> "(No message)"
             DropContentType.PHOTO -> "Photo drop"
             DropContentType.AUDIO -> "Audio drop"
-            DropContentType.VIDEO -> "Video drop"
         }
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -9794,22 +9628,6 @@ private fun CollectedNoteCard(
                             )
                         }
 
-                        note.contentType == DropContentType.VIDEO && mediaUrl != null -> {
-                            val videoUri = remember(mediaUrl) { Uri.parse(mediaUrl) }
-
-                            DropVideoPlayer(
-                                videoUri = videoUri,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-
-                            Spacer(Modifier.height(8.dp))
-
-                            Text(
-                                text = "Tap play to watch this clip.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = supportingColor
-                            )
-                        }
                     }
 
 //                    Text(
@@ -10577,7 +10395,6 @@ private fun MyDropsMap(
                 DropContentType.TEXT -> "Text note"
                 DropContentType.PHOTO -> "Photo drop"
                 DropContentType.AUDIO -> "Audio drop"
-                DropContentType.VIDEO -> "Video drop"
             }
             snippetParts.add("Type: $typeLabel")
             formatTimestamp(drop.createdAt)?.let { snippetParts.add("Dropped $it") }
@@ -10723,7 +10540,6 @@ private fun PickupCelebrationBanner(
         drop.huntId != null -> "Clue collected — keep going!"
         drop.contentType == DropContentType.PHOTO -> "You found it!"
         drop.contentType == DropContentType.AUDIO -> "You found it!"
-        drop.contentType == DropContentType.VIDEO -> "You found it!"
         else -> "You found something!"
     }
     val subline = when {
@@ -10860,7 +10676,7 @@ private fun OtherDropRow(
         drop.mediaMimeType,
         drop.contentType
     ) {
-        if (drop.contentType == DropContentType.AUDIO || drop.contentType == DropContentType.VIDEO) {
+        if (drop.contentType == DropContentType.AUDIO) {
             resolveDropMediaAttachment(context, drop)
         } else {
             null
@@ -10871,7 +10687,6 @@ private fun OtherDropRow(
         ?: when (drop.contentType) {
             DropContentType.PHOTO -> "Preview the photo below."
             DropContentType.AUDIO -> "Use the player below to listen to this drop."
-            DropContentType.VIDEO -> "Use the player below to watch this drop."
             DropContentType.TEXT -> null
         }
 
@@ -10940,7 +10755,6 @@ private fun OtherDropRow(
                         DropContentType.TEXT -> "Text note"
                         DropContentType.PHOTO -> "Photo drop"
                         DropContentType.AUDIO -> "Audio drop"
-                        DropContentType.VIDEO -> "Video drop"
                     }
 
                     Spacer(Modifier.height(4.dp))
@@ -10991,7 +10805,7 @@ private fun OtherDropRow(
                         }
                     }
 
-                    if (canPreviewContent && (drop.contentType == DropContentType.AUDIO || drop.contentType == DropContentType.VIDEO)) {
+                    if (canPreviewContent && drop.contentType == DropContentType.AUDIO) {
                         Spacer(Modifier.height(12.dp))
                         AttachmentPreviewSection(
                             contentType = drop.contentType,
@@ -11252,72 +11066,6 @@ private fun AttachmentPreviewSection(
             }
         }
 
-        DropContentType.VIDEO -> {
-            val videoUri = attachment?.asUriOrNull()
-
-            if (videoUri != null) {
-                DropVideoPlayer(
-                    videoUri = videoUri,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-//                Spacer(Modifier.height(8.dp))
-
-//                Text(
-//                    text = "Tap play to watch this clip.",
-//                    style = MaterialTheme.typography.bodySmall,
-//                    color = MaterialTheme.colorScheme.onSurfaceVariant
-//                )
-
-                Spacer(Modifier.height(8.dp))
-            }
-
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.PlayArrow,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                    Column {
-                        Text(
-                            text = "Video clip",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            text = if (videoUri != null) {
-                                "Watch here or open it in another app."
-                            } else {
-                                "Attachment unavailable."
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(8.dp))
-
-            Button(
-                onClick = { attachment?.let(onOpen) },
-                enabled = attachment != null,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(if (videoUri != null) "Open video externally" else "Play video")
-            }
-        }
 
         else -> return
     }
@@ -11460,7 +11208,6 @@ private fun OtherDropsMap(
                 ?: when (drop.contentType) {
                     DropContentType.PHOTO -> "Tap to preview this photo."
                     DropContentType.AUDIO -> "Tap to play this recording."
-                    DropContentType.VIDEO -> "Tap to watch this clip."
                     DropContentType.TEXT -> ""
                 }
             if (!snippetDescription.isNullOrBlank()) {
@@ -11563,7 +11310,6 @@ private fun resolveDropMediaAttachment(context: Context, drop: Drop): DropMediaA
     if (data != null) {
         val (subDir, defaultMime, defaultExtension) = when (drop.contentType) {
             DropContentType.AUDIO -> Triple("audio", preferredMime ?: "audio/mpeg", "m4a")
-            DropContentType.VIDEO -> Triple("video", preferredMime ?: "video/mp4", "mp4")
             else -> Triple("media", preferredMime ?: "application/octet-stream", "bin")
         }
 
@@ -11795,16 +11541,6 @@ private fun ManageDropRow(
                             }
                         }
 
-                        DropContentType.VIDEO -> {
-                            val videoUri = mediaAttachment?.asUriOrNull()
-                                ?: drop.mediaLabel()?.let { Uri.parse(it) }
-                            if (videoUri != null) {
-                                DropVideoPlayer(
-                                    videoUri = videoUri,
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                            }
-                        }
 
                         DropContentType.AUDIO -> {
                             val audioUri = mediaAttachment?.asUriOrNull()
@@ -11979,12 +11715,6 @@ private fun DropContentTypeSection(
                 icon = Icons.Rounded.PhotoCamera
             ),
             DropContentTypeOption(
-                type = DropContentType.VIDEO,
-                title = "Video",
-                description = "Record a short clip for nearby explorers to watch.",
-                icon = Icons.Rounded.Videocam
-            ),
-            DropContentTypeOption(
                 type = DropContentType.AUDIO,
                 title = "Audio",
                 description = "Record a quick voice message for nearby explorers.",
@@ -11997,10 +11727,6 @@ private fun DropContentTypeSection(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        if (showHeader) {
-            Text("Drop content", style = MaterialTheme.typography.titleSmall)
-        }
-
         SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
             options.forEachIndexed { index, option ->
                 SegmentedButton(
@@ -12331,13 +12057,11 @@ private fun BusinessDropTemplateCard(
                 DropContentType.TEXT -> Icons.Rounded.Edit
                 DropContentType.PHOTO -> Icons.Rounded.PhotoCamera
                 DropContentType.AUDIO -> Icons.Rounded.Mic
-                DropContentType.VIDEO -> Icons.Rounded.Videocam
             }
             val contentTypeLabel = when (template.contentType) {
                 DropContentType.TEXT -> "Text"
                 DropContentType.PHOTO -> "Photo"
                 DropContentType.AUDIO -> "Audio"
-                DropContentType.VIDEO -> "Video"
             }
 
             FlowRow(

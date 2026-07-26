@@ -118,8 +118,7 @@ enum class DropLikeStatus {
 enum class DropContentType {
     TEXT,
     PHOTO,
-    AUDIO,
-    VIDEO;
+    AUDIO;
 
     companion object {
         fun fromRaw(value: String?): DropContentType {
@@ -138,7 +137,6 @@ fun Drop.displayTitleParts(): Pair<String?, String> {
             DropContentType.TEXT -> text.ifBlank { descriptionText.ifBlank { "(No message)" } }
             DropContentType.PHOTO -> text.ifBlank { descriptionText }.ifBlank { "Photo drop" }
             DropContentType.AUDIO -> text.ifBlank { descriptionText }.ifBlank { "Audio drop" }
-            DropContentType.VIDEO -> text.ifBlank { descriptionText }.ifBlank { "Video drop" }
         }
     }
 
@@ -184,7 +182,6 @@ fun Drop.discoveryTitle(): String {
             DropContentType.TEXT -> "Hidden note"
             DropContentType.PHOTO -> "Hidden photo drop"
             DropContentType.AUDIO -> "Hidden audio drop"
-            DropContentType.VIDEO -> "Hidden video drop"
         }
     }
 }
@@ -211,7 +208,6 @@ fun Drop.discoveryDescription(): String {
             DropContentType.TEXT -> descriptionText.ifBlank { "Collect this drop to read the message inside." }
             DropContentType.PHOTO -> descriptionText.ifBlank { "Pick up this drop to reveal the photo." }
             DropContentType.AUDIO -> descriptionText.ifBlank { "Collect this drop to listen to the recording." }
-            DropContentType.VIDEO -> descriptionText.ifBlank { "Collect this drop to watch the clip." }
         }
     }
 }

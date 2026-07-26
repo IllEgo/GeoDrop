@@ -42,7 +42,6 @@ import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.Report
 import androidx.compose.material.icons.rounded.ThumbDown
 import androidx.compose.material.icons.rounded.ThumbUp
-import androidx.compose.material.icons.rounded.Videocam
 import androidx.compose.material3.Button
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
@@ -678,7 +677,6 @@ class DropDetailActivity : ComponentActivity() {
                                         DropContentType.TEXT -> "Not available"
                                         DropContentType.PHOTO -> "Photo drop"
                                         DropContentType.AUDIO -> "Audio drop"
-                                        DropContentType.VIDEO -> "Video drop"
                                     }
                                     current.text?.takeIf { it.isNotBlank() }
                                         ?: current.description?.takeIf { it.isNotBlank() }
@@ -694,7 +692,6 @@ class DropDetailActivity : ComponentActivity() {
                                     DropContentType.TEXT -> "Text note"
                                     DropContentType.PHOTO -> "Photo drop"
                                     DropContentType.AUDIO -> "Audio drop"
-                                    DropContentType.VIDEO -> "Video drop"
                                 }
                                 DropDetailUiState.Loading -> "Loading…"
                                 DropDetailUiState.Deleted -> "Not available"
@@ -704,7 +701,6 @@ class DropDetailActivity : ComponentActivity() {
                                 DropContentType.TEXT -> Icons.Rounded.Article
                                 DropContentType.PHOTO -> Icons.Rounded.PhotoCamera
                                 DropContentType.AUDIO -> Icons.Rounded.GraphicEq
-                                DropContentType.VIDEO -> Icons.Rounded.Videocam
                                 null -> Icons.Rounded.Info
                             }
 
@@ -1129,63 +1125,11 @@ class DropDetailActivity : ComponentActivity() {
                                             )
                                         }
                                     }
-                                    if (PilotFeatureFlags.mediaEnabled && loadedState?.contentType == DropContentType.VIDEO) {
-                                        Spacer(Modifier.height(12.dp))
-                                        val videoUri = mediaAttachment?.asUriOrNull()
-
-                                        if (videoUri != null) {
-                                            DropVideoPlayer(
-                                                videoUri = videoUri,
-                                                modifier = Modifier.fillMaxWidth()
-                                            )
-
-                                            Spacer(Modifier.height(8.dp))
-                                        }
-
-                                        Surface(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            shape = RoundedCornerShape(12.dp),
-                                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-                                        ) {
-                                            Row(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Rounded.PlayArrow,
-                                                    contentDescription = null,
-                                                    tint = MaterialTheme.colorScheme.primary
-                                                )
-                                                Column {
-                                                    Text(
-                                                        text = "Video clip",
-                                                        style = MaterialTheme.typography.bodyMedium,
-                                                        fontWeight = FontWeight.SemiBold
-                                                    )
-                                                    Text(
-                                                        text = if (videoUri != null) {
-                                                            "Watch here or open it in another app."
-                                                        } else {
-                                                            "Attachment unavailable."
-                                                        },
-                                                        style = MaterialTheme.typography.bodySmall,
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                    )
-                                                }
-                                            }
-                                        }
-
-                                        Spacer(Modifier.height(12.dp))
-                                    }
                                     if (loadedState != null && mediaAttachment != null) {
                                         val buttonLabel = when (loadedState.contentType) {
                                             DropContentType.TEXT -> "Open attachment"
                                             DropContentType.PHOTO -> "View photo"
                                             DropContentType.AUDIO -> "Play audio"
-                                            DropContentType.VIDEO -> "Open video externally"
                                         }
                                         Button(
                                             onClick = {
@@ -1289,7 +1233,6 @@ class DropDetailActivity : ComponentActivity() {
                                             DropContentType.TEXT -> "Would you like to pick up this note?"
                                             DropContentType.PHOTO -> "Would you like to pick up this photo?"
                                             DropContentType.AUDIO -> "Would you like to pick up this audio drop?"
-                                            DropContentType.VIDEO -> "Would you like to pick up this video drop?"
                                             null -> "Would you like to pick up this drop?"
                                         }
                                         Text(decisionPrompt, style = MaterialTheme.typography.titleMedium)

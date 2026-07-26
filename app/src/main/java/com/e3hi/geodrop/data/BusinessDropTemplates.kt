@@ -48,9 +48,9 @@ private val GENERAL_BUSINESS_TEMPLATES = listOf(
         id = "general_behind_scenes",
         category = BusinessCategory.MARKETING_INFLUENCERS_CREATORS,
         title = "Behind-the-scenes moment",
-        description = "Capture a quick video or audio snippet that feels exclusive.",
+        description = "Capture a quick audio snippet that feels exclusive.",
         dropType = DropType.COMMUNITY,
-        contentType = DropContentType.VIDEO,
+        contentType = DropContentType.AUDIO,
         note = "You're seeing it first! Record a quick clip sharing what we're working on right now and invite explorers to follow along.",
         caption = "Exclusive peek at what we're creating.",
         callToAction = "Record a fresh clip before publishing."
@@ -507,7 +507,7 @@ private val BUSINESS_DROP_TEMPLATES: Map<BusinessCategory, List<BusinessDropTemp
             title = "Pop-up meetup",
             description = "Invite followers to a quick hangout.",
             dropType = DropType.COMMUNITY,
-            contentType = DropContentType.VIDEO,
+            contentType = DropContentType.AUDIO,
             note = "Record a clip inviting explorers to meet you here at 5pm for a selfie session and surprise shout-outs.",
             caption = "Meet me IRL for selfies later."
         ),
@@ -606,7 +606,7 @@ private val DROP_TYPE_COPY_OVERRIDES: Map<BusinessCategoryGroup, Map<DropType, D
     BusinessCategoryGroup.HOSPITALITY_AND_TOURISM to mapOf(
         DropType.TOUR_STOP to DropTypeCopy(
             title = "Guided stop",
-            description = "Lead guests through each waypoint with audio, video, or step-by-step storytelling."
+            description = "Lead guests through each waypoint with audio or step-by-step storytelling."
         ),
         DropType.COMMUNITY to DropTypeCopy(
             title = "Guest welcome",
