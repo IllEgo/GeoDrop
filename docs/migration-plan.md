@@ -135,10 +135,24 @@ rules already reject writes after 1.3.
 **Acceptance:** Camera permission usage reduced to photo only if applicable.
 
 ### 2.4 — Public group creation
-**Deliverable:** Remove group creation, membership, and group-scoped feeds.
+**Corrected 2026-07-26.** This task originally read "Remove group creation, membership,
+and group-scoped feeds." That was written before Phase 0 and dropped the word *public*.
+**0.1 Decision A** split the concept and the **0.3 ADR** signed it: invite-only groups are
+**launch scope** — they are the direction doc's "experiences the user explicitly joined"
+mechanism, and `NearbyDropRegistrar` filters push notifications by exactly that membership.
+Only **public / discoverable** groups are deferred, and they were never built. Executing the
+original wording would have deleted a launch-scope feature and broken scoped notifications.
+
+**Deliverable:** Verify that no public/discoverable group surface exists, and that both
+organizer-scoped event drops and invite-only group scoping survive intact. Do **not** remove
+invite-only groups, membership, or group-scoped drops. The rules-layer denies that keep
+public groups unbuilt (`groups` create/update/delete/`list` denied, membership callable-only)
+already shipped in 1.3 and **must not be loosened**.
 **Acceptance:** Organizer-scoped event drops are unaffected — verify this explicitly, as
 the two often share code.
 **Gate:** Confirmation that organizer/event scoping survived intact.
+**Open follow-up (deferred to Phase 5):** gate group *creation* to organizer/business
+accounts in the `manageGroup` callable, per 0.1 Decision A.
 
 ### 2.5 — Direct messaging
 **Deliverable:** Remove DM UI, threads, and notification handlers.
