@@ -155,7 +155,13 @@ the two often share code.
 accounts in the `manageGroup` callable, per 0.1 Decision A.
 
 ### 2.5 — Direct messaging
-**Deliverable:** Remove DM UI, threads, and notification handlers.
+**Note added 2026-07-26.** Nothing to remove. 0.1 classified DMs `D·absent` and 2.5
+re-confirmed it across `app/src`, `ios/GeoDropIOS` and `functions/src`: no DM UI, no thread
+model, no conversation collection, and no DM notification handler. The client routes exactly
+two push events, `DROP_COLLECTED` and `REPORT_STATUS_UPDATED`. 1.3 already denied every
+DM-shaped path at the rules layer. The task therefore reduces to its Acceptance.
+**Deliverable:** Confirm no DM UI, threads, or notification handlers exist, and that the
+DM-shaped rules denies from 1.3 hold.
 **Acceptance:** Notification routing still works for the scoped notifications that remain.
 
 ### 2.6 — Voting and upvotes
