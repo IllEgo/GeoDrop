@@ -24,7 +24,6 @@ internal fun DocumentSnapshot.toDrop(): Drop {
     val lat = getDouble("lat") ?: baseDrop.lat
     val lng = getDouble("lng") ?: baseDrop.lng
     val createdBy = getString("createdBy") ?: baseDrop.createdBy
-    val isAnonymous = getBooleanCompat("isAnonymous") ?: baseDrop.isAnonymous
     val isDeleted = getBooleanCompat("isDeleted") ?: baseDrop.isDeleted
     val decayDays = getIntCompat("decayDays") ?: baseDrop.decayDays
     val groupCode = GroupPreferences.normalizeGroupCode(getString("groupCode")) ?: baseDrop.groupCode
@@ -84,7 +83,6 @@ internal fun DocumentSnapshot.toDrop(): Drop {
         createdBy = createdBy,
         createdAt = createdAt,
         dropperUsername = dropperUsername,
-        isAnonymous = isAnonymous,
         isDeleted = isDeleted,
         deletedAt = deletedAt,
         isNsfw = nsfwFlag,
