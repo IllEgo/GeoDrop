@@ -165,7 +165,6 @@ class GeoDropMessagingService : FirebaseMessagingService() {
         return when (rawContentType?.uppercase(Locale.US)) {
             "PHOTO" -> getString(R.string.push_drop_label_photo)
             "AUDIO" -> getString(R.string.push_drop_label_audio)
-            "VIDEO" -> getString(R.string.push_drop_label_video)
             else -> getString(R.string.push_drop_default_label)
         }
     }

@@ -143,7 +143,6 @@ class GeofenceReceiver : BroadcastReceiver() {
                     DropContentType.TEXT -> "Someone left you a note nearby"
                     DropContentType.PHOTO -> "Someone left you a photo nearby"
                     DropContentType.AUDIO -> "Someone left you an audio note nearby"
-                    DropContentType.VIDEO -> "Someone left you a video nearby"
                 }
                 val userIdForIntent = authUserId ?: ExplorerAccountStore(context).getLastExplorerUid()
                 val pickupIntent = Intent(context, DropDecisionReceiver::class.java).apply {
@@ -192,7 +191,6 @@ class GeofenceReceiver : BroadcastReceiver() {
                     DropContentType.TEXT -> "A stranger left this here just for you. Pick it up?"
                     DropContentType.PHOTO -> "Someone nearby left you a photo. Pick it up?"
                     DropContentType.AUDIO -> "Someone left you an audio note. Pick it up?"
-                    DropContentType.VIDEO -> "Someone left you a video drop. Pick it up?"
                 }
 
                 val notif = NotificationCompat.Builder(context, CHANNEL_NEARBY)
