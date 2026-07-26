@@ -100,10 +100,16 @@ delete rather than orphan or archive. Disposition per store:
 - **Delete (content):** `drops` + Storage `drops/*` objects; `groups` +
   `users/*/groups`; `reports`; `users/*/inventory`; `users/*/huntProgress`; `huntChains`;
   backend moderation collections (`dropModerationQueue`, `moderationCases`,
-  `moderationAppeals`, `moderationAuditEvents`); `usernames` as needed.
+  `moderationAppeals`, `moderationAuditEvents`).
 - **Preserve (accounts):** the owner's Auth users and minimal `users/{uid}` profiles, for
   login continuity. Exact keep-list (which of the 11 accounts, whether to retain any
   `users/{uid}` fields) is finalized at the 1.4 **dry-run**.
+- **`usernames` — RESOLVED at 1.4 (2026-07-25): preserve.** 0.3 left this open as
+  "as needed". Owner's call: a username is account identity, not prototype content, and
+  the accounts are being kept — wiping the mapping would strip display names off profiles
+  we are deliberately retaining. `wipe-prototype-data.js` preserves them by default and
+  exposes `--wipe-usernames` if this is ever reversed. Also preserved for the same reason:
+  `users/*/blockedCreators`, `users/*/notificationTokens`, `users/*/reportStatuses`.
 - **Not archived:** no long-term archive of test data. The 1.4 rule still applies — take a
   Firestore/Storage **export as a rollback backup** immediately before the destructive
   run, retained short-term only.
