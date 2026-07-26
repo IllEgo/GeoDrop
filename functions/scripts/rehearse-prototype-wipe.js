@@ -32,6 +32,17 @@ const bucket = admin.storage().bucket();
 const backupRoot = fs.mkdtempSync(path.join(os.tmpdir(), "geodrop-wipe-"));
 const mediaPath = "drops/photos/rehearsal.jpg";
 
+// CI runs this after three other rehearsals against the same emulator, so start
+// from a known-empty state instead of inheriting their fixtures. Emulator-only:
+// the env guard above has already refused to run against production.
+const clearEmulator = async () => {
+  const collections = await db.listCollections();
+  for (const collection of collections) {
+    await db.recursiveDelete(collection);
+  }
+  await bucket.deleteFiles({force: true});
+};
+
 const seed = async () => {
   const batch = db.batch();
   // Content — must all be gone afterwards.
@@ -44,6 +55,8 @@ const seed = async () => {
   // Accounts — must all survive.
   batch.set(db.collection("users").doc("owner"), {role: "EXPLORER", displayName: "Owner"});
   batch.set(db.collection("usernames").doc("owner.name"), {userId: "owner"});
+  batch.set(db.collection("accountDeletionReceipts").doc("receipt-1"), {uid: "gone"});
+  batch.set(db.collection("users").doc("owner").collection("legalAcceptances").doc("v1"), {policyVersion: "v1"});
   batch.set(db.collection("users").doc("owner").collection("groups").doc("group-1"), {code: "group-1"});
   batch.set(db.collection("users").doc("owner").collection("inventory").doc("drop-1"), {id: "drop-1"});
   batch.set(db.collection("users").doc("owner").collection("huntProgress").doc("hunt-1"), {huntId: "hunt-1"});
@@ -80,7 +93,7 @@ const runWipe = (args, {expectFailure = false} = {}) => {
 };
 
 const countAll = async () => {
-  const [drops, groups, reports, hunts, cases, users, usernames] = await Promise.all([
+  const [drops, groups, reports, hunts, cases, users, usernames, receipts] = await Promise.all([
     db.collection("drops").get(),
     db.collection("groups").get(),
     db.collection("reports").get(),
@@ -88,28 +101,32 @@ const countAll = async () => {
     db.collection("moderationCases").get(),
     db.collection("users").get(),
     db.collection("usernames").get(),
+    db.collection("accountDeletionReceipts").get(),
   ]);
   const owner = db.collection("users").doc("owner");
-  const [memberships, inventory, progress, tokens, blocked] = await Promise.all([
+  const [memberships, inventory, progress, tokens, blocked, legal] = await Promise.all([
     owner.collection("groups").get(),
     owner.collection("inventory").get(),
     owner.collection("huntProgress").get(),
     owner.collection("notificationTokens").get(),
     owner.collection("blockedCreators").get(),
+    owner.collection("legalAcceptances").get(),
   ]);
   const [mediaExists] = await bucket.file(mediaPath).exists();
   return {
     drops: drops.size, groups: groups.size, reports: reports.size,
     huntChains: hunts.size, moderationCases: cases.size,
-    users: users.size, usernames: usernames.size,
+    users: users.size, usernames: usernames.size, receipts: receipts.size,
     memberships: memberships.size, inventory: inventory.size,
     huntProgress: progress.size, tokens: tokens.size, blocked: blocked.size,
+    legal: legal.size,
     mediaExists,
   };
 };
 
 const main = async () => {
   const failures = [];
+  await clearEmulator();
   await seed();
   const seeded = await countAll();
 
@@ -157,6 +174,8 @@ const main = async () => {
   if (afterApply.usernames !== seeded.usernames) failures.push("usernames were deleted");
   if (afterApply.tokens !== seeded.tokens) failures.push("notification tokens were deleted");
   if (afterApply.blocked !== seeded.blocked) failures.push("blocked creators were deleted");
+  if (afterApply.receipts !== seeded.receipts) failures.push("account deletion receipts were deleted");
+  if (afterApply.legal !== seeded.legal) failures.push("legal acceptances were deleted");
 
   const backedUp = JSON.parse(
     fs.readFileSync(path.join(backupDir, "firestore-documents.json"), "utf8")

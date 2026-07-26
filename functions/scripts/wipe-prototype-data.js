@@ -73,11 +73,20 @@ const DELETE_USER_SUBCOLLECTIONS = ["groups", "inventory", "huntProgress"];
 // Accounts and account-scoped state: preserved for login continuity.
 // usernames move to the delete list only under --wipe-usernames, because a
 // username is account identity rather than prototype content.
-const PRESERVE_ROOT_COLLECTIONS = ["users", "usernames"];
+//
+// accountDeletionReceipts is compliance evidence that a deletion happened, and
+// it already has its own retention policy (purgeExpiredDeletionReceipts sweeps
+// by expiresAt). Wiping it would destroy the audit trail, not prototype content.
+const PRESERVE_ROOT_COLLECTIONS = ["users", "usernames", "accountDeletionReceipts"];
+
+// Documentation of intent — user subcollections preserve by default, so
+// anything absent from DELETE_USER_SUBCOLLECTIONS survives whether or not it is
+// named here. legalAcceptances is consent evidence tied to the account.
 const PRESERVE_USER_SUBCOLLECTIONS = [
   "blockedCreators",
   "notificationTokens",
   "reportStatuses",
+  "legalAcceptances",
 ];
 
 const STORAGE_PREFIX = "drops/";
