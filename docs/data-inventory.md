@@ -48,11 +48,19 @@ confirming those features are structurally absent, not just unused.
 | `users` (profiles) | 25 | — |
 | Auth users | 22 | — |
 | `groups` | 9 | 2025-10-20 → 2025-11-16 |
-| `users/*/groups` (membership docs) | 33 | — |
+| `users/*/groups` (membership docs) | 24 ¹ | — |
 | `reports` | 3 | — |
 | `usernames` | 10 | — |
 
 Drop content types: **TEXT 34, PHOTO 58, VIDEO 8** (= 100).
+
+> ¹ **Corrected 2026-07-25 at the 1.4 dry run: 33 → 24.** The original figure came from
+> `collectionGroup("groups")`, which matches the root `groups` collection as well as the
+> per-user `users/*/groups` subcollection of the same name, so the 9 group documents were
+> counted twice over (9 + 24 = 33). Verified against production: root `groups` = 9,
+> `users/*/groups` walked per user = 24, `collectionGroup("groups")` = 33. The 1.4 wipe
+> script walks each user document specifically to avoid this ambiguity. The group-record
+> counts elsewhere in this document (9 groups, 6 group-scoped drops) are unaffected.
 
 ## Records the launch scope disallows
 
