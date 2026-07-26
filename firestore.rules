@@ -141,6 +141,11 @@ service cloud.firestore {
       // to people who already possess membership, and collection enumeration
       // is always denied. The manageGroup callable uses the Admin SDK for all
       // group and membership mutations.
+      //
+      // These denies are also the enforcement for deferred public group
+      // creation (task 1.3): a client can neither create a group nor discover
+      // one it was not invited to. Do not loosen without reversing the
+      // direction doc's deferred list.
       allow get: if isGroupOwner() || hasGroupMembership();
       allow list, create, update, delete: if false;
     }
@@ -298,6 +303,35 @@ service cloud.firestore {
             && exists(/databases/$(database)/documents/users/$(request.auth.uid)/groups/$(data.groupCode)));
       }
 
+      // --- Deferred-feature denials (task 1.3) ----------------------------
+      // Video content, client-authored NSFW flags, and seeded vote records are
+      // rejected at create. These close WRITES only; existing documents stay
+      // readable under the rules above.
+
+      function isVideoContent(data) {
+        return (data.keys().hasAny(['contentType']) && data.contentType == 'VIDEO')
+          || (data.keys().hasAny(['mediaMimeType'])
+            && data.mediaMimeType is string
+            && data.mediaMimeType.matches('video/.*'));
+      }
+
+      // Only the backend moderation pipeline (Admin SDK, which bypasses rules)
+      // may flag content. A client can never author an NSFW state.
+      function hasNoClientNsfwFlags(data) {
+        return data.isNsfw == false
+          && (!data.keys().hasAny(['nsfw']) || data.nsfw == false)
+          && (!data.keys().hasAny(['nsfwLabels'])
+            || data.nsfwLabels == null
+            || (data.nsfwLabels is list && data.nsfwLabels.size() == 0));
+      }
+
+      function hasNoSeededVotes(data) {
+        return (!data.keys().hasAny(['dislikeCount']) || data.dislikeCount == 0)
+          && (!data.keys().hasAny(['dislikedBy'])
+            || data.dislikedBy == null
+            || (data.dislikedBy is map && data.dislikedBy.size() == 0));
+      }
+
       function groupDropHasNoMedia(data) {
         return data.visibility != 'GROUP'
           || (data.contentType == 'TEXT'
@@ -312,7 +346,9 @@ service cloud.firestore {
         && (!request.resource.data.keys().hasAny(['isAnonymous'])
           || request.resource.data.isAnonymous == false)
         && request.resource.data.isDeleted == false
-        && request.resource.data.isNsfw == false
+        && hasNoClientNsfwFlags(request.resource.data)
+        && !isVideoContent(request.resource.data)
+        && hasNoSeededVotes(request.resource.data)
         && hasValidVisibility(request.resource.data)
         && groupDropHasNoMedia(request.resource.data)
         && request.resource.data.createdBy == request.auth.uid
@@ -369,12 +405,33 @@ service cloud.firestore {
           );
       }
 
+      // Dislikes are a deferred voting feature (task 1.3). No new dislike may
+      // be recorded and no count may grow; retracting an existing dislike stays
+      // legal so clients can clear prototype votes. Simple likes are launch
+      // scope and keep their full transition rules.
+      function isDislikeRemovalOnly(before, after, userId) {
+        // get(field, default) — the fields are absent on drops created after
+        // this task, so plain property access would raise an evaluation error.
+        let beforeRawMap = before.get('dislikedBy', {});
+        let afterRawMap = after.get('dislikedBy', {});
+        let beforeRawCount = before.get('dislikeCount', 0);
+        let afterRawCount = after.get('dislikeCount', 0);
+        let beforeMap = (beforeRawMap is map) ? beforeRawMap : {};
+        let afterMap = (afterRawMap is map) ? afterRawMap : {};
+        let beforeCount = (beforeRawCount is int) ? beforeRawCount : 0;
+        let afterCount = (afterRawCount is int) ? afterRawCount : 0;
+        return !afterMap.keys().hasAny([userId])
+          && beforeMap.diff(afterMap).affectedKeys().hasOnly([userId])
+          && afterCount <= beforeCount
+          && afterCount >= beforeCount - 1;
+      }
+
       function hasValidSocialTransitions(before, after, userId) {
         let affected = before.diff(after).affectedKeys();
         return (!affected.hasAny(['likedBy', 'likeCount'])
             || isValidReactionTransition(before, after, userId, 'likedBy', 'likeCount'))
           && (!affected.hasAny(['dislikedBy', 'dislikeCount'])
-            || isValidReactionTransition(before, after, userId, 'dislikedBy', 'dislikeCount'))
+            || isDislikeRemovalOnly(before, after, userId))
           && (!affected.hasAny(['reportedBy', 'reportCount'])
             || isValidReportTransition(before, after, userId));
       }
@@ -650,6 +707,42 @@ service cloud.firestore {
     match /users/{userId}/reportStatuses/{reportId} {
       allow read: if isCurrentUser(userId);
       allow create, update, delete: if false;
+    }
+
+    // Open direct messaging is deferred (task 1.3). No DM collection exists
+    // today, so these are defense-in-depth on top of the default deny: if one
+    // is ever created by accident, it is unwritable and unreadable from a
+    // client rather than silently inheriting a permissive rule.
+    match /messages/{document=**} {
+      allow read, write: if false;
+    }
+
+    match /threads/{document=**} {
+      allow read, write: if false;
+    }
+
+    match /conversations/{document=**} {
+      allow read, write: if false;
+    }
+
+    match /directMessages/{document=**} {
+      allow read, write: if false;
+    }
+
+    match /dms/{document=**} {
+      allow read, write: if false;
+    }
+
+    match /users/{userId}/messages/{document=**} {
+      allow read, write: if false;
+    }
+
+    match /users/{userId}/threads/{document=**} {
+      allow read, write: if false;
+    }
+
+    match /users/{userId}/conversations/{document=**} {
+      allow read, write: if false;
     }
   }
 }

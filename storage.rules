@@ -45,6 +45,9 @@ service firebase.storage {
 
       // Only authenticated, non-anonymous users can upload; enforce size and
       // content-type limits. Anonymous viewing stays legal via the read rule.
+      // Video uploads are deferred (task 1.3): neither the drops/videos/
+      // prefix nor a video/* content type is accepted on any path. Existing
+      // video objects remain readable under the read rule above.
       allow create: if isActiveSignedInUser()
         && request.auth.token.firebase.sign_in_provider != 'anonymous'
         && resource == null
@@ -60,13 +63,10 @@ service firebase.storage {
             && request.resource.contentType.matches('image/.*'))
           || (pathOwnerOrMediaType == 'audio'
             && request.resource.contentType.matches('audio/.*'))
-          || (pathOwnerOrMediaType == 'videos'
-            && request.resource.contentType.matches('video/.*'))
           || (pathOwnerOrMediaType == request.auth.uid
             && (
               request.resource.contentType.matches('image/.*')
               || request.resource.contentType.matches('audio/.*')
-              || request.resource.contentType.matches('video/.*')
             ))
         );
 
