@@ -255,8 +255,7 @@ struct DropFeedView: View {
                                         listPanelOffset = isExpanded ? collapsedOffset : 0
                                     }
                                 }
-                            }
-                        
+
                         panelContent
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
