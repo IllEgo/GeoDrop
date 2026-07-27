@@ -2,11 +2,14 @@ import Foundation
 import FirebaseFirestore
 import FirebaseFunctions
 
-private final class CombinedListenerRegistration: ListenerRegistration {
+// ListenerRegistration is an @objc protocol, so a conforming type must inherit
+// NSObject rather than declaring NSObjectProtocol conformance in Swift.
+private final class CombinedListenerRegistration: NSObject, ListenerRegistration {
     private let registrations: [ListenerRegistration]
 
     init(_ registrations: [ListenerRegistration]) {
         self.registrations = registrations
+        super.init()
     }
 
     func remove() {
