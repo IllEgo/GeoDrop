@@ -126,7 +126,6 @@ import androidx.compose.material.icons.rounded.Report
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Sort
-import androidx.compose.material.icons.rounded.ThumbDown
 import androidx.compose.material.icons.rounded.ThumbUp
 import androidx.compose.material.icons.rounded.Lightbulb
 import androidx.compose.material.icons.rounded.Star
@@ -1951,7 +1950,6 @@ fun DropHereScreen(
             noteInventory.updateLikeStatus(
                 dropId,
                 updatedDrop.likeCount,
-                updatedDrop.dislikeCount,
                 updatedDrop.userLikeStatus(userId)
             )
             collectedNotes = noteInventory.getCollectedNotes()
@@ -1967,7 +1965,6 @@ fun DropHereScreen(
                     noteInventory.updateLikeStatus(
                         dropId,
                         it.likeCount,
-                        it.dislikeCount,
                         it.likeStatus()
                     )
                     collectedNotes = noteInventory.getCollectedNotes()
@@ -2013,24 +2010,20 @@ fun DropHereScreen(
         if (previousStatus == desiredStatus) return
 
         val previousLikeCount = note.likeCount
-        val previousDislikeCount = note.dislikeCount
 
         var updatedLikeCount = previousLikeCount
-        var updatedDislikeCount = previousDislikeCount
 
         when (previousStatus) {
             DropLikeStatus.LIKED -> updatedLikeCount = (updatedLikeCount - 1).coerceAtLeast(0L)
-            DropLikeStatus.DISLIKED -> updatedDislikeCount = (updatedDislikeCount - 1).coerceAtLeast(0L)
             DropLikeStatus.NONE -> Unit
         }
 
         when (desiredStatus) {
             DropLikeStatus.LIKED -> updatedLikeCount += 1
-            DropLikeStatus.DISLIKED -> updatedDislikeCount += 1
             DropLikeStatus.NONE -> Unit
         }
 
-        noteInventory.updateLikeStatus(dropId, updatedLikeCount, updatedDislikeCount, desiredStatus)
+        noteInventory.updateLikeStatus(dropId, updatedLikeCount, desiredStatus)
         collectedNotes = noteInventory.getCollectedNotes()
 
         votingDropIds = votingDropIds + dropId
@@ -2039,7 +2032,7 @@ fun DropHereScreen(
             try {
                 repo.setDropLike(dropId, userId, desiredStatus)
             } catch (e: Exception) {
-                noteInventory.updateLikeStatus(dropId, previousLikeCount, previousDislikeCount, previousStatus)
+                noteInventory.updateLikeStatus(dropId, previousLikeCount, previousStatus)
                 collectedNotes = noteInventory.getCollectedNotes()
                 if (e is FirebaseFirestoreException &&
                     e.code == FirebaseFirestoreException.Code.PERMISSION_DENIED
@@ -3032,11 +3025,9 @@ fun DropHereScreen(
             drop.redemptionLimit?.let { putExtra("dropRedemptionLimit", it) }
             putExtra("dropRedemptionCount", drop.redemptionCount)
             putExtra("dropLikeCount", drop.likeCount)
-            putExtra("dropDislikeCount", drop.dislikeCount)
             val userId = currentUserId
             when (drop.userLikeStatus(userId)) {
                 DropLikeStatus.LIKED -> putExtra("dropIsLiked", true)
-                DropLikeStatus.DISLIKED -> putExtra("dropIsDisliked", true)
                 DropLikeStatus.NONE -> Unit
             }
             putExtra("dropIsNsfw", drop.isNsfw)
@@ -3083,12 +3074,8 @@ fun DropHereScreen(
             putExtra("dropIsRedeemed", note.isRedeemed)
             note.redeemedAt?.let { putExtra("dropRedeemedAt", it) }
             putExtra("dropLikeCount", note.likeCount)
-            putExtra("dropDislikeCount", note.dislikeCount)
             if (note.isLiked) {
                 putExtra("dropIsLiked", true)
-            }
-            if (note.isDisliked) {
-                putExtra("dropIsDisliked", true)
             }
             putExtra("dropIsNsfw", note.isNsfw)
             if (note.nsfwLabels.isNotEmpty()) {
@@ -7348,7 +7335,6 @@ private fun CollectedDropsContent(
                             expanded = isHighlighted,
                             onSelect = { onSelect(note) },
                             likeCount = note.likeCount,
-                            dislikeCount = note.dislikeCount,
                             userLike = note.likeStatus(),
                             canLike = canReact,
                             likeRestrictionMessage = likeRestrictionMessage,
@@ -8709,7 +8695,7 @@ private fun BusinessDropAnalyticsCard(drop: Drop, onDeleteDrop: (() -> Unit)? = 
                 )
             }
 
-            val reactionSummary = "Likes: ${drop.likeCount} · Dislikes: ${drop.dislikeCount}"
+            val reactionSummary = "Likes: ${drop.likeCount}"
             Text(
                 text = reactionSummary,
                 style = MaterialTheme.typography.bodySmall,
@@ -9029,8 +9015,10 @@ private fun sortDrops(
             }
         }
 
+        // Popularity ranks on likes alone. The net-score weighting it replaced went
+        // out with dislikes at task 2.6.
         DropSortOption.MOST_POPULAR -> drops.sortedWith(
-            compareByDescending<Drop> { it.likeCount - it.dislikeCount }
+            compareByDescending<Drop> { it.likeCount }
                 .thenByDescending { it.createdAt }
         )
 
@@ -9070,7 +9058,7 @@ private fun sortCollectedNotes(
         }
 
         DropSortOption.MOST_POPULAR -> notes.sortedWith(
-            compareByDescending<CollectedNote> { it.likeCount - it.dislikeCount }
+            compareByDescending<CollectedNote> { it.likeCount }
                 .thenByDescending { it.collectedAt }
         )
 
@@ -9513,7 +9501,6 @@ private fun CollectedNoteCard(
     expanded: Boolean,
     onSelect: () -> Unit,
     likeCount: Long,
-    dislikeCount: Long,
     userLike: DropLikeStatus,
     canLike: Boolean,
     likeRestrictionMessage: String?,
@@ -9712,35 +9699,6 @@ private fun CollectedNoteCard(
 
                                     Text(
                                         text = likeCount.toString(),
-                                        style = MaterialTheme.typography.bodyMedium
-                                    )
-                                }
-
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(5.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    LikeToggleButton(
-                                        icon = Icons.Rounded.ThumbDown,
-                                        selected = userLike == DropLikeStatus.DISLIKED,
-                                        enabled = canLike && !isVoting,
-                                        onClick = {
-                                            val nextStatus = if (userLike == DropLikeStatus.DISLIKED) {
-                                                DropLikeStatus.NONE
-                                            } else {
-                                                DropLikeStatus.DISLIKED
-                                            }
-                                            onLike(nextStatus)
-                                        },
-                                        contentDescription = if (userLike == DropLikeStatus.DISLIKED) {
-                                            "Remove dislike"
-                                        } else {
-                                            "Dislike drop"
-                                        }
-                                    )
-
-                                    Text(
-                                        text = dislikeCount.toString(),
                                         style = MaterialTheme.typography.bodyMedium
                                     )
                                 }
@@ -10401,7 +10359,6 @@ private fun MyDropsMap(
             drop.groupCode?.takeIf { !it.isNullOrBlank() }?.let { snippetParts.add("Group $it") }
             snippetParts.add("Lat: %.5f, Lng: %.5f".format(drop.lat, drop.lng))
             snippetParts.add("Likes: ${drop.likeCount}")
-            snippetParts.add("Dislikes: ${drop.dislikeCount}")
             if (drop.isNsfw) {
                 snippetParts.add("Marked as adult content")
             }
@@ -10842,12 +10799,6 @@ private fun OtherDropRow(
                                     icon = Icons.Rounded.ThumbUp,
                                     count = drop.likeCount,
                                     isHighlighted = userLike == DropLikeStatus.LIKED
-                                )
-
-                                ReactionCount(
-                                    icon = Icons.Rounded.ThumbDown,
-                                    count = drop.dislikeCount,
-                                    isHighlighted = userLike == DropLikeStatus.DISLIKED
                                 )
                             }
 
@@ -11573,12 +11524,6 @@ private fun ManageDropRow(
                             ReactionCount(
                                 icon = Icons.Rounded.ThumbUp,
                                 count = drop.likeCount,
-                                isHighlighted = false
-                            )
-
-                            ReactionCount(
-                                icon = Icons.Rounded.ThumbDown,
-                                count = drop.dislikeCount,
                                 isHighlighted = false
                             )
                         }

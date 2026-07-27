@@ -676,25 +676,16 @@ final class AppViewModel: ObservableObject {
                         case .liked:
                             value.likeCount = max(value.likeCount - 1, 0)
                             value.likedBy.removeValue(forKey: userId)
-                        case .disliked:
-                            value.dislikeCount = max(value.dislikeCount - 1, 0)
-                            value.dislikedBy.removeValue(forKey: userId)
                         case .none:
                             break
                         }
-                        
+
                         switch status {
                         case .liked:
                             value.likeCount += 1
                             value.likedBy[userId] = true
-                            value.dislikedBy.removeValue(forKey: userId)
-                        case .disliked:
-                            value.dislikeCount += 1
-                            value.dislikedBy[userId] = true
-                            value.likedBy.removeValue(forKey: userId)
                         case .none:
                             value.likedBy.removeValue(forKey: userId)
-                            value.dislikedBy.removeValue(forKey: userId)
                         }
                     }
                 }

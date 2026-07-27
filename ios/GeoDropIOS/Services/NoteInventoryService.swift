@@ -66,13 +66,8 @@ final class NoteInventoryService {
                 switch status {
                 case .liked:
                     storedDrop.likedBy[resolvedUserId] = true
-                    storedDrop.dislikedBy.removeValue(forKey: resolvedUserId)
-                case .disliked:
-                    storedDrop.dislikedBy[resolvedUserId] = true
-                    storedDrop.likedBy.removeValue(forKey: resolvedUserId)
                 case .none:
                     storedDrop.likedBy.removeValue(forKey: resolvedUserId)
-                    storedDrop.dislikedBy.removeValue(forKey: resolvedUserId)
                 }
                 if let record = inventory.redeemedDrops[drop.id] {
                     storedDrop.redemptionCount = record.count
@@ -120,9 +115,6 @@ final class NoteInventoryService {
                 case .liked:
                     storedDrop.likeCount = max(storedDrop.likeCount - 1, 0)
                     storedDrop.likedBy.removeValue(forKey: resolvedUserId)
-                case .disliked:
-                    storedDrop.dislikeCount = max(storedDrop.dislikeCount - 1, 0)
-                    storedDrop.dislikedBy.removeValue(forKey: resolvedUserId)
                 case .none:
                     break
                 }
@@ -131,14 +123,8 @@ final class NoteInventoryService {
                 case .liked:
                     storedDrop.likeCount += 1
                     storedDrop.likedBy[resolvedUserId] = true
-                    storedDrop.dislikedBy.removeValue(forKey: resolvedUserId)
-                case .disliked:
-                    storedDrop.dislikeCount += 1
-                    storedDrop.dislikedBy[resolvedUserId] = true
-                    storedDrop.likedBy.removeValue(forKey: resolvedUserId)
                 case .none:
                     storedDrop.likedBy.removeValue(forKey: resolvedUserId)
-                    storedDrop.dislikedBy.removeValue(forKey: resolvedUserId)
                 }
             }
 
@@ -218,13 +204,8 @@ final class NoteInventoryService {
                     switch likeStatus {
                     case .liked:
                         stored.likedBy[resolvedUserId] = true
-                        stored.dislikedBy.removeValue(forKey: resolvedUserId)
-                    case .disliked:
-                        stored.dislikedBy[resolvedUserId] = true
-                        stored.likedBy.removeValue(forKey: resolvedUserId)
                     case .none:
                         stored.likedBy.removeValue(forKey: resolvedUserId)
-                        stored.dislikedBy.removeValue(forKey: resolvedUserId)
                     }
 
                     if let redeemedTimestamp = drop.redeemedBy[resolvedUserId] {

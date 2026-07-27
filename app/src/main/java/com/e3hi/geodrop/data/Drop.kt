@@ -25,8 +25,6 @@ data class Drop(
     val nsfwLabels: List<String> = emptyList(),
     val likeCount: Long = 0,
     val likedBy: Map<String, Boolean> = emptyMap(),
-    val dislikeCount: Long = 0,
-    val dislikedBy: Map<String, Boolean> = emptyMap(),
     val reportCount: Long = 0,
     val reportedBy: Map<String, Long> = emptyMap(),
     val redemptionCode: String? = null,
@@ -89,26 +87,16 @@ fun Drop.remainingDecayMillis(nowMillis: Long = System.currentTimeMillis()): Lon
 
 enum class DropLikeStatus {
     NONE,
-    LIKED,
-    DISLIKED;
+    LIKED;
 
     companion object {
         private val likedStrings = setOf("liked", "like", "true", "1", "up", "thumbs_up")
-        private val dislikedStrings = setOf("disliked", "dislike", "down", "thumbs_down")
 
         fun fromRaw(raw: Any?): DropLikeStatus {
             return when (raw) {
                 is Boolean -> if (raw) LIKED else NONE
-                is Number -> if (raw.toInt() != 0) LIKED else NONE
-                is String -> {
-                    val normalized = raw.trim().lowercase()
-                    when {
-                        normalized in likedStrings -> LIKED
-                        normalized in dislikedStrings -> DISLIKED
-                        normalized == "-1" -> DISLIKED
-                        else -> NONE
-                    }
-                }
+                is Number -> if (raw.toInt() > 0) LIKED else NONE
+                is String -> if (raw.trim().lowercase() in likedStrings) LIKED else NONE
                 else -> NONE
             }
         }
@@ -212,15 +200,9 @@ fun Drop.discoveryDescription(): String {
     }
 }
 
-fun Drop.likeScore(): Long = likeCount
-
 fun Drop.userLikeStatus(userId: String?): DropLikeStatus {
     if (userId.isNullOrBlank()) return DropLikeStatus.NONE
-    return when {
-        likedBy[userId] == true -> DropLikeStatus.LIKED
-        dislikedBy[userId] == true -> DropLikeStatus.DISLIKED
-        else -> DropLikeStatus.NONE
-    }
+    return if (likedBy[userId] == true) DropLikeStatus.LIKED else DropLikeStatus.NONE
 }
 
 fun Drop.applyUserLike(userId: String, status: DropLikeStatus): Drop {
@@ -228,18 +210,12 @@ fun Drop.applyUserLike(userId: String, status: DropLikeStatus): Drop {
     if (previousStatus == status) return this
 
     val updatedLikes = likedBy.toMutableMap()
-    val updatedDislikes = dislikedBy.toMutableMap()
     var updatedLikeCount = likeCount
-    var updatedDislikeCount = dislikeCount
 
     when (previousStatus) {
         DropLikeStatus.LIKED -> {
             updatedLikes.remove(userId)
             updatedLikeCount = (updatedLikeCount - 1).coerceAtLeast(0)
-        }
-        DropLikeStatus.DISLIKED -> {
-            updatedDislikes.remove(userId)
-            updatedDislikeCount = (updatedDislikeCount - 1).coerceAtLeast(0)
         }
         DropLikeStatus.NONE -> Unit
     }
@@ -249,17 +225,11 @@ fun Drop.applyUserLike(userId: String, status: DropLikeStatus): Drop {
             updatedLikes[userId] = true
             updatedLikeCount += 1
         }
-        DropLikeStatus.DISLIKED -> {
-            updatedDislikes[userId] = true
-            updatedDislikeCount += 1
-        }
         DropLikeStatus.NONE -> Unit
     }
 
     return copy(
         likeCount = updatedLikeCount,
-        likedBy = updatedLikes,
-        dislikeCount = updatedDislikeCount,
-        dislikedBy = updatedDislikes
+        likedBy = updatedLikes
     )
 }

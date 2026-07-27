@@ -261,8 +261,6 @@ service cloud.firestore {
           'dropperUsername',
           'likeCount',
           'likedBy',
-          'dislikeCount',
-          'dislikedBy',
           'reportCount',
           'reportedBy',
           'redemptionCode',
@@ -303,10 +301,13 @@ service cloud.firestore {
             && exists(/databases/$(database)/documents/users/$(request.auth.uid)/groups/$(data.groupCode)));
       }
 
-      // --- Deferred-feature denials (task 1.3) ----------------------------
-      // Video content, client-authored NSFW flags, and seeded vote records are
-      // rejected at create. These close WRITES only; existing documents stay
-      // readable under the rules above.
+      // --- Deferred-feature denials (tasks 1.3, 2.6) ----------------------
+      // Video content and client-authored NSFW flags are rejected at create.
+      // Dislike fields are no longer allowed keys at all (see
+      // hasOnlyAllowedDropFields above and the update helpers below), so 1.3's
+      // hasNoSeededVotes check became redundant and was removed at 2.6. These
+      // close WRITES only; existing documents stay readable under the rules
+      // above.
 
       function isVideoContent(data) {
         return (data.keys().hasAny(['contentType']) && data.contentType == 'VIDEO')
@@ -325,13 +326,6 @@ service cloud.firestore {
             || (data.nsfwLabels is list && data.nsfwLabels.size() == 0));
       }
 
-      function hasNoSeededVotes(data) {
-        return (!data.keys().hasAny(['dislikeCount']) || data.dislikeCount == 0)
-          && (!data.keys().hasAny(['dislikedBy'])
-            || data.dislikedBy == null
-            || (data.dislikedBy is map && data.dislikedBy.size() == 0));
-      }
-
       function groupDropHasNoMedia(data) {
         return data.visibility != 'GROUP'
           || (data.contentType == 'TEXT'
@@ -348,7 +342,6 @@ service cloud.firestore {
         && request.resource.data.isDeleted == false
         && hasNoClientNsfwFlags(request.resource.data)
         && !isVideoContent(request.resource.data)
-        && hasNoSeededVotes(request.resource.data)
         && hasValidVisibility(request.resource.data)
         && groupDropHasNoMedia(request.resource.data)
         && request.resource.data.createdBy == request.auth.uid
@@ -405,33 +398,15 @@ service cloud.firestore {
           );
       }
 
-      // Dislikes are a deferred voting feature (task 1.3). No new dislike may
-      // be recorded and no count may grow; retracting an existing dislike stays
-      // legal so clients can clear prototype votes. Simple likes are launch
-      // scope and keep their full transition rules.
-      function isDislikeRemovalOnly(before, after, userId) {
-        // get(field, default) — the fields are absent on drops created after
-        // this task, so plain property access would raise an evaluation error.
-        let beforeRawMap = before.get('dislikedBy', {});
-        let afterRawMap = after.get('dislikedBy', {});
-        let beforeRawCount = before.get('dislikeCount', 0);
-        let afterRawCount = after.get('dislikeCount', 0);
-        let beforeMap = (beforeRawMap is map) ? beforeRawMap : {};
-        let afterMap = (afterRawMap is map) ? afterRawMap : {};
-        let beforeCount = (beforeRawCount is int) ? beforeRawCount : 0;
-        let afterCount = (afterRawCount is int) ? afterRawCount : 0;
-        return !afterMap.keys().hasAny([userId])
-          && beforeMap.diff(afterMap).affectedKeys().hasOnly([userId])
-          && afterCount <= beforeCount
-          && afterCount >= beforeCount - 1;
-      }
-
+      // Dislikes were removed outright at task 2.6. They are no longer allowed
+      // keys in either update helper below, so a write touching dislikedBy or
+      // dislikeCount — casting, retracting, or merely restating a zero — is
+      // rejected. Simple likes are launch scope and keep their full transition
+      // rules.
       function hasValidSocialTransitions(before, after, userId) {
         let affected = before.diff(after).affectedKeys();
         return (!affected.hasAny(['likedBy', 'likeCount'])
             || isValidReactionTransition(before, after, userId, 'likedBy', 'likeCount'))
-          && (!affected.hasAny(['dislikedBy', 'dislikeCount'])
-            || isDislikeRemovalOnly(before, after, userId))
           && (!affected.hasAny(['reportedBy', 'reportCount'])
             || isValidReportTransition(before, after, userId));
       }
@@ -440,14 +415,11 @@ service cloud.firestore {
         let allowedWriteFields = [
             'likedBy',
             'likeCount',
-            'dislikedBy',
-            'dislikeCount',
             'collectedBy',
             'reportedBy',
             'reportCount'
           ]
           .concat(['likedBy.' + userId])
-          .concat(['dislikedBy.' + userId])
           .concat(['collectedBy.' + userId])
           .concat(['reportedBy.' + userId]);
         let hasOnlyAllowedFields = before.diff(after).affectedKeys().hasOnly(allowedWriteFields);
@@ -491,19 +463,16 @@ service cloud.firestore {
           || hasCollectedDrop(after, userId);
       }
 
-      // Allows like/dislike/report updates without requiring collection check.
+      // Allows like/report updates without requiring collection check.
       // Used for business drops where markDropCollected may not have completed yet.
-      function isLikeDislikeReportOnlyUpdate(before, after, userId) {
+      function isLikeReportOnlyUpdate(before, after, userId) {
         let allowedFields = [
             'likedBy',
             'likeCount',
-            'dislikedBy',
-            'dislikeCount',
             'reportedBy',
             'reportCount'
           ]
           .concat(['likedBy.' + userId])
-          .concat(['dislikedBy.' + userId])
           .concat(['reportedBy.' + userId]);
         return before.diff(after).affectedKeys().hasOnly(allowedFields)
           && hasValidSocialTransitions(before, after, userId);
@@ -511,8 +480,8 @@ service cloud.firestore {
 
       allow update: if isSignedIn()
           && (
-            // Any signed-in user may like/dislike/report (no collection check required).
-            isLikeDislikeReportOnlyUpdate(resource.data, request.resource.data, request.auth.uid)
+            // Any signed-in user may like/report (no collection check required).
+            isLikeReportOnlyUpdate(resource.data, request.resource.data, request.auth.uid)
             || (
               isValidLikeReportCollectUpdate(resource.data, request.resource.data, request.auth.uid)
               && (
@@ -583,8 +552,6 @@ service cloud.firestore {
           'redeemedAt',
           'likeCount',
           'isLiked',
-          'dislikeCount',
-          'isDisliked',
           'state',
           'updatedAt',
           'mediaUrl',
@@ -622,10 +589,6 @@ service cloud.firestore {
             || request.resource.data.likeCount is int)
           && (!request.resource.data.keys().hasAny(['isLiked'])
             || request.resource.data.isLiked is bool)
-          && (!request.resource.data.keys().hasAny(['dislikeCount'])
-            || request.resource.data.dislikeCount is int)
-          && (!request.resource.data.keys().hasAny(['isDisliked'])
-            || request.resource.data.isDisliked is bool)
           && (!request.resource.data.keys().hasAny(['updatedAt'])
             || request.resource.data.updatedAt is int)
           && (!request.resource.data.keys().hasAny(['lat'])

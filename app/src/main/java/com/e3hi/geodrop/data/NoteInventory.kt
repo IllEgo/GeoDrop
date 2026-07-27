@@ -120,7 +120,6 @@ class NoteInventory(context: Context) {
     fun updateLikeStatus(
         id: String,
         likeCount: Long,
-        dislikeCount: Long,
         status: DropLikeStatus
     ) {
         val current = getCollectedNotes().toMutableList()
@@ -130,9 +129,7 @@ class NoteInventory(context: Context) {
         val existing = current[idx]
         val updated = existing.copy(
             likeCount = likeCount,
-            isLiked = status == DropLikeStatus.LIKED,
-            dislikeCount = dislikeCount,
-            isDisliked = status == DropLikeStatus.DISLIKED
+            isLiked = status == DropLikeStatus.LIKED
         )
         if (updated == existing) return
 

@@ -165,10 +165,32 @@ DM-shaped rules denies from 1.3 hold.
 **Acceptance:** Notification routing still works for the scoped notifications that remain.
 
 ### 2.6 — Voting and upvotes
+**Note added 2026-07-26.** Executed on **both clients plus the rules layer**, unlike
+2.1–2.3 which deferred iOS. iOS could not be deferred here: `Drop.swift` sent
+`dislikeCount`/`dislikedBy` on every create and `FirestoreService.setDropLike` sent them on
+every like, so *any* rules tightening would have broken iOS drop creation and liking. 1.3
+had deliberately left dislike *retraction* legal for exactly that reason; removing the
+client payloads is what unblocked the final tightening the 0.3 ADR called for.
+
 **Deliverable:** Remove the voting system. Direction doc permits simple likes as a
 supporting feature; complex vote weighting goes.
 **Acceptance:** Explicitly states what was kept vs. removed, since "likes" and "upvotes"
 are likely tangled in the current schema.
+
+**Kept:** `likeCount`/`likedBy` and the full like path, including nested `likedBy.<uid>`
+writes and the counter-must-move transition rules; `reportCount`/`reportedBy`;
+`collectedBy`; `DropLikeStatus`, reduced to `NONE`/`LIKED` on both platforms.
+**Removed:** `dislikeCount`, `dislikedBy`, `isDisliked` (drops and inventory notes), both
+Android thumbs-down surfaces, the iOS dislike button, the `MOST_POPULAR` sort's
+`likeCount - dislikeCount` net score (now ranks on likes alone — this was the actual vote
+weighting), the unused `Drop.likeScore()`, `dislikedBy` from the account-deletion scrub,
+and every dislike allowance in `firestore.rules` — the fields are no longer allowed keys,
+so casting, retracting, or restating a zero is denied. 1.3's `hasNoSeededVotes` and
+`isDislikeRemovalOnly` were deleted as redundant.
+**Judgment call, reversible:** iOS's *only* reaction control was the Dislike button (it
+never had a Like button), so it was converted to a Like toggle rather than deleted, which
+would have left iOS with no way to use a launch-scope feature.
+
 **Gate:** You confirm the like/vote line was drawn where you want it.
 
 ### 2.7 — Collapse account types

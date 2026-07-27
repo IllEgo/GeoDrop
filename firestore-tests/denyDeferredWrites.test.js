@@ -241,13 +241,14 @@ async function seedObject(env, objectPath, contentType, customMetadata) {
     await assertSucceeds(viewer.firestore().doc('groups/owned-group').get());
 
     // --- 5. Vote records --------------------------------------------------
+    // Task 2.6 removed dislikes outright. They are no longer allowed keys, so
+    // every write that names one is denied — casting, retracting, or restating
+    // a zero. 1.3's narrower "retraction stays legal" allowance is gone.
 
     currentCase = 'dislike writes denied';
     await env.clearFirestore();
     await seed(env, {
-      'drops/vote-target': dropData({
-        likedBy: {}, likeCount: 0, dislikedBy: {}, dislikeCount: 0,
-      }),
+      'drops/vote-target': dropData({likedBy: {}, likeCount: 0}),
     });
     const voteTarget = viewer.firestore().doc('drops/vote-target');
     await assertFails(
@@ -255,12 +256,14 @@ async function seedObject(env, objectPath, contentType, customMetadata) {
     );
     // Inflating the counter on its own is denied as well.
     await assertFails(voteTarget.update({dislikeCount: 5}));
+    // So is a zero-valued restatement, which is what a stale client sends.
+    await assertFails(voteTarget.update({dislikeCount: 0}));
     // Simple likes are launch scope and keep working.
     await assertSucceeds(
       voteTarget.update({likeCount: 1, ['likedBy.viewer']: true})
     );
 
-    currentCase = 'seeded votes denied at create';
+    currentCase = 'dislike fields denied at create';
     await env.clearFirestore();
     await seed(env, {'users/creator': {role: 'EXPLORER', nsfwEnabled: false}});
     await assertFails(
@@ -271,37 +274,58 @@ async function seedObject(env, objectPath, contentType, customMetadata) {
         dislikedBy: {viewer: true}, dislikeCount: 1,
       }))
     );
-    await assertSucceeds(
+    // Zeroed fields used to pass under 1.3's hasNoSeededVotes. They are now
+    // rejected too: the key itself is disallowed.
+    await assertFails(
       creator.firestore().doc('drops/zeroed').set(dropData({
         dislikedBy: {}, dislikeCount: 0,
       }))
     );
+    // A create with no dislike fields at all is what the 2.6 clients send.
+    await assertSucceeds(
+      creator.firestore().doc('drops/clean').set(dropData({
+        likedBy: {}, likeCount: 0,
+      }))
+    );
 
-    // Retracting an existing dislike stays legal so clients can clear
-    // prototype votes, and so a like still lands on a previously disliked drop.
-    currentCase = 'dislike retraction still allowed';
+    // Retraction was legal under 1.3 so clients could clear prototype votes.
+    // No client sends it after 2.6, and it is now denied.
+    currentCase = 'dislike retraction now denied';
     await env.clearFirestore();
     await seed(env, {
       'drops/retract': dropData({
         likedBy: {}, likeCount: 0, dislikedBy: {viewer: true}, dislikeCount: 1,
       }),
     });
-    await assertSucceeds(
+    await assertFails(
       viewer.firestore().doc('drops/retract').update({
         dislikeCount: 0,
         ['dislikedBy.viewer']: deleteField(),
       })
     );
+    // The legacy document itself stays readable — 2.6 closes writes only.
+    await assertSucceeds(viewer.firestore().doc('drops/retract').get());
 
-    // Regression guard for FirestoreRepo.setDropLike, which always sends
-    // dislikeCount and a dislikedBy delete alongside the like.
-    currentCase = 'client like payload still allowed';
+    currentCase = 'client like payload allowed, stale payload denied';
     await env.clearFirestore();
     await seed(env, {
       'drops/like-payload': dropData({likedBy: {}, likeCount: 0}),
     });
+    // What FirestoreRepo.setDropLike and FirestoreService.setDropLike send now.
     await assertSucceeds(
       viewer.firestore().doc('drops/like-payload').update({
+        likeCount: 1,
+        ['likedBy.viewer']: true,
+      })
+    );
+    // Regression guard: the pre-2.6 payload carried dislikeCount and a
+    // dislikedBy delete alongside the like. An un-updated build is rejected.
+    await env.clearFirestore();
+    await seed(env, {
+      'drops/stale-payload': dropData({likedBy: {}, likeCount: 0}),
+    });
+    await assertFails(
+      viewer.firestore().doc('drops/stale-payload').update({
         likeCount: 1,
         ['likedBy.viewer']: true,
         dislikeCount: 0,
