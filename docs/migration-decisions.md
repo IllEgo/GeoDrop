@@ -45,7 +45,7 @@ term), **KEEP** (launch scope), **REWORK** (change, don't remove).
 | Public group creation | **Yes** | KEEP invite-only; DELETE nothing | **Keep `groups` client writes denied (callable-only) and `list`/enumeration denied — must not loosen.** Public/discoverable groups stay unbuilt | wipe (9 test groups) | 1.3 (assert) |
 | Video uploads | No | DELETE capture/upload/playback | **Deny `contentType=='VIDEO'` on create; remove `videos/` branch + `video/*` from storage.rules** | wipe (8 test videos + objects) | 1.3 → 2.3 |
 | Broad / background location | No | **REWORK, do not delete** — proximity unlock depends on it | n/a (client/manifest) | none | Phase 3 |
-| Complex voting (dislikes) | No | DELETE dislike UI + fields; KEEP likes | **Remove `dislikedBy`/`dislikeCount` from allowed reaction transitions** (`hasValidSocialTransitions`, both update helpers) | wipe (2 test drops) | 1.3 → 2.6 |
+| Complex voting (dislikes) | No | DELETE dislike UI + fields; KEEP likes — **DONE 2.6** (both clients) | **Removed `dislikedBy`/`dislikeCount` from every allowed transition and from the create/inventory key allow-lists — DONE 2.6.** `hasNoSeededVotes` and `isDislikeRemovalOnly` deleted as redundant | wipe (2 test drops) | 1.3 → **2.6 complete** |
 | Algorithmic recommendations | No | none exists | n/a | none | — (do not build) |
 | Multiple account types w/ extensive matrices | No | **KEEP** explorer + business only; no extended matrix to remove | Role immutability already enforced; keep | wipe resets roles | 2.7 (verify) |
 | National / global discovery | No | none exists | Discovery stays proximity/group-scoped | none | — (do not build) |

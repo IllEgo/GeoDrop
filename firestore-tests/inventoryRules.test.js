@@ -18,8 +18,6 @@ function baseInventoryData(overrides = {}) {
     collectedAt: 1,
     likeCount: 0,
     isLiked: false,
-    dislikeCount: 0,
-    isDisliked: false,
     state: 'COLLECTED',
     updatedAt: 1,
     ...overrides,
@@ -38,28 +36,40 @@ function baseInventoryData(overrides = {}) {
     const authed = env.authenticatedContext(USER_ID);
     const inventoryRef = authed.firestore().doc(INVENTORY_PATH);
 
-    // Writing dislike metadata with correct types should succeed.
+    // Writing like metadata with correct types should succeed.
     await env.clearFirestore();
     await assertSucceeds(inventoryRef.set(baseInventoryData()));
 
-    // Writing a dislike count with the wrong type must fail.
+    // Writing a like count with the wrong type must fail.
     await env.clearFirestore();
     await assertFails(
       inventoryRef.set(
         baseInventoryData({
-          dislikeCount: '0',
+          likeCount: '0',
         })
       )
     );
 
-    // Writing a dislike flag with the wrong type must fail.
+    // Writing a like flag with the wrong type must fail.
     await env.clearFirestore();
     await assertFails(
       inventoryRef.set(
         baseInventoryData({
-          isDisliked: 'no',
+          isLiked: 'no',
         })
       )
+    );
+
+    // Task 2.6 removed dislikes from the inventory note. The fields are no
+    // longer allowed keys, so their presence is rejected regardless of type.
+    await env.clearFirestore();
+    await assertFails(
+      inventoryRef.set(baseInventoryData({dislikeCount: 0}))
+    );
+
+    await env.clearFirestore();
+    await assertFails(
+      inventoryRef.set(baseInventoryData({isDisliked: false}))
     );
 
     console.log('All inventory rule tests passed.');

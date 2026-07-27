@@ -40,7 +40,6 @@ import androidx.compose.material.icons.rounded.Place
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.Report
-import androidx.compose.material.icons.rounded.ThumbDown
 import androidx.compose.material.icons.rounded.ThumbUp
 import androidx.compose.material3.Button
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -151,9 +150,7 @@ class DropDetailActivity : ComponentActivity() {
             ?.filter { it.isNotBlank() }
             ?: emptyList()
         val initialLikeCountHint = intent.getLongExtra("dropLikeCount", -1L).takeIf { it >= 0L }
-        val initialDislikeCountHint = intent.getLongExtra("dropDislikeCount", -1L).takeIf { it >= 0L }
         val initialIsLikedHint = intent.getBooleanExtra("dropIsLiked", false)
-        val initialIsDislikedHint = intent.getBooleanExtra("dropIsDisliked", false)
         val showDecisionOptions = intent.getBooleanExtra(EXTRA_SHOW_DECISION_OPTIONS, false)
 
         setContent {
@@ -186,17 +183,10 @@ class DropDetailActivity : ComponentActivity() {
                     val initialUserStatus = when {
                         storedStatus != DropLikeStatus.NONE -> storedStatus
                         initialIsLikedHint -> DropLikeStatus.LIKED
-                        initialIsDislikedHint -> DropLikeStatus.DISLIKED
                         else -> DropLikeStatus.NONE
                     }
                     val initialLikeCount = storedCollectedNote?.likeCount ?: initialLikeCountHint ?: 0L
-                    val initialDislikeCount = storedCollectedNote?.dislikeCount ?: initialDislikeCountHint ?: 0L
                     val initialLikedBy = if (initialUserStatus == DropLikeStatus.LIKED && !currentUserId.isNullOrBlank()) {
-                        mapOf(currentUserId to true)
-                    } else {
-                        emptyMap()
-                    }
-                    val initialDislikedBy = if (initialUserStatus == DropLikeStatus.DISLIKED && !currentUserId.isNullOrBlank()) {
                         mapOf(currentUserId to true)
                     } else {
                         emptyMap()
@@ -226,8 +216,6 @@ class DropDetailActivity : ComponentActivity() {
                                 decayDays = initialDecayDays,
                                 likeCount = initialLikeCount,
                                 likedBy = initialLikedBy,
-                                dislikeCount = initialDislikeCount,
-                                dislikedBy = initialDislikedBy,
                                 reportCount = 0,
                                 reportedBy = emptyMap(),
                                 createdBy = null,
@@ -270,8 +258,6 @@ class DropDetailActivity : ComponentActivity() {
                             decayDays = initialDecayDays,
                             likeCount = initialLikeCount,
                             likedBy = initialLikedBy,
-                            dislikeCount = initialDislikeCount,
-                            dislikedBy = initialDislikedBy,
                             reportCount = 0,
                             reportedBy = emptyMap(),
                             createdBy = null,
@@ -302,30 +288,16 @@ class DropDetailActivity : ComponentActivity() {
                         val currentLoaded = state as? DropDetailUiState.Loaded ?: return@LaunchedEffect
                         val storedStatus = stored.likeStatus()
                         val adjustedLikeCount = maxOf(stored.likeCount, currentLoaded.likeCount)
-                        val adjustedDislikeCount = maxOf(stored.dislikeCount, currentLoaded.dislikeCount)
                         var updatedState = currentLoaded
                         if (adjustedLikeCount != currentLoaded.likeCount) {
                             updatedState = updatedState.copy(likeCount = adjustedLikeCount)
-                        }
-                        if (adjustedDislikeCount != currentLoaded.dislikeCount) {
-                            updatedState = updatedState.copy(dislikeCount = adjustedDislikeCount)
                         }
                         val updatedLikedBy = when (storedStatus) {
                             DropLikeStatus.LIKED -> updatedState.likedBy + (userId to true)
                             else -> updatedState.likedBy - userId
                         }
-                        val updatedDislikedBy = when (storedStatus) {
-                            DropLikeStatus.DISLIKED -> updatedState.dislikedBy + (userId to true)
-                            else -> updatedState.dislikedBy - userId
-                        }
-                        if (
-                            updatedLikedBy != updatedState.likedBy ||
-                            updatedDislikedBy != updatedState.dislikedBy
-                        ) {
-                            updatedState = updatedState.copy(
-                                likedBy = updatedLikedBy,
-                                dislikedBy = updatedDislikedBy
-                            )
+                        if (updatedLikedBy != updatedState.likedBy) {
+                            updatedState = updatedState.copy(likedBy = updatedLikedBy)
                         }
                         if (updatedState != currentLoaded) {
                             state = updatedState
@@ -362,7 +334,6 @@ class DropDetailActivity : ComponentActivity() {
 
                         val initialLoaded = initialState as? DropDetailUiState.Loaded
                         val sanitizedLikedBy = parseLikedBy(doc.get("likedBy"))
-                        val sanitizedDislikedBy = parseDislikedBy(doc.get("dislikedBy"))
                         val sanitizedRedeemedMap = parseRedeemedMap(doc.get("redeemedBy"))
                         val sanitizedReportedBy = parseReportedBy(doc.get("reportedBy"))
                         val storedNoteLatest = if (dropId.isBlank()) {
@@ -371,7 +342,6 @@ class DropDetailActivity : ComponentActivity() {
                             noteInventory.getCollectedNotes().firstOrNull { it.id == dropId }
                         }
                         val localLikeCount = storedNoteLatest?.likeCount ?: initialLikeCount
-                        val localDislikeCount = storedNoteLatest?.dislikeCount ?: initialDislikeCount
                         val localStatus = when {
                             storedNoteLatest != null -> storedNoteLatest.likeStatus()
                             else -> initialUserStatus
@@ -380,41 +350,20 @@ class DropDetailActivity : ComponentActivity() {
                             ?: previousLoaded?.likedBy
                             ?: initialLoaded?.likedBy
                             ?: initialLikedBy
-                        val baseDislikedBy = sanitizedDislikedBy
-                            ?: previousLoaded?.dislikedBy
-                            ?: initialLoaded?.dislikedBy
-                            ?: initialDislikedBy
                         val resolvedLikedByMap = baseLikedBy.toMutableMap()
-                        val resolvedDislikedByMap = baseDislikedBy.toMutableMap()
                         val remoteLikeCount = doc.getLong("likeCount")
                             ?: previousLoaded?.likeCount
                             ?: initialLoaded?.likeCount
                             ?: initialLikeCount
-                        val remoteDislikeCount = doc.getLong("dislikeCount")
-                            ?: previousLoaded?.dislikeCount
-                            ?: initialLoaded?.dislikeCount
-                            ?: initialDislikeCount
                         val resolvedLikeCount = maxOf(localLikeCount, remoteLikeCount)
-                        val resolvedDislikeCount = maxOf(localDislikeCount, remoteDislikeCount)
                         val resolvedUserId = auth.currentUser?.uid ?: currentUserId
                         if (!resolvedUserId.isNullOrBlank()) {
                             when (localStatus) {
-                                DropLikeStatus.LIKED -> {
-                                    resolvedLikedByMap[resolvedUserId] = true
-                                    resolvedDislikedByMap.remove(resolvedUserId)
-                                }
-                                DropLikeStatus.DISLIKED -> {
-                                    resolvedDislikedByMap[resolvedUserId] = true
-                                    resolvedLikedByMap.remove(resolvedUserId)
-                                }
-                                DropLikeStatus.NONE -> {
-                                    resolvedLikedByMap.remove(resolvedUserId)
-                                    resolvedDislikedByMap.remove(resolvedUserId)
-                                }
+                                DropLikeStatus.LIKED -> resolvedLikedByMap[resolvedUserId] = true
+                                DropLikeStatus.NONE -> resolvedLikedByMap.remove(resolvedUserId)
                             }
                         }
                         val resolvedLikedBy = resolvedLikedByMap.toMap()
-                        val resolvedDislikedBy = resolvedDislikedByMap.toMap()
                         val resolvedNsfwFlag = when {
                             doc.contains("isNsfw") -> doc.getBoolean("isNsfw") == true
                             doc.contains("nsfw") -> doc.getBoolean("nsfw") == true
@@ -472,8 +421,6 @@ class DropDetailActivity : ComponentActivity() {
                                 ?: initialMediaData,
                             likeCount = resolvedLikeCount,
                             likedBy = resolvedLikedBy,
-                            dislikeCount = resolvedDislikeCount,
-                            dislikedBy = resolvedDislikedBy,
                             reportCount = doc.getLong("reportCount")
                                 ?: previousLoaded?.reportCount
                                 ?: initialLoaded?.reportCount
@@ -526,13 +473,11 @@ class DropDetailActivity : ComponentActivity() {
                             val resolvedUserStatus = when {
                                 resolvedUserId.isNullOrBlank() -> DropLikeStatus.NONE
                                 resolvedLikedBy[resolvedUserId] == true -> DropLikeStatus.LIKED
-                                resolvedDislikedBy[resolvedUserId] == true -> DropLikeStatus.DISLIKED
                                 else -> DropLikeStatus.NONE
                             }
                             noteInventory.updateLikeStatus(
                                 dropId,
                                 resolvedLikeCount,
-                                resolvedDislikeCount,
                                 resolvedUserStatus
                             )
                         }
@@ -1055,13 +1000,11 @@ class DropDetailActivity : ComponentActivity() {
                                                     noteInventory.updateLikeStatus(
                                                         dropId,
                                                         updated.likeCount,
-                                                        updated.dislikeCount,
                                                         desiredStatus
                                                     )
                                                 }
                                                 isVoting = true
                                                 val previousLikeCount = previous.likeCount
-                                                val previousDislikeCount = previous.dislikeCount
                                                 val previousStatus = previous.userLikeStatus(userId)
                                                 scope.launch {
                                                     try {
@@ -1072,7 +1015,6 @@ class DropDetailActivity : ComponentActivity() {
                                                             noteInventory.updateLikeStatus(
                                                                 dropId,
                                                                 previousLikeCount,
-                                                                previousDislikeCount,
                                                                 previousStatus
                                                             )
                                                         }
@@ -1613,66 +1555,32 @@ private fun DropLikeSection(
 
             Row(
                 modifier = Modifier.weight(1f),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    LikeToggleButton(
-                        icon = Icons.Rounded.ThumbUp,
-                        selected = userStatus == DropLikeStatus.LIKED,
-                        enabled = canLike && !isUpdating,
-                        onClick = {
-                            val nextStatus = if (userStatus == DropLikeStatus.LIKED) {
-                                DropLikeStatus.NONE
-                            } else {
-                                DropLikeStatus.LIKED
-                            }
-                            onLikeChange(nextStatus)
-                        },
-                        contentDescription = if (userStatus == DropLikeStatus.LIKED) {
-                            "Unlike drop"
+                LikeToggleButton(
+                    icon = Icons.Rounded.ThumbUp,
+                    selected = userStatus == DropLikeStatus.LIKED,
+                    enabled = canLike && !isUpdating,
+                    onClick = {
+                        val nextStatus = if (userStatus == DropLikeStatus.LIKED) {
+                            DropLikeStatus.NONE
                         } else {
-                            "Like drop"
+                            DropLikeStatus.LIKED
                         }
-                    )
+                        onLikeChange(nextStatus)
+                    },
+                    contentDescription = if (userStatus == DropLikeStatus.LIKED) {
+                        "Unlike drop"
+                    } else {
+                        "Like drop"
+                    }
+                )
 
-                    Text(
-                        text = state.likeCount.toString(),
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                }
-
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    LikeToggleButton(
-                        icon = Icons.Rounded.ThumbDown,
-                        selected = userStatus == DropLikeStatus.DISLIKED,
-                        enabled = canLike && !isUpdating,
-                        onClick = {
-                            val nextStatus = if (userStatus == DropLikeStatus.DISLIKED) {
-                                DropLikeStatus.NONE
-                            } else {
-                                DropLikeStatus.DISLIKED
-                            }
-                            onLikeChange(nextStatus)
-                        },
-                        contentDescription = if (userStatus == DropLikeStatus.DISLIKED) {
-                            "Remove dislike"
-                        } else {
-                            "Dislike drop"
-                        }
-                    )
-
-                    Text(
-                        text = state.dislikeCount.toString(),
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                }
+                Text(
+                    text = state.likeCount.toString(),
+                    style = MaterialTheme.typography.bodyMedium
+                )
             }
 
             if (isUpdating) {
@@ -1724,11 +1632,7 @@ private fun LikeToggleButton(
 
 private fun DropDetailUiState.Loaded.userLikeStatus(userId: String?): DropLikeStatus {
     if (userId.isNullOrBlank()) return DropLikeStatus.NONE
-    return when {
-        likedBy[userId] == true -> DropLikeStatus.LIKED
-        dislikedBy[userId] == true -> DropLikeStatus.DISLIKED
-        else -> DropLikeStatus.NONE
-    }
+    return if (likedBy[userId] == true) DropLikeStatus.LIKED else DropLikeStatus.NONE
 }
 
 private fun DropDetailUiState.Loaded.applyUserLikeLocal(
@@ -1738,9 +1642,7 @@ private fun DropDetailUiState.Loaded.applyUserLikeLocal(
     val updated = toDropForLikes().applyUserLike(userId, status)
     return copy(
         likeCount = updated.likeCount,
-        likedBy = updated.likedBy,
-        dislikeCount = updated.dislikeCount,
-        dislikedBy = updated.dislikedBy
+        likedBy = updated.likedBy
     )
 }
 
@@ -1761,8 +1663,6 @@ private fun DropDetailUiState.Loaded.toDropForLikes(): Drop {
         nsfwLabels = nsfwLabels,
         likeCount = likeCount,
         likedBy = likedBy,
-        dislikeCount = dislikeCount,
-        dislikedBy = dislikedBy,
         reportCount = reportCount,
         reportedBy = reportedBy,
         createdBy = createdBy.orEmpty(),
@@ -1784,12 +1684,6 @@ private fun parseLikedBy(raw: Any?): Map<String, Boolean>? =
     parseReactionMap(
         raw,
         truthyStrings = setOf("true", "like", "liked", "1", "up", "thumbs_up")
-    )
-
-private fun parseDislikedBy(raw: Any?): Map<String, Boolean>? =
-    parseReactionMap(
-        raw,
-        truthyStrings = setOf("true", "dislike", "disliked", "down", "thumbs_down", "1")
     )
 
 private fun parseReactionMap(raw: Any?, truthyStrings: Set<String>): Map<String, Boolean>? {
@@ -2142,8 +2036,6 @@ private sealed interface DropDetailUiState {
         val mediaData: String? = null,
         val likeCount: Long = 0,
         val likedBy: Map<String, Boolean> = emptyMap(),
-        val dislikeCount: Long = 0,
-        val dislikedBy: Map<String, Boolean> = emptyMap(),
         val reportCount: Long = 0,
         val reportedBy: Map<String, Long> = emptyMap(),
         val createdBy: String? = null,

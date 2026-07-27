@@ -121,7 +121,7 @@ const verifyManifest = async (manifest) => {
   }
 
   const drops = await db.collection("drops").get();
-  const mapFields = ["likedBy", "dislikedBy", "reportedBy", "collectedBy"];
+  const mapFields = ["likedBy", "reportedBy", "collectedBy"];
   drops.docs.forEach((document) => {
     mapFields.forEach((field) => {
       const value = document.get(field);

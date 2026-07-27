@@ -140,7 +140,7 @@ const deleteOwnedInventoryCopies = async (
 
 const scrubUserFromDropMaps = async (uid: string): Promise<number> => {
   const firestore = admin.firestore();
-  const fields = ["likedBy", "dislikedBy", "reportedBy", "collectedBy"];
+  const fields = ["likedBy", "reportedBy", "collectedBy"];
   const documents = new Map<string, admin.firestore.DocumentReference>();
 
   for (const field of fields) {

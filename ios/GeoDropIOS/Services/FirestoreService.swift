@@ -155,41 +155,28 @@ final class FirestoreService {
                     case .liked:
                         drop.likeCount = max(drop.likeCount - 1, 0)
                         drop.likedBy.removeValue(forKey: userId)
-                    case .disliked:
-                        drop.dislikeCount = max(drop.dislikeCount - 1, 0)
-                        drop.dislikedBy.removeValue(forKey: userId)
                     case .none:
                         break
                     }
-                    
+
                     switch status {
                     case .liked:
                         drop.likeCount += 1
                         drop.likedBy[userId] = true
-                        drop.dislikedBy.removeValue(forKey: userId)
-                    case .disliked:
-                        drop.dislikeCount += 1
-                        drop.dislikedBy[userId] = true
-                        drop.likedBy.removeValue(forKey: userId)
                     case .none:
                         drop.likedBy.removeValue(forKey: userId)
-                        drop.dislikedBy.removeValue(forKey: userId)
                     }
 
+                    // The payload carries only like fields. Dislikes were removed at
+                    // task 2.6 and firestore.rules rejects writes that touch them.
                     var updates: [String: Any] = [
-                        "likeCount": drop.likeCount,
-                        "dislikeCount": drop.dislikeCount
+                        "likeCount": drop.likeCount
                     ]
                     switch status {
                     case .liked:
                         updates["likedBy.\(userId)"] = true
-                        updates["dislikedBy.\(userId)"] = FieldValue.delete()
-                    case .disliked:
-                        updates["dislikedBy.\(userId)"] = true
-                        updates["likedBy.\(userId)"] = FieldValue.delete()
                     case .none:
                         updates["likedBy.\(userId)"] = FieldValue.delete()
-                        updates["dislikedBy.\(userId)"] = FieldValue.delete()
                     }
                     transaction.updateData(updates, forDocument: docRef)
                     return true

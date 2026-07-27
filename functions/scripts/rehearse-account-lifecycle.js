@@ -112,7 +112,6 @@ const seed = async () => {
     isDeleted: false,
     isNsfw: false,
     likedBy: {[uid]: true},
-    dislikedBy: {[uid]: true},
     reportedBy: {[uid]: true},
     collectedBy: {[uid]: true},
   });
@@ -153,7 +152,7 @@ const verify = async (receipt) => {
     if (snapshot.exists) failures.push(`Deletion check ${index + 1} still exists`);
   });
   const otherDrop = checks[7].data() || {};
-  ["likedBy", "dislikedBy", "reportedBy", "collectedBy"].forEach((field) => {
+  ["likedBy", "reportedBy", "collectedBy"].forEach((field) => {
     if (otherDrop[field]?.[uid] != null) failures.push(`${field} still contains UID`);
   });
   if (checks[8].get("reportedBy") === uid) failures.push("Report identity was not removed");

@@ -526,10 +526,10 @@ struct DropRowView: View {
 
                     VStack(alignment: .leading, spacing: 12) {
                         if isCollectedDestination {
-                            Button(action: toggleDislike) {
+                            Button(action: toggleLike) {
                                 Label(
-                                    reactionStatus == .disliked ? "Disliked" : "Dislike",
-                                    systemImage: reactionStatus == .disliked ? "hand.thumbsdown.fill" : "hand.thumbsdown"
+                                    reactionStatus == .liked ? "Liked" : "Like",
+                                    systemImage: reactionStatus == .liked ? "hand.thumbsup.fill" : "hand.thumbsup"
                                 )
                                     .font(actionFont)
                             }
@@ -645,7 +645,6 @@ struct DropRowView: View {
     private var reactionSummary: some View {
         HStack(spacing: 12) {
             reactionCountLabel(systemImage: "hand.thumbsup.fill", count: drop.likeCount)
-            reactionCountLabel(systemImage: "hand.thumbsdown.fill", count: drop.dislikeCount)
             Spacer(minLength: 0)
             if !isMyDropsDestination {
                 Button(action: startReport) {
@@ -664,7 +663,7 @@ struct DropRowView: View {
             .labelStyle(.titleAndIcon)
     }
 
-    private func toggleDislike() {
+    private func toggleLike() {
         let permission = viewModel.likePermission(for: drop)
         guard permission.allowed else {
             if let message = permission.message {
@@ -673,7 +672,7 @@ struct DropRowView: View {
             return
         }
         let currentStatus = drop.isLiked(by: currentUserId)
-        let status: DropLikeStatus = currentStatus == .disliked ? .none : .disliked
+        let status: DropLikeStatus = currentStatus == .liked ? .none : .liked
         viewModel.like(drop: drop, status: status)
     }
 

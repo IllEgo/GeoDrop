@@ -758,15 +758,12 @@ class FirestoreRepo(
             }
 
             val currentLikeCount = snapshot.getLong("likeCount") ?: 0L
-            val currentDislikeCount = snapshot.getLong("dislikeCount") ?: 0L
             @Suppress("UNCHECKED_CAST")
             val likedMap = snapshot.get("likedBy") as? Map<String, Any?> ?: emptyMap()
-            @Suppress("UNCHECKED_CAST")
-            val dislikedMap = snapshot.get("dislikedBy") as? Map<String, Any?> ?: emptyMap()
-            val currentStatus = when {
-                likedMap[userId] == true -> DropLikeStatus.LIKED
-                dislikedMap[userId] == true -> DropLikeStatus.DISLIKED
-                else -> DropLikeStatus.NONE
+            val currentStatus = if (likedMap[userId] == true) {
+                DropLikeStatus.LIKED
+            } else {
+                DropLikeStatus.NONE
             }
 
             if (currentStatus == status) {
@@ -774,40 +771,27 @@ class FirestoreRepo(
             }
 
             var updatedLikeCount = currentLikeCount
-            var updatedDislikeCount = currentDislikeCount
 
             when (currentStatus) {
                 DropLikeStatus.LIKED ->
                     updatedLikeCount = (updatedLikeCount - 1).coerceAtLeast(0)
-                DropLikeStatus.DISLIKED ->
-                    updatedDislikeCount = (updatedDislikeCount - 1).coerceAtLeast(0)
                 DropLikeStatus.NONE -> Unit
             }
 
             when (status) {
                 DropLikeStatus.LIKED -> updatedLikeCount += 1
-                DropLikeStatus.DISLIKED -> updatedDislikeCount += 1
                 DropLikeStatus.NONE -> Unit
             }
 
+            // The payload carries only like fields. Dislikes were removed at task
+            // 2.6 and firestore.rules now rejects any write that touches them.
             val updates = mutableMapOf<String, Any>(
-                "likeCount" to updatedLikeCount,
-                "dislikeCount" to updatedDislikeCount
+                "likeCount" to updatedLikeCount
             )
 
             when (status) {
-                DropLikeStatus.LIKED -> {
-                    updates["likedBy.$userId"] = true
-                    updates["dislikedBy.$userId"] = FieldValue.delete()
-                }
-                DropLikeStatus.DISLIKED -> {
-                    updates["dislikedBy.$userId"] = true
-                    updates["likedBy.$userId"] = FieldValue.delete()
-                }
-                DropLikeStatus.NONE -> {
-                    updates["likedBy.$userId"] = FieldValue.delete()
-                    updates["dislikedBy.$userId"] = FieldValue.delete()
-                }
+                DropLikeStatus.LIKED -> updates["likedBy.$userId"] = true
+                DropLikeStatus.NONE -> updates["likedBy.$userId"] = FieldValue.delete()
             }
 
             transaction.update(docRef, updates)
@@ -815,7 +799,6 @@ class FirestoreRepo(
 
         val action = when (status) {
             DropLikeStatus.LIKED -> "liked"
-            DropLikeStatus.DISLIKED -> "disliked"
             DropLikeStatus.NONE -> "cleared reaction on"
         }
         Log.d("GeoDrop", "User $userId $action drop $dropId")
@@ -1384,8 +1367,6 @@ class FirestoreRepo(
             "nsfwLabels" to sanitized.nsfwLabels,
             "likeCount" to sanitized.likeCount,
             "likedBy" to sanitized.likedBy,
-            "dislikeCount" to sanitized.dislikeCount,
-            "dislikedBy" to sanitized.dislikedBy,
             "reportCount" to sanitized.reportCount,
             "reportedBy" to sanitized.reportedBy,
             "redemptionCode" to sanitized.redemptionCode,
@@ -1474,18 +1455,6 @@ class FirestoreRepo(
             is String -> raw.equals("true", ignoreCase = true) || raw == "1"
             else -> false
         }
-        val dislikeCount = when (val raw = get("dislikeCount")) {
-            is Number -> raw.toLong()
-            is String -> raw.toLongOrNull() ?: 0L
-            else -> 0L
-        }
-        val isDisliked = when (val raw = get("isDisliked")) {
-            is Boolean -> raw
-            is Number -> raw.toInt() != 0
-            is String -> raw.equals("true", ignoreCase = true) || raw == "1"
-            else -> false
-        }
-
         return CollectedNote(
             id = noteId,
             text = getString("text") ?: "",
@@ -1525,8 +1494,6 @@ class FirestoreRepo(
             redeemedAt = getLong("redeemedAt"),
             likeCount = likeCount,
             isLiked = isLiked,
-            dislikeCount = dislikeCount,
-            isDisliked = isDisliked,
             collectedAt = collectedAt,
             isNsfw = (getBoolean("isNsfw") == true) || nsfwLabels.isNotEmpty(),
             nsfwLabels = nsfwLabels,
@@ -1548,8 +1515,6 @@ class FirestoreRepo(
             "isRedeemed" to isRedeemed,
             "likeCount" to likeCount,
             "isLiked" to isLiked,
-            "dislikeCount" to dislikeCount,
-            "isDisliked" to isDisliked,
             "isNsfw" to isNsfw,
             "nsfwLabels" to nsfwLabels
         )
