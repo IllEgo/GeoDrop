@@ -573,18 +573,17 @@ final class FirestoreService {
         let nsfwEnabled = false
         let nsfwEnabledAt: Date? = nil
 
+        // Only client-authored fields are written here. `businessName` and
+        // `businessCategories` are server-authored (task 2.7, see firestore.rules): the
+        // `updateBusinessProfile` callable owns them, and a client write is rejected.
         var updates: [String: Any] = [:]
         if !snapshot.exists {
-            updates["role"] = storedRole.rawValue
+            updates["role"] = UserRole.explorer.rawValue
             updates["displayName"] = displayName
-            updates["businessName"] = storedBusinessName
-            updates["businessCategories"] = storedCategories.map { $0.id }
-            updates["username"] = storedUsername
             updates["nsfwEnabled"] = nsfwEnabled
         } else {
             if snapshot.get("role") == nil { updates["role"] = storedRole.rawValue }
             if let displayName, storedDisplayName == nil { updates["displayName"] = displayName }
-            if snapshot.get("businessCategories") == nil { updates["businessCategories"] = storedCategories.map { $0.id } }
             if snapshot.get("nsfwEnabled") as? Bool != false { updates["nsfwEnabled"] = false }
             if snapshot.get("nsfwEnabledAt") != nil { updates["nsfwEnabledAt"] = FieldValue.delete() }
         }
@@ -650,7 +649,12 @@ final class FirestoreService {
         do {
             let snapshot = try await getDocument(users.document(previousUserId))
             guard snapshot.exists, let data = snapshot.data() else { return }
-            try await setDocument(users.document(newUserId), data: data, merge: true)
+            // Copy only what a client is allowed to author on someone's profile. Copying
+            // the whole document would carry `role`, business metadata, moderation state,
+            // and the previous account's `username` — all server-authored, and all
+            // rejected by firestore.rules (task 2.7).
+            guard let displayName = data["displayName"] as? String, !displayName.isEmpty else { return }
+            try await setDocument(users.document(newUserId), data: ["displayName": displayName], merge: true)
         } catch {
             print("GeoDrop: Failed to migrate explorer account \(error)")
         }

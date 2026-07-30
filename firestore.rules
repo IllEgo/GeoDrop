@@ -24,11 +24,61 @@ service cloud.firestore {
 
   match /databases/{database}/documents {
     match /users/{userId} {
+      // --- Account model (task 2.7) -------------------------------------
+      // Exactly two account types exist: EXPLORER (the default every account
+      // starts as) and BUSINESS (organizer). There is no third type and no
+      // per-account permission matrix; everything else that varies by
+      // principal is either a group-scoped role (users/{uid}/groups) or an
+      // operational Auth claim (moderator/admin/suspended), never a field a
+      // client can write.
+      //
+      // Profile fields are split into the ones a client owns and the ones the
+      // server owns. Server-owned fields may be PRESENT (the Admin SDK writes
+      // them and bypasses these rules) but a client can neither introduce nor
+      // change them, so the only path to BUSINESS is the
+      // `updateBusinessProfile` callable, which additionally requires a
+      // verified email.
+      function clientAuthoredUserFields() {
+        return [
+          'displayName',
+          'username',
+          'nsfwEnabled',
+          'nsfwEnabledAt',
+          'createdAt'
+        ];
+      }
+
+      // Written only by callables (updateBusinessProfile, acceptLegalPolicies,
+      // claimExplorerUsername) and moderation tooling. Every Admin-SDK writer
+      // of users/{uid} must be represented here: a field written there but
+      // missing from this list locks the account out of its own profile,
+      // because hasOnlyAllowedUserFields() sees the merged document.
+      function serverAuthoredUserFields() {
+        return [
+          'role',
+          'businessName',
+          'businessCategories',
+          'moderationStatus',
+          'suspendedAt',
+          'suspendedBy',
+          'suspensionReason',
+          'suspensionCaseId',
+          'reinstatedAt',
+          'legalAcceptanceVersion',
+          'legalAcceptedAt'
+        ];
+      }
+
+      function isLaunchAccountRole(role) {
+        return role == 'EXPLORER' || role == 'BUSINESS';
+      }
+
       function preservesRole() {
-        return (resource.data.keys().hasAny(['role'])
-            && request.resource.data.role == resource.data.role)
-          || (!resource.data.keys().hasAny(['role'])
-            && request.resource.data.role == 'EXPLORER');
+        return isLaunchAccountRole(request.resource.data.get('role', ''))
+          && ((resource.data.keys().hasAny(['role'])
+              && request.resource.data.role == resource.data.role)
+            || (!resource.data.keys().hasAny(['role'])
+              && request.resource.data.role == 'EXPLORER'));
       }
 
       function preservesUsername() {
@@ -39,17 +89,32 @@ service cloud.firestore {
             && request.resource.data.username == resource.data.username);
       }
 
-      function hasOnlyAllowedUserFields() {
-        return request.resource.data.keys().hasOnly([
-          'displayName',
-          'username',
-          'role',
+      // `role` is covered by preservesRole(); the rest must survive a client
+      // update untouched. affectedKeys() covers added, removed, and changed in
+      // one expression, and — unlike comparing values field by field — never
+      // compares an absent field against a typed one, which errors instead of
+      // returning false. Business metadata is listed so a client cannot unlock
+      // the business surface by writing itself a businessName; the moderation
+      // fields are listed so a reinstated account can still edit its profile
+      // without being able to rewrite its own moderation history.
+      function preservesServerAuthoredFields() {
+        return !request.resource.data.diff(resource.data).affectedKeys().hasAny([
           'businessName',
           'businessCategories',
-          'nsfwEnabled',
-          'nsfwEnabledAt',
-          'createdAt'
+          'moderationStatus',
+          'suspendedAt',
+          'suspendedBy',
+          'suspensionReason',
+          'suspensionCaseId',
+          'reinstatedAt',
+          'legalAcceptanceVersion',
+          'legalAcceptedAt'
         ]);
+      }
+
+      function hasOnlyAllowedUserFields() {
+        return request.resource.data.keys()
+          .hasOnly(clientAuthoredUserFields().concat(serverAuthoredUserFields()));
       }
 
       function hasPilotSafeContentPreference() {
@@ -59,8 +124,11 @@ service cloud.firestore {
 
       allow read: if isSignedIn();
 
+      // A new profile is always an explorer, and carries none of the
+      // server-owned business or moderation fields.
       allow create: if isCurrentUser(userId)
-        && hasOnlyAllowedUserFields()
+        && request.resource.data.keys()
+          .hasOnly(clientAuthoredUserFields().concat(['role']))
         && hasPilotSafeContentPreference()
         && request.resource.data.role == 'EXPLORER'
         && !request.resource.data.keys().hasAny(['username']);
@@ -70,6 +138,7 @@ service cloud.firestore {
         && hasPilotSafeContentPreference()
         && preservesRole()
         && preservesUsername()
+        && preservesServerAuthoredFields()
         && (!request.resource.data.keys().hasAny(['username'])
             || isValidUsername(request.resource.data.username));
     }
