@@ -342,21 +342,13 @@ class FirestoreRepo(
                     ?: emptyList()
             }
             ?: emptyList()
-        val hasBusinessMetadata = !existingBusinessName.isNullOrBlank() || existingBusinessCategories.isNotEmpty()
-        // Older business accounts may not have an explicit role stored yet, so infer it from
-        // business metadata to keep their access.
-        val existingRole = when {
-            !storedRoleRaw.isNullOrBlank() -> {
-                val parsed = UserRole.fromRaw(storedRoleRaw)
-                if (parsed == UserRole.EXPLORER && hasBusinessMetadata) {
-                    UserRole.BUSINESS
-                } else {
-                    parsed
-                }
-            }
-            hasBusinessMetadata -> UserRole.BUSINESS
-            else -> UserRole.EXPLORER
-        }
+        // The stored `role` is the only source of truth for the account type (task 2.7).
+        // Business metadata is deliberately NOT used to infer BUSINESS: firestore.rules
+        // gates business drop creation on the stored role, so inferring here handed out
+        // the business UI to accounts the server still treats as explorers. Profiles that
+        // predate the field are normalized server-side by
+        // `functions/scripts/normalize-account-roles.js`.
+        val existingRole = UserRole.fromRaw(storedRoleRaw)
         val storedDisplayName = snapshot.getString("displayName")?.takeIf { it.isNotBlank() }
         val storedUsername = snapshot.getString("username")?.takeIf { it.isNotBlank() }
         val storedNsfwEnabled = false
@@ -365,13 +357,12 @@ class FirestoreRepo(
         val resolvedCreatedAt = storedCreatedAt ?: System.currentTimeMillis()
         val resolvedDisplayName = storedDisplayName ?: displayName?.takeIf { it.isNotBlank() }
 
+        // Only client-authored fields are written here. `businessName`/`businessCategories`
+        // are server-authored (see firestore.rules) and would be rejected.
         val updates = hashMapOf<String, Any?>()
         if (!snapshot.exists()) {
-            updates["role"] = existingRole.name
-            updates["businessName"] = existingBusinessName
-            updates["businessCategories"] = existingBusinessCategories.map { it.id }
+            updates["role"] = UserRole.EXPLORER.name
             updates["displayName"] = resolvedDisplayName
-            storedUsername?.let { updates["username"] = it }
             updates["nsfwEnabled"] = false
             updates["createdAt"] = storedCreatedAtRaw ?: resolvedCreatedAt
         } else {
@@ -380,9 +371,6 @@ class FirestoreRepo(
             }
             if (resolvedDisplayName != null && resolvedDisplayName != storedDisplayName) {
                 updates["displayName"] = resolvedDisplayName
-            }
-            if (!snapshot.contains("businessCategories")) {
-                updates["businessCategories"] = existingBusinessCategories.map { it.id }
             }
             if (snapshot.getBoolean("nsfwEnabled") != false) {
                 updates["nsfwEnabled"] = false
@@ -536,8 +524,14 @@ class FirestoreRepo(
         try {
             val previousProfile = users.document(previousUserId).get().await()
             if (previousProfile.exists()) {
-                val data = previousProfile.data ?: emptyMap<String, Any?>()
-                users.document(newUserId).set(data, SetOptions.merge()).await()
+                // Copy only what a client is allowed to author on a profile. Copying the
+                // whole document would carry `role`, business metadata, moderation state,
+                // and the previous `username` — all server-authored, and all rejected by
+                // firestore.rules (task 2.7). The username moves below, through the
+                // callable that owns it.
+                previousProfile.getString("displayName")?.takeIf { it.isNotBlank() }?.let { name ->
+                    users.document(newUserId).set(mapOf("displayName" to name), SetOptions.merge()).await()
+                }
                 val previousUsername = previousProfile.getString("username")?.takeIf { it.isNotBlank() }
                 if (!previousUsername.isNullOrBlank()) {
                     val sanitized = runCatching { ExplorerUsername.sanitize(previousUsername) }.getOrNull()

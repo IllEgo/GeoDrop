@@ -47,7 +47,7 @@ term), **KEEP** (launch scope), **REWORK** (change, don't remove).
 | Broad / background location | No | **REWORK, do not delete** — proximity unlock depends on it | n/a (client/manifest) | none | Phase 3 |
 | Complex voting (dislikes) | No | DELETE dislike UI + fields; KEEP likes — **DONE 2.6** (both clients) | **Removed `dislikedBy`/`dislikeCount` from every allowed transition and from the create/inventory key allow-lists — DONE 2.6.** `hasNoSeededVotes` and `isDislikeRemovalOnly` deleted as redundant | wipe (2 test drops) | 1.3 → **2.6 complete** |
 | Algorithmic recommendations | No | none exists | n/a | none | — (do not build) |
-| Multiple account types w/ extensive matrices | No | **KEEP** explorer + business only; no extended matrix to remove | Role immutability already enforced; keep | wipe resets roles | 2.7 (verify) |
+| Multiple account types w/ extensive matrices | No | **KEEP** explorer + business only; no extended matrix to remove — **verified at 2.7**, nothing deleted | Role immutability was enforced; **2.7 also made business metadata server-authored, made off-model roles fail closed, and added the moderation fields to the user allow-list** so a reinstated account can still edit its profile | wipe preserved 25 profiles → `roles:check`/`roles:apply` normalizes them once | **2.7 complete** — see `docs/account-model.md` |
 | National / global discovery | No | none exists | Discovery stays proximity/group-scoped | none | — (do not build) |
 | Subscriptions / ads / data-sale / crypto | No | none exists | n/a | none | — (do not build) |
 

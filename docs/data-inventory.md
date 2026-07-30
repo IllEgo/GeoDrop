@@ -96,6 +96,11 @@ No group in the schema is public/discoverable (all invite-code). The deferred it
 - **25 user profiles vs. 22 Auth users** — at least 3 profile docs have no live Auth
   user (orphans), or vice-versa. Worth reconciling during the account-model work
   (Phase 2.7) and account-deletion audit.
+  **2.7 (2026-07-29):** `npm --prefix functions run roles:check` now reports both
+  directions of this mismatch (read-only, alongside the role normalization plan). It
+  deletes nothing: an orphan profile is harmless because nobody can sign in as it, and a
+  missing profile is created on next sign-in. Awaiting the prod dry run, which needs
+  credentials.
 - **Only 10 usernames** claimed across 22–25 users — expected (usernames are optional),
   noted so the count isn't mistaken for a mismatch.
 - **`reports`: 3** — moderation data, retained. Confirms report/block has been exercised.

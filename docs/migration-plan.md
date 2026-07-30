@@ -194,11 +194,51 @@ would have left iOS with no way to use a launch-scope feature.
 **Gate:** You confirm the like/vote line was drawn where you want it.
 
 ### 2.7 — Collapse account types
+**Note added 2026-07-29.** 0.1 and the 0.3 ADR had already established there is **no
+extended matrix to remove** — the model was `EXPLORER` + `BUSINESS` on both clients before
+this task started, so nothing was deleted. What the audit found instead was that the
+two-type model was *conventional rather than enforced*, in three ways, and the task became
+closing those. Full write-up: **`docs/account-model.md`**.
+
 **Deliverable:** Reduce the account model to the two the launch scope needs — explorer
 and business/organizer — removing extended permission matrices.
 **Acceptance:** Migration path for existing accounts documented. No role checks reference
 removed types.
+
+**Found and fixed:**
+1. **A client could grant itself the business surface.** `businessName` was client-writable
+   and Android *inferred* `BUSINESS` from business metadata, bypassing the
+   `updateBusinessProfile` callable's verified-email gate. The server never agreed (the drop
+   rules read the stored `role`), so the result was business UI on an account with explorer
+   permissions. Business metadata is now server-authored and the inference is gone.
+2. **Clients and rules disagreed about the same stored value.** Both clients case-folded
+   `role`, so `"business"` read as BUSINESS on the client and EXPLORER on the server. Both
+   now match exactly, and anything off-model resolves to the least-privileged type.
+3. **Server-written profile fields locked the account out of its own profile.** Moderation
+   leaves `moderationStatus`/`reinstatedAt` on the document and `acceptLegalPolicies` stamps
+   `legalAcceptanceVersion`/`legalAcceptedAt`; none were in the user allow-list, so
+   `hasOnlyAllowedUserFields()` — which sees the *merged* document — refused every later
+   profile update. Pre-existing and latent, but the legal-acceptance half is on the path
+   **every** account takes, and both are squarely in the account model, so fixed here. The
+   rules now state the invariant: every Admin-SDK writer of `users/{uid}` must be listed.
+
+Also: iOS's `GroupRole` carried an `EDITOR` case the server stopped emitting (it writes
+only `OWNER`/`SUBSCRIBER`) and defaulted an unrecognized value to `.owner`; removed and
+flipped to least-privilege, matching Android. Both clients' guest→account migration copied
+the whole previous profile document, which now (and partly already) violates the rules;
+narrowed to `displayName`, with the username still transferred by its callable.
+
+**Migration path:** `functions/scripts/normalize-account-roles.js`
+(`roles:check`/`roles:apply`), dry-run by default, `--confirm-project` gated, idempotent,
+writes only `role`. It backfills the deleted client-side inference once, server-side;
+normalizes non-canonical values; flags off-model values instead of guessing; and reconciles
+the 25-profiles-vs-22-Auth-users mismatch 0.2 left for this phase. `roles:rehearse` proves
+all seven safety properties on the emulator and is wired into CI.
+
 **Gate:** Review the account model diff and the migration path before it runs.
+Specifically: (a) business metadata becoming server-authored, (b) an off-model `role`
+locking that profile until normalized, and (c) the prod `roles:check` dry run, which needs
+credentials this session did not have.
 
 ### 2.8 — Dependency and manifest sweep
 **Deliverable:** Remove now-unused Gradle dependencies, permissions, services, and
