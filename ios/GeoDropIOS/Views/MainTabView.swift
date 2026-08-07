@@ -60,14 +60,6 @@ struct MainTabView: View {
                 .environmentObject(viewModel)
         }
         .sheet(isPresented: Binding(
-            get: { viewModel.isShowingNotificationRadius },
-            set: { viewModel.isShowingNotificationRadius = $0 }
-        )) {
-            NotificationRadiusSheet(initialRadius: viewModel.notificationRadiusMeters) { newValue in
-                viewModel.setNotificationRadius(newValue)
-            }
-        }
-        .sheet(isPresented: Binding(
             get: { viewModel.isShowingAccountData },
             set: { newValue in
                 if !newValue {
