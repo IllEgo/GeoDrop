@@ -89,7 +89,6 @@ async function seed(env, documents) {
         dropType: 'RESTAURANT_COUPON',
         businessId: 'organizer',
         businessName: 'E3HI',
-        redemptionCode: 'PILOT10',
         redemptionLimit: 50,
         redemptionCount: 0,
       }))

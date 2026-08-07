@@ -34,7 +34,6 @@ internal fun DocumentSnapshot.toDrop(): Drop {
     val mediaMimeType = getString("mediaMimeType")?.takeIf { it.isNotBlank() } ?: baseDrop.mediaMimeType
     val mediaData = getString("mediaData")?.takeIf { it.isNotBlank() } ?: baseDrop.mediaData
     val mediaStoragePath = getString("mediaStoragePath")?.takeIf { it.isNotBlank() } ?: baseDrop.mediaStoragePath
-    val redemptionCode = getString("redemptionCode")?.takeIf { it.isNotBlank() } ?: baseDrop.redemptionCode
     val huntId = getString("huntId")?.takeIf { it.isNotBlank() }
     val huntStepIndex = getIntCompat("huntStepIndex")
     val huntTotalSteps = getIntCompat("huntTotalSteps")
@@ -99,7 +98,6 @@ internal fun DocumentSnapshot.toDrop(): Drop {
         likedBy = likedBy,
         reportCount = reportCount,
         reportedBy = reportedBy,
-        redemptionCode = redemptionCode,
         redemptionLimit = redemptionLimit,
         redemptionCount = redemptionCount,
         redeemedBy = redeemedBy,

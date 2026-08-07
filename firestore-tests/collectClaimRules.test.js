@@ -133,13 +133,13 @@ function baseDrop(overrides) {
       })
     );
 
-    // --- redeeming an offer (task 4.3 prerequisite) ------------------------
+    // --- redemption has no client path at all (task 4.3, ADR P6) -----------
     //
-    // No test asserted a *successful* redemption before, which is exactly why the
-    // redemption branch running out of expression budget stayed hidden. These
-    // assertions are the regression guard for that.
+    // The redeemDrop callable owns redeemedBy and redemptionCount and writes them
+    // with the Admin SDK. These replaced assertions that a client redemption could
+    // succeed: now none can, and the code never reaches a readable document.
 
-    currentCase = 'a signed-in user may redeem a coupon';
+    currentCase = 'a client cannot redeem directly';
     await env.clearFirestore();
     await seed(env, {
       'drops/c1': baseDrop({
@@ -149,56 +149,25 @@ function baseDrop(overrides) {
         redeemedBy: {},
       }),
     });
-    await assertSucceeds(
+    await assertFails(
       me.firestore().doc('drops/c1').update({
         'redeemedBy.me': Date.now(),
         redemptionCount: 1,
       })
     );
 
-    currentCase = 'the same user cannot redeem twice';
+    currentCase = 'a client cannot bump redemptionCount alone';
     await assertFails(
-      me.firestore().doc('drops/c1').update({
-        'redeemedBy.me': Date.now(),
-        redemptionCount: 2,
-      })
+      me.firestore().doc('drops/c1').update({redemptionCount: 99})
     );
 
-    currentCase = 'redemption cannot exceed the limit';
-    await env.clearFirestore();
-    await seed(env, {
-      'drops/c2': baseDrop({
-        dropType: 'RESTAURANT_COUPON',
-        businessId: 'biz',
-        redemptionCount: 5,
-        redemptionLimit: 5,
-        redeemedBy: {},
-      }),
-    });
+    currentCase = 'a client cannot seed redemptionCode on create';
     await assertFails(
-      me.firestore().doc('drops/c2').update({
-        'redeemedBy.me': Date.now(),
-        redemptionCount: 6,
-      })
-    );
-
-    currentCase = 'an expired coupon cannot be redeemed';
-    await env.clearFirestore();
-    await seed(env, {
-      'drops/c3': baseDrop({
+      me.firestore().doc('drops/c2').set(baseDrop({
+        createdBy: 'me',
         dropType: 'RESTAURANT_COUPON',
-        businessId: 'biz',
-        createdAt: Date.now() - 3 * 86400000,
-        decayDays: 1,
-        redemptionCount: 0,
-        redeemedBy: {},
-      }),
-    });
-    await assertFails(
-      me.firestore().doc('drops/c3').update({
-        'redeemedBy.me': Date.now(),
-        redemptionCount: 1,
-      })
+        redemptionCode: 'FREE-COFFEE',
+      }))
     );
 
     console.log('All collect/claim rule tests passed.');
