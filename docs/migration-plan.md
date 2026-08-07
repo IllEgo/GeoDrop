@@ -553,12 +553,20 @@ gained the property that replaced them — *alerts need no location grant at all
 with `foregroundLocation = BLOCKED`. 25 tests / 6 classes green, plus `lintDebug`,
 `assembleDebug`, and `tsc` on functions.
 
-**Follow-up left open, deliberately:** the **notification radius** setting is now inert.
-Nothing filters by it since the geofences are gone, but it still appears in Explorer
-preferences ("Nearby notification radius"), has a dialog, is persisted, and draws a circle
-on the map — 34 references in `DropHereScreen.kt`. Shipping a pilot with a setting that
-changes nothing is misleading, so it should be removed; it was left out of this task to
-keep the removal reviewable rather than half-done.
+**Follow-up left open — corrected 2026-08-07.** This task originally recorded the
+**notification radius** as "now inert". **That was wrong.** It no longer controls
+notifications, but `DropHereScreen.kt:2904` still uses it to bound the nearby browse list:
+non-business drops farther than the radius are filtered out, and the map circle depicts
+that reach. So the setting is **misnamed, not dead** — removing it would make the nearby
+list unbounded, which is a behaviour change rather than a cleanup.
+
+The real follow-up is therefore a **rename**, not a removal: "Nearby notification radius"
+describes a job it stopped doing at 3.4, while the job it actually does — how far the
+nearby list reaches — has no name in the UI. Worth settling before the pilot, since an
+event organiser will reasonably expect that control to affect what attendees see. Note
+iOS has the opposite problem: its equivalent radius filter is commented out
+(`AppViewModel.swift:273`), so its Nearby list is already unbounded — see F6 in
+`docs/location-audit.md`.
 
 ### 3.5 — Unlock receipts, not location history
 **Deliverable:** Persist the successful unlock event only. Remove any stored location
