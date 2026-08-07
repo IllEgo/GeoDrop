@@ -85,6 +85,11 @@ android {
             initWith release
             matchingFallbacks = ['release']
             buildConfigField 'boolean', 'USE_PLAY_INTEGRITY_APPCHECK', 'false'
+            // This variant exists to be sideloaded for on-device testing, so it has
+            // to be installable. It inherits from release, which is unsigned, and an
+            // unsigned APK cannot be installed at all. The debug keystore is the
+            // right key here: internal builds are never distributed.
+            signingConfig signingConfigs.debug
         }
         debug {
             buildConfigField 'boolean', 'USE_PLAY_INTEGRITY_APPCHECK', 'false'
