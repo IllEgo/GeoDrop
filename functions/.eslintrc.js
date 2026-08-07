@@ -31,5 +31,10 @@ module.exports = {
     "import/no-unresolved": 0,
     "indent": ["error", 2],
     "max-len": "off",
+    // Git normalises line endings on checkout, so on Windows every file reads as
+    // CRLF and this rule reported ~2270 errors across untouched files — enough to
+    // bury real ones and to make the functions predeploy hook fail, which blocked
+    // deploying from Windows entirely. Line endings are git's job, not lint's.
+    "linebreak-style": "off",
   },
 };
