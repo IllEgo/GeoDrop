@@ -793,7 +793,7 @@ final class AppViewModel: ObservableObject {
             )
             mutateDrop(withId: drop.id) { value in
                 let already = value.reportedBy[userId] != nil
-                value.reportedBy[userId] = Date().timeIntervalSince1970
+                value.reportedBy[userId] = Int(Date().timeIntervalSince1970 * 1000)
                 if !already {
                     value.reportCount += 1
                 }

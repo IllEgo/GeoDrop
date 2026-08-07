@@ -375,8 +375,14 @@ final class FirestoreService {
                     let snapshot = try transaction.getDocument(dropRef)
                     guard snapshot.exists else { return false }
 
-                    let already = (snapshot.get("reportedBy.\(reporterId)") as? Timestamp) != nil
-                    var updates: [String: Any] = ["reportedBy.\(reporterId)": now]
+                    // The drop's reportedBy map is integer milliseconds, matching
+                    // Android and the rest of the schema. It previously stored a
+                    // Timestamp here while the model decoded [String: TimeInterval],
+                    // so the cast failed and iOS read the map as empty — it could not
+                    // tell which drops it had already reported.
+                    let reportedAtMillis = Int(Date().timeIntervalSince1970 * 1000)
+                    let already = snapshot.get("reportedBy.\(reporterId)") != nil
+                    var updates: [String: Any] = ["reportedBy.\(reporterId)": reportedAtMillis]
                     if !already {
                         let current = snapshot.get("reportCount") as? Int
                             ?? (snapshot.get("reportCount") as? NSNumber)?.intValue
