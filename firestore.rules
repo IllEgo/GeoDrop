@@ -700,6 +700,16 @@ service cloud.firestore {
     // Task 4.3 (ADR P6) — redemption receipts. Written only by the `redeemDrop`
     // callable with the Admin SDK; a client may read its own and write none. The
     // issued code lives here rather than on the drop, which every reader can see.
+    // Task 4.4 (ADR P7) — the organiser rollup. Written only by Admin-SDK triggers
+    // and the scheduled reconcile; readable only by the experience owner, whose
+    // ownership is proven against the parent group document. Aggregates only — the
+    // rollup deliberately carries no per-attendee identity.
+    match /groups/{groupCode}/analytics/{docId} {
+      allow read: if isSignedIn()
+        && get(/databases/$(database)/documents/groups/$(groupCode)).data.ownerId == request.auth.uid;
+      allow create, update, delete: if false;
+    }
+
     match /users/{userId}/redemptions/{dropId} {
       allow read: if isCurrentUser(userId);
       allow create, update, delete: if false;
