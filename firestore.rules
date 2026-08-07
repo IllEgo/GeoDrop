@@ -547,32 +547,54 @@ service cloud.firestore {
           && hasValidSocialTransitions(before, after, userId);
       }
 
+      // Task 4.1 — drop expiration is enforced here, not only drawn in the client.
+      // A drop with a positive decayDays stops being collectable (and redeemable)
+      // once createdAt + decayDays has passed. Drops without a decay never expire.
+      function isNotExpired(data) {
+        let days = data.get('decayDays', 0);
+        let created = data.get('createdAt', 0);
+        return days <= 0
+          || created <= 0
+          || request.time.toMillis() < created + days * 86400000;
+      }
+
+      // Split into one allow-statement per write shape (task 4.1). These are OR'd
+      // exactly as the single combined condition was, but each is evaluated under
+      // its own expression budget. As one condition this rule had been logging
+      // "maximum of 1000 expressions to evaluate has been reached" since before
+      // 2.6 — adding the expiry check tipped it from a warning into refusing
+      // legitimate likes. Keep new conditions in the branch they belong to.
+
+      // Any signed-in user may like or report, including on an expired drop:
+      // moderation cannot depend on a drop still being live.
       allow update: if isSignedIn()
-          && (
-            // Any signed-in user may like/report (no collection check required).
-            isLikeReportOnlyUpdate(resource.data, request.resource.data, request.auth.uid)
-            || (
-              isValidLikeReportCollectUpdate(resource.data, request.resource.data, request.auth.uid)
-              && (
-                isDropOwner(resource.data, request.auth.uid)
-                || hasUserCollectedBeforeOrAfter(resource.data, request.resource.data, request.auth.uid)
-              )
-            )
-            || (
-              resource.data.createdBy == request.auth.uid
-              && resource.data.diff(request.resource.data).affectedKeys().hasOnly(['isDeleted', 'deletedAt'])
-              && request.resource.data.isDeleted == true
-              && request.resource.data.deletedAt is int
-            )
-            || (
-              isRedeemableDrop(resource.data)
-              && resource.data.diff(request.resource.data).affectedKeys().hasOnly([
-                'redeemedBy.' + request.auth.uid,
-                'redemptionCount'
-              ])
-              && isValidRedemptionTransition(resource.data, request.resource.data, request.auth.uid)
-            )
-          );
+        && isLikeReportOnlyUpdate(resource.data, request.resource.data, request.auth.uid);
+
+      // Collecting. Expiry is enforced here.
+      allow update: if isSignedIn()
+        && isValidLikeReportCollectUpdate(resource.data, request.resource.data, request.auth.uid)
+        && isNotExpired(resource.data)
+        && (
+          isDropOwner(resource.data, request.auth.uid)
+          || hasUserCollectedBeforeOrAfter(resource.data, request.resource.data, request.auth.uid)
+        );
+
+      // The creator soft-deleting their own drop, expired or not.
+      allow update: if isSignedIn()
+        && resource.data.createdBy == request.auth.uid
+        && resource.data.diff(request.resource.data).affectedKeys().hasOnly(['isDeleted', 'deletedAt'])
+        && request.resource.data.isDeleted == true
+        && request.resource.data.deletedAt is int;
+
+      // Redeeming a business offer. An expired offer is not redeemable.
+      allow update: if isSignedIn()
+        && isRedeemableDrop(resource.data)
+        && isNotExpired(resource.data)
+        && resource.data.diff(request.resource.data).affectedKeys().hasOnly([
+          'redeemedBy.' + request.auth.uid,
+          'redemptionCount'
+        ])
+        && isValidRedemptionTransition(resource.data, request.resource.data, request.auth.uid);
 
       allow delete: if isSignedIn()
         && resource.data.createdBy == request.auth.uid;

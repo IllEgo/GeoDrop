@@ -620,6 +620,39 @@ Only now do you build. Scope is closed; if something isn't on the direction doc'
 list, it doesn't get added here.
 
 ### 4.1 — Drop expiration
+
+**Done 2026-08-06.** Expiration existed, but only in the clients: `Drop.isExpired()` hid
+expired drops and refused to collect them across 77 sites in `app/src`. **No rule ever
+evaluated `decayDays`**, so an expired drop stayed collectable and redeemable by anything
+that did not run that client check. Expiration is now enforced in `firestore.rules` by
+`isNotExpired()`: a drop with a positive `decayDays` stops being collectable and
+redeemable once `createdAt + decayDays` has passed; drops without a decay never expire.
+Liking and reporting stay legal on expired drops — moderation cannot depend on a drop
+still being live — and the creator can still soft-delete one.
+
+**The drops `allow update` rule had to be split to make room.** It was a single condition
+OR-ing four write shapes, and it had been logging *"maximum of 1000 expressions to
+evaluate has been reached"* since before 2.6 (recorded then as a pre-existing gotcha).
+Adding the expiry check tipped it from a warning into **refusing legitimate likes**. It is
+now four `allow update` statements — like/report, collect, owner soft-delete, redeem —
+which are OR'd exactly as before but evaluated under separate expression budgets. Keep new
+conditions inside the branch they belong to.
+
+**Tests:** new `firestore-tests/dropExpirationRules.test.js` (12th suite) covers expired
+vs fresh, absent and zero `decayDays`, both sides of the boundary (one hour short, one hour
+past), likes/reports still working on an expired drop, and owner soft-delete. Full suite
+green.
+
+**Known issue, now visible: the redemption branch still exceeds the expression budget.**
+The emulator reports the 1000-expression limit on that statement specifically, which means
+a real redemption write could be refused. No test asserts a *successful* redemption today,
+which is why this has stayed hidden. **4.3 must fix this before redemption codes ship** —
+it is the paid-organizer feature, so it cannot go out on a rule that may not evaluate.
+
+**Not done here:** no scheduled cleanup of expired drops exists. Expired drops remain in
+Firestore, merely uncollectable and hidden. Worth adding before the pilot so the map does
+not accumulate dead content.
+
 ### 4.2 — Collect / claim
 ### 4.3 — Redemption codes for business rewards
 ### 4.4 — Organizer analytics
