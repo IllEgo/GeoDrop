@@ -1228,7 +1228,6 @@ fun DropHereScreen(
     var capturedAudioUri by rememberSaveable { mutableStateOf<String?>(null) }
     var isSubmitting by remember { mutableStateOf(false) }
     var groupCodeInput by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
-    var redemptionCodeInput by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
     var redemptionLimitInput by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
     var decayDaysInput by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
     var status by remember { mutableStateOf<String?>(null) }
@@ -2220,7 +2219,6 @@ fun DropHereScreen(
 
     LaunchedEffect(dropType) {
         if (dropType != DropType.RESTAURANT_COUPON) {
-            redemptionCodeInput = TextFieldValue("")
             redemptionLimitInput = TextFieldValue("")
         }
     }
@@ -2322,7 +2320,6 @@ fun DropHereScreen(
         clearAudio()
         showDropComposer = false
         if (dropType == DropType.RESTAURANT_COUPON) {
-            redemptionCodeInput = TextFieldValue("")
             redemptionLimitInput = TextFieldValue("")
         }
         decayDaysInput = TextFieldValue("")
@@ -2374,7 +2371,6 @@ fun DropHereScreen(
         mediaMimeType: String?,
         mediaData: String?,
         mediaStoragePath: String?,
-        redemptionCode: String?,
         redemptionLimit: Int?,
         decayDays: Int?
     ) {
@@ -2387,7 +2383,6 @@ fun DropHereScreen(
             ?: error("Creating a drop requires a signed-in account.")
         val sanitizedMedia = mediaInput?.takeIf { it.isNotBlank() }
         val sanitizedMime = mediaMimeType?.takeIf { it.isNotBlank() }
-        val sanitizedRedemptionCode = redemptionCode?.trim()?.takeIf { it.isNotEmpty() }
         val sanitizedRedemptionLimit = redemptionLimit?.takeIf { it > 0 }
         val sanitizedData = mediaData?.takeIf { it.isNotBlank() }
         val sanitizedDecayDays = decayDays?.takeIf { it > 0 }
@@ -2505,7 +2500,6 @@ fun DropHereScreen(
                 var mediaDataResult: String? = null
                 var dropNoteText = note.text
                 var dropDescriptionText = description.text
-                var redemptionCodeResult: String? = null
                 var redemptionLimitResult: Int? = null
                 var decayDaysResult: Int? = null
 
@@ -2607,13 +2601,6 @@ fun DropHereScreen(
                 }
 
                 if (dropType == DropType.RESTAURANT_COUPON) {
-                    val trimmedCode = redemptionCodeInput.text.trim()
-                    if (trimmedCode.isEmpty()) {
-                        isSubmitting = false
-                        snackbar.showMessage(scope, "Enter a redemption code for your offer.")
-                        return@launch
-                    }
-                    redemptionCodeResult = trimmedCode
 
                     val limitText = redemptionLimitInput.text.trim()
                     if (limitText.isNotEmpty()) {
@@ -2662,7 +2649,6 @@ fun DropHereScreen(
                     mediaMimeType = mediaMimeTypeResult,
                     mediaData = mediaDataResult,
                     mediaStoragePath = mediaStoragePathResult,
-                    redemptionCode = redemptionCodeResult,
                     redemptionLimit = redemptionLimitResult,
                     decayDays = decayDaysResult
                 )
@@ -4057,8 +4043,6 @@ fun DropHereScreen(
                 onGroupCodeInputChange = { groupCodeInput = it },
                 joinedGroups = createdGroups.map { it.code },
                 onSelectGroupCode = { code -> groupCodeInput = TextFieldValue(code) },
-                redemptionCodeInput = redemptionCodeInput,
-                onRedemptionCodeChange = { redemptionCodeInput = it },
                 redemptionLimitInput = redemptionLimitInput,
                 onRedemptionLimitChange = { redemptionLimitInput = it },
                 decayDaysInput = decayDaysInput,
@@ -4883,8 +4867,6 @@ private fun BusinessPlanStep(
 
 @Composable
 private fun BusinessOfferStep(
-    redemptionCodeInput: TextFieldValue,
-    onRedemptionCodeChange: (TextFieldValue) -> Unit,
     redemptionLimitInput: TextFieldValue,
     onRedemptionLimitChange: (TextFieldValue) -> Unit
 ) {
@@ -4894,8 +4876,6 @@ private fun BusinessOfferStep(
         leadingIcon = Icons.Rounded.Flag
     ) {
         BusinessRedemptionSection(
-            redemptionCode = redemptionCodeInput,
-            onRedemptionCodeChange = onRedemptionCodeChange,
             redemptionLimit = redemptionLimitInput,
             onRedemptionLimitChange = onRedemptionLimitChange,
             showHeader = false
@@ -6148,8 +6128,6 @@ private fun DropComposerDialog(
     onGroupCodeInputChange: (TextFieldValue) -> Unit,
     joinedGroups: List<String>,
     onSelectGroupCode: (String) -> Unit,
-    redemptionCodeInput: TextFieldValue,
-    onRedemptionCodeChange: (TextFieldValue) -> Unit,
     redemptionLimitInput: TextFieldValue,
     onRedemptionLimitChange: (TextFieldValue) -> Unit,
     decayDaysInput: TextFieldValue,
@@ -6284,7 +6262,9 @@ private fun DropComposerDialog(
                         if (days != null && days > 0) append(" · Expires in $days days")
                     }
                 }
-                val isOfferValid = redemptionCodeInput.text.isNotBlank() || dropType != DropType.RESTAURANT_COUPON
+                // Task 4.3 — offers no longer carry an author-set code; the server
+                // issues one per redeemer, so there is nothing to validate here.
+                val isOfferValid = true
 
                 Column(
                     modifier = Modifier
@@ -6325,8 +6305,6 @@ private fun DropComposerDialog(
                     )
                     if (dropType == DropType.RESTAURANT_COUPON) {
                         BusinessOfferStep(
-                            redemptionCodeInput = redemptionCodeInput,
-                            onRedemptionCodeChange = onRedemptionCodeChange,
                             redemptionLimitInput = redemptionLimitInput,
                             onRedemptionLimitChange = onRedemptionLimitChange
                         )
@@ -12121,8 +12099,6 @@ private fun TemplateTag(
 
 @Composable
 private fun BusinessRedemptionSection(
-    redemptionCode: TextFieldValue,
-    onRedemptionCodeChange: (TextFieldValue) -> Unit,
     redemptionLimit: TextFieldValue,
     onRedemptionLimitChange: (TextFieldValue) -> Unit,
     showHeader: Boolean = true
@@ -12135,15 +12111,6 @@ private fun BusinessRedemptionSection(
             Text("Offer security", style = MaterialTheme.typography.titleSmall)
         }
 
-        OutlinedTextField(
-            value = redemptionCode,
-            onValueChange = onRedemptionCodeChange,
-            label = { Text("Redemption code") },
-            supportingText = {
-                Text("Share this code in person so each guest redeems only once.")
-            },
-            modifier = Modifier.fillMaxWidth()
-        )
 
         OutlinedTextField(
             value = redemptionLimit,
@@ -12773,14 +12740,6 @@ private fun HuntStepEditor(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    OutlinedTextField(
-                        value = step.redemptionCode,
-                        onValueChange = { onUpdate(step.copy(redemptionCode = it)) },
-                        label = { Text("Redemption code (optional)") },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true,
-                        enabled = enabled
-                    )
                     OutlinedTextField(
                         value = step.redemptionLimit?.toString() ?: "",
                         onValueChange = { input -> onUpdate(step.copy(redemptionLimit = input.toIntOrNull()?.takeIf { it > 0 })) },
