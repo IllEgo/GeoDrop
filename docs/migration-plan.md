@@ -59,6 +59,7 @@ from an account that had accepted the policies was refused).
 | 2026-08-07 | Firestore data | `roles:check` dry run (read-only) | 2.7 gate (c) | 25 profiles, all canonical, 0 normalize / 0 backfill / 0 flagged; `roles:apply` is a no-op. 3 profiles have no Auth user |
 | 2026-08-07 | Firestore data | Location-trail scan (read-only) | 3.5 gate 1 | 25 user docs, 0 with position-shaped fields, 0 trail docs/collections. Gate 2 not applicable |
 | 2026-08-07 | Firestore rules | Deploy | 3.5, 4.1 | ruleset `865c4276-e280-4e0f-b758-40fb9281d028`; live source verified byte-identical to repo. Ships expiry enforcement **and** the drops `allow update` split |
+| 2026-08-07 | Remote Config | Publish | 2.8 follow-up | `pilot_nsfw_enabled` removed; template down to 5 fail-closed keys, validator updated |
 
 ### Verifying what is actually live
 
@@ -332,10 +333,14 @@ two unreferenced Android Studio template stubs, `backup_rules.xml` and
 geofenced nearby alerts today; Phase 3 replaces that design rather than just dropping the
 permission.
 
-**Owner actions:** delete the `pilot_nsfw_enabled` parameter from Firebase Remote Config,
-and drop `GEODROP_FEATURE_NSFW_ENABLED` from whatever build configuration the release
-pipeline selects (the example xcconfig no longer lists it). Both are hygiene — nothing
-reads either value now, and leaving them costs nothing.
+**Owner actions.** `pilot_nsfw_enabled` was removed from `remoteconfig.template.json`,
+the validator's key list, and the release-evidence template on 2026-08-07, and the template
+was published — Remote Config is managed as code here, so this was a repo change plus a
+deploy rather than a console edit. **Still owner-only:** drop
+`GEODROP_FEATURE_NSFW_ENABLED` from whatever build configuration the release pipeline
+selects. It lives outside the repo (the example xcconfig no longer lists it, and the
+Android `buildConfigField` went at 2.8), so nothing here can reach it. It is inert either
+way — no code reads it.
 
 ### Phase 2 — gate resolutions
 

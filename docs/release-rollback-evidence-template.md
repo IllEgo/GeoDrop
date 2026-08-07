@@ -62,7 +62,6 @@ The repository defines fail-closed Android build fields and iOS Info.plist/`.xcc
 | `pilot_notifications_enabled` | Push token handling, nearby registration, and notification delivery |
 | `pilot_coupons_enabled` | Coupon creation, exposure, and redemption |
 | `pilot_media_enabled` | Media upload, exposure, and playback |
-| `pilot_nsfw_enabled` | Mature-content creation and exposure; must remain false for the pilot |
 | `pilot_hunts_enabled` | Hunt creation, exposure, notification, and progression; must remain false for the pilot |
 
 ## Manual qualification
