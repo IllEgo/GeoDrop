@@ -996,6 +996,93 @@ export const notifyGroupMembersOnDropCreated = functions
     );
   });
 
+const analyticsRef = (groupCode: string) =>
+  admin.firestore().collection("groups").doc(groupCode).collection("analytics").doc("summary");
+
+const countKeys = (value: unknown): number =>
+  value && typeof value === "object" ? Object.keys(value as Record<string, unknown>).length : 0;
+
+/**
+ * Task 4.4 (ADR P7) — organiser rollup, maintained incrementally.
+ *
+ * Per-drop counts already live on the drop; what an organiser wants is the total
+ * across an experience. Aggregating that client-side would mean reading every drop
+ * on every dashboard open and would answer differently per device, so it is
+ * computed here and stored in a document only the owner can read.
+ *
+ * Aggregates only: the rollup deliberately records no attendee identity.
+ */
+export const rollUpExperienceActivity = functions
+  .region("us-central1")
+  .firestore.document("drops/{dropId}")
+  .onWrite(async (change) => {
+    const after = change.after.exists ? change.after.data() ?? {} : {};
+    const before = change.before.exists ? change.before.data() ?? {} : {};
+
+    const groupCode = typeof after.groupCode === "string" ?
+      after.groupCode.trim() :
+      (typeof before.groupCode === "string" ? before.groupCode.trim() : "");
+    if (!groupCode) return;
+
+    const collectDelta = countKeys(after.collectedBy) - countKeys(before.collectedBy);
+    const redemptionDelta = countKeys(after.redeemedBy) - countKeys(before.redeemedBy);
+    const dropDelta =
+      (change.after.exists && after.isDeleted !== true ? 1 : 0) -
+      (change.before.exists && before.isDeleted !== true ? 1 : 0);
+
+    if (collectDelta === 0 && redemptionDelta === 0 && dropDelta === 0) return;
+
+    await analyticsRef(groupCode).set({
+      groupCode,
+      collects: FieldValue.increment(collectDelta),
+      redemptions: FieldValue.increment(redemptionDelta),
+      drops: FieldValue.increment(dropDelta),
+      updatedAt: Date.now(),
+    }, {merge: true});
+  });
+
+/**
+ * Incremental counters drift when a trigger fails or retries, and the failure is
+ * silent — the dashboard keeps showing a number that is quietly wrong, which for
+ * analytics an organiser pays for is worse than showing nothing. This recomputes
+ * every rollup from source and corrects it.
+ */
+export const reconcileExperienceActivity = functions
+  .region("us-central1")
+  .pubsub.schedule("every 24 hours")
+  .onRun(async () => {
+    const firestore = admin.firestore();
+    const drops = await firestore.collection("drops").get();
+
+    const totals = new Map<string, {collects: number; redemptions: number; drops: number}>();
+    drops.forEach((doc) => {
+      const data = doc.data();
+      const groupCode = typeof data.groupCode === "string" ? data.groupCode.trim() : "";
+      if (!groupCode) return;
+      const entry = totals.get(groupCode) ?? {collects: 0, redemptions: 0, drops: 0};
+      entry.collects += countKeys(data.collectedBy);
+      entry.redemptions += countKeys(data.redeemedBy);
+      if (data.isDeleted !== true) entry.drops += 1;
+      totals.set(groupCode, entry);
+    });
+
+    let corrected = 0;
+    for (const [groupCode, entry] of totals) {
+      const ref = analyticsRef(groupCode);
+      const current = await ref.get();
+      const drifted =
+        current.get("collects") !== entry.collects ||
+        current.get("redemptions") !== entry.redemptions ||
+        current.get("drops") !== entry.drops;
+      if (!drifted) continue;
+      await ref.set({groupCode, ...entry, updatedAt: Date.now(), reconciledAt: Date.now()},
+        {merge: true});
+      corrected += 1;
+    }
+
+    console.log(`Reconciled ${totals.size} experience rollup(s); corrected ${corrected}.`);
+  });
+
 export const cleanupCollectedNotesOnDropDelete = functions
   .region("us-central1")
   .firestore.document("drops/{dropId}")
