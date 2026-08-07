@@ -214,7 +214,9 @@ final class NoteInventoryService {
                         stored.redeemedBy[resolvedUserId] = redeemedTimestamp
                         let existingCode = inventory.redeemedDrops[drop.id]?.lastCode
                         let record = RedemptionRecord(
-                            redeemedAt: Date(timeIntervalSince1970: redeemedTimestamp),
+                            // redeemedBy values are integer milliseconds (ADR P6 /
+                            // the timestamp canonicalisation); Date wants seconds.
+                            redeemedAt: Date(timeIntervalSince1970: Double(redeemedTimestamp) / 1000),
                             lastCode: existingCode,
                             count: drop.redemptionCount,
                             limit: drop.redemptionLimit

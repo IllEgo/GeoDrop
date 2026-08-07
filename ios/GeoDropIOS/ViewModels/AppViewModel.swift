@@ -816,7 +816,8 @@ final class AppViewModel: ObservableObject {
         do {
             let result = try await firestore.redeemDrop(dropId: drop.id, userId: userId, providedCode: trimmed)
             if case let .success(count, limit, redeemedAt) = result {
-                let redemptionDate = Date(timeIntervalSince1970: redeemedAt)
+                // redeemedAt is integer milliseconds now; Date wants seconds.
+                let redemptionDate = Date(timeIntervalSince1970: Double(redeemedAt) / 1000)
                 var updatedDrop = drop
                 updatedDrop.redemptionCount = count
                 updatedDrop.redemptionLimit = limit

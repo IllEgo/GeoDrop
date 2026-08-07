@@ -1,4 +1,5 @@
 import * as functions from "firebase-functions/v1";
+import * as crypto from "crypto";
 import * as admin from "firebase-admin";
 import {FieldValue} from "firebase-admin/firestore";
 import {ImageAnnotatorClient} from "@google-cloud/vision";
@@ -300,6 +301,141 @@ export const safeSearch = functions
         "Media safety scanning is temporarily unavailable."
       );
     }
+  });
+
+interface RedeemDropRequest {
+  dropId?: unknown;
+}
+
+const REDEMPTION_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+/**
+ * Per-user redemption code. Unambiguous alphabet (no I/O/0/1) because these get
+ * read aloud and typed at a counter.
+ */
+const generateRedemptionCode = (): string => {
+  const bytes = crypto.randomBytes(8);
+  let code = "";
+  for (const byte of bytes) {
+    code += REDEMPTION_CODE_ALPHABET[byte % REDEMPTION_CODE_ALPHABET.length];
+  }
+  return `${code.slice(0, 4)}-${code.slice(4)}`;
+};
+
+/**
+ * Task 4.3 (ADR P6) — redemption is server-only, and the code never lives on the
+ * drop document.
+ *
+ * `redemptionCode` used to be a field on the drop. Firestore cannot restrict
+ * individual fields, and drops are readable by any signed-in user and by guests
+ * for public drops, so every reader received the code; `allow list` allowed bulk
+ * harvesting. A code you can obtain without visiting the location is not a
+ * proximity-gated reward.
+ *
+ * This callable performs the whole transaction with the Admin SDK and returns a
+ * code to the caller alone. The issued code is also recorded at
+ * `users/{uid}/redemptions/{dropId}`, which only that user can read.
+ */
+export const redeemDrop = functions
+  .region("us-central1")
+  .https.onCall(async (data: RedeemDropRequest, context) => {
+    const uid = context.auth?.uid;
+    if (!uid) {
+      throw new functions.https.HttpsError(
+        "unauthenticated",
+        "Sign in to redeem this offer."
+      );
+    }
+    if (context.auth?.token?.firebase?.sign_in_provider === "anonymous") {
+      throw new functions.https.HttpsError(
+        "permission-denied",
+        "Create an account to redeem offers."
+      );
+    }
+
+    const dropId = typeof data?.dropId === "string" ? data.dropId.trim() : "";
+    if (!dropId) {
+      throw new functions.https.HttpsError("invalid-argument", "Missing drop id.");
+    }
+
+    const firestore = admin.firestore();
+    const dropRef = firestore.collection("drops").doc(dropId);
+    const receiptRef = firestore
+      .collection("users")
+      .doc(uid)
+      .collection("redemptions")
+      .doc(dropId);
+
+    return firestore.runTransaction(async (transaction) => {
+      const [dropSnapshot, receiptSnapshot] = await Promise.all([
+        transaction.get(dropRef),
+        transaction.get(receiptRef),
+      ]);
+
+      if (!dropSnapshot.exists) {
+        throw new functions.https.HttpsError("not-found", "This offer no longer exists.");
+      }
+      const drop = dropSnapshot.data() ?? {};
+
+      if (drop.isDeleted === true) {
+        throw new functions.https.HttpsError("not-found", "This offer no longer exists.");
+      }
+      if (drop.dropType !== "RESTAURANT_COUPON") {
+        throw new functions.https.HttpsError(
+          "failed-precondition",
+          "This drop is not a redeemable offer."
+        );
+      }
+
+      // Same expiry arithmetic as firestore.rules isNotExpired().
+      const decayDays = typeof drop.decayDays === "number" ? drop.decayDays : 0;
+      const createdAt = typeof drop.createdAt === "number" ? drop.createdAt : 0;
+      if (decayDays > 0 && createdAt > 0 && Date.now() >= createdAt + decayDays * 86400000) {
+        throw new functions.https.HttpsError("failed-precondition", "This offer has expired.");
+      }
+
+      // Idempotent: a caller who already redeemed gets their existing code back
+      // rather than a second one, so a retry cannot consume two redemptions.
+      if (receiptSnapshot.exists) {
+        const existing = receiptSnapshot.get("code");
+        if (typeof existing === "string" && existing.length > 0) {
+          return {code: existing, alreadyRedeemed: true};
+        }
+      }
+
+      const redeemedBy = (drop.redeemedBy ?? {}) as Record<string, unknown>;
+      if (Object.prototype.hasOwnProperty.call(redeemedBy, uid)) {
+        throw new functions.https.HttpsError(
+          "already-exists",
+          "You have already redeemed this offer."
+        );
+      }
+
+      const count = typeof drop.redemptionCount === "number" ? drop.redemptionCount : 0;
+      const limit = typeof drop.redemptionLimit === "number" ? drop.redemptionLimit : null;
+      if (limit !== null && count >= limit) {
+        throw new functions.https.HttpsError(
+          "resource-exhausted",
+          "This offer has been fully redeemed."
+        );
+      }
+
+      const code = generateRedemptionCode();
+      const redeemedAt = Date.now();
+
+      transaction.update(dropRef, {
+        [`redeemedBy.${uid}`]: redeemedAt,
+        redemptionCount: count + 1,
+      });
+      transaction.set(receiptRef, {
+        dropId,
+        code,
+        redeemedAt,
+        businessId: typeof drop.businessId === "string" ? drop.businessId : null,
+      });
+
+      return {code, alreadyRedeemed: false};
+    });
   });
 
 export const claimExplorerUsername = functions
