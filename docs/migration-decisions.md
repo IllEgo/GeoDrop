@@ -144,3 +144,42 @@ means you accept:
 
 This closes **Phase 0**. Next is **1.1 — Rules test harness** (Firebase emulator + a
 security-rules suite that pins today's behavior before any rule below is edited).
+
+---
+
+## P5 — Background location and nearby alerts (added 2026-08-06, Phase 3)
+
+**Supersedes the "REWORK, not delete" note above.** That note assumed launch-scope
+proximity unlock depended on background location. Tasks 3.1–3.3 showed it does not:
+unlocking now takes a one-shot precise fix at the moment of the attempt, and the
+scavenger-hunt chain — the pilot's "trail" — never touched geofencing at all.
+`advanceHuntProgress` is called from the collect path (`DropDecisionReceiver.kt:161`,
+`DropHereScreen.kt:2035`) and the next step becomes visible because
+`fetchLockedHuntDropIds` reads `currentStepIndex` back from Firestore. Pure data.
+
+**What background location actually buys** is one thing: a passive notification when a
+user wanders near a drop they were not looking for. That is a discovery convenience, not
+a mechanic.
+
+**Decision: remove it.** `ACCESS_BACKGROUND_LOCATION` and the geofence machinery
+(`NearbyDropRegistrar` registration, `GeofenceManager`, `GeofenceReceiver`) go at task
+3.4. Notifications are re-based on **membership**, not proximity: a server-side send when
+a drop is added to an experience the user explicitly joined.
+
+**Why this is not a scope cut.** The launch list promises "push notifications **only** for
+experiences the user explicitly joined" — a membership-scoped send satisfies it exactly.
+Proximity alerts were solving a problem the launch scope never posed, at the cost of the
+one permission the direction doc singles out as sensitive and Play Console scrutinises
+hardest. The pilot's measured loop is in-app anyway: *see invitation → open GeoDrop →
+discover drop → walk to location → unlock → get value → unlock another*.
+
+**Accepted cost.** No buzz when a user passes an unrelated drop. If the pilot shows
+discovery suffers without it, foreground-only geofences remain available as a follow-up —
+that option was considered and set aside as retaining most of the complexity for a
+fraction of the feature, since Android Q+ geofences without the background permission are
+unreliable in the background by design.
+
+**Rejected:** keeping background geofences behind the existing explicit opt-in. It
+conflicts with 3.4's acceptance and with the direction doc's deferred list ("broad or
+background location tracking"), so it would have been a deliberate reversal rather than a
+migration step.
