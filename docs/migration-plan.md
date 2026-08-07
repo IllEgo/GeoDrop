@@ -63,6 +63,7 @@ from an account that had accepted the policies was refused).
 | 2026-08-07 | Firestore rules | Deploy | 4.2 | ruleset `ff9c9ba6-25df-42cd-ac7e-aba4ac968030`; live source verified byte-identical to repo. Claims are now one-way in production |
 | 2026-08-07 | Firestore rules | Deploy | 4.3 prerequisite | ruleset `f319574d-7935-4bf0-bb37-c815f5b33394`; verified byte-identical. **Redemption is now possible in production for the first time** — the allowed-keys list omitted the top-level `redeemedBy`, so `hasOnly()` was false for every real redemption |
 | 2026-08-07 | Firestore rules + **functions** | Deploy | 4.3 complete | ruleset `91f5ac5d-7196-4925-b657-7e216131aa68`, verified byte-identical, released **with** the `redeemDrop` callable. Redemption is now server-owned: no client-writable path to `redeemedBy`/`redemptionCount`, and no `redemptionCode` on a readable document. Rules and functions must ship together here — rules alone would leave no redemption path at all |
+| 2026-08-07 | Firestore rules + functions | Deploy | 4.4 server side | ruleset `24b8bd69-6e39-446d-a2b0-eeaa6a3ff688`, verified byte-identical. Ships the organiser rollup trigger, the daily reconcile, and the owner-read-only analytics rules block |
 
 ### Verifying what is actually live
 
