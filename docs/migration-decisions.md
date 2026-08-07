@@ -183,3 +183,46 @@ unreliable in the background by design.
 conflicts with 3.4's acceptance and with the direction doc's deferred list ("broad or
 background location tracking"), so it would have been a deliberate reversal rather than a
 migration step.
+
+---
+
+## P6 — Redemption codes are server-issued (added 2026-08-07, task 4.3)
+
+**The problem.** `redemptionCode` was a field on the drop document. Firestore rules cannot
+restrict individual fields: `allow get` grants signed-in users any drop they can browse and
+grants **signed-out guests** any public, active, non-NSFW drop, so every reader receives
+every field — the code included. `allow list` compounds it: public drops are queryable, so
+codes could be **harvested in bulk** without visiting a location, without an account, and
+without unlocking anything.
+
+That defeats the product's premise — content you must physically visit to unlock or redeem
+— and it undermines precisely the feature businesses pay for. It cannot be fixed by
+tightening a rule; the exposure is inherent in storing a secret on a readable document.
+
+**Decision: the code never lives on the drop.** A callable issues it at redemption time.
+
+- `redemptionCode` is removed from the drop document and from the rules allow-list, so it
+  cannot be written by a client or read by anyone.
+- A `redeemDrop` callable performs the whole transaction server-side: confirm the drop is a
+  coupon, unexpired and not deleted; confirm the caller has not already redeemed; confirm
+  `redemptionCount < redemptionLimit`; write `redeemedBy.<uid>` and increment
+  `redemptionCount` with the Admin SDK; return a **per-user** code to that caller only.
+- The clients stop running their own redemption transaction and call the callable.
+- The rules' redemption branch is then **deleted**, not tightened — with redemption
+  server-only, no client write to `redeemedBy`/`redemptionCount` is legitimate. That also
+  removes the statement that has been the source of the expression-budget pressure.
+
+**Why this over the alternatives.** A gated subcollection (`drops/{id}/redemptions/{uid}`)
+would also hide the code, but splits a coupon's identity across two documents and still
+leaves redemption as a client write. Accepting the exposure for the pilot was considered and
+rejected: the codes are the paid feature, and a harvestable code is worse than no code,
+because it looks like it works.
+
+**Bonus:** issuing per-user codes gives organisers real redemption tracking — who redeemed,
+when, and how many remain — which is the B2B tooling the direction doc calls load-bearing.
+A single shared code can never support that.
+
+**Migration:** prod holds zero drops after the 1.4 wipe, so no existing coupon codes need
+rotating. Any build predating the callable will fail to redeem once the rules branch is
+removed; the pilot must ship current builds, as it already must for 2.7.
+
