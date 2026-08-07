@@ -699,6 +699,29 @@ no rule or callable verifies the collector was near the drop, and rules cannot c
 location. A claim is now honest about *who* and *once*, not about *where*.
 
 ### 4.3 — Redemption codes for business rewards
+
+**Prerequisite cleared 2026-08-07** — the redemption rule could never succeed: the
+allowed-keys list omitted the top-level `redeemedBy`, which is what a nested-map write
+reports as affected. Fixed, deployed as ruleset `f319574d`, and pinned by tests.
+
+**Design decided 2026-08-07 — see P6 in `docs/migration-decisions.md`: codes are
+server-issued.** `redemptionCode` sat on the drop document, and drop documents are readable
+by any signed-in user and by signed-out guests for public drops — Firestore cannot hide a
+single field. `allow list` made bulk harvesting possible. Codes could be collected without
+visiting a location or holding an account, which defeats the premise and devalues the paid
+feature.
+
+Scope when this task runs:
+
+- Remove `redemptionCode` from the drop document and the rules allow-list.
+- Add a `redeemDrop` callable that validates coupon/expiry/already-redeemed/limit, writes
+  `redeemedBy.<uid>` and `redemptionCount` with the Admin SDK, and returns a per-user code
+  to that caller only.
+- Point both clients at the callable instead of their own transaction.
+- **Delete** the rules' redemption branch — with redemption server-only, no client write to
+  those fields is legitimate. This also removes the statement behind the expression-budget
+  pressure.
+
 ### 4.4 — Organizer analytics
 ### 4.5 — Scoped push notifications (explicitly joined experiences only)
 ### 4.6 — QR entry point and low-friction onboarding
