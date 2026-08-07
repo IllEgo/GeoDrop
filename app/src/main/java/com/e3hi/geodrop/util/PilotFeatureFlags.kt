@@ -18,7 +18,6 @@ object PilotFeatureFlags {
     const val NOTIFICATIONS_KEY = "pilot_notifications_enabled"
     const val COUPONS_KEY = "pilot_coupons_enabled"
     const val MEDIA_KEY = "pilot_media_enabled"
-    const val NSFW_KEY = "pilot_nsfw_enabled"
     const val HUNTS_KEY = "pilot_hunts_enabled"
 
     private const val TAG = "PilotFeatureFlags"
@@ -31,7 +30,6 @@ object PilotFeatureFlags {
                     NOTIFICATIONS_KEY to false,
                     COUPONS_KEY to false,
                     MEDIA_KEY to false,
-                    NSFW_KEY to false,
                     HUNTS_KEY to false
                 )
             )
@@ -51,8 +49,6 @@ object PilotFeatureFlags {
         get() = BuildConfig.FEATURE_COUPONS_ENABLED && remoteConfig.getBoolean(COUPONS_KEY)
     val mediaEnabled: Boolean
         get() = BuildConfig.FEATURE_MEDIA_ENABLED && remoteConfig.getBoolean(MEDIA_KEY)
-    val nsfwEnabled: Boolean
-        get() = BuildConfig.FEATURE_NSFW_ENABLED && remoteConfig.getBoolean(NSFW_KEY)
     val huntsEnabled: Boolean
         get() = BuildConfig.FEATURE_HUNTS_ENABLED && remoteConfig.getBoolean(HUNTS_KEY)
 

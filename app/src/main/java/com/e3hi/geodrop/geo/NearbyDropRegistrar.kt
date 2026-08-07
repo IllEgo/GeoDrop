@@ -138,24 +138,16 @@ class NearbyDropRegistrar {
 
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                val allowNsfw = if (me.isNullOrBlank()) {
-                    false
-                } else {
-                    runCatching {
-                        db.collection("users").document(me).get().await().getBoolean("nsfwEnabled") == true
-                    }.getOrElse { false }
-                }
-
                 val repo = FirestoreRepo()
                 val lockedDropIds = if (!me.isNullOrBlank()) {
                     runCatching {
-                        repo.fetchLockedHuntDropIds(me, allowNsfw, allowedGroups)
+                        repo.fetchLockedHuntDropIds(me, allowedGroups)
                     }.getOrElse { emptySet() }
                 } else {
                     emptySet()
                 }
 
-                val visibleDrops = repo.getVisibleDropsForUser(me, allowedGroups, allowNsfw)
+                val visibleDrops = repo.getVisibleDropsForUser(me, allowedGroups)
                 val pendingIntent = GeofencePendingIntent.get(context)
 
                 // Remove all previously registered geofences before re-registering.
@@ -176,7 +168,7 @@ class NearbyDropRegistrar {
 
                     val dropGroup = GroupPreferences.normalizeGroupCode(drop.groupCode)
                     if (dropGroup != null && dropGroup !in allowedGroups) continue
-                    if (drop.isNsfw && !allowNsfw) continue
+                    if (drop.isNsfw) continue
                     if (drop.isExpired()) continue
 
                     val distance = distanceMeters(originLat, originLng, drop.lat, drop.lng)
@@ -318,7 +310,7 @@ class NearbyDropRegistrar {
     }
 
     private fun Drop.isReleaseFeatureEnabled(): Boolean =
-        (PilotFeatureFlags.nsfwEnabled || !isNsfw) &&
+        !isNsfw &&
             (PilotFeatureFlags.couponsEnabled || dropType != DropType.RESTAURANT_COUPON) &&
             (PilotFeatureFlags.mediaEnabled || contentType == DropContentType.TEXT) &&
             (PilotFeatureFlags.huntsEnabled || huntId.isNullOrBlank())

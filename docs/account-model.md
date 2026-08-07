@@ -37,6 +37,13 @@ named in the rules themselves so the two lists cannot drift apart silently.
 **Client-authored** — `displayName`, `username`, `nsfwEnabled`, `nsfwEnabledAt`,
 `createdAt`.
 
+`nsfwEnabled`/`nsfwEnabledAt` are **legacy**. No client writes them any more (task 2.8
+removed the NSFW preference along with the pilot flag) and nothing reads them. They stay
+in the allow-list because documents created before 2.8 still carry them, and
+`hasOnlyAllowedUserFields()` sees the merged document — dropping them from the list would
+lock every one of those profiles out of its own updates. `hasPilotSafeContentPreference()`
+still pins any surviving value to `false`.
+
 **Server-authored** — `role`, `businessName`, `businessCategories`, `moderationStatus`,
 `suspendedAt`, `suspendedBy`, `suspensionReason`, `suspensionCaseId`, `reinstatedAt`,
 `legalAcceptanceVersion`, `legalAcceptedAt`.

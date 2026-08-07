@@ -7,9 +7,7 @@ data class UserProfile(
     val memberSince: Long? = null,
     val role: UserRole = UserRole.EXPLORER,
     val businessName: String? = null,
-    val businessCategories: List<BusinessCategory> = emptyList(),
-    val nsfwEnabled: Boolean = false,
-    val nsfwEnabledAt: Long? = null
+    val businessCategories: List<BusinessCategory> = emptyList()
 )
 
 /**
@@ -37,7 +35,3 @@ enum class UserRole {
 }
 
 fun UserProfile.isBusiness(): Boolean = role == UserRole.BUSINESS
-
-// Mature content stays unavailable for the market pilot, including profiles
-// that may still contain a legacy opt-in value.
-fun UserProfile.canViewNsfw(): Boolean = false
