@@ -87,6 +87,10 @@ final class AppViewModel: ObservableObject {
     @Published private(set) var isRecordingLegalAcceptance: Bool = false
     @Published var selectedExplorerDestination: ExplorerDestination = .nearby
     @Published var explorerRestrictionMessage: String?
+    /// Drops whose proximity was proven this session by a precise fix taken at the
+    /// moment of the attempt. Only the fact of the unlock is kept, never the position.
+    @Published private(set) var unlockedDropIDs: Set<String> = []
+    @Published private(set) var unlockingDropID: String?
     @Published var notificationRadiusMeters: Double
     @Published private(set) var nearbyAlertsEnabled: Bool
     @Published var errorMessage: String?
@@ -198,13 +202,13 @@ final class AppViewModel: ObservableObject {
         return location.distance(from: dropLocation)
     }
 
+    /// Tasks 3.2/3.3 — `currentLocation` is an approximate fix now, so it cannot decide
+    /// a 30 m question. Content is revealed only once `attemptUnlock` has proven
+    /// proximity with a precise fix.
     func canPreview(drop: Drop, distance: CLLocationDistance? = nil) -> Bool {
         if isOwner(of: drop) { return true }
         if hasCollected(drop: drop) { return true }
-        
-        let resolvedDistance = distance ?? distanceToDrop(drop)
-        guard let resolvedDistance else { return false }
-        return resolvedDistance <= Self.dropPreviewRadiusMeters
+        return unlockedDropIDs.contains(drop.id)
     }
 
     func previewRestrictionMessage(for drop: Drop, distance: CLLocationDistance? = nil) -> String? {
@@ -695,32 +699,43 @@ final class AppViewModel: ObservableObject {
         }
     }
 
+    /// The unlock attempt (task 3.3, direction doc steps 2–5): request precise location
+    /// now, answer the proximity question, then let the fix go. Fail-closed throughout,
+    /// matching Android's DropDecisionReceiver.
+    private func preciseFixForUnlock() async -> CLLocation? {
+        await withCheckedContinuation { continuation in
+            locationService.requestPreciseFix { continuation.resume(returning: $0) }
+        }
+    }
+
     @discardableResult
-    func markCollected(drop: Drop) -> DropActionError? {
+    func markCollected(drop: Drop) async -> DropActionError? {
         guard case let .signedIn(session) = authState else { return .notSignedIn }
 
-        // Proximity is fail-closed, matching Android's DropDecisionReceiver: no fix, a
-        // stale fix, or one too imprecise to trust all reject the pickup. The previous
-        // `if let distance = distanceToDrop(drop)` fell through whenever there was no
-        // fix, which let a collect succeed from anywhere.
         let radius = Self.dropPreviewRadiusMeters
-        guard let location = locationService.currentLocation else {
+        unlockingDropID = drop.id
+        let fix = await preciseFixForUnlock()
+        unlockingDropID = nil
+
+        guard let location = fix else {
             return .invalidInput("Can't confirm your location yet. Try again in a moment.")
         }
         guard Date().timeIntervalSince(location.timestamp) <= Self.locationStaleThresholdSeconds else {
             return .invalidInput("Your location reading is out of date. Try again in a moment.")
         }
-        // A negative horizontalAccuracy means the fix is invalid. A large one means
-        // reduced accuracy is on, where a 30 m check cannot mean anything.
+        // A negative horizontalAccuracy means the fix is invalid. A large one means the
+        // user declined temporary full accuracy, where a 30 m check cannot mean anything.
         guard location.horizontalAccuracy >= 0, location.horizontalAccuracy <= radius else {
             return .invalidInput(
-                "Your location isn't precise enough to pick this up. Turn on Precise Location and try again."
+                "Your location isn't precise enough to pick this up. Allow precise location and try again."
             )
         }
         let dropLocation = CLLocation(latitude: drop.latitude, longitude: drop.longitude)
         guard location.distance(from: dropLocation) <= radius + location.horizontalAccuracy else {
             return .invalidInput("Move within \(Int(radius.rounded())) meters to pick up this drop.")
         }
+
+        unlockedDropIDs.insert(drop.id)
 
         Task {
             do {

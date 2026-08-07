@@ -255,10 +255,13 @@ struct DropDetailView: View {
                 Button {
                     handleCollect(drop)
                 } label: {
-                    Label(hasCollected ? "Collected" : "Collect", systemImage: hasCollected ? "checkmark.circle" : "tray.and.arrow.down")
+                    Label(
+                        hasCollected ? "Collected" : (viewModel.unlockingDropID == drop.id ? "Checking…" : "Unlock"),
+                        systemImage: hasCollected ? "checkmark.circle" : "lock.open"
+                    )
                 }
                 .buttonStyle(.bordered)
-                .disabled(hasCollected)
+                .disabled(hasCollected || viewModel.unlockingDropID == drop.id)
             }
 
             if !likePermission.allowed, let message = likePermission.message {
@@ -502,8 +505,10 @@ struct DropDetailView: View {
             infoAlertMessage = "You created this drop."
             return
         }
-        if let error = viewModel.markCollected(drop: drop) {
-            infoAlertMessage = error.localizedDescription
+        Task {
+            if let error = await viewModel.markCollected(drop: drop) {
+                infoAlertMessage = error.localizedDescription
+            }
         }
     }
 

@@ -31,6 +31,11 @@
 	<string>GeoDrop needs your location to show nearby drops.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>GeoDrop uses background location only after you enable Nearby alerts, so it can notify you about drops within your chosen radius while the app is closed.</string>
+	<key>NSLocationTemporaryUsageDescriptionDictionary</key>
+	<dict>
+		<key>UnlockDrop</key>
+		<string>GeoDrop needs your precise location for a moment to confirm you are standing at this drop. It is used for that check only and is not stored.</string>
+	</dict>
 	<key>NSCameraUsageDescription</key>
 	<string>GeoDrop uses the camera to attach photos to drops.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

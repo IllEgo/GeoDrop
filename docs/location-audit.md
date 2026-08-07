@@ -159,6 +159,13 @@ because it makes that trivial rather than deliberate on iOS.
 
 ---
 
+## Status after 3.2/3.3 (2026-08-06)
+
+F1, F4, and F5 are closed, and F3 was closed earlier: neither client streams location,
+browsing runs on approximate one-shot fixes, precision is requested only at an unlock
+attempt, and iOS now requests temporary full accuracy. F2 (background location for
+geofenced alerts) is untouched and belongs to 3.4. F6 and F7 stand as recorded.
+
 ## Suggested sequencing for the rest of Phase 3
 
 3.2 and 3.3 are genuinely coupled through A4/A6 and should be planned together even if

@@ -429,6 +429,10 @@ without rerouting it breaks the user-facing "move closer" message (the real chec
 **Deliverable:** Map and nearby-list use coarse location only.
 **Acceptance:** Verified on device with precise location denied — browsing still works.
 
+**Done 2026-08-06, together with 3.3** — see the combined note under 3.3. They could not
+be separated: the browse location also drove the content-preview and collect gates, so
+coarsening it alone would have denied preview and collect to a user standing at the drop.
+
 ### 3.3 — Precise location on unlock only
 **Deliverable:** Precise location requested at the moment of an unlock attempt, released
 after the proximity check resolves. Prefer Android's one-time precise-location mechanism.
@@ -436,6 +440,53 @@ after the proximity check resolves. Prefer Android's one-time precise-location m
 completes. Unlock still works at your target GPS accuracy.
 **Gate:** On-device demo. This is the flow most likely to frustrate pilot users — worth
 testing outdoors before signing off.
+
+**Done 2026-08-06 with 3.2, both clients.** The two tasks were merged after the 3.1 audit
+showed they share a mechanism: browse location fed the proximity gates, so 3.2 alone would
+either break those gates or force them to tolerate ±100 m — which would have loosened
+proximity gating, the product's core mechanic, to roughly a 130 m radius.
+
+**The model now matches the direction doc's six steps:**
+
+| Step | Android | iOS |
+| --- | --- | --- |
+| Browse on approximate | `getApproximateLocation()`, `PRIORITY_BALANCED_POWER_ACCURACY`, one-shot per list load | `refreshApproximateLocation()`, `kCLLocationAccuracyHundredMeters`, one-shot |
+| Precise only at unlock | `attemptUnlock` → `getPreciseFixForUnlock()` | `markCollected` → `requestPreciseFix` |
+| Check proximity | `distance <= 30 m + fix accuracy`, fail-closed | same comparison, fail-closed |
+| Record the unlock | `unlockedDropIds` (ids only) | `unlockedDropIDs` (ids only) |
+| Stop afterwards | one-shot; nothing retained | accuracy returns to approximate after each fix |
+
+**Removed:** the continuous `PRIORITY_HIGH_ACCURACY` stream on Android (5 s interval, held
+for as long as the explorer surface was open) and `startUpdatingLocation()` on iOS (stopped
+only on de-authorization). Neither client streams location now.
+
+**Permission split (3.1's F5).** Browsing asks for `ACCESS_COARSE_LOCATION` only;
+`ACCESS_FINE_LOCATION` is requested at the first unlock attempt. On iOS,
+`requestTemporaryFullAccuracyAuthorization` is finally used — with the `UnlockDrop`
+purpose key added to `Info.plist` — so a user who keeps Precise Location off can still
+unlock, which closes the hard stop that 3.1's F4 and the F3 fix had left open.
+
+**Two traps worth recording, both found and closed during implementation:**
+
+1. **Nearby alerts would have silently broken.** Geofencing needs FINE
+   (`NearbyDropRegistrar` refuses to register without it), and once browsing was satisfied
+   by a coarse grant, the alerts flow read "location granted" and proceeded to fail. The
+   alerts flow now reads the *precise* permission state, and its dialog requests precise
+   directly instead of sending the user back to a Nearby control that only asks for coarse.
+2. **The iOS Collect button was gated on `canPreview`.** Since previewing now requires an
+   unlock, and that button *is* the unlock attempt, leaving the gate would have made every
+   drop permanently uncollectable. It is now gated on collected/in-flight only.
+
+**UX change to review:** content is no longer revealed by merely standing near a drop. The
+card shows an **Unlock drop** button; a successful check reveals the content and offers
+**Pick up drop**. This is a truer reading of the direction doc — the unlock is an attempt
+the user makes — but it is a visible change to the pilot's core loop and is the thing most
+worth watching in the on-device demo.
+
+**Acceptance not yet met — this needs your device.** Both acceptance criteria are physical:
+browsing with precise denied, and instrumented proof that precise access is not held after
+the check. The code holds no fix beyond the check by construction, but "verified on device"
+is your call, outdoors, at your target GPS accuracy. iOS is compile-verified only.
 
 ### 3.4 — Remove background and continuous location
 **Deliverable:** Background location permission and any continuous tracking removed from
