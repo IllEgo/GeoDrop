@@ -560,6 +560,58 @@ trail. Confirm no other user's live position is exposed by default.
 existing trails follows the 1.4 pattern — dry run, then live, two gates.
 **Gate:** Two gates, as in 1.4.
 
+**Done 2026-08-06. There was nothing to remove, and that is the finding.**
+
+**Schema diff — what stopped being written.** Nothing, because no location trail was ever
+written. The 3.1 audit established it and 3.5 proved it: the only coordinates in Firestore
+are the drops' own `lat`/`lng`, which are authored content. A collect writes exactly one
+field, `collectedBy.{uid}`. The scavenger-hunt receipt (`users/{uid}/huntProgress/{huntId}`)
+stores `currentStepIndex` and `completedStepIds` — ids and counts. 3.3's unlock record is a
+set of drop ids held in memory for the session. **A user-scoped document records which drop
+was unlocked and when, never where the user was.**
+
+**Gate 1 — prod dry run (read-only), 2026-08-06:**
+
+```
+Root collections: usernames, users
+Root-level trail collections: 0
+User documents: 25
+User subcollections seen: inventory(1), legalAcceptances(1), notificationTokens(1)
+User docs carrying position-shaped fields: 0
+Trail documents found: 0
+RESULT: no location trail exists. Nothing to dispose of.
+```
+
+**Gate 2 — live run: not applicable.** There is nothing to delete. The 1.4 pattern is
+satisfied by demonstrating an empty target rather than by executing a deletion.
+
+**The real deliverable is enforcement, not removal.** An absence that holds only because
+nobody happened to write a trail is worth little, so it is now pinned by
+`firestore-tests/locationPrivacyRules.test.js` (wired into the CI suite, 11 files):
+
+- the profile rejects `lat`/`lng`, `lastKnownLocation`, `locationHistory`, `lastSeenLat`,
+  `currentLatitude` — `hasOnlyAllowedUserFields()` closes the field list;
+- trail-shaped subcollections (`locationHistory`, `locations`, `positions`, `breadcrumbs`,
+  `visits`) and a root `locationHistory` are unwritable. These have no match block, so the
+  default deny covers them — the assertions exist so that adding a permissive wildcard
+  later **fails here** instead of silently opening a trail;
+- hunt progress accepts step ids but **rejects the same receipt carrying
+  `unlockedAtLat`/`unlockedAtLng`**;
+- no user can write a position onto another user's document or subcollection.
+
+**One deliberate exception, asserted as allowed:** `users/{uid}/inventory/{dropId}` stores
+`lat`/`lng`. Those are the *collected drop's* coordinates — a copy of content the user has
+already unlocked, not a position reading. The test asserts it succeeds so a future
+tightening cannot silently break collecting, and separately asserts that the inventory's
+closed field list rejects `collectorLat`/`collectorLng`.
+
+**"No other user's live position is exposed by default" holds by construction:** no user
+position is stored anywhere, so there is nothing to expose. `users/{uid}` is readable by
+any signed-in user, which is why the closed field list — not the read rule — is what keeps
+positions out.
+
+**PHASE 3 COMPLETE.**
+
 ---
 
 ## Phase 4 — Complete the launch scope
