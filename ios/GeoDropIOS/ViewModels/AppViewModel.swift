@@ -96,7 +96,6 @@ final class AppViewModel: ObservableObject {
     /// moment of the attempt. Only the fact of the unlock is kept, never the position.
     @Published private(set) var unlockedDropIDs: Set<String> = []
     @Published private(set) var unlockingDropID: String?
-    @Published var notificationRadiusMeters: Double
     @Published private(set) var nearbyAlertsEnabled: Bool
     @Published var errorMessage: String?
     @Published var isPerformingAction: Bool = false
@@ -110,7 +109,6 @@ final class AppViewModel: ObservableObject {
     @Published var isShowingDropComposer: Bool = false
     @Published var isShowingGroupMenu: Bool = false
     @Published var isShowingGroupManagement: Bool = false
-    @Published var isShowingNotificationRadius: Bool = false
     @Published var isShowingTutorialSlides: Bool = false
     @Published var isShowingFaq: Bool = false
     @Published var infoMenuURL: URL?
@@ -145,7 +143,6 @@ final class AppViewModel: ObservableObject {
         self.inventory = inventoryService.inventory(for: initialUserId)
         let storedNotificationPreferences = NotificationPreferences(userDefaults: userDefaults)
         self.notificationPreferences = storedNotificationPreferences
-        self.notificationRadiusMeters = storedNotificationPreferences.radiusMeters()
         self.nearbyAlertsEnabled = PilotFeatureFlags.shared.notificationsEnabled &&
             storedNotificationPreferences.nearbyAlertsEnabled()
         self.legalManifest = nil
@@ -1297,29 +1294,6 @@ final class AppViewModel: ObservableObject {
         isShowingGroupManagement = false
     }
 
-    func openNotificationRadiusSettings() {
-        guard featureFlags.notificationsEnabled else {
-            errorMessage = "Nearby notifications are disabled for this release."
-            return
-        }
-        guard canParticipate else {
-            errorMessage = participationRestrictionMessage(action: "manage notifications")
-            return
-        }
-
-        isShowingNotificationRadius = true
-        isShowingAccountMenu = false
-    }
-
-    func dismissNotificationRadiusSettings() {
-        isShowingNotificationRadius = false
-    }
-
-    func setNotificationRadius(_ meters: Double) {
-        notificationPreferences.setRadiusMeters(meters)
-        notificationRadiusMeters = notificationPreferences.radiusMeters()
-    }
-
     func setNearbyAlertsEnabled(_ enabled: Bool) {
         let allowedValue = featureFlags.notificationsEnabled && enabled
         notificationPreferences.setNearbyAlertsEnabled(allowedValue)
@@ -1387,7 +1361,6 @@ final class AppViewModel: ObservableObject {
         isShowingDropComposer = false
         isShowingGroupMenu = false
         isShowingGroupManagement = false
-        isShowingNotificationRadius = false
     }
 
     private func hideParticipationDependentOverlays() {
@@ -1395,8 +1368,7 @@ final class AppViewModel: ObservableObject {
             isShowingDropComposer = false
             isShowingGroupMenu = false
             isShowingGroupManagement = false
-            isShowingNotificationRadius = false
-        }
+            }
     }
 }
 
