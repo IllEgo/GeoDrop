@@ -502,10 +502,6 @@ class DropDetailActivity : ComponentActivity() {
                     var hasCollected by remember(dropId) {
                         mutableStateOf(dropId.isNotBlank() && noteInventory.isCollected(dropId))
                     }
-                    val redemptionCodeInputState = rememberSaveable(dropId, stateSaver = TextFieldValue.Saver) {
-                        mutableStateOf(TextFieldValue(""))
-                    }
-                    val redemptionCodeInput = redemptionCodeInputState.value
                     var redemptionError by remember(dropId) { mutableStateOf<String?>(null) }
                     var redemptionSuccessMessage by remember(dropId) { mutableStateOf<String?>(null) }
                     var redeeming by remember(dropId) { mutableStateOf(false) }
@@ -800,12 +796,6 @@ class DropDetailActivity : ComponentActivity() {
                                             state = detail,
                                             hasCollected = hasCollected,
                                             alreadyRedeemed = alreadyRedeemed,
-                                            redemptionCode = redemptionCodeInput,
-                                            onRedemptionCodeChange = {
-                                                redemptionCodeInputState.value = it
-                                                redemptionError = null
-                                                redemptionSuccessMessage = null
-                                            },
                                             redeeming = redeeming,
                                             redemptionError = redemptionError,
                                             redemptionSuccess = redemptionSuccessMessage,
@@ -815,11 +805,6 @@ class DropDetailActivity : ComponentActivity() {
                                                 if (!canParticipate) {
                                                     redemptionError = redemptionRestrictionMessage
                                                         ?: "Sign in to redeem this offer."
-                                                    return@BusinessDetailSection
-                                                }
-                                                val trimmed = redemptionCodeInput.text.trim()
-                                                if (trimmed.isEmpty()) {
-                                                    redemptionError = "Enter the code shared by the business."
                                                     return@BusinessDetailSection
                                                 }
                                                 val userId = currentUserId
@@ -836,7 +821,7 @@ class DropDetailActivity : ComponentActivity() {
                                                 redeeming = true
                                                 scope.launch {
                                                     try {
-                                                        when (val result = repo.redeemDrop(dropId, userId, trimmed)) {
+                                                        when (val result = repo.redeemDrop(dropId, userId)) {
                                                             is RedemptionResult.Success -> {
                                                                 val currentLoaded = state as? DropDetailUiState.Loaded ?: detail
                                                                 val updatedMap = currentLoaded.redeemedBy.toMutableMap()
@@ -853,8 +838,9 @@ class DropDetailActivity : ComponentActivity() {
                                                                     redeemedAt = result.redeemedAt,
                                                                     isRedeemed = true
                                                                 )
-                                                                redemptionCodeInputState.value = TextFieldValue("")
-                                                                redemptionSuccessMessage = "Offer redeemed! Show this confirmation to the business."
+                                                                redemptionSuccessMessage = result.code
+                                                                    ?.let { "Your code: $it — show it at the counter." }
+                                                                    ?: "Offer redeemed! Show this confirmation to the business."
                                                             }
 
                                                             RedemptionResult.InvalidCode -> {
@@ -1780,8 +1766,6 @@ private fun BusinessDetailSection(
     state: DropDetailUiState.Loaded,
     hasCollected: Boolean,
     alreadyRedeemed: Boolean,
-    redemptionCode: TextFieldValue,
-    onRedemptionCodeChange: (TextFieldValue) -> Unit,
     redeeming: Boolean,
     redemptionError: String?,
     redemptionSuccess: String?,
@@ -1851,14 +1835,6 @@ private fun BusinessDetailSection(
                             )
                         }
                     } else {
-                        OutlinedTextField(
-                            value = redemptionCode,
-                            onValueChange = onRedemptionCodeChange,
-                            label = { Text("Redemption code") },
-                            enabled = !redeeming,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-
                         redemptionError?.let { message ->
                             Text(
                                 text = message,

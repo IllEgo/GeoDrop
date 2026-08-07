@@ -804,18 +804,16 @@ final class AppViewModel: ObservableObject {
         }
     }
     
-    func redeem(drop: Drop, code: String) async -> RedemptionResult {
+    func redeem(drop: Drop) async -> RedemptionResult {
         guard featureFlags.couponsEnabled else {
             return .error("Offers are disabled for this release.")
         }
         guard let userId = currentUserID else {
             return .error("Sign in to redeem offers.")
         }
-        let trimmed = code.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return .invalidCode }
         do {
-            let result = try await firestore.redeemDrop(dropId: drop.id, userId: userId, providedCode: trimmed)
-            if case let .success(count, limit, redeemedAt) = result {
+            let result = try await firestore.redeemDrop(dropId: drop.id, userId: userId)
+            if case let .success(count, limit, redeemedAt, issuedCode) = result {
                 // redeemedAt is integer milliseconds now; Date wants seconds.
                 let redemptionDate = Date(timeIntervalSince1970: Double(redeemedAt) / 1000)
                 var updatedDrop = drop
@@ -826,7 +824,7 @@ final class AppViewModel: ObservableObject {
                     dropId: drop.id,
                     count: count,
                     limit: limit,
-                    code: trimmed,
+                    code: issuedCode,
                     redeemedAt: redemptionDate,
                     drop: updatedDrop,
                     for: userId

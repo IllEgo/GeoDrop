@@ -19,7 +19,6 @@ struct DropDetailView: View {
     @State private var reportErrorMessage: String?
     @State private var actionStatusMessage: String?
     @State private var infoAlertMessage: String?
-    @State private var redemptionCodeInput: String = ""
     @State private var redemptionStatusMessage: String?
     @State private var redemptionErrorMessage: String?
     @State private var isRedeeming = false
@@ -317,10 +316,6 @@ struct DropDetailView: View {
                     .font(.footnote)
                     .foregroundColor(.secondary)
             } else {
-                TextField("Enter redemption code", text: $redemptionCodeInput)
-                    .textFieldStyle(.roundedBorder)
-                    .disabled(!canParticipate || viewModel.currentUserID == nil)
-
                 Button {
                     redeem(drop)
                 } label: {
@@ -557,23 +552,18 @@ struct DropDetailView: View {
     }
 
     private func redeem(_ drop: Drop) {
-        let trimmed = redemptionCodeInput.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            redemptionErrorMessage = "Enter the code shared by the business."
-            redemptionStatusMessage = nil
-            return
-        }
         redemptionErrorMessage = nil
         redemptionStatusMessage = nil
         isRedeeming = true
         Task { @MainActor in
-            let result = await viewModel.redeem(drop: drop, code: trimmed)
+            let result = await viewModel.redeem(drop: drop)
             isRedeeming = false
             switch result {
-            case let .success(_, _, _):
-                redemptionStatusMessage = "Offer redeemed! Show this confirmation to the business."
+            case let .success(_, _, _, issuedCode):
+                redemptionStatusMessage = issuedCode.map {
+                    "Your code: \($0) — show it at the counter."
+                } ?? "Offer redeemed! Show this confirmation to the business."
                 redemptionErrorMessage = nil
-                redemptionCodeInput = ""
             case .invalidCode:
                 redemptionErrorMessage = "That code didn't match. Try again."
             case .alreadyRedeemed:
