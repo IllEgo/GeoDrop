@@ -133,6 +133,74 @@ function baseDrop(overrides) {
       })
     );
 
+    // --- redeeming an offer (task 4.3 prerequisite) ------------------------
+    //
+    // No test asserted a *successful* redemption before, which is exactly why the
+    // redemption branch running out of expression budget stayed hidden. These
+    // assertions are the regression guard for that.
+
+    currentCase = 'a signed-in user may redeem a coupon';
+    await env.clearFirestore();
+    await seed(env, {
+      'drops/c1': baseDrop({
+        dropType: 'RESTAURANT_COUPON',
+        businessId: 'biz',
+        redemptionCount: 0,
+        redeemedBy: {},
+      }),
+    });
+    await assertSucceeds(
+      me.firestore().doc('drops/c1').update({
+        'redeemedBy.me': Date.now(),
+        redemptionCount: 1,
+      })
+    );
+
+    currentCase = 'the same user cannot redeem twice';
+    await assertFails(
+      me.firestore().doc('drops/c1').update({
+        'redeemedBy.me': Date.now(),
+        redemptionCount: 2,
+      })
+    );
+
+    currentCase = 'redemption cannot exceed the limit';
+    await env.clearFirestore();
+    await seed(env, {
+      'drops/c2': baseDrop({
+        dropType: 'RESTAURANT_COUPON',
+        businessId: 'biz',
+        redemptionCount: 5,
+        redemptionLimit: 5,
+        redeemedBy: {},
+      }),
+    });
+    await assertFails(
+      me.firestore().doc('drops/c2').update({
+        'redeemedBy.me': Date.now(),
+        redemptionCount: 6,
+      })
+    );
+
+    currentCase = 'an expired coupon cannot be redeemed';
+    await env.clearFirestore();
+    await seed(env, {
+      'drops/c3': baseDrop({
+        dropType: 'RESTAURANT_COUPON',
+        businessId: 'biz',
+        createdAt: Date.now() - 3 * 86400000,
+        decayDays: 1,
+        redemptionCount: 0,
+        redeemedBy: {},
+      }),
+    });
+    await assertFails(
+      me.firestore().doc('drops/c3').update({
+        'redeemedBy.me': Date.now(),
+        redemptionCount: 1,
+      })
+    );
+
     console.log('All collect/claim rule tests passed.');
   } catch (err) {
     console.error(`Collect/claim rule tests failed during ${currentCase}:`, err);
