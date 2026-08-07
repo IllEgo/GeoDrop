@@ -343,7 +343,6 @@ struct CreateDropView: View {
 
     private var redemptionSection: some View {
         Section {
-                .textInputAutocapitalization(.characters)
             TextField("Redemption limit", text: $redemptionLimit)
                 .keyboardType(.numberPad)
         } header: {
@@ -596,11 +595,6 @@ struct CreateDropView: View {
 
         if contentType == .text && trimmedHeadline.isEmpty {
             viewModel.errorMessage = "Enter a note before dropping."
-            return
-        }
-
-        if dropType == .restaurantCoupon && trimmedCode.isEmpty {
-            viewModel.errorMessage = "Enter a redemption code for your offer."
             return
         }
 
