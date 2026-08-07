@@ -332,7 +332,46 @@ permission.
 
 **Owner actions:** delete the `pilot_nsfw_enabled` parameter from Firebase Remote Config,
 and drop `GEODROP_FEATURE_NSFW_ENABLED` from whatever build configuration the release
-pipeline selects (the example xcconfig no longer lists it).
+pipeline selects (the example xcconfig no longer lists it). Both are hygiene — nothing
+reads either value now, and leaving them costs nothing.
+
+### Phase 2 — gate resolutions
+
+Settled 2026-08-06/07. Phase 2 is closed; nothing below blocks Phase 3.
+
+**2.1 — deferred to pilot prep, not waived.** The on-device guest walkthrough is real
+verification that no test replaces, but it cannot be performed usefully today: prod has
+zero drops after the 1.4 wipe, so a guest sees an empty map. It also now has to run on a
+**current build**, since the deployed 2.7 rules refuse profile creation from older ones.
+Move it to the Pilot 1 seeding checklist and run it against seeded content.
+
+**2.2 — closed by decision.** The 0.3 ADR chose moderation over automated detection and
+the direction doc states NSFW is prohibited by policy and implementation; the classifier
+is deleted and merged. The operative constraint is not a sign-off but the direction doc's
+rule that **reporting, blocking, and a documented moderation queue exist before any public
+exposure** — that is Phase 5, already scheduled and already a dependency of the pilot.
+
+**2.4 — closed on test evidence.** `firestore-tests/organizerScopeRules.test.js` asserts
+organizer drop creation, no `businessId` spoofing, invite-only scoping, and non-member
+refusal on every CI run, and is green. That is stronger evidence than a human review pass.
+The deferred follow-up (gate group *creation* to organizer/business in `manageGroup`)
+remains scheduled in Phase 5.
+
+**2.6 — closed; the iOS Like toggle stays** (owner decision, 2026-08-06). Android has had
+a real Like control all along and still does, on two surfaces: `DropDetailActivity.kt`
+(`LikeToggleButton`, `ThumbUp`, next to the like count, gated by `canLike`) and
+`DropHereScreen.kt` (collected notes). iOS had *only* a Dislike button and no Like button,
+so converting it brought the clients to parity rather than adding a feature; removing it
+would have left iOS users able to see a like count they cannot contribute to.
+
+**2.7 (a) and (b) — closed retrospectively.** Both were enacted by the 2026-08-07 rules
+deploy before they were signed off: business metadata is server-authored in production,
+and an off-model `role` locks that profile until normalized. Recording this plainly
+because the deploy front-ran the gate. (b) has no live victims — the prod `roles:check`
+dry run found **0 off-model roles** across all 25 profiles. Reversing either now costs a
+rules change rather than a code edit.
+
+**2.8 — no gate.** Its two owner actions are hygiene, listed above.
 
 ---
 
