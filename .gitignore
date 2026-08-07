@@ -34,3 +34,7 @@ ios/GeoDropIOS.xcodeproj/project.xcworkspace/
 ios/GeoDropIOS.xcodeproj/xcuserdata/
 ios/build/
 ios/DerivedData/
+
+# Personal Claude Code overrides. settings.json (shared, team-wide) stays tracked;
+# settings.local.json is per-developer and should not be.
+.claude/settings.local.json
