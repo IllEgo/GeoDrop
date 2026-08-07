@@ -401,7 +401,13 @@ export const redeemDrop = functions
       if (receiptSnapshot.exists) {
         const existing = receiptSnapshot.get("code");
         if (typeof existing === "string" && existing.length > 0) {
-          return {code: existing, alreadyRedeemed: true};
+          return {
+            code: existing,
+            alreadyRedeemed: true,
+            redemptionCount: typeof drop.redemptionCount === "number" ? drop.redemptionCount : 0,
+            redemptionLimit: typeof drop.redemptionLimit === "number" ? drop.redemptionLimit : null,
+            redeemedAt: receiptSnapshot.get("redeemedAt") ?? null,
+          };
         }
       }
 
@@ -436,7 +442,15 @@ export const redeemDrop = functions
         businessId: typeof drop.businessId === "string" ? drop.businessId : null,
       });
 
-      return {code, alreadyRedeemed: false};
+      // The clients render count/limit alongside the code, so return them here
+      // rather than making every caller re-read the drop after redeeming.
+      return {
+        code,
+        alreadyRedeemed: false,
+        redemptionCount: count + 1,
+        redemptionLimit: limit,
+        redeemedAt,
+      };
     });
   });
 
