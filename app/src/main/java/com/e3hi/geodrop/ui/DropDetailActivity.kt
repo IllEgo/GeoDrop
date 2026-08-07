@@ -90,7 +90,6 @@ import com.e3hi.geodrop.util.PilotFeatureFlags
 import com.e3hi.geodrop.data.RedemptionResult
 import com.e3hi.geodrop.data.requiresRedemption
 import com.e3hi.geodrop.data.isRedeemedBy
-import com.e3hi.geodrop.data.canViewNsfw
 import com.e3hi.geodrop.data.UserMode
 import com.e3hi.geodrop.data.likeStatus
 import com.e3hi.geodrop.geo.DropDecisionReceiver
@@ -491,16 +490,6 @@ class DropDetailActivity : ComponentActivity() {
                     val repo = remember { FirestoreRepo() }
                     val reportReasons = remember { DefaultReportReasons }
                     val scope = rememberCoroutineScope()
-                    var nsfwAllowed by remember { mutableStateOf(false) }
-                    LaunchedEffect(currentUserId) {
-                        val userId = currentUserId
-                        if (userId.isNullOrBlank()) {
-                            nsfwAllowed = false
-                        } else {
-                            val profile = runCatching { repo.ensureUserProfile(userId) }.getOrNull()
-                            nsfwAllowed = profile?.canViewNsfw() == true
-                        }
-                    }
                     var decisionHandled by remember(dropId) { mutableStateOf(false) }
                     var decisionStatusMessage by remember(dropId) { mutableStateOf<String?>(null) }
                     var decisionProcessing by remember(dropId) { mutableStateOf(false) }

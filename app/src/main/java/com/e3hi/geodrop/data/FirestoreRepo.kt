@@ -351,19 +351,21 @@ class FirestoreRepo(
         val existingRole = UserRole.fromRaw(storedRoleRaw)
         val storedDisplayName = snapshot.getString("displayName")?.takeIf { it.isNotBlank() }
         val storedUsername = snapshot.getString("username")?.takeIf { it.isNotBlank() }
-        val storedNsfwEnabled = false
         val storedCreatedAtRaw = snapshot.get("createdAt")
         val storedCreatedAt = storedCreatedAtRaw.toMillisOrNull()
         val resolvedCreatedAt = storedCreatedAt ?: System.currentTimeMillis()
         val resolvedDisplayName = storedDisplayName ?: displayName?.takeIf { it.isNotBlank() }
 
         // Only client-authored fields are written here. `businessName`/`businessCategories`
-        // are server-authored (see firestore.rules) and would be rejected.
+        // are server-authored (see firestore.rules) and would be rejected. The NSFW
+        // preference is no longer written at all (task 2.8): nothing reads it, and
+        // firestore.rules still forces any surviving value to false. Legacy values on
+        // existing documents are cleared server-side by
+        // `functions/scripts/backfill-launch-fields.js`.
         val updates = hashMapOf<String, Any?>()
         if (!snapshot.exists()) {
             updates["role"] = UserRole.EXPLORER.name
             updates["displayName"] = resolvedDisplayName
-            updates["nsfwEnabled"] = false
             updates["createdAt"] = storedCreatedAtRaw ?: resolvedCreatedAt
         } else {
             if (snapshot.getString("role").isNullOrBlank()) {
@@ -371,12 +373,6 @@ class FirestoreRepo(
             }
             if (resolvedDisplayName != null && resolvedDisplayName != storedDisplayName) {
                 updates["displayName"] = resolvedDisplayName
-            }
-            if (snapshot.getBoolean("nsfwEnabled") != false) {
-                updates["nsfwEnabled"] = false
-            }
-            if (snapshot.contains("nsfwEnabledAt")) {
-                updates["nsfwEnabledAt"] = FieldValue.delete()
             }
             if (!snapshot.contains("createdAt")) {
                 updates["createdAt"] = resolvedCreatedAt
@@ -394,23 +390,8 @@ class FirestoreRepo(
             memberSince = storedCreatedAt ?: resolvedCreatedAt,
             role = existingRole,
             businessName = existingBusinessName,
-            businessCategories = existingBusinessCategories,
-            nsfwEnabled = storedNsfwEnabled,
-            nsfwEnabledAt = null
+            businessCategories = existingBusinessCategories
         )
-    }
-
-    suspend fun updateNsfwPreference(userId: String, @Suppress("UNUSED_PARAMETER") enabled: Boolean): UserProfile {
-        val profile = ensureUserProfile(userId)
-        if (userId.isBlank()) return profile
-        users.document(userId).set(
-            mapOf(
-                "nsfwEnabled" to false,
-                "nsfwEnabledAt" to FieldValue.delete()
-            ),
-            SetOptions.merge()
-        ).await()
-        return profile.copy(nsfwEnabled = false, nsfwEnabledAt = null)
     }
 
     private fun Any?.toMillisOrNull(): Long? = when (this) {
@@ -569,8 +550,7 @@ class FirestoreRepo(
 
     suspend fun getVisibleDropsForUser(
         userId: String?,
-        allowedGroups: Set<String>,
-        allowNsfw: Boolean
+        allowedGroups: Set<String>
     ): List<Drop> {
         val normalizedGroups = allowedGroups
             .mapNotNull { GroupPreferences.normalizeGroupCode(it) }
@@ -602,12 +582,12 @@ class FirestoreRepo(
         }
 
         val lockedDropIds = if (!userId.isNullOrBlank()) {
-            runCatching { fetchLockedHuntDropIds(userId, allowNsfw, normalizedGroups) }
+            runCatching { fetchLockedHuntDropIds(userId, normalizedGroups) }
                 .getOrElse { emptySet() }
         } else {
             // Guests see only step-0 drops for any hunt; fetch locked (step > 0) drops to hide
             runCatching {
-                fetchVisibleActiveDropDocuments(null, emptySet(), false)
+                fetchVisibleActiveDropDocuments(null, emptySet())
                     .mapNotNull { doc ->
                     val stepIndex = (doc.get("huntStepIndex") as? Number)?.toInt()
                     val huntId = doc.getString("huntId")?.takeIf { it.isNotBlank() }
@@ -618,8 +598,7 @@ class FirestoreRepo(
 
         val visibleDocuments = fetchVisibleActiveDropDocuments(
             userId,
-            normalizedGroups,
-            allowNsfw
+            normalizedGroups
         )
 
         return visibleDocuments.mapNotNull { doc ->
@@ -630,7 +609,7 @@ class FirestoreRepo(
             if (drop.id in lockedDropIds) return@mapNotNull null
 
             if (!drop.isVisibleTo(userId, normalizedGroups)) return@mapNotNull null
-            if (drop.isNsfw && !allowNsfw && drop.createdBy != userId) return@mapNotNull null
+            if (drop.isNsfw && drop.createdBy != userId) return@mapNotNull null
             if (!userId.isNullOrBlank() && drop.reportedBy.containsKey(userId)) return@mapNotNull null
             if (!drop.createdBy.isNullOrBlank() && drop.createdBy in blockedCreators) return@mapNotNull null
             if (drop.isExpired()) return@mapNotNull null
@@ -1206,7 +1185,6 @@ class FirestoreRepo(
      */
     suspend fun fetchLockedHuntDropIds(
         userId: String,
-        allowNsfw: Boolean = false,
         allowedGroups: Set<String> = emptySet()
     ): Set<String> {
         if (!PilotFeatureFlags.huntsEnabled) return emptySet()
@@ -1223,8 +1201,7 @@ class FirestoreRepo(
             // We need to find all drops with huntStepIndex > 0 to exclude them.
             val allHuntDrops = fetchVisibleActiveDropDocuments(
                 userId,
-                allowedGroups,
-                allowNsfw
+                allowedGroups
             )
             return allHuntDrops.mapNotNull { doc ->
                 val stepIndex = (doc.get("huntStepIndex") as? Number)?.toInt()
@@ -1239,8 +1216,7 @@ class FirestoreRepo(
 
         val allHuntDrops = fetchVisibleActiveDropDocuments(
             userId,
-            allowedGroups,
-            allowNsfw
+            allowedGroups
         )
 
         return allHuntDrops.mapNotNull { doc ->
@@ -1259,9 +1235,11 @@ class FirestoreRepo(
 
     private suspend fun fetchVisibleActiveDropDocuments(
         userId: String?,
-        allowedGroups: Set<String>,
-        allowNsfw: Boolean
+        allowedGroups: Set<String>
     ): List<DocumentSnapshot> {
+        // Server-flagged content is never listed. The viewer preference that used to
+        // gate this was removed at task 2.8 along with the NSFW pilot flag; NSFW is a
+        // deferred feature and prohibited by policy, so the filter is unconditional.
         fun applySafetyFilter(query: com.google.firebase.firestore.Query): com.google.firebase.firestore.Query {
             return query.whereEqualTo("isNsfw", false)
         }
@@ -1410,8 +1388,8 @@ class FirestoreRepo(
         check(PilotFeatureFlags.mediaEnabled || !hasMedia) {
             "Media drops are disabled for this release."
         }
-        check(PilotFeatureFlags.nsfwEnabled || !drop.isNsfw) {
-            "Mature content is disabled for this release."
+        check(!drop.isNsfw) {
+            "Mature content is prohibited."
         }
         val isHuntDrop = !drop.huntId.isNullOrBlank() ||
             drop.huntStepIndex != null || drop.huntTotalSteps != null
@@ -1427,7 +1405,7 @@ class FirestoreRepo(
         if (!PilotFeatureFlags.mediaEnabled && contentType != DropContentType.TEXT) {
             return false
         }
-        if (!PilotFeatureFlags.nsfwEnabled && isNsfw) return false
+        if (isNsfw) return false
         if (!PilotFeatureFlags.huntsEnabled && !huntId.isNullOrBlank()) return false
         return true
     }

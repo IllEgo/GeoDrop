@@ -398,7 +398,6 @@ final class FirestoreService {
     func listenForDrops(
         userId: String?,
         allowedGroups: Set<String>,
-        allowNsfw: Bool,
         restrictToGroups: Bool,
         onChange: @escaping ([Drop]) -> Void
     ) -> ListenerRegistration {
@@ -424,6 +423,8 @@ final class FirestoreService {
             }
         }
 
+        // Server-flagged content is never listed; the viewer preference that used to gate
+        // this went with the NSFW pilot flag at task 2.8.
         queries = queries.map { $0.whereField("isNsfw", isEqualTo: false) }
 
         guard !queries.isEmpty else {
@@ -570,22 +571,20 @@ final class FirestoreService {
         let storedCategories = (snapshot.get("businessCategories") as? [String])?.compactMap(BusinessCategory.from) ?? []
         let storedUsername = snapshot.get("username") as? String
         let storedDisplayName = snapshot.get("displayName") as? String
-        let nsfwEnabled = false
-        let nsfwEnabledAt: Date? = nil
 
         // Only client-authored fields are written here. `businessName` and
         // `businessCategories` are server-authored (task 2.7, see firestore.rules): the
         // `updateBusinessProfile` callable owns them, and a client write is rejected.
+        // The NSFW preference is no longer written at all (task 2.8) — nothing reads it,
+        // firestore.rules still forces any surviving value to false, and
+        // `functions/scripts/backfill-launch-fields.js` clears legacy values server-side.
         var updates: [String: Any] = [:]
         if !snapshot.exists {
             updates["role"] = UserRole.explorer.rawValue
             updates["displayName"] = displayName
-            updates["nsfwEnabled"] = nsfwEnabled
         } else {
             if snapshot.get("role") == nil { updates["role"] = storedRole.rawValue }
             if let displayName, storedDisplayName == nil { updates["displayName"] = displayName }
-            if snapshot.get("nsfwEnabled") as? Bool != false { updates["nsfwEnabled"] = false }
-            if snapshot.get("nsfwEnabledAt") != nil { updates["nsfwEnabledAt"] = FieldValue.delete() }
         }
 
         if !updates.isEmpty {
@@ -598,21 +597,8 @@ final class FirestoreService {
             username: storedUsername,
             role: storedRole,
             businessName: storedBusinessName,
-            businessCategories: storedCategories,
-            nsfwEnabled: nsfwEnabled,
-            nsfwEnabledAt: nsfwEnabledAt
+            businessCategories: storedCategories
         )
-    }
-
-    func updateNsfwPreference(userId: String, enabled _: Bool) async throws -> UserProfile {
-        var profile = try await ensureUserProfile(userId: userId, displayName: nil)
-        try await setDocument(users.document(userId), data: [
-            "nsfwEnabled": false,
-            "nsfwEnabledAt": FieldValue.delete()
-        ])
-        profile.nsfwEnabled = false
-        profile.nsfwEnabledAt = nil
-        return profile
     }
 
     func updateBusinessProfile(userId: String, name: String, categories: [BusinessCategory]) async throws -> UserProfile {

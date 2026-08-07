@@ -5,6 +5,8 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Photo drops still capture from the camera; audio drops still record.
+         Video capture was removed at task 2.3, which narrowed neither. -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
@@ -12,7 +14,9 @@
         android:name="android.hardware.camera"
         android:required="false" />
 
-    <!-- Needed for geofences while app is backgrounded (request at runtime with rationale) -->
+    <!-- Needed for geofences while app is backgrounded (request at runtime with rationale).
+         Phase 3 reworks proximity unlocking onto one-time precise location and revisits
+         this permission; it is deliberately NOT part of the 2.8 sweep. -->
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
 
     <application

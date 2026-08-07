@@ -245,6 +245,50 @@ credentials this session did not have.
 feature flags left behind by 2.1–2.7.
 **Acceptance:** Manifest diff reviewed. Build still passes. APK size delta reported.
 
+**Done 2026-08-06.** APK **−386,365 bytes** (−377.3 KiB, −0.95%), clean-to-clean debug
+builds measured through a `git worktree` at a short path.
+
+**The manifest result is bigger than the size result.** `androidx.work:work-runtime-ktx`
+was declared but never used — no `Worker`, no `WorkManager`, anywhere in `app/src`. Its
+manifest contributions were shipping in every build:
+
+- 2 permissions — `RECEIVE_BOOT_COMPLETED` and `FOREGROUND_SERVICE`. A location app
+  declaring both, for a library it does not use, is exactly what draws Play Console
+  scrutiny and user suspicion.
+- 4 services, one of them `exported` (`SystemJobService`), plus Room's
+  `MultiInstanceInvalidationService` — Room arrived transitively with WorkManager.
+- 8 receivers, including an exported `DiagnosticsReceiver` and a boot-completed
+  `RescheduleReceiver`.
+- A `WorkManagerInitializer` startup provider entry.
+
+**NSFW flag removed** (deferred here from task 2.2). `FEATURE_NSFW_ENABLED`, the
+`pilot_nsfw_enabled` Remote Config key, and `PilotFeatureFlags.nsfwEnabled` are gone from
+both clients; every guard they fed collapses to "server-flagged content is always
+hidden," which is the policy position anyway. The viewer-facing half of the feature was
+already dead code: the Android "Mature content" switch was hard-coded `false`, disabled,
+and wired to an empty callback, `updateNsfwPreference` ignored its argument and had no
+caller, `canViewNsfw()` returned a constant, and DropDetailActivity computed an
+`nsfwAllowed` value nothing read. iOS had the same shape (`allowNsfw`, `setAllowNsfw`,
+`toggleAllowNsfw`, a read-only "Mature content" row). Both clients also passed an
+`allowNsfw` argument down to a query layer that ignored it — the Firestore query filters
+`isNsfw == false` unconditionally on both platforms.
+
+**Kept, deliberately:** `Drop.isNsfw` (rules require the field present and `false` on
+create; list queries filter on it), the server SafeSearch enforcement path, `media3-ui`
+alongside `media3-exoplayer` (both back `DropAudioPlayer`), `CAMERA` and `RECORD_AUDIO`
+(photo and audio drops), and `material-icons-extended` and `com.google.android.material`
+(both genuinely used — the latter supplies the `Theme.Material3.*` parent). Also removed:
+two unreferenced Android Studio template stubs, `backup_rules.xml` and
+`data_extraction_rules.xml`, which the manifest never pointed at.
+
+**`ACCESS_BACKGROUND_LOCATION` was left in place** and annotated. It is load-bearing for
+geofenced nearby alerts today; Phase 3 replaces that design rather than just dropping the
+permission.
+
+**Owner actions:** delete the `pilot_nsfw_enabled` parameter from Firebase Remote Config,
+and drop `GEODROP_FEATURE_NSFW_ENABLED` from whatever build configuration the release
+pipeline selects (the example xcconfig no longer lists it).
+
 ---
 
 ## Phase 3 — Location privacy rework

@@ -92,7 +92,7 @@ class GeofenceReceiver : BroadcastReceiver() {
                 val isNsfw = doc.getBoolean("isNsfw") == true || doc.getBoolean("nsfw") == true
                 val dropType = DropType.fromRaw(doc.getString("dropType"))
                 val disabledForRelease =
-                    (!PilotFeatureFlags.nsfwEnabled && isNsfw) ||
+                    isNsfw ||
                         (!PilotFeatureFlags.couponsEnabled && dropType == DropType.RESTAURANT_COUPON) ||
                         (!PilotFeatureFlags.mediaEnabled && dropContentType != DropContentType.TEXT) ||
                         (!PilotFeatureFlags.huntsEnabled && huntId != null)

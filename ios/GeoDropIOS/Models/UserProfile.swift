@@ -7,8 +7,6 @@ struct UserProfile: Equatable {
     var role: UserRole
     var businessName: String?
     var businessCategories: [BusinessCategory]
-    var nsfwEnabled: Bool
-    var nsfwEnabledAt: Date?
 
     init(
         id: String = "",
@@ -16,9 +14,7 @@ struct UserProfile: Equatable {
         username: String? = nil,
         role: UserRole = .explorer,
         businessName: String? = nil,
-        businessCategories: [BusinessCategory] = [],
-        nsfwEnabled: Bool = false,
-        nsfwEnabledAt: Date? = nil
+        businessCategories: [BusinessCategory] = []
     ) {
         self.id = id
         self.displayName = displayName
@@ -26,8 +22,6 @@ struct UserProfile: Equatable {
         self.role = role
         self.businessName = businessName
         self.businessCategories = businessCategories
-        self.nsfwEnabled = nsfwEnabled
-        self.nsfwEnabledAt = nsfwEnabledAt
     }
 }
 

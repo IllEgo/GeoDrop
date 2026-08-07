@@ -19,8 +19,6 @@
     <string name="push_drop_default_label">your drop</string>
     <string name="push_drop_label_photo">your photo drop</string>
     <string name="push_drop_label_audio">your audio drop</string>
-    <string name="menu_disable_nsfw_drops">Disable NSFW drops</string>
-    <string name="menu_enable_nsfw_drops">Enable NSFW drops</string>
     <string name="status_signing_out">Signing out…</string>
     <string name="menu_sign_out">Sign out</string>
     <string name="home_destination_explorer">Explorer</string>
@@ -40,9 +38,7 @@
     <string name="action_my_drops_title">My drops</string>
     <string name="action_my_drops_description">Review, open, and manage the drops you\'ve shared.</string>
     <string name="action_collected_drops_title">Saved drops</string>
-    <string name="action_collected_drops_hidden_nsfw">Your NSFW settings are hiding %1$d collected %2$s.</string>
     <string name="action_collected_drops_empty">Open the drops you\'ve saved for later.</string>
-    <string name="action_collected_drops_some_hidden">Open the %1$d %2$s you\'ve saved. (%3$d hidden by NSFW settings.)</string>
     <string name="action_collected_drops_single">Open the drop you\'ve saved.</string>
     <string name="action_collected_drops_multiple">Open the %1$d drops you\'ve saved.</string>
     <string name="manage_groups">Manage groups</string>

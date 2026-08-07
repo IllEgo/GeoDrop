@@ -84,7 +84,6 @@ final class AppViewModel: ObservableObject {
     @Published private(set) var isRecordingLegalAcceptance: Bool = false
     @Published var selectedExplorerDestination: ExplorerDestination = .nearby
     @Published var explorerRestrictionMessage: String?
-    @Published var allowNsfw: Bool = false
     @Published var notificationRadiusMeters: Double
     @Published private(set) var nearbyAlertsEnabled: Bool
     @Published var errorMessage: String?
@@ -174,9 +173,6 @@ final class AppViewModel: ObservableObject {
                 if !self.featureFlags.notificationsEnabled {
                     self.notificationPreferences.setNearbyAlertsEnabled(false)
                     self.nearbyAlertsEnabled = false
-                }
-                if !self.featureFlags.nsfwEnabled {
-                    self.allowNsfw = false
                 }
                 self.objectWillChange.send()
                 Task { await self.refreshDrops() }
@@ -499,7 +495,6 @@ final class AppViewModel: ObservableObject {
         dropsListener = firestore.listenForDrops(
             userId: session.user.uid,
             allowedGroups: groupCodes,
-            allowNsfw: allowNsfw,
             restrictToGroups: selectedGroupCode != nil
         ) { [weak self] drops in
             DispatchQueue.main.async {
@@ -511,7 +506,7 @@ final class AppViewModel: ObservableObject {
                         drop.dropType != .restaurantCoupon
                     let mediaAllowed = self.featureFlags.mediaEnabled ||
                         drop.contentType == .text
-                    let nsfwAllowed = self.featureFlags.nsfwEnabled || !drop.isNsfw
+                    let nsfwAllowed = !drop.isNsfw
                     return creatorAllowed && couponAllowed && mediaAllowed && nsfwAllowed
                 }
                 self.inventoryService.merge(remoteDrops: filtered, for: self.inventoryUserId)
@@ -987,25 +982,6 @@ final class AppViewModel: ObservableObject {
         }
     }
 
-    func setAllowNsfw(_ enabled: Bool) {
-        guard case var .signedIn(session) = authState else { return }
-        Task {
-            do {
-                let updated = try await firestore.updateNsfwPreference(userId: session.user.uid, enabled: enabled)
-                session.profile = updated
-                await MainActor.run {
-                    self.authState = .signedIn(session)
-                    self.allowNsfw = false
-                    Task { await self.refreshDrops() }
-                }
-            } catch {
-                await MainActor.run {
-                    self.errorMessage = error.localizedDescription
-                }
-            }
-        }
-    }
-
     func updateExplorerUsername(to desired: String) {
         guard case var .signedIn(session) = authState else { return }
         Task {
@@ -1140,7 +1116,6 @@ final class AppViewModel: ObservableObject {
                 user: AuthenticatedUser(uid: user.uid, email: user.email, displayName: user.displayName),
                 profile: profile
             )
-            allowNsfw = false
             groups = memberships
             selectedGroupCode = nil
             blockedCreatorIDs = blocked
@@ -1340,15 +1315,6 @@ final class AppViewModel: ObservableObject {
 
     func dismissInfoMenuLink() {
         infoMenuURL = nil
-    }
-
-    func toggleAllowNsfw() {
-        guard featureFlags.nsfwEnabled else {
-            setAllowNsfw(false)
-            errorMessage = "Mature content is disabled for this release."
-            return
-        }
-        setAllowNsfw(!allowNsfw)
     }
 
     func participationRestrictionMessage(action: String) -> String {

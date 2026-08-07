@@ -62,7 +62,6 @@ android {
         buildConfigField 'boolean', 'FEATURE_NOTIFICATIONS_ENABLED', booleanBuildFlag('GEODROP_FEATURE_NOTIFICATIONS_ENABLED', false)
         buildConfigField 'boolean', 'FEATURE_COUPONS_ENABLED', booleanBuildFlag('GEODROP_FEATURE_COUPONS_ENABLED', false)
         buildConfigField 'boolean', 'FEATURE_MEDIA_ENABLED', booleanBuildFlag('GEODROP_FEATURE_MEDIA_ENABLED', false)
-        buildConfigField 'boolean', 'FEATURE_NSFW_ENABLED', booleanBuildFlag('GEODROP_FEATURE_NSFW_ENABLED', false)
         buildConfigField 'boolean', 'FEATURE_HUNTS_ENABLED', booleanBuildFlag('GEODROP_FEATURE_HUNTS_ENABLED', false)
     }
 
@@ -134,7 +133,7 @@ dependencies {
 
     implementation 'androidx.activity:activity-compose:1.9.2'
     implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.8.4'
-    implementation 'androidx.work:work-runtime-ktx:2.9.1'
+    // Supplies the Theme.Material3.* parent that res/values/themes.xml extends.
     implementation 'com.google.android.material:material:1.12.0'
 
     testImplementation 'junit:junit:4.13.2'
@@ -142,23 +141,18 @@ dependencies {
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
 
-    implementation 'com.google.android.gms:play-services-maps:18.2.0'
-    implementation 'com.google.android.gms:play-services-location:21.2.0' // if you use geofences/locations
     implementation 'com.google.android.gms:play-services-auth:21.2.0'
 
-    // For Jetpack Compose + Google Maps
+    // Maps: the core library (CameraUpdateFactory, BitmapDescriptorFactory) plus
+    // the Compose wrapper.
+    implementation 'com.google.android.gms:play-services-maps:18.2.0'
     implementation "com.google.maps.android:maps-compose:2.11.4"
-
-    // Core Maps library (still needed for CameraUpdateFactory, etc.)
-    implementation "com.google.android.gms:play-services-maps:18.2.0"
-
-    // Location services if you’re doing geofences
-    implementation "com.google.android.gms:play-services-location:21.2.0"
 
     // Jetpack Compose image loading with Coil
     implementation "io.coil-kt:coil-compose:2.7.0"
 
-    // AndroidX Media3 for ExoPlayer-based video playback
+    // AndroidX Media3 — ExoPlayer + PlayerControlView back DropAudioPlayer.
+    // Video playback was removed at task 2.3; audio drops are launch scope.
     implementation 'androidx.media3:media3-exoplayer:1.3.1'
     implementation 'androidx.media3:media3-ui:1.3.1'
 }

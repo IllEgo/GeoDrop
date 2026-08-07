@@ -18,8 +18,6 @@
     <string name="push_drop_default_label">tu drop</string>
     <string name="push_drop_label_photo">tu drop de foto</string>
     <string name="push_drop_label_audio">tu drop de audio</string>
-    <string name="menu_disable_nsfw_drops">Desactivar drops NSFW</string>
-    <string name="menu_enable_nsfw_drops">Activar drops NSFW</string>
     <string name="status_signing_out">Cerrando sesión…</string>
     <string name="menu_sign_out">Cerrar sesión</string>
     <string name="home_destination_explorer">Explorador</string>
@@ -35,9 +33,7 @@
     <string name="content_description_close_drop_list_panel">Cerrar lista de drops</string>
     <string name="action_my_drops_description">Revisa, abre y gestiona los drops que has compartido.</string>
     <string name="action_collected_drops_title">Drops recopilados</string>
-    <string name="action_collected_drops_hidden_nsfw">Tu configuración NSFW oculta %1$d %2$s recopilados.</string>
     <string name="action_collected_drops_empty">Abre los drops que guardaste para después.</string>
-    <string name="action_collected_drops_some_hidden">Abre los %1$d %2$s que guardaste. (%3$d ocultos por la configuración NSFW).</string>
     <string name="action_collected_drops_single">Abre el drop que guardaste.</string>
     <string name="action_collected_drops_multiple">Abre los %1$d drops que guardaste.</string>
     <string name="drop_detail_already_collected">Ya recogiste este drop.</string>

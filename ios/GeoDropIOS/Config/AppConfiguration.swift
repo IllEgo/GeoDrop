@@ -9,7 +9,6 @@ struct AppConfiguration {
     let featureNotificationsEnabled: Bool
     let featureCouponsEnabled: Bool
     let featureMediaEnabled: Bool
-    let featureNsfwEnabled: Bool
     let featureHuntsEnabled: Bool
     
     private init(bundle: Bundle = .main) {
@@ -22,7 +21,6 @@ struct AppConfiguration {
         featureNotificationsEnabled = Self.featureFlag("GEODROP_FEATURE_NOTIFICATIONS_ENABLED", bundle: bundle)
         featureCouponsEnabled = Self.featureFlag("GEODROP_FEATURE_COUPONS_ENABLED", bundle: bundle)
         featureMediaEnabled = Self.featureFlag("GEODROP_FEATURE_MEDIA_ENABLED", bundle: bundle)
-        featureNsfwEnabled = Self.featureFlag("GEODROP_FEATURE_NSFW_ENABLED", bundle: bundle)
         featureHuntsEnabled = Self.featureFlag("GEODROP_FEATURE_HUNTS_ENABLED", bundle: bundle)
     }
 
@@ -46,9 +44,8 @@ final class PilotFeatureFlags {
         static let notifications = "pilot_notifications_enabled"
         static let coupons = "pilot_coupons_enabled"
         static let media = "pilot_media_enabled"
-        static let nsfw = "pilot_nsfw_enabled"
         static let hunts = "pilot_hunts_enabled"
-        static let all = [creation, notifications, coupons, media, nsfw, hunts]
+        static let all = [creation, notifications, coupons, media, hunts]
     }
 
     private let build = AppConfiguration.shared
@@ -60,7 +57,6 @@ final class PilotFeatureFlags {
     var notificationsEnabled: Bool { build.featureNotificationsEnabled && remoteValue(Key.notifications) }
     var couponsEnabled: Bool { build.featureCouponsEnabled && remoteValue(Key.coupons) }
     var mediaEnabled: Bool { build.featureMediaEnabled && remoteValue(Key.media) }
-    var nsfwEnabled: Bool { build.featureNsfwEnabled && remoteValue(Key.nsfw) }
     var huntsEnabled: Bool { build.featureHuntsEnabled && remoteValue(Key.hunts) }
 
     func start() {

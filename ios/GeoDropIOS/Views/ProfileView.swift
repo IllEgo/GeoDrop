@@ -15,11 +15,10 @@ struct ProfileView: View {
                 if case let .signedIn(session) = viewModel.authState {
                     Section {
                         Text(session.user.email ?? "")
-                        LabeledContent("Mature content", value: "Unavailable during pilot")
                     } header: {
                         FormSectionHeader(
                             title: "Account",
-                            subtitle: "Manage sign-in details and personalize the content you see in GeoDrop.",
+                            subtitle: "Manage your sign-in details.",
                             systemImage: "envelope"
                         )
                     }

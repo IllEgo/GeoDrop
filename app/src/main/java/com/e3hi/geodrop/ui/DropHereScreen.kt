@@ -260,7 +260,6 @@ import com.e3hi.geodrop.data.UserMode
 import com.e3hi.geodrop.data.dropTemplatesFor
 import com.e3hi.geodrop.data.businessDropTypeOptionsFor
 import com.e3hi.geodrop.data.UserRole
-import com.e3hi.geodrop.data.canViewNsfw
 import com.e3hi.geodrop.data.RedemptionResult
 import com.e3hi.geodrop.data.applyUserLike
 import com.e3hi.geodrop.data.isBusinessDrop
@@ -2638,8 +2637,7 @@ fun DropHereScreen(
                 try {
                     val drops = repo.getVisibleDropsForUser(
                         effectiveUid,
-                        joinedGroups.map { it.code }.toSet(),
-                        allowNsfw = userProfile?.canViewNsfw() == true && canParticipate
+                        joinedGroups.map { it.code }.toSet()
                     )
                         .sortedByDescending { it.createdAt }
                     val latestLocation = if (hasForegroundLocation) {
@@ -2874,12 +2872,10 @@ fun DropHereScreen(
             collectedNotes.filter { note -> note.groupCode == code }
         } ?: collectedNotes
     }
-    val canViewNsfw = userProfile?.canViewNsfw() == true
-    val visibleCollectedNotes = if (canViewNsfw) {
-        filteredCollected
-    } else {
+    // Server-flagged content is hidden unconditionally; the viewer opt-out went with
+    // the NSFW pilot flag at task 2.8.
+    val visibleCollectedNotes =
         filteredCollected.filterNot { note -> note.isNsfw || note.nsfwLabels.isNotEmpty() }
-    }
     val hiddenNsfwCollectedCount = filteredCollected.size - visibleCollectedNotes.size
     val sortedCollectedNotes = remember(visibleCollectedNotes, collectedSortOption, collectedCurrentLocation) {
         sortCollectedNotes(visibleCollectedNotes, collectedSortOption, collectedCurrentLocation)
@@ -4254,7 +4250,6 @@ fun DropHereScreen(
                 error = explorerProfileError,
                 notificationRadius = notificationRadius,
                 nearbyAlertsEnabled = nearbyAlertsEnabled,
-                nsfwEnabled = false,
                 defaultExplorerDestination = defaultExplorerDestinationName,
                 onEditNotificationRadius = { showNotificationRadiusDialog = true },
                 onNearbyAlertsChange = { enabled ->
@@ -4267,7 +4262,6 @@ fun DropHereScreen(
                         snackbar.showMessage(scope, "Nearby alerts are off. Browsing still works.")
                     }
                 },
-                onToggleNsfw = {},
                 onDefaultExplorerDestinationChange = { destinationName ->
                     defaultExplorerDestinationName = destinationName
                     notificationPrefs.setDefaultExplorerDestination(destinationName)
@@ -7151,6 +7145,13 @@ private fun formatCoordinate(value: Double): String {
     return String.format(Locale.US, "%.5f", value)
 }
 
+// Collected notes flagged as mature content are hidden for everyone; the viewer
+// preference that used to explain this went away with the NSFW flag at task 2.8.
+private fun hiddenFlaggedCollectedMessage(count: Int): String {
+    val subject = if (count == 1) "1 collected drop is" else "$count collected drops are"
+    return "$subject hidden after being flagged as mature content."
+}
+
 
 @Composable
 private fun CollectedDropsContent(
@@ -7181,8 +7182,7 @@ private fun CollectedDropsContent(
 ) {
     if (notes.isEmpty()) {
         val message = if (hiddenNsfwCount > 0) {
-            val plural = if (hiddenNsfwCount == 1) "drop" else "drops"
-            "Your NSFW settings are hiding $hiddenNsfwCount collected $plural."
+            hiddenFlaggedCollectedMessage(hiddenNsfwCount)
         } else {
             emptyMessage ?: "You haven't collected any drops yet."
         }
@@ -7281,7 +7281,6 @@ private fun CollectedDropsContent(
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
                 header = {
                     if (hiddenNsfwCount > 0) {
-                        val plural = if (hiddenNsfwCount == 1) "drop" else "drops"
                         Surface(
                             color = MaterialTheme.colorScheme.surfaceVariant,
                             tonalElevation = 2.dp,
@@ -7289,7 +7288,7 @@ private fun CollectedDropsContent(
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text(
-                                text = "Your NSFW settings are hiding $hiddenNsfwCount collected $plural.",
+                                text = hiddenFlaggedCollectedMessage(hiddenNsfwCount),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
@@ -7883,11 +7882,9 @@ private fun ExplorerProfileDialog(
     error: String?,
     notificationRadius: Double,
     nearbyAlertsEnabled: Boolean,
-    nsfwEnabled: Boolean,
     defaultExplorerDestination: String?,
     onEditNotificationRadius: () -> Unit,
     onNearbyAlertsChange: (Boolean) -> Unit,
-    onToggleNsfw: () -> Unit,
     onDefaultExplorerDestinationChange: (String?) -> Unit,
     onAvatarUploadClick: () -> Unit,
     onSubmit: () -> Unit,
@@ -7967,12 +7964,10 @@ private fun ExplorerProfileDialog(
                 ExplorerPreferencesSection(
                     notificationRadius = notificationRadius,
                     nearbyAlertsEnabled = nearbyAlertsEnabled,
-                    nsfwEnabled = nsfwEnabled,
                     defaultExplorerDestination = defaultExplorerDestination,
                     enabled = !isSubmitting,
                     onEditNotificationRadius = onEditNotificationRadius,
                     onNearbyAlertsChange = onNearbyAlertsChange,
-                    onToggleNsfw = onToggleNsfw,
                     onDefaultExplorerDestinationChange = onDefaultExplorerDestinationChange
                 )
 
@@ -8066,12 +8061,10 @@ private fun ExplorerProfileHeader(
 private fun ExplorerPreferencesSection(
     notificationRadius: Double,
     nearbyAlertsEnabled: Boolean,
-    nsfwEnabled: Boolean,
     defaultExplorerDestination: String?,
     enabled: Boolean,
     onEditNotificationRadius: () -> Unit,
     onNearbyAlertsChange: (Boolean) -> Unit,
-    onToggleNsfw: () -> Unit,
     onDefaultExplorerDestinationChange: (String?) -> Unit
 ) {
     val options = remember { listOf<String?>(null) + ExplorerDestination.entries.map { it.name } }
@@ -8121,22 +8114,6 @@ private fun ExplorerPreferencesSection(
                 TextButton(onClick = onEditNotificationRadius, enabled = enabled) {
                     Text("Edit")
                 }
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Mature content", style = MaterialTheme.typography.labelMedium)
-                    Text("Unavailable during the market pilot", style = MaterialTheme.typography.bodyMedium)
-                }
-                Switch(
-                    checked = nsfwEnabled,
-                    onCheckedChange = { if (enabled) onToggleNsfw() },
-                    enabled = false
-                )
             }
 
             Text("Default explorer destination", style = MaterialTheme.typography.labelMedium)
