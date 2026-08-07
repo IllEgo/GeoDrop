@@ -57,6 +57,8 @@ from an account that had accepted the policies was refused).
 | 2026-07-26 | Firestore + Storage data | **Live wipe** | 1.4 | 172 docs, 98 objects / 592.8 MiB. Backup at `C:\Users\rober\GeoDrop-backups\wipe-2026-07-26\` — outside the repo, only copy of the prototype content |
 | 2026-08-07 | Firestore rules | Deploy | 2.6, 2.7 | ruleset `b83ea329-fbd5-4a25-b9fb-ca3c86f922f9`; live source verified byte-identical to repo |
 | 2026-08-07 | Firestore data | `roles:check` dry run (read-only) | 2.7 gate (c) | 25 profiles, all canonical, 0 normalize / 0 backfill / 0 flagged; `roles:apply` is a no-op. 3 profiles have no Auth user |
+| 2026-08-07 | Firestore data | Location-trail scan (read-only) | 3.5 gate 1 | 25 user docs, 0 with position-shaped fields, 0 trail docs/collections. Gate 2 not applicable |
+| 2026-08-07 | Firestore rules | Deploy | 3.5, 4.1 | ruleset `865c4276-e280-4e0f-b758-40fb9281d028`; live source verified byte-identical to repo. Ships expiry enforcement **and** the drops `allow update` split |
 
 ### Verifying what is actually live
 
