@@ -7,7 +7,6 @@ data class HuntStepDraft(
     val noteText: String = "",
     val description: String = "",
     val dropType: DropType = DropType.COMMUNITY,
-    val redemptionCode: String = "",
     val redemptionLimit: Int? = null
 )
 
