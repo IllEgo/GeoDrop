@@ -8,6 +8,11 @@ import CoreLocation
 @MainActor
 final class AppViewModel: ObservableObject {
     private static let dropPreviewRadiusMeters: CLLocationDistance = 30
+    /// How far the Nearby list reaches for ambient public drops. Fixed, and identical to
+    /// Android's NEARBY_LIST_RADIUS_METERS — the two clients must agree about how far
+    /// "nearby" reaches, or two attendees standing together see different lists.
+    /// Drops in an experience the user joined, and business drops, ignore this entirely.
+    private static let nearbyListRadiusMeters: CLLocationDistance = 300
     /// A fix older than this is not trusted for a pickup. Matches
     /// `DropDecisionReceiver.LOCATION_STALE_THRESHOLD_MILLIS` on Android.
     private static let locationStaleThresholdSeconds: TimeInterval = 120
@@ -265,7 +270,6 @@ final class AppViewModel: ObservableObject {
             let ignoredIDs = inventory.ignoredDropIDs
             let collectedIDs = Set(inventory.collectedDrops.keys)
             let userID = currentUserID
-            let radius = notificationRadiusMeters
 
             guard let currentLocation = locationService.currentLocation else {
                 return []
@@ -276,8 +280,16 @@ final class AppViewModel: ObservableObject {
                 guard !collectedIDs.contains(drop.id) else { return false }
                 guard !drop.hasBeenCollected else { return false }
 
-                //let dropLocation = CLLocation(latitude: drop.latitude, longitude: drop.longitude)
-                //guard currentLocation.distance(from: dropLocation) <= radius else { return false }
+                // A drop in an experience the user joined is nearby by definition — the
+                // event supplies the bounded geography. Only ambient public drops are
+                // distance-bounded. This filter was commented out entirely, which left
+                // the iOS Nearby list unbounded while Android's was not.
+                let isExperienceDrop = !(drop.groupCode ?? "").isEmpty
+                if !isExperienceDrop && drop.dropType == .community {
+                    let dropLocation = CLLocation(latitude: drop.latitude, longitude: drop.longitude)
+                    guard currentLocation.distance(from: dropLocation)
+                        <= Self.nearbyListRadiusMeters else { return false }
+                }
 
                 // Keep `drops` as the authoritative source of truth so that the
                 // explorer collections can still build the "My Drops" and
