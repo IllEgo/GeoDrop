@@ -60,6 +60,7 @@ from an account that had accepted the policies was refused).
 | 2026-08-07 | Firestore data | Location-trail scan (read-only) | 3.5 gate 1 | 25 user docs, 0 with position-shaped fields, 0 trail docs/collections. Gate 2 not applicable |
 | 2026-08-07 | Firestore rules | Deploy | 3.5, 4.1 | ruleset `865c4276-e280-4e0f-b758-40fb9281d028`; live source verified byte-identical to repo. Ships expiry enforcement **and** the drops `allow update` split |
 | 2026-08-07 | Remote Config | Publish | 2.8 follow-up | `pilot_nsfw_enabled` removed; template down to 5 fail-closed keys, validator updated |
+| 2026-08-07 | Firestore rules | Deploy | 4.2 | ruleset `ff9c9ba6-25df-42cd-ac7e-aba4ac968030`; live source verified byte-identical to repo. Claims are now one-way in production |
 
 ### Verifying what is actually live
 
