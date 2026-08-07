@@ -733,6 +733,14 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Task 4.3 (ADR P6) — redemption receipts. Written only by the `redeemDrop`
+    // callable with the Admin SDK; a client may read its own and write none. The
+    // issued code lives here rather than on the drop, which every reader can see.
+    match /users/{userId}/redemptions/{dropId} {
+      allow read: if isCurrentUser(userId);
+      allow create, update, delete: if false;
+    }
+
     match /users/{userId}/huntProgress/{huntId} {
       allow read: if isCurrentUser(userId);
 
