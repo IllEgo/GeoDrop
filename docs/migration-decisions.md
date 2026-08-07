@@ -226,3 +226,33 @@ A single shared code can never support that.
 rotating. Any build predating the callable will fail to redeem once the rules branch is
 removed; the pilot must ship current builds, as it already must for 2.7.
 
+### P6 addendum — the typed code goes (decided 2026-08-07)
+
+Pointing the clients at the callable turned out not to be plumbing. The existing
+signature is `redeemDrop(dropId, userId, providedCode)`: the user **types a code** and the
+client validates it. That only makes sense while a code exists in advance — the shared one
+that used to sit on the drop, which is exactly what P6 removes.
+
+**Decided: drop `providedCode` entirely.** Tap → callable → a per-user code is displayed,
+and staff verify the code the customer presents.
+
+Consequences to build against:
+
+- `FirestoreRepo.redeemDrop` (Android) and `FirestoreService.redeemDrop` (iOS) lose the
+  `providedCode` parameter and stop running their own transaction; both call `redeemDrop`.
+- The "enter the code" screen becomes "here is your code, show it at the counter" on both
+  clients.
+- **This changes what the business does at the counter** — instead of one shared code every
+  customer types, staff verify a code the customer presents. Worth telling pilot partners
+  before the event rather than at it.
+- It is also what makes redemption tracking real: who redeemed, when, how many remain. A
+  single shared code can never support that, and organiser analytics (4.4) depends on it.
+
+**Rejected:** keeping a typed code as a second factor. It adds friction, and the shared
+code would have to live somewhere readable again — reintroducing the exposure P6 exists to
+close.
+
+**Sequence for the implementation session:** point both clients at the callable first, then
+remove `redemptionCode` from the drop document and delete the rules redemption branch. Doing
+the rules step first would break redemption for every build in the field.
+
