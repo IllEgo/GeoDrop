@@ -10,6 +10,8 @@
     <string name="menu_sign_in_business_account">Sign in or create a business account</string>
     <string name="menu_notification_radius">Notification radius (%1$d m)</string>
     <string name="push_drop_collected_title">Your drop was collected</string>
+    <string name="push_drop_added_to_experience_title">New drop in your experience</string>
+    <string name="push_drop_added_to_experience_body">%1$s is waiting to be found.</string>
     <string name="push_drop_collected_body_singular">%1$s picked up %2$s.</string>
     <plurals name="push_drop_collected_body_plural">
         <item quantity="one">%1$s and %2$d other picked up %3$s.</item>

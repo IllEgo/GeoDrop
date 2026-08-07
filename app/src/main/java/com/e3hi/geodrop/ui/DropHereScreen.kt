@@ -347,7 +347,7 @@ import kotlin.math.sqrt
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DropHereScreen(
-    onNearbyAlertsEnabled: (radiusMeters: Double, groupCodes: Set<String>) -> Unit = { _, _ -> },
+    onNearbyAlertsEnabled: () -> Unit = {},
     onNearbyAlertsDisabled: () -> Unit = {}
 ) {
     val ctx = LocalContext.current
@@ -392,7 +392,6 @@ fun DropHereScreen(
     var foregroundLocationRequested by rememberSaveable { mutableStateOf(false) }
     var preciseLocationRequested by rememberSaveable { mutableStateOf(false) }
     var notificationPermissionRequested by rememberSaveable { mutableStateOf(false) }
-    var backgroundLocationRequested by rememberSaveable { mutableStateOf(false) }
     var alertPermissionFlowToken by remember { mutableIntStateOf(0) }
     var resumeAlertPermissionFlow by remember { mutableStateOf(false) }
     var showExplorerProfile by remember { mutableStateOf(false) }
@@ -1307,8 +1306,6 @@ fun DropHereScreen(
     var defaultExplorerDestinationName by remember { mutableStateOf(notificationPrefs.getDefaultExplorerDestination()) }
     var showLocationNeededForAlerts by remember { mutableStateOf(false) }
     var showNotificationPermissionRecovery by remember { mutableStateOf(false) }
-    var showBackgroundLocationRationale by remember { mutableStateOf(false) }
-    var showBackgroundPermissionRecovery by remember { mutableStateOf(false) }
 
     val permissionActivity = ctx as? Activity
     val hasFineLocation = remember(permissionStateVersion) {
@@ -1328,11 +1325,6 @@ fun DropHereScreen(
         ContextCompat.checkSelfPermission(
             ctx,
             Manifest.permission.POST_NOTIFICATIONS
-        ) == PackageManager.PERMISSION_GRANTED
-    val hasBackgroundLocation = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ||
-        ContextCompat.checkSelfPermission(
-            ctx,
-            Manifest.permission.ACCESS_BACKGROUND_LOCATION
         ) == PackageManager.PERMISSION_GRANTED
 
     // Browsing needs approximate location only (task 3.2), so COARSE alone is a full
@@ -1369,11 +1361,6 @@ fun DropHereScreen(
             permissionActivity,
             Manifest.permission.POST_NOTIFICATIONS
         ) -> PermissionGrantState.REQUESTABLE
-        else -> PermissionGrantState.BLOCKED
-    }
-    val backgroundLocationState = when {
-        hasBackgroundLocation -> PermissionGrantState.GRANTED
-        !backgroundLocationRequested -> PermissionGrantState.REQUESTABLE
         else -> PermissionGrantState.BLOCKED
     }
 
@@ -1422,17 +1409,6 @@ fun DropHereScreen(
             showNotificationPermissionRecovery = true
         }
     }
-    val backgroundLocationLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        backgroundLocationRequested = true
-        permissionStateVersion += 1
-        if (granted) {
-            alertPermissionFlowToken += 1
-        } else {
-            showBackgroundPermissionRecovery = true
-        }
-    }
 
     fun openApplicationSettings(resumeAlertFlow: Boolean = false) {
         resumeAlertPermissionFlow = resumeAlertFlow
@@ -1468,29 +1444,17 @@ fun DropHereScreen(
 
     LaunchedEffect(
         alertPermissionFlowToken,
-        foregroundLocationState,
-        notificationPermissionState,
-        backgroundLocationState
+        notificationPermissionState
     ) {
         if (alertPermissionFlowToken == 0) return@LaunchedEffect
         when (
             ContextualPermissionPolicy.nextAction(
                 intent = ContextualPermissionIntent.ENABLE_NEARBY_ALERTS,
                 onboardingComplete = hasViewedOnboarding,
-                // Geofencing needs FINE (NearbyDropRegistrar refuses to register
-                // without it), so this flow reports the *precise* state — unlike
-                // browsing, which is satisfied by the coarse grant (task 3.2).
-                foregroundLocation = preciseLocationState,
                 notificationsRequired = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU,
-                notifications = notificationPermissionState,
-                backgroundLocationRequired = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q,
-                backgroundLocation = backgroundLocationState
+                notifications = notificationPermissionState
             )
         ) {
-            ContextualPermissionAction.REQUIRE_NEARBY_LOCATION_FIRST -> {
-                alertPermissionFlowToken = 0
-                showLocationNeededForAlerts = true
-            }
             ContextualPermissionAction.REQUEST_NOTIFICATIONS -> {
                 alertPermissionFlowToken = 0
                 notificationPermissionRequested = true
@@ -1500,23 +1464,12 @@ fun DropHereScreen(
                 alertPermissionFlowToken = 0
                 showNotificationPermissionRecovery = true
             }
-            ContextualPermissionAction.SHOW_BACKGROUND_LOCATION_RATIONALE -> {
-                alertPermissionFlowToken = 0
-                showBackgroundLocationRationale = true
-            }
-            ContextualPermissionAction.OPEN_BACKGROUND_LOCATION_SETTINGS -> {
-                alertPermissionFlowToken = 0
-                showBackgroundPermissionRecovery = true
-            }
             ContextualPermissionAction.ENABLE_NEARBY_ALERTS -> {
                 alertPermissionFlowToken = 0
                 nearbyAlertsEnabled = true
                 notificationPrefs.setNearbyAlertsEnabled(true)
-                onNearbyAlertsEnabled(
-                    notificationRadius,
-                    groupPrefs.getMemberships().map { it.code }.toSet()
-                )
-                snackbar.showMessage(scope, "Nearby alerts are on.")
+                onNearbyAlertsEnabled()
+                snackbar.showMessage(scope, "Alerts are on for the experiences you've joined.")
             }
             else -> alertPermissionFlowToken = 0
         }
@@ -1656,15 +1609,10 @@ fun DropHereScreen(
 
     LaunchedEffect(
         permissionStateVersion,
-        hasFineLocation,
         hasNotificationPermission,
-        hasBackgroundLocation,
         nearbyAlertsEnabled
     ) {
-        if (
-            nearbyAlertsEnabled &&
-            (!hasFineLocation || !hasNotificationPermission || !hasBackgroundLocation)
-        ) {
+        if (nearbyAlertsEnabled && !hasNotificationPermission) {
             nearbyAlertsEnabled = false
             notificationPrefs.setNearbyAlertsEnabled(false)
             onNearbyAlertsDisabled()
@@ -2199,12 +2147,12 @@ fun DropHereScreen(
         }
     }
 
-    LaunchedEffect(joinedGroups, notificationRadius, nearbyAlertsEnabled) {
+    // Task 3.4 — alerts are membership-scoped and sent by the server, so this only has
+    // to keep the messaging token registered. Radius and group codes are no longer part
+    // of it: nothing on the device is watching a radius any more.
+    LaunchedEffect(nearbyAlertsEnabled) {
         if (nearbyAlertsEnabled && FirebaseAuth.getInstance().currentUser != null) {
-            onNearbyAlertsEnabled(
-                notificationRadius,
-                joinedGroups.map { it.code }.toSet()
-            )
+            onNearbyAlertsEnabled()
         }
     }
 
@@ -4498,67 +4446,6 @@ fun DropHereScreen(
             )
         }
 
-        if (showBackgroundLocationRationale) {
-            AlertDialog(
-                onDismissRequest = { showBackgroundLocationRationale = false },
-                title = { Text("Allow alerts when GeoDrop is closed?") },
-                text = {
-                    Text(
-                        "Background location is used only for the Nearby alerts you just enabled. Choose “Allow all the time” so GeoDrop can detect a drop without keeping the app open. You can keep browsing without it."
-                    )
-                },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            showBackgroundLocationRationale = false
-                            backgroundLocationRequested = true
-                            if (Build.VERSION.SDK_INT == Build.VERSION_CODES.Q) {
-                                backgroundLocationLauncher.launch(
-                                    Manifest.permission.ACCESS_BACKGROUND_LOCATION
-                                )
-                            } else {
-                                openApplicationSettings(resumeAlertFlow = true)
-                            }
-                        }
-                    ) {
-                        Text("Continue")
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showBackgroundLocationRationale = false }) {
-                        Text("Not now")
-                    }
-                }
-            )
-        }
-
-        if (showBackgroundPermissionRecovery) {
-            AlertDialog(
-                onDismissRequest = { showBackgroundPermissionRecovery = false },
-                title = { Text("Background location is off") },
-                text = {
-                    Text(
-                        "To receive Nearby alerts while GeoDrop is closed, open Settings → Permissions → Location and choose “Allow all the time”."
-                    )
-                },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            showBackgroundPermissionRecovery = false
-                            openApplicationSettings(resumeAlertFlow = true)
-                        }
-                    ) {
-                        Text("Open Settings")
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showBackgroundPermissionRecovery = false }) {
-                        Text("Not now")
-                    }
-                }
-            )
-        }
-
         if (showNotificationRadiusDialog) {
             NotificationRadiusDialog(
                 initialRadius = notificationRadius,
@@ -4575,10 +4462,7 @@ fun DropHereScreen(
                         }
                     )
                     if (nearbyAlertsEnabled) {
-                        onNearbyAlertsEnabled(
-                            newRadius,
-                            groupPrefs.getMemberships().map { it.code }.toSet()
-                        )
+                        onNearbyAlertsEnabled()
                     }
                 },
                 onDismiss = { showNotificationRadiusDialog = false }

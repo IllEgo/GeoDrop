@@ -518,6 +518,41 @@ Scope when this task runs:
 - Add the server-side membership push in `functions/`, alongside the two events already
   routed (`DROP_COLLECTED`, `REPORT_STATUS_UPDATED`).
 
+**Done 2026-08-06.** Merged-manifest check confirms acceptance: **zero** matches for
+`BACKGROUND_LOCATION` or `Geofence`, location permissions reduced to
+`ACCESS_COARSE_LOCATION` + `ACCESS_FINE_LOCATION`, and the only remaining services are FCM
+and vendor libraries — no foreground service exists for location or anything else we own.
+
+**Deleted:** `NearbyDropRegistrar`, `GeofenceManager`, `GeofenceReceiver`,
+`GeoFencePendingIntent`, the `GeofenceReceiver` manifest entry, the background permission,
+its launcher, its two dialogs (rationale + recovery), and `backgroundLocationState`.
+`ContextualPermissionPolicy` lost `REQUIRE_NEARBY_LOCATION_FIRST`,
+`SHOW_BACKGROUND_LOCATION_RATIONALE` and `OPEN_BACKGROUND_LOCATION_SETTINGS`; enabling
+alerts now needs `POST_NOTIFICATIONS` and nothing else.
+
+**Added:** `notifyGroupMembersOnDropCreated` in `functions/src/index.ts` — on drop create
+with `visibility == "GROUP"`, it resolves members via a `collectionGroup("groups")` query
+on the membership `code` and sends `DROP_ADDED_TO_EXPERIENCE` to each member except the
+creator. **The payload deliberately carries no location**: it says a drop exists in an
+experience you joined, never where the recipient is. The client routes the new event in
+`GeoDropMessagingService` with strings in both locales.
+
+**Kept, deliberately:** `DropDecisionReceiver`. It is the authoritative, fail-closed
+proximity check for in-app pickups and was never geofence-specific — sweeping it out with
+"the geofence machinery" would have deleted the check that makes unlocking trustworthy.
+
+**Tests:** `ContextualPermissionPolicyTest` lost the two cases that no longer exist and
+gained the property that replaced them — *alerts need no location grant at all*, asserted
+with `foregroundLocation = BLOCKED`. 25 tests / 6 classes green, plus `lintDebug`,
+`assembleDebug`, and `tsc` on functions.
+
+**Follow-up left open, deliberately:** the **notification radius** setting is now inert.
+Nothing filters by it since the geofences are gone, but it still appears in Explorer
+preferences ("Nearby notification radius"), has a dialog, is persisted, and draws a circle
+on the map — 34 references in `DropHereScreen.kt`. Shipping a pilot with a setting that
+changes nothing is misleading, so it should be removed; it was left out of this task to
+keep the removal reviewable rather than half-done.
+
 ### 3.5 — Unlock receipts, not location history
 **Deliverable:** Persist the successful unlock event only. Remove any stored location
 trail. Confirm no other user's live position is exposed by default.

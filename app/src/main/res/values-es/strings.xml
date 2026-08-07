@@ -9,6 +9,8 @@
     <string name="menu_sign_in_business_account">Inicia sesión o crea una cuenta de negocio</string>
     <string name="menu_notification_radius">Radio de notificación (%1$d m)</string>
     <string name="push_drop_collected_title">Tu drop fue recogido</string>
+    <string name="push_drop_added_to_experience_title">Nuevo drop en tu experiencia</string>
+    <string name="push_drop_added_to_experience_body">%1$s te espera.</string>
     <string name="push_drop_collected_body_singular">%1$s recogió %2$s.</string>
     <plurals name="push_drop_collected_body_plural">
         <item quantity="one">%1$s y %2$d persona más recogieron %3$s.</item>

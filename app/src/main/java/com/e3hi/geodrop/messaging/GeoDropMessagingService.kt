@@ -111,6 +111,8 @@ class GeoDropMessagingService : FirebaseMessagingService() {
     private fun resolveTitle(event: String?): String {
         return when (event) {
             EVENT_DROP_COLLECTED -> getString(R.string.push_drop_collected_title)
+            EVENT_DROP_ADDED_TO_EXPERIENCE ->
+                getString(R.string.push_drop_added_to_experience_title)
             else -> getString(R.string.app_name)
         }
     }
@@ -118,8 +120,23 @@ class GeoDropMessagingService : FirebaseMessagingService() {
     private fun resolveBody(event: String?, data: Map<String, String>): String? {
         return when (event) {
             EVENT_DROP_COLLECTED -> buildDropCollectedBody(data)
+            EVENT_DROP_ADDED_TO_EXPERIENCE -> buildDropAddedToExperienceBody(data)
             else -> null
         }
+    }
+
+    /**
+     * Task 3.4 — membership-scoped alert. The payload never carries a location; it says
+     * a drop exists in an experience the recipient joined, not where they are.
+     */
+    private fun buildDropAddedToExperienceBody(data: Map<String, String>): String? {
+        val dropLabel = data[KEY_DROP_LABEL]?.takeIf { it.isNotBlank() }
+            ?: resolveDropLabel(
+                data[KEY_DROP_TITLE],
+                data[KEY_DROP_DESCRIPTION],
+                data[KEY_DROP_CONTENT_TYPE]
+            )
+        return getString(R.string.push_drop_added_to_experience_body, dropLabel)
     }
 
     private fun buildDropCollectedBody(data: Map<String, String>): String? {
@@ -189,6 +206,7 @@ class GeoDropMessagingService : FirebaseMessagingService() {
         private const val KEY_COLLECTOR_COUNT = "collectorCount"
 
         private const val EVENT_DROP_COLLECTED = "DROP_COLLECTED"
+        private const val EVENT_DROP_ADDED_TO_EXPERIENCE = "DROP_ADDED_TO_EXPERIENCE"
 
         private val PendingIntentFlagsCompat =
             PendingIntent.FLAG_UPDATE_CURRENT or
