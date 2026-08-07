@@ -256,3 +256,46 @@ close.
 remove `redemptionCode` from the drop document and delete the rules redemption branch. Doing
 the rules step first would break redemption for every build in the field.
 
+---
+
+## P7 — Organizer analytics are a server-side rollup (added 2026-08-07, task 4.4)
+
+**Where 4.4 starts.** Per-drop stats already exist on both clients — iOS `ProfileView` renders
+redemptions and collects per drop, Android has a business dashboard — and both read straight
+off the drop document. What does not exist is any view *across* an experience: no "your event
+had N unlocks from M attendees, X redemptions across Y offers." That aggregate is what a
+paying organiser wants, and the direction doc names organiser analytics and redemption
+tracking as load-bearing for B2B revenue.
+
+**Decision: compute it server-side into a rollup document, not client-side across drops.**
+
+Why not client-side: aggregating would mean reading every drop in the experience on every
+dashboard open — expensive, slow, and bounded by what the querying client is allowed to
+read. It also produces a different answer per device depending on what happens to be
+cached, which is a poor basis for a number an organiser is paying for.
+
+Shape to build against:
+
+- A rollup document per experience, written **only** by the Admin SDK, readable **only** by
+  the experience owner. Client writes denied outright, as with redemption receipts.
+- Maintained incrementally by Firestore triggers on `drops` — `FieldValue.increment` on
+  collect and redeem transitions — rather than recomputed on read.
+- Plus a scheduled reconcile that recomputes from source and corrects drift. Incremental
+  counters drift when a trigger fails or retries; without reconciliation the number quietly
+  becomes wrong, which is worse than being absent.
+
+**Why this is only worth doing now.** These counts were not trustworthy before today. 4.2
+made claims one-way, so `collectedBy` can no longer be farmed by collect/un-collect cycling.
+4.3 moved `redemptionCount` server-side, so only the callable can increment it. Building a
+rollup on top of forgeable counters would have produced numbers not worth reporting.
+
+**Boundary — this is not pilot instrumentation.** The direction doc's success metrics
+(invite → activation, ≥1 unlock, ≥3 unlocks, trail completion, would-use-again) are funnel
+questions about *people*, and no amount of per-drop counting answers them. That is Phase 6.
+4.4 must not absorb it.
+
+**Privacy note for implementation:** `collectedBy` and `redeemedBy` already expose collector
+uids to anyone who can read the drop, so the organiser can see them today. The rollup should
+report **aggregates**, not per-attendee identity — there is no reason a dashboard needs to
+name who redeemed, and doing so would sit badly beside the location-privacy work in Phase 3.
+

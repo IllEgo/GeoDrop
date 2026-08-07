@@ -724,6 +724,23 @@ Scope when this task runs:
   pressure.
 
 ### 4.4 — Organizer analytics
+
+**Design decided 2026-08-07 — see P7 in `docs/migration-decisions.md`: a server-side
+rollup.** Per-drop stats already exist on both clients and read off the drop document; what
+is missing is the per-experience aggregate a paying organiser wants. Computing that
+client-side would mean reading every drop on every dashboard open, and would give a
+different answer per device.
+
+Scope when this task runs:
+
+- A rollup document per experience: Admin-SDK-written, owner-read, client-write-never.
+- Maintained incrementally by `drops` triggers (`FieldValue.increment` on collect and redeem
+  transitions), **plus a scheduled reconcile** that recomputes from source — incremental
+  counters drift on trigger failure or retry, and a quietly wrong number is worse than none.
+- Report **aggregates, not per-attendee identity**.
+
+**Do not absorb Phase 6.** The pilot's funnel metrics are questions about people, not drops.
+
 ### 4.5 — Scoped push notifications (explicitly joined experiences only)
 ### 4.6 — QR entry point and low-friction onboarding
 
