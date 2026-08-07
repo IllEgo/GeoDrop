@@ -387,6 +387,44 @@ lifetime, and what it's used for.
 drop-unlock attempt, and every background or continuous request.
 **Gate:** You review before any behavior changes.
 
+**Done 2026-08-06 — read-only, nothing changed. Full audit: `docs/location-audit.md`**
+(15 call sites across both clients).
+
+**Three things are already right** and 3.2–3.5 must not break them: nothing requests
+location at app launch (`ContextualPermissionPolicy` gates every prompt behind an explicit
+user intent and refuses to prompt before onboarding completes); Android's unlock check is
+*already* the Phase 3 shape (`DropDecisionReceiver` takes a one-shot high-accuracy fix at
+pickup, validates staleness and accuracy, and **fails closed**); and **no location trail is
+persisted anywhere** — the only coordinates in Firestore are the drops' own, so step 6
+holds by construction and 3.5 is mostly verification.
+
+**The core violation is browsing, not unlocking.** Both clients hold a continuous
+high-accuracy stream for as long as the explorer surface is open, purely to render
+distances and sort lists — `DropHereScreen.kt:2701` (5 s interval) and iOS
+`LocationService.startUpdating` (stopped only on de-authorization). Steps 1 and 5 exclude
+exactly this.
+
+**Also flagged:** background location is *load-bearing* for geofenced nearby alerts, so 3.4
+must decide what happens to that feature rather than just dropping the permission; Android
+requests FINE and COARSE together at browse time, before any unlock (3.2/3.3 should split
+them); and iOS never handles reduced accuracy at all — no
+`requestTemporaryFullAccuracyAuthorization`, no `accuracyAuthorization` — so with Precise
+Location off, every unlock silently fails the 30 m check.
+
+**One finding is a correctness bug, not a privacy one:** iOS `markCollected` used
+`if let distance = distanceToDrop(drop)`, and `distanceToDrop` returns `nil` when there is
+no fix — so **the proximity check was skipped entirely and the collect proceeded**. Android
+rejects in the same situation. **Fixed in the same PR** (pulled forward ahead of 3.2/3.3):
+`markCollected` is now fail-closed and mirrors Android's rejections — missing fix, fix older
+than 2 minutes, or accuracy negative or worse than the pickup radius. Consequence: a user
+with "Precise Location" off can no longer collect until F4 is addressed, which is correct
+(the 30 m check was previously passing at random against a 1–5 km fix) and matches Android.
+
+**Sequencing note:** 3.2 and 3.3 are coupled and should be planned together —
+`pickUpDrop`'s range gate reads the browse stream's cached value, so removing the stream
+without rerouting it breaks the user-facing "move closer" message (the real check in
+`DropDecisionReceiver` still holds).
+
 ### 3.2 — Approximate location for browse
 **Deliverable:** Map and nearby-list use coarse location only.
 **Acceptance:** Verified on device with precise location denied — browsing still works.

@@ -8,6 +8,9 @@ import CoreLocation
 @MainActor
 final class AppViewModel: ObservableObject {
     private static let dropPreviewRadiusMeters: CLLocationDistance = 30
+    /// A fix older than this is not trusted for a pickup. Matches
+    /// `DropDecisionReceiver.LOCATION_STALE_THRESHOLD_MILLIS` on Android.
+    private static let locationStaleThresholdSeconds: TimeInterval = 120
     enum AuthState {
         case loading
         case signedOut
@@ -695,11 +698,30 @@ final class AppViewModel: ObservableObject {
     @discardableResult
     func markCollected(drop: Drop) -> DropActionError? {
         guard case let .signedIn(session) = authState else { return .notSignedIn }
-        if let distance = distanceToDrop(drop), distance > Self.dropPreviewRadiusMeters {
-            let radius = Int(Self.dropPreviewRadiusMeters.rounded())
-            return .invalidInput("Move within \(radius) meters to pick up this drop.")
+
+        // Proximity is fail-closed, matching Android's DropDecisionReceiver: no fix, a
+        // stale fix, or one too imprecise to trust all reject the pickup. The previous
+        // `if let distance = distanceToDrop(drop)` fell through whenever there was no
+        // fix, which let a collect succeed from anywhere.
+        let radius = Self.dropPreviewRadiusMeters
+        guard let location = locationService.currentLocation else {
+            return .invalidInput("Can't confirm your location yet. Try again in a moment.")
         }
-        
+        guard Date().timeIntervalSince(location.timestamp) <= Self.locationStaleThresholdSeconds else {
+            return .invalidInput("Your location reading is out of date. Try again in a moment.")
+        }
+        // A negative horizontalAccuracy means the fix is invalid. A large one means
+        // reduced accuracy is on, where a 30 m check cannot mean anything.
+        guard location.horizontalAccuracy >= 0, location.horizontalAccuracy <= radius else {
+            return .invalidInput(
+                "Your location isn't precise enough to pick this up. Turn on Precise Location and try again."
+            )
+        }
+        let dropLocation = CLLocation(latitude: drop.latitude, longitude: drop.longitude)
+        guard location.distance(from: dropLocation) <= radius + location.horizontalAccuracy else {
+            return .invalidInput("Move within \(Int(radius.rounded())) meters to pick up this drop.")
+        }
+
         Task {
             do {
                 try await firestore.markDropCollected(dropId: drop.id, userId: session.user.uid)
