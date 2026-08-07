@@ -669,6 +669,33 @@ Firestore, merely uncollectable and hidden. Worth adding before the pilot so the
 not accumulate dead content.
 
 ### 4.2 — Collect / claim
+
+**Done 2026-08-07.** Same shape as 4.1: the feature worked, and the question was what the
+server actually guaranteed.
+
+**Collecting was already confined to the collector's own key** — `hasOnlyUserCollectedChange`
+limits the diff of `collectedBy` to `[userId]`, so you cannot collect on anyone's behalf or
+remove another collector. **What it was not, was one-way.** Nothing stopped a user removing
+or falsifying their own `collectedBy` entry and collecting again, because
+`hasUserCollectedBeforeOrAfter` accepts the write if the user collected *before or after*.
+
+That matters because a claim is the pilot's unit of value — the prize, the trail step, and
+the collect counts 4.4 will report to organisers. A reversible claim can be farmed, and the
+organiser's numbers are the thing they pay for.
+
+**A claim is now one-way:** once your entry exists it cannot be removed, nulled, or set
+false, and the whole-map rewrite that would drop it is refused too. Collecting stays
+idempotent, and collecting alongside an existing collector leaves theirs intact.
+
+**Tests:** new `firestore-tests/collectClaimRules.test.js` (13th suite) covers the happy
+path, idempotency, all three un-collect shapes (null, false, whole-map rewrite), collecting
+on someone else's behalf, removing another collector, and writing into another user's
+inventory. Full suite green.
+
+**Unchanged and worth restating:** proximity is still client-enforced on both platforms —
+no rule or callable verifies the collector was near the drop, and rules cannot check
+location. A claim is now honest about *who* and *once*, not about *where*.
+
 ### 4.3 — Redemption codes for business rewards
 ### 4.4 — Organizer analytics
 ### 4.5 — Scoped push notifications (explicitly joined experiences only)

@@ -570,10 +570,16 @@ service cloud.firestore {
       allow update: if isSignedIn()
         && isLikeReportOnlyUpdate(resource.data, request.resource.data, request.auth.uid);
 
-      // Collecting. Expiry is enforced here.
+      // Collecting. Expiry is enforced here, and a claim is one-way (task 4.2):
+      // once your entry exists it cannot be removed or falsified, so a claim
+      // cannot be farmed by collecting, un-collecting and collecting again.
       allow update: if isSignedIn()
         && isValidLikeReportCollectUpdate(resource.data, request.resource.data, request.auth.uid)
         && isNotExpired(resource.data)
+        && (
+          !hasCollectedDrop(resource.data, request.auth.uid)
+          || hasCollectedDrop(request.resource.data, request.auth.uid)
+        )
         && (
           isDropOwner(resource.data, request.auth.uid)
           || hasUserCollectedBeforeOrAfter(resource.data, request.resource.data, request.auth.uid)
