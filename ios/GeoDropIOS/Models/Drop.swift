@@ -30,11 +30,11 @@ struct Drop: Identifiable, Equatable, Codable {
     var likeCount: Int
     var likedBy: [String: Bool]
     var reportCount: Int
-    var reportedBy: [String: TimeInterval]
+    var reportedBy: [String: Int]
     var redemptionCode: String?
     var redemptionLimit: Int?
     var redemptionCount: Int
-    var redeemedBy: [String: TimeInterval]
+    var redeemedBy: [String: Int]
     var collectedBy: [String: Bool]
 
     init(
@@ -64,11 +64,11 @@ struct Drop: Identifiable, Equatable, Codable {
         likeCount: Int = 0,
         likedBy: [String: Bool] = [:],
         reportCount: Int = 0,
-        reportedBy: [String: TimeInterval] = [:],
+        reportedBy: [String: Int] = [:],
         redemptionCode: String? = nil,
         redemptionLimit: Int? = nil,
         redemptionCount: Int = 0,
-        redeemedBy: [String: TimeInterval] = [:],
+        redeemedBy: [String: Int] = [:],
         collectedBy: [String: Bool] = [:]
     ) {
         self.id = id
@@ -210,11 +210,11 @@ extension Drop {
             likeCount: (data["likeCount"] as? NSNumber)?.intValue ?? 0,
             likedBy: data["likedBy"] as? [String: Bool] ?? [:],
             reportCount: (data["reportCount"] as? NSNumber)?.intValue ?? 0,
-            reportedBy: data["reportedBy"] as? [String: TimeInterval] ?? [:],
+            reportedBy: data["reportedBy"] as? [String: Int] ?? [:],
             redemptionCode: data["redemptionCode"] as? String,
             redemptionLimit: (data["redemptionLimit"] as? NSNumber)?.intValue,
             redemptionCount: (data["redemptionCount"] as? NSNumber)?.intValue ?? 0,
-            redeemedBy: data["redeemedBy"] as? [String: TimeInterval] ?? [:],
+            redeemedBy: data["redeemedBy"] as? [String: Int] ?? [:],
             collectedBy: data["collectedBy"] as? [String: Bool] ?? [:]
         )
     }

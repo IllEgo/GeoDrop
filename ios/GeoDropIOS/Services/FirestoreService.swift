@@ -272,7 +272,11 @@ final class FirestoreService {
                     }
 
                     let updatedCount = currentCount + 1
-                    let redeemedAt = Date().timeIntervalSince1970
+                    // Integer milliseconds is the canonical schema type, matching
+                    // Android and createdAt/collectedAt. A TimeInterval is a Double in
+                    // seconds, which firestore.rules rejects (`redeemTimestamp is int`)
+                    // — every iOS redemption was refused before this.
+                    let redeemedAt = Int(Date().timeIntervalSince1970 * 1000)
                     let updates: [String: Any] = [
                         "redemptionCount": updatedCount,
                         "redeemedBy.\(userId)": redeemedAt
@@ -371,8 +375,14 @@ final class FirestoreService {
                     let snapshot = try transaction.getDocument(dropRef)
                     guard snapshot.exists else { return false }
 
-                    let already = (snapshot.get("reportedBy.\(reporterId)") as? Timestamp) != nil
-                    var updates: [String: Any] = ["reportedBy.\(reporterId)": now]
+                    // The drop's reportedBy map is integer milliseconds, matching
+                    // Android and the rest of the schema. It previously stored a
+                    // Timestamp here while the model decoded [String: TimeInterval],
+                    // so the cast failed and iOS read the map as empty — it could not
+                    // tell which drops it had already reported.
+                    let reportedAtMillis = Int(Date().timeIntervalSince1970 * 1000)
+                    let already = snapshot.get("reportedBy.\(reporterId)") != nil
+                    var updates: [String: Any] = ["reportedBy.\(reporterId)": reportedAtMillis]
                     if !already {
                         let current = snapshot.get("reportCount") as? Int
                             ?? (snapshot.get("reportCount") as? NSNumber)?.intValue
@@ -692,7 +702,7 @@ extension FirestoreService {
 }
 
 enum RedemptionResult: Equatable {
-    case success(count: Int, limit: Int?, redeemedAt: TimeInterval)
+    case success(count: Int, limit: Int?, redeemedAt: Int)
     case invalidCode
     case alreadyRedeemed
     case outOfRedemptions

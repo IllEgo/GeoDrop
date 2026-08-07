@@ -72,7 +72,7 @@ final class NoteInventoryService {
                 if let record = inventory.redeemedDrops[drop.id] {
                     storedDrop.redemptionCount = record.count
                     storedDrop.redemptionLimit = record.limit
-                    storedDrop.redeemedBy[resolvedUserId] = record.redeemedAt.timeIntervalSince1970
+                    storedDrop.redeemedBy[resolvedUserId] = Int(record.redeemedAt.timeIntervalSince1970 * 1000)
                 }
             }
             inventory.collectedDrops[drop.id] = storedDrop
@@ -147,14 +147,14 @@ final class NoteInventoryService {
                 stored.redemptionCount = count
                 stored.redemptionLimit = limit
                 if let resolvedUserId {
-                    stored.redeemedBy[resolvedUserId] = redeemedAt.timeIntervalSince1970
+                    stored.redeemedBy[resolvedUserId] = Int(redeemedAt.timeIntervalSince1970 * 1000)
                 }
                 inventory.collectedDrops[dropId] = stored
             } else if var provided = drop {
                 provided.redemptionCount = count
                 provided.redemptionLimit = limit
                 if let resolvedUserId {
-                    provided.redeemedBy[resolvedUserId] = redeemedAt.timeIntervalSince1970
+                    provided.redeemedBy[resolvedUserId] = Int(redeemedAt.timeIntervalSince1970 * 1000)
                 }
                 inventory.collectedDrops[dropId] = provided
             }

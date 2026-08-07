@@ -501,30 +501,28 @@ service cloud.firestore {
       }
 
       function isRedeemableDrop(data) {
-        return data.dropType is string && data.dropType == 'RESTAURANT_COUPON';
+        return data.get('dropType', '') == 'RESTAURANT_COUPON';
       }
 
+      // Every read here goes through map.get(). A bare `data.field` — even inside
+      // `data.field is int` — raises an evaluation error when the field is absent
+      // rather than evaluating false, which silently fails the whole statement.
+      // That is what made redemption unreachable: redemptionLimit was optional.
       function isValidRedemptionTransition(before, after, userId) {
-        let beforeRedeemedBy = (before.redeemedBy is map) ? before.redeemedBy : {};
-        let afterRedeemedBy = (after.redeemedBy is map) ? after.redeemedBy : {};
-        let beforeCountValid = !before.keys().hasAny(['redemptionCount']) || before.redemptionCount is int;
-        let afterCountValid = after.redemptionCount is int;
-        let beforeCount = beforeCountValid ? ((before.redemptionCount is int) ? before.redemptionCount : 0) : 0;
-        let afterCount = afterCountValid ? after.redemptionCount : 0;
-        let diff = beforeRedeemedBy.diff(afterRedeemedBy);
-        let alreadyRedeemed = beforeRedeemedBy.keys().hasAny([userId]);
-        let nowRedeemed = afterRedeemedBy.keys().hasAny([userId]);
-        let redeemTimestamp = afterRedeemedBy[userId];
-        let limit = (before.redemptionLimit is int) ? before.redemptionLimit : null;
+        let beforeRedeemedBy = before.get('redeemedBy', {});
+        let afterRedeemedBy = after.get('redeemedBy', {});
+        let beforeCount = before.get('redemptionCount', 0);
+        let afterCount = after.get('redemptionCount', -1);
+        let limit = before.get('redemptionLimit', -1);
 
-        return beforeCountValid
-          && afterCountValid
-          && !alreadyRedeemed
-          && nowRedeemed
-          && diff.affectedKeys().hasOnly([userId])
-          && redeemTimestamp is int
+        return beforeCount is int
+          && afterCount is int
+          && !beforeRedeemedBy.keys().hasAny([userId])
+          && afterRedeemedBy.keys().hasAny([userId])
+          && beforeRedeemedBy.diff(afterRedeemedBy).affectedKeys().hasOnly([userId])
+          && afterRedeemedBy.get(userId, '') is int
           && afterCount == beforeCount + 1
-          && (limit == null || afterCount <= limit);
+          && (limit < 0 || afterCount <= limit);
       }
 
       function hasUserCollectedBeforeOrAfter(before, after, userId) {
@@ -558,12 +556,36 @@ service cloud.firestore {
           || request.time.toMillis() < created + days * 86400000;
       }
 
-      // Split into one allow-statement per write shape (task 4.1). These are OR'd
-      // exactly as the single combined condition was, but each is evaluated under
-      // its own expression budget. As one condition this rule had been logging
-      // "maximum of 1000 expressions to evaluate has been reached" since before
-      // 2.6 — adding the expiry check tipped it from a warning into refusing
-      // legitimate likes. Keep new conditions in the branch they belong to.
+      // One allow-statement per write shape, ordered cheapest-guard-first (tasks
+      // 4.1, 4.3). These are OR'd, but Firestore's 1000-expression budget is spent
+      // across the whole request, not per statement — so a write that only matches
+      // the last statement pays for every earlier one first. Redemption was last and
+      // ran out of budget, meaning a real redemption could be refused. Each statement
+      // now opens with a single-field guard so a non-matching write exits immediately.
+      // Keep it that way: put new conditions behind the cheapest discriminator.
+
+      // Redeeming a business offer. `isRedeemableDrop` is one field compare, so every
+      // other write shape falls through this in constant time.
+      allow update: if isSignedIn()
+        && isRedeemableDrop(resource.data)
+        && isNotExpired(resource.data)
+        // A write to `redeemedBy.<uid>` reports the TOP-LEVEL `redeemedBy` as the
+        // affected key, so both forms must be listed — exactly as the collect rule
+        // does for `collectedBy`. Listing only the dotted form made hasOnly() false
+        // for every real redemption, which is why no redemption had ever succeeded.
+        && resource.data.diff(request.resource.data).affectedKeys().hasOnly([
+          'redeemedBy',
+          'redeemedBy.' + request.auth.uid,
+          'redemptionCount'
+        ])
+        && isValidRedemptionTransition(resource.data, request.resource.data, request.auth.uid);
+
+      // The creator soft-deleting their own drop, expired or not. Also one compare.
+      allow update: if isSignedIn()
+        && resource.data.createdBy == request.auth.uid
+        && resource.data.diff(request.resource.data).affectedKeys().hasOnly(['isDeleted', 'deletedAt'])
+        && request.resource.data.isDeleted == true
+        && request.resource.data.deletedAt is int;
 
       // Any signed-in user may like or report, including on an expired drop:
       // moderation cannot depend on a drop still being live.
@@ -584,23 +606,6 @@ service cloud.firestore {
           isDropOwner(resource.data, request.auth.uid)
           || hasUserCollectedBeforeOrAfter(resource.data, request.resource.data, request.auth.uid)
         );
-
-      // The creator soft-deleting their own drop, expired or not.
-      allow update: if isSignedIn()
-        && resource.data.createdBy == request.auth.uid
-        && resource.data.diff(request.resource.data).affectedKeys().hasOnly(['isDeleted', 'deletedAt'])
-        && request.resource.data.isDeleted == true
-        && request.resource.data.deletedAt is int;
-
-      // Redeeming a business offer. An expired offer is not redeemable.
-      allow update: if isSignedIn()
-        && isRedeemableDrop(resource.data)
-        && isNotExpired(resource.data)
-        && resource.data.diff(request.resource.data).affectedKeys().hasOnly([
-          'redeemedBy.' + request.auth.uid,
-          'redemptionCount'
-        ])
-        && isValidRedemptionTransition(resource.data, request.resource.data, request.auth.uid);
 
       allow delete: if isSignedIn()
         && resource.data.createdBy == request.auth.uid;
