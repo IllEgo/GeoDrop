@@ -1300,9 +1300,7 @@ fun DropHereScreen(
     var businessDashboardError by remember { mutableStateOf<String?>(null) }
     var businessDashboardRefreshToken by remember { mutableStateOf(0) }
     var selectedHomeDestination by rememberSaveable { mutableStateOf(HomeDestination.Explorer.name) }
-    var notificationRadius by remember { mutableStateOf(notificationPrefs.getNotificationRadiusMeters()) }
     var nearbyAlertsEnabled by remember { mutableStateOf(notificationPrefs.areNearbyAlertsEnabled()) }
-    var showNotificationRadiusDialog by remember { mutableStateOf(false) }
     var defaultExplorerDestinationName by remember { mutableStateOf(notificationPrefs.getDefaultExplorerDestination()) }
     var showLocationNeededForAlerts by remember { mutableStateOf(false) }
     var showNotificationPermissionRecovery by remember { mutableStateOf(false) }
@@ -1593,7 +1591,6 @@ fun DropHereScreen(
 
     LaunchedEffect(currentUserId, hasExplorerAccount) {
         notificationPrefs.setActiveUser(currentUserId)
-        notificationRadius = notificationPrefs.getNotificationRadiusMeters()
         nearbyAlertsEnabled = notificationPrefs.areNearbyAlertsEnabled()
         defaultExplorerDestinationName = notificationPrefs.getDefaultExplorerDestination()
         if (hasExplorerAccount) {
@@ -2901,7 +2898,7 @@ fun DropHereScreen(
     }
 
 
-    val filteredOtherDrops = remember(selectedExplorerGroupCode, otherDrops, explorerGroups, blockedCreatorIds, otherDropsCurrentLocation, notificationRadius) {
+    val filteredOtherDrops = remember(selectedExplorerGroupCode, otherDrops, explorerGroups, blockedCreatorIds, otherDropsCurrentLocation) {
         val groupFiltered = selectedExplorerGroupCode?.takeIf { code -> explorerGroups.any { it.code == code } }?.let { code ->
             otherDrops.filter { drop -> drop.groupCode == code }
         } ?: otherDrops
@@ -2909,9 +2906,15 @@ fun DropHereScreen(
         else groupFiltered.filter { drop -> drop.createdBy !in blockedCreatorIds }
         val location = otherDropsCurrentLocation
         unblocked.filter { drop ->
-            location == null || drop.isBusinessDrop() || distanceBetweenMeters(
+            // A drop in an experience the user joined is nearby by definition — the
+            // event supplies the bounded geography. Only ambient public drops are
+            // distance-bounded.
+            location == null ||
+                !drop.groupCode.isNullOrBlank() ||
+                drop.isBusinessDrop() ||
+                distanceBetweenMeters(
                     location.latitude, location.longitude, drop.lat, drop.lng
-                ) <= notificationRadius
+                ) <= NEARBY_LIST_RADIUS_METERS
         }
     }
     var otherDropsSortKey by rememberSaveable { mutableStateOf(DropSortOption.NEAREST.name) }
@@ -3781,7 +3784,7 @@ fun DropHereScreen(
                                                 approximateLocationEnabled = hasCoarseLocation,
                                                 locationNeedsSettings = foregroundLocationState == PermissionGrantState.BLOCKED,
                                                 onRequestLocation = { requestNearbyLocationAccess() },
-                                                notificationRadiusMeters = notificationRadius,
+                                                notificationRadiusMeters = NEARBY_LIST_RADIUS_METERS,
                                                 error = otherDropsError,
                                                 emptyMessage = selectedExplorerGroupCode?.let { code ->
                                                     "Nothing in $code yet — be the first to drop something here."
@@ -4324,10 +4327,8 @@ fun DropHereScreen(
                 onUsernameChange = { explorerUsernameField = it },
                 isSubmitting = explorerProfileSubmitting,
                 error = explorerProfileError,
-                notificationRadius = notificationRadius,
                 nearbyAlertsEnabled = nearbyAlertsEnabled,
                 defaultExplorerDestination = defaultExplorerDestinationName,
-                onEditNotificationRadius = { showNotificationRadiusDialog = true },
                 onNearbyAlertsChange = { enabled ->
                     if (enabled) {
                         alertPermissionFlowToken += 1
@@ -4446,28 +4447,6 @@ fun DropHereScreen(
             )
         }
 
-        if (showNotificationRadiusDialog) {
-            NotificationRadiusDialog(
-                initialRadius = notificationRadius,
-                onConfirm = { newRadius ->
-                    notificationRadius = newRadius
-                    notificationPrefs.setNotificationRadiusMeters(newRadius)
-                    showNotificationRadiusDialog = false
-                    snackbar.showMessage(
-                        scope,
-                        if (nearbyAlertsEnabled) {
-                            "Nearby alert radius set to ${newRadius.roundToInt()} meters."
-                        } else {
-                            "Radius saved. Enable Nearby alerts when you're ready."
-                        }
-                    )
-                    if (nearbyAlertsEnabled) {
-                        onNearbyAlertsEnabled()
-                    }
-                },
-                onDismiss = { showNotificationRadiusDialog = false }
-            )
-        }
 
         termsPrivacyDialogTab?.let { tab ->
             TermsPrivacyDialog(
@@ -6935,57 +6914,6 @@ private fun DialogMessageContent(
 }
 
 @Composable
-private fun NotificationRadiusDialog(
-    initialRadius: Double,
-    onConfirm: (Double) -> Unit,
-    onDismiss: () -> Unit
-) {
-    val minRadius = NotificationPreferences.MIN_RADIUS_METERS.toFloat()
-    val maxRadius = NotificationPreferences.MAX_RADIUS_METERS.toFloat()
-    val step = NOTIFICATION_RADIUS_STEP_METERS
-    val rawSteps = ((maxRadius - minRadius) / step).roundToInt()
-    val steps = (rawSteps - 1).coerceAtLeast(0)
-    var sliderValue by remember(initialRadius) {
-        mutableStateOf(initialRadius.toFloat().coerceIn(minRadius, maxRadius))
-    }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        icon = { Icon(Icons.Rounded.Map, contentDescription = null) },
-        title = { Text("Nearby notification radius") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text("Choose how close a drop should be before we alert you.")
-                Text(
-                    text = "${sliderValue.roundToInt()} meters",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Medium
-                )
-                Slider(
-                    value = sliderValue,
-                    onValueChange = { value ->
-                        val snapped = (value / step).roundToInt() * step
-                        sliderValue = snapped.coerceIn(minRadius, maxRadius)
-                    },
-                    valueRange = minRadius..maxRadius,
-                    steps = steps,
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = { onConfirm(sliderValue.toDouble()) }) {
-                Text("Save")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        }
-    )
-}
-
-@Composable
 private fun FaqDialog(
     onDismiss: () -> Unit
 ) {
@@ -7169,7 +7097,6 @@ private fun TermsPrivacyDialog(
     }
 }
 
-private const val NOTIFICATION_RADIUS_STEP_METERS = 50f
 private const val DROP_PICKUP_RADIUS_METERS = 30.0
 
 /**
@@ -7183,6 +7110,16 @@ private const val UNLOCK_LOCATION_STALE_THRESHOLD_MILLIS = 2 * 60 * 1000L
  * behaviour such as re-showing a drop the user dismissed earlier — never to unlock.
  */
 private const val BROWSE_NEARBY_THRESHOLD_METERS = 150.0
+
+/**
+ * How far the Nearby list reaches for ambient public drops. Fixed rather than a user
+ * setting: the growth unit is an organiser-run experience, not a consumer feed, so a
+ * per-user distance knob was one more thing to explain at an event without adding value.
+ *
+ * Drops belonging to an experience the user joined, and business drops, ignore this
+ * entirely. An organiser's drops must never hide from an attendee who walked to the venue.
+ */
+private const val NEARBY_LIST_RADIUS_METERS = 300.0
 private const val MAX_BUSINESS_TEMPLATE_SUGGESTIONS = 6
 
 private fun formatCoordinate(value: Double): String {
@@ -7924,10 +7861,8 @@ private fun ExplorerProfileDialog(
     onUsernameChange: (TextFieldValue) -> Unit,
     isSubmitting: Boolean,
     error: String?,
-    notificationRadius: Double,
     nearbyAlertsEnabled: Boolean,
     defaultExplorerDestination: String?,
-    onEditNotificationRadius: () -> Unit,
     onNearbyAlertsChange: (Boolean) -> Unit,
     onDefaultExplorerDestinationChange: (String?) -> Unit,
     onAvatarUploadClick: () -> Unit,
@@ -8006,11 +7941,9 @@ private fun ExplorerProfileDialog(
                 )
 
                 ExplorerPreferencesSection(
-                    notificationRadius = notificationRadius,
-                    nearbyAlertsEnabled = nearbyAlertsEnabled,
+                        nearbyAlertsEnabled = nearbyAlertsEnabled,
                     defaultExplorerDestination = defaultExplorerDestination,
                     enabled = !isSubmitting,
-                    onEditNotificationRadius = onEditNotificationRadius,
                     onNearbyAlertsChange = onNearbyAlertsChange,
                     onDefaultExplorerDestinationChange = onDefaultExplorerDestinationChange
                 )
@@ -8103,11 +8036,9 @@ private fun ExplorerProfileHeader(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ExplorerPreferencesSection(
-    notificationRadius: Double,
     nearbyAlertsEnabled: Boolean,
     defaultExplorerDestination: String?,
     enabled: Boolean,
-    onEditNotificationRadius: () -> Unit,
     onNearbyAlertsChange: (Boolean) -> Unit,
     onDefaultExplorerDestinationChange: (String?) -> Unit
 ) {
@@ -8144,20 +8075,6 @@ private fun ExplorerPreferencesSection(
                     onCheckedChange = { if (enabled) onNearbyAlertsChange(it) },
                     enabled = enabled
                 )
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Nearby notification radius", style = MaterialTheme.typography.labelMedium)
-                    Text("${notificationRadius.roundToInt()} meters", style = MaterialTheme.typography.bodyMedium)
-                }
-                TextButton(onClick = onEditNotificationRadius, enabled = enabled) {
-                    Text("Edit")
-                }
             }
 
             Text("Default explorer destination", style = MaterialTheme.typography.labelMedium)

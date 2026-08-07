@@ -19,27 +19,6 @@ class NotificationPreferences(context: Context) {
         activeUserKey = normalized
     }
 
-    fun getNotificationRadiusMeters(): Double {
-        val key = userRadiusKey()
-        val stored = if (prefs.contains(key)) {
-            prefs.getFloat(key, DEFAULT_RADIUS_METERS.toFloat())
-        } else {
-            val legacy = if (prefs.contains(KEY_RADIUS_METERS_LEGACY)) {
-                prefs.getFloat(KEY_RADIUS_METERS_LEGACY, DEFAULT_RADIUS_METERS.toFloat())
-            } else {
-                DEFAULT_RADIUS_METERS.toFloat()
-            }
-            prefs.edit().putFloat(key, legacy).apply()
-            legacy
-        }
-        return stored.toDouble().coerceIn(MIN_RADIUS_METERS, MAX_RADIUS_METERS)
-    }
-
-    fun setNotificationRadiusMeters(meters: Double) {
-        val clamped = meters.coerceIn(MIN_RADIUS_METERS, MAX_RADIUS_METERS)
-        prefs.edit().putFloat(userRadiusKey(), clamped.toFloat()).apply()
-    }
-
     fun areNearbyAlertsEnabled(): Boolean =
         prefs.getBoolean(userAlertsEnabledKey(), false)
 
@@ -62,22 +41,15 @@ class NotificationPreferences(context: Context) {
         }.apply()
     }
 
-    private fun userRadiusKey(): String = "$KEY_RADIUS_METERS_PREFIX$activeUserKey"
     private fun userAlertsEnabledKey(): String = "$KEY_ALERTS_ENABLED_PREFIX$activeUserKey"
     private fun userDefaultExplorerDestinationKey(): String =
         "$KEY_DEFAULT_EXPLORER_DESTINATION_PREFIX$activeUserKey"
 
     companion object {
         private const val PREFS_NAME = "geodrop_notification_settings"
-        private const val KEY_RADIUS_METERS_LEGACY = "nearby_drop_radius_meters"
-        private const val KEY_RADIUS_METERS_PREFIX = "nearby_drop_radius_meters_user_"
         private const val KEY_ALERTS_ENABLED_PREFIX = "nearby_drop_alerts_enabled_user_"
         private const val KEY_DEFAULT_EXPLORER_DESTINATION_PREFIX = "default_explorer_destination_user_"
         private const val USER_KEY_ANONYMOUS = "anon"
-
-        const val MIN_RADIUS_METERS = 50.0
-        const val MAX_RADIUS_METERS = 1000.0
-        const val DEFAULT_RADIUS_METERS = 300.0
 
         @VisibleForTesting
         fun resolveUserKey(userId: String?): String {
