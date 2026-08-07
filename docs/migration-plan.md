@@ -494,6 +494,30 @@ manifest and code.
 **Acceptance:** Manifest no longer declares background location. No foreground service
 exists solely for location.
 
+**Approach decided 2026-08-06 — see P5 in `docs/migration-decisions.md`.** Background
+location exists for exactly one feature: the geofences that fire nearby-drop
+notifications. It is **not** needed for unlocking (3.3 moved that to a one-shot precise
+fix) and **not** needed for the scavenger-hunt trail, which advances from the collect path
+and reads `currentStepIndex` back from Firestore — no geofence is consulted anywhere in
+the chain.
+
+**Chosen: remove the permission and the geofence machinery, and re-base notifications on
+membership** — a server-side send when a drop is added to an experience the user
+explicitly joined, which is what the launch list actually promises. Accepted cost: no
+passive buzz when a user passes an unrelated drop.
+
+Scope when this task runs:
+
+- Remove `ACCESS_BACKGROUND_LOCATION` from the manifest.
+- Remove `NearbyDropRegistrar`'s geofence registration, `GeofenceManager`,
+  `GeofenceReceiver`, and the `GeoFencePendingIntent` plumbing.
+- Drop background location from `ContextualPermissionPolicy` (and its tests), and remove
+  the precise-location requirement the alerts flow inherited at 3.2/3.3.
+- **Keep** `DropDecisionReceiver` — it is the authoritative proximity check for in-app
+  pickups, not geofence-specific — plus `POST_NOTIFICATIONS` and the existing FCM routing.
+- Add the server-side membership push in `functions/`, alongside the two events already
+  routed (`DROP_COLLECTED`, `REPORT_STATUS_UPDATED`).
+
 ### 3.5 — Unlock receipts, not location history
 **Deliverable:** Persist the successful unlock event only. Remove any stored location
 trail. Confirm no other user's live position is exposed by default.
