@@ -31,7 +31,6 @@ struct Drop: Identifiable, Equatable, Codable {
     var likedBy: [String: Bool]
     var reportCount: Int
     var reportedBy: [String: Int]
-    var redemptionCode: String?
     var redemptionLimit: Int?
     var redemptionCount: Int
     var redeemedBy: [String: Int]
@@ -65,7 +64,6 @@ struct Drop: Identifiable, Equatable, Codable {
         likedBy: [String: Bool] = [:],
         reportCount: Int = 0,
         reportedBy: [String: Int] = [:],
-        redemptionCode: String? = nil,
         redemptionLimit: Int? = nil,
         redemptionCount: Int = 0,
         redeemedBy: [String: Int] = [:],
@@ -98,7 +96,6 @@ struct Drop: Identifiable, Equatable, Codable {
         self.likedBy = likedBy
         self.reportCount = reportCount
         self.reportedBy = reportedBy
-        self.redemptionCode = redemptionCode
         self.redemptionLimit = redemptionLimit
         self.redemptionCount = redemptionCount
         self.redeemedBy = redeemedBy
@@ -144,7 +141,9 @@ struct Drop: Identifiable, Equatable, Codable {
     }
 
     func requiresRedemption() -> Bool {
-        dropType == .restaurantCoupon && !(redemptionCode?.isEmpty ?? true)
+        // Task 4.3 — the code is server-issued, so a coupon is redeemable by
+        // type alone; there is no code on the document to look for.
+        dropType == .restaurantCoupon
     }
 
     func isRedeemed(by userId: String?) -> Bool {
@@ -211,7 +210,6 @@ extension Drop {
             likedBy: data["likedBy"] as? [String: Bool] ?? [:],
             reportCount: (data["reportCount"] as? NSNumber)?.intValue ?? 0,
             reportedBy: data["reportedBy"] as? [String: Int] ?? [:],
-            redemptionCode: data["redemptionCode"] as? String,
             redemptionLimit: (data["redemptionLimit"] as? NSNumber)?.intValue,
             redemptionCount: (data["redemptionCount"] as? NSNumber)?.intValue ?? 0,
             redeemedBy: data["redeemedBy"] as? [String: Int] ?? [:],
@@ -253,7 +251,6 @@ extension Drop {
         if let mediaStoragePath { data["mediaStoragePath"] = mediaStoragePath }
         if let mediaData { data["mediaData"] = mediaData }
         if let deletedAt { data["deletedAt"] = Timestamp(date: deletedAt) }
-        if let redemptionCode { data["redemptionCode"] = redemptionCode }
         if let redemptionLimit { data["redemptionLimit"] = redemptionLimit }
         return data
     }

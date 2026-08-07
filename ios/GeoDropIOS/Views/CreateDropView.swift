@@ -17,7 +17,6 @@ struct CreateDropView: View {
     @State private var mediaFileExtension: String?
     @State private var audioDuration: TimeInterval?
     @State private var videoDuration: TimeInterval?
-    @State private var redemptionCode = ""
     @State private var redemptionLimit = ""
     @State private var decayDays = ""
     @State private var selectedVisibility: DropVisibilityOption = .allExplorers
@@ -78,7 +77,6 @@ struct CreateDropView: View {
             .onChange(of: viewModel.selectedGroupCode) { _ in updateVisibilitySelection() }
             .onChange(of: dropType) { newValue in
                 if newValue != .restaurantCoupon {
-                    redemptionCode = ""
                     redemptionLimit = ""
                 }
             }
@@ -345,7 +343,6 @@ struct CreateDropView: View {
 
     private var redemptionSection: some View {
         Section {
-            TextField("Redemption code", text: $redemptionCode)
                 .textInputAutocapitalization(.characters)
             TextField("Redemption limit", text: $redemptionLimit)
                 .keyboardType(.numberPad)
@@ -414,10 +411,6 @@ struct CreateDropView: View {
             if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return false }
         case .photo, .audio, .video:
             if mediaData == nil { return false }
-        }
-
-        if dropType == .restaurantCoupon && redemptionCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return false
         }
 
         return true
@@ -598,7 +591,6 @@ struct CreateDropView: View {
     private func submit() async {
         let trimmedHeadline = text.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedDescription = description.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedCode = redemptionCode.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedLimit = redemptionLimit.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedDecay = decayDays.trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -664,7 +656,6 @@ struct CreateDropView: View {
             dropType: dropType,
             contentType: contentType,
             media: mediaPayload,
-            redemptionCode: dropType == .restaurantCoupon ? trimmedCode : nil,
             redemptionLimit: dropType == .restaurantCoupon ? parsedLimit : nil,
             decayDays: parsedDecay,
             visibility: visibility
@@ -683,7 +674,6 @@ struct CreateDropView: View {
         dropType = .community
         contentType = .text
         resetMedia()
-        redemptionCode = ""
         redemptionLimit = ""
         decayDays = ""
         activeTemplate = nil

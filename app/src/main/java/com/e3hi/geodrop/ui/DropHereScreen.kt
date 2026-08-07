@@ -2411,7 +2411,6 @@ fun DropHereScreen(
             mediaMimeType = sanitizedMime,
             mediaData = sanitizedData,
             mediaStoragePath = mediaStoragePath?.takeIf { it.isNotBlank() },
-            redemptionCode = if (dropType == DropType.RESTAURANT_COUPON) sanitizedRedemptionCode else null,
             redemptionLimit = if (dropType == DropType.RESTAURANT_COUPON) sanitizedRedemptionLimit else null,
             decayDays = sanitizedDecayDays
         )
@@ -4137,7 +4136,6 @@ fun DropHereScreen(
                                     businessName = if (step.dropType != DropType.COMMUNITY) profile?.businessName else null,
                                     contentType = DropContentType.TEXT,
                                     decayDays = state.decayDays,
-                                    redemptionCode = step.redemptionCode.takeIf { it.isNotBlank() },
                                     redemptionLimit = step.redemptionLimit,
                                     huntStepIndex = index,
                                     huntTotalSteps = totalSteps

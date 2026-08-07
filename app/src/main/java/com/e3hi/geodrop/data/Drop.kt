@@ -27,7 +27,6 @@ data class Drop(
     val likedBy: Map<String, Boolean> = emptyMap(),
     val reportCount: Long = 0,
     val reportedBy: Map<String, Long> = emptyMap(),
-    val redemptionCode: String? = null,
     val redemptionLimit: Int? = null,
     val redemptionCount: Int = 0,
     val redeemedBy: Map<String, Long> = emptyMap(),
@@ -49,10 +48,9 @@ enum class DropType {
     }
 }
 
-fun Drop.requiresRedemption(): Boolean {
-    if (dropType != DropType.RESTAURANT_COUPON) return false
-    return !redemptionCode.isNullOrBlank()
-}
+// Task 4.3 — the code is server-issued, so a coupon is redeemable by type alone;
+// there is no code on the document to look for.
+fun Drop.requiresRedemption(): Boolean = dropType == DropType.RESTAURANT_COUPON
 
 fun Drop.remainingRedemptions(): Int? {
     val limit = redemptionLimit ?: return null

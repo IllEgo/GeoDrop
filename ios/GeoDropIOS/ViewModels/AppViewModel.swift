@@ -584,7 +584,6 @@ final class AppViewModel: ObservableObject {
             contentType: request.contentType,
             mediaData: nil,
             isNsfw: false,
-            redemptionCode: request.redemptionCode,
             redemptionLimit: request.redemptionLimit
         )
 
@@ -1389,7 +1388,6 @@ struct NewDropRequest {
     var dropType: DropType
     var contentType: DropContentType
     var media: MediaPayload?
-    var redemptionCode: String?
     var redemptionLimit: Int?
     var decayDays: Int?
     var visibility: Visibility

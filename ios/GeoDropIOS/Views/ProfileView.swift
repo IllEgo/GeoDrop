@@ -492,11 +492,6 @@ private struct BusinessDropDashboardCard: View {
                 .font(.footnote)
                 .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
 
-                if let code = drop.redemptionCode, !code.isEmpty {
-                    Text("Code: \(code)")
-                        .font(.caption)
-                        .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
-                }
                 if let limit = drop.redemptionLimit {
                     Text("Limit: \(limit)")
                         .font(.caption)

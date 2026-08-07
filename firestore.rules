@@ -332,7 +332,6 @@ service cloud.firestore {
           'likedBy',
           'reportCount',
           'reportedBy',
-          'redemptionCode',
           'redemptionLimit',
           'redemptionCount',
           'redeemedBy',
@@ -500,30 +499,6 @@ service cloud.firestore {
           && hasOnlyUserCollectedChange(before, after, userId);
       }
 
-      function isRedeemableDrop(data) {
-        return data.get('dropType', '') == 'RESTAURANT_COUPON';
-      }
-
-      // Every read here goes through map.get(). A bare `data.field` — even inside
-      // `data.field is int` — raises an evaluation error when the field is absent
-      // rather than evaluating false, which silently fails the whole statement.
-      // That is what made redemption unreachable: redemptionLimit was optional.
-      function isValidRedemptionTransition(before, after, userId) {
-        let beforeRedeemedBy = before.get('redeemedBy', {});
-        let afterRedeemedBy = after.get('redeemedBy', {});
-        let beforeCount = before.get('redemptionCount', 0);
-        let afterCount = after.get('redemptionCount', -1);
-        let limit = before.get('redemptionLimit', -1);
-
-        return beforeCount is int
-          && afterCount is int
-          && !beforeRedeemedBy.keys().hasAny([userId])
-          && afterRedeemedBy.keys().hasAny([userId])
-          && beforeRedeemedBy.diff(afterRedeemedBy).affectedKeys().hasOnly([userId])
-          && afterRedeemedBy.get(userId, '') is int
-          && afterCount == beforeCount + 1
-          && (limit < 0 || afterCount <= limit);
-      }
 
       function hasUserCollectedBeforeOrAfter(before, after, userId) {
         return hasCollectedDrop(before, userId)
@@ -564,21 +539,10 @@ service cloud.firestore {
       // now opens with a single-field guard so a non-matching write exits immediately.
       // Keep it that way: put new conditions behind the cheapest discriminator.
 
-      // Redeeming a business offer. `isRedeemableDrop` is one field compare, so every
-      // other write shape falls through this in constant time.
-      allow update: if isSignedIn()
-        && isRedeemableDrop(resource.data)
-        && isNotExpired(resource.data)
-        // A write to `redeemedBy.<uid>` reports the TOP-LEVEL `redeemedBy` as the
-        // affected key, so both forms must be listed — exactly as the collect rule
-        // does for `collectedBy`. Listing only the dotted form made hasOnly() false
-        // for every real redemption, which is why no redemption had ever succeeded.
-        && resource.data.diff(request.resource.data).affectedKeys().hasOnly([
-          'redeemedBy',
-          'redeemedBy.' + request.auth.uid,
-          'redemptionCount'
-        ])
-        && isValidRedemptionTransition(resource.data, request.resource.data, request.auth.uid);
+      // Redemption has no client-writable path (task 4.3, ADR P6). The `redeemDrop`
+      // callable owns `redeemedBy` and `redemptionCount` and writes them with the
+      // Admin SDK. This also retires the statement that sat at the 1000-expression
+      // ceiling.
 
       // The creator soft-deleting their own drop, expired or not. Also one compare.
       allow update: if isSignedIn()
