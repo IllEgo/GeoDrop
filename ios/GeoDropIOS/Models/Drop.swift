@@ -34,7 +34,7 @@ struct Drop: Identifiable, Equatable, Codable {
     var redemptionCode: String?
     var redemptionLimit: Int?
     var redemptionCount: Int
-    var redeemedBy: [String: TimeInterval]
+    var redeemedBy: [String: Int]
     var collectedBy: [String: Bool]
 
     init(
@@ -68,7 +68,7 @@ struct Drop: Identifiable, Equatable, Codable {
         redemptionCode: String? = nil,
         redemptionLimit: Int? = nil,
         redemptionCount: Int = 0,
-        redeemedBy: [String: TimeInterval] = [:],
+        redeemedBy: [String: Int] = [:],
         collectedBy: [String: Bool] = [:]
     ) {
         self.id = id
@@ -214,7 +214,7 @@ extension Drop {
             redemptionCode: data["redemptionCode"] as? String,
             redemptionLimit: (data["redemptionLimit"] as? NSNumber)?.intValue,
             redemptionCount: (data["redemptionCount"] as? NSNumber)?.intValue ?? 0,
-            redeemedBy: data["redeemedBy"] as? [String: TimeInterval] ?? [:],
+            redeemedBy: data["redeemedBy"] as? [String: Int] ?? [:],
             collectedBy: data["collectedBy"] as? [String: Bool] ?? [:]
         )
     }

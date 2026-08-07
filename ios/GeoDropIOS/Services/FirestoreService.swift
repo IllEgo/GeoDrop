@@ -272,7 +272,11 @@ final class FirestoreService {
                     }
 
                     let updatedCount = currentCount + 1
-                    let redeemedAt = Date().timeIntervalSince1970
+                    // Integer milliseconds is the canonical schema type, matching
+                    // Android and createdAt/collectedAt. A TimeInterval is a Double in
+                    // seconds, which firestore.rules rejects (`redeemTimestamp is int`)
+                    // — every iOS redemption was refused before this.
+                    let redeemedAt = Int(Date().timeIntervalSince1970 * 1000)
                     let updates: [String: Any] = [
                         "redemptionCount": updatedCount,
                         "redeemedBy.\(userId)": redeemedAt
@@ -692,7 +696,7 @@ extension FirestoreService {
 }
 
 enum RedemptionResult: Equatable {
-    case success(count: Int, limit: Int?, redeemedAt: TimeInterval)
+    case success(count: Int, limit: Int?, redeemedAt: Int)
     case invalidCode
     case alreadyRedeemed
     case outOfRedemptions
