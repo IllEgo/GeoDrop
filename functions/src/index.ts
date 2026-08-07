@@ -312,6 +312,8 @@ const REDEMPTION_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 /**
  * Per-user redemption code. Unambiguous alphabet (no I/O/0/1) because these get
  * read aloud and typed at a counter.
+ *
+ * @return {string} A formatted eight-character code, e.g. "A1B2-C3D4".
  */
 const generateRedemptionCode = (): string => {
   const bytes = crypto.randomBytes(8);
