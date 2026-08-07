@@ -37,6 +37,51 @@ Two safety rails before any of this starts:
 
 ---
 
+## Production deployment log
+
+**Merging is not deploying.** Several tasks change `firestore.rules` or `storage.rules`,
+and those files only take effect in `geodrop-dfcba` when someone runs a deploy. Nothing
+in CI does it. Tasks 2.6 and 2.7 sat merged and undeployed for eleven days before this
+was noticed — during which the live rules still let a client write `businessName`, still
+permitted dislike writes, and still carried the 2.7 profile lockout (`acceptLegalPolicies`
+stamps `legalAcceptanceVersion`, the old allow-list did not include it, and
+`hasOnlyAllowedUserFields()` sees the *merged* document — so every later profile update
+from an account that had accepted the policies was refused).
+
+**Record every production action here, in the same session it happens.**
+
+| Date (UTC) | Target | What | Covers | Evidence |
+| --- | --- | --- | --- | --- |
+| 2026-07-26 | Firestore rules | Deploy | 1.2, 1.3 | ruleset `337797dc-37bf-486f-a0f2-7363f53c2595` |
+| 2026-07-26 | Storage rules | Deploy | 1.2, 1.3 | `storage.rules` unchanged since; still current |
+| 2026-07-26 | Firestore + Storage data | **Live wipe** | 1.4 | 172 docs, 98 objects / 592.8 MiB. Backup at `C:\Users\rober\GeoDrop-backups\wipe-2026-07-26\` — outside the repo, only copy of the prototype content |
+| 2026-08-07 | Firestore rules | Deploy | 2.6, 2.7 | ruleset `b83ea329-fbd5-4a25-b9fb-ca3c86f922f9`; live source verified byte-identical to repo |
+| 2026-08-07 | Firestore data | `roles:check` dry run (read-only) | 2.7 gate (c) | 25 profiles, all canonical, 0 normalize / 0 backfill / 0 flagged; `roles:apply` is a no-op. 3 profiles have no Auth user |
+
+### Verifying what is actually live
+
+Do not infer this from git history. Fetch the released ruleset and diff it against the
+repo — the Rules API returns the deployed source, and a zero-line diff is the only proof
+that a merge reached production:
+
+```
+GET https://firebaserules.googleapis.com/v1/projects/geodrop-dfcba/releases/cloud.firestore
+GET https://firebaserules.googleapis.com/v1/{rulesetName}
+```
+
+Authenticate with the service-account key in `.secrets/` (gitignored). The response
+carries `createTime`, which dates the deployment.
+
+### Deploy order and the build caveat
+
+When a task changes both rules and a data migration, **rules first, then the migration**
+(`docs/account-model.md` spells this out for 2.7). And note what the 2.7 rules did on
+release: **older installed builds can no longer create a profile at all**, because they
+send `businessName` at create, which is now server-authored. Prod is wiped and pre-pilot,
+so nothing is stranded — but Pilot 1 must ship current builds.
+
+---
+
 ## Phase 0 — Ground truth
 
 No code changes in this phase. The point is to stop guessing about what you actually
