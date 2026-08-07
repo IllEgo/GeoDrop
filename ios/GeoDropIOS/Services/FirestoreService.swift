@@ -225,82 +225,35 @@ final class FirestoreService {
         }
     }
     
-    func redeemDrop(dropId: String, userId: String, providedCode: String) async throws -> RedemptionResult {
+    /// Task 4.3 (ADR P6) — redemption is server-only. The `redeemDrop` callable issues
+    /// a code to this caller alone; it is never stored on the drop, which every reader
+    /// can see. There is no code to type any more.
+    func redeemDrop(dropId: String, userId: String) async throws -> RedemptionResult {
         guard PilotFeatureFlags.shared.couponsEnabled else {
             return .error("Offers are disabled for this release")
         }
         guard !dropId.isEmpty, !userId.isEmpty else { return .error("Missing identifiers") }
-        let trimmed = providedCode.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return .invalidCode }
 
-        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<RedemptionResult, Error>) in
-            self.db.runTransaction({ transaction, errorPointer -> Any? in
-                do {
-                    let docRef = self.drops.document(dropId)
-                    let snapshot = try transaction.getDocument(docRef)
-                    guard snapshot.exists else {
-                        return RedemptionResult.notEligible
-                    }
-
-                    let rawType = snapshot.get("dropType") as? String ?? ""
-                    let dropType = DropType(rawValue: rawType.uppercased()) ?? .community
-                    guard dropType == .restaurantCoupon else {
-                        return RedemptionResult.notEligible
-                    }
-
-                    let storedCode = (snapshot.get("redemptionCode") as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
-                    guard let redemptionCode = storedCode, !redemptionCode.isEmpty else {
-                        return RedemptionResult.notEligible
-                    }
-
-                    guard redemptionCode == trimmed else {
-                        return RedemptionResult.invalidCode
-                    }
-
-                    let redeemedPath = FieldPath(["redeemedBy", userId])
-                    if snapshot.get(redeemedPath) != nil {
-                        return RedemptionResult.alreadyRedeemed
-                    }
-
-                    let limitValue = snapshot.get("redemptionLimit") as? Int
-                        ?? (snapshot.get("redemptionLimit") as? NSNumber)?.intValue
-                    let currentCount = snapshot.get("redemptionCount") as? Int
-                        ?? (snapshot.get("redemptionCount") as? NSNumber)?.intValue
-                        ?? 0
-                    if let limit = limitValue, currentCount >= limit {
-                        return RedemptionResult.outOfRedemptions
-                    }
-
-                    let updatedCount = currentCount + 1
-                    // Integer milliseconds is the canonical schema type, matching
-                    // Android and createdAt/collectedAt. A TimeInterval is a Double in
-                    // seconds, which firestore.rules rejects (`redeemTimestamp is int`)
-                    // — every iOS redemption was refused before this.
-                    let redeemedAt = Int(Date().timeIntervalSince1970 * 1000)
-                    let updates: [String: Any] = [
-                        "redemptionCount": updatedCount,
-                        "redeemedBy.\(userId)": redeemedAt
-                    ]
-                    transaction.updateData(updates, forDocument: docRef)
-
-                    return RedemptionResult.success(
-                        count: updatedCount,
-                        limit: limitValue,
-                        redeemedAt: redeemedAt
-                    )
-                } catch {
-                    errorPointer?.pointee = error as NSError
-                    return nil
-                }
-            }, completion: { result, error in
-                if let error = error {
-                    continuation.resume(throwing: error)
-                } else if let redemptionResult = result as? RedemptionResult {
-                    continuation.resume(returning: redemptionResult)
-                } else {
-                    continuation.resume(throwing: FirestoreError.missingSnapshot)
-                }
-            })
+        do {
+            let result = try await callFunction(name: "redeemDrop", data: ["dropId": dropId])
+            guard let payload = result.data as? [String: Any],
+                  let code = payload["code"] as? String, !code.isEmpty else {
+                return .error("Redemption failed. Try again.")
+            }
+            let count = payload["redemptionCount"] as? Int ?? 0
+            let limit = payload["redemptionLimit"] as? Int
+            let redeemedAt = payload["redeemedAt"] as? Int
+                ?? Int(Date().timeIntervalSince1970 * 1000)
+            return .success(count: count, limit: limit, redeemedAt: redeemedAt, code: code)
+        } catch let error as NSError {
+            // FunctionsErrorCode: 6 = alreadyExists, 8 = resourceExhausted,
+            // 9 = failedPrecondition.
+            switch error.code {
+            case 6: return .alreadyRedeemed
+            case 8: return .outOfRedemptions
+            case 9: return .notEligible
+            default: return .error(error.localizedDescription)
+            }
         }
     }
 
@@ -702,7 +655,7 @@ extension FirestoreService {
 }
 
 enum RedemptionResult: Equatable {
-    case success(count: Int, limit: Int?, redeemedAt: Int)
+    case success(count: Int, limit: Int?, redeemedAt: Int, code: String?)
     case invalidCode
     case alreadyRedeemed
     case outOfRedemptions

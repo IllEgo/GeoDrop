@@ -839,72 +839,51 @@ class FirestoreRepo(
         }
     }
 
+    /**
+     * Task 4.3 (ADR P6) — redemption is server-only. The code is issued by the
+     * `redeemDrop` callable and returned to this caller alone; it is never stored on
+     * the drop, which every reader can see. There is no code to type any more.
+     */
     suspend fun redeemDrop(
         dropId: String,
-        userId: String,
-        providedCode: String
+        userId: String
     ): RedemptionResult {
         if (!PilotFeatureFlags.couponsEnabled) {
             return RedemptionResult.Error("Offers are disabled for this release.")
         }
         if (dropId.isBlank() || userId.isBlank()) return RedemptionResult.Error("Missing identifiers")
-        val trimmedCode = providedCode.trim()
-        if (trimmedCode.isEmpty()) return RedemptionResult.InvalidCode
 
         return try {
-            db.runTransaction { transaction ->
-                val docRef = drops.document(dropId)
-                val snapshot = transaction.get(docRef)
-                if (!snapshot.exists()) {
-                    return@runTransaction RedemptionResult.NotEligible
-                }
+            val response = functions
+                .getHttpsCallable("redeemDrop")
+                .call(mapOf("dropId" to dropId))
+                .await()
 
-                val dropType = DropType.fromRaw(snapshot.getString("dropType"))
-                if (dropType != DropType.RESTAURANT_COUPON) {
-                    return@runTransaction RedemptionResult.NotEligible
-                }
+            @Suppress("UNCHECKED_CAST")
+            val payload = response.data as? Map<String, Any?>
+                ?: return RedemptionResult.Error("Redemption failed. Try again.")
+            val code = (payload["code"] as? String)?.takeIf { it.isNotBlank() }
+                ?: return RedemptionResult.Error("Redemption failed. Try again.")
 
-                val storedCode = snapshot.getString("redemptionCode")?.takeIf { it.isNotBlank() }
-                if (storedCode.isNullOrBlank()) {
-                    return@runTransaction RedemptionResult.NotEligible
-                }
-
-                if (storedCode != trimmedCode) {
-                    return@runTransaction RedemptionResult.InvalidCode
-                }
-
-                @Suppress("UNCHECKED_CAST")
-                val redeemedMap = snapshot.get("redeemedBy") as? Map<String, Long> ?: emptyMap()
-                if (redeemedMap.containsKey(userId)) {
-                    return@runTransaction RedemptionResult.AlreadyRedeemed
-                }
-
-                val limit = snapshot.getLong("redemptionLimit")?.toInt()
-                val currentCount = snapshot.getLong("redemptionCount")?.toInt() ?: 0
-                if (limit != null && currentCount >= limit) {
-                    return@runTransaction RedemptionResult.OutOfRedemptions
-                }
-
-                val newCount = currentCount + 1
-                val timestamp = System.currentTimeMillis()
-                val updateData = hashMapOf<String, Any>(
-                    "redemptionCount" to newCount,
-                    "redeemedBy.$userId" to timestamp
-                )
-                transaction.update(docRef, updateData as Map<String, Any>)
-
-                RedemptionResult.Success(
-                    redemptionCount = newCount,
-                    redemptionLimit = limit,
-                    redeemedAt = timestamp
-                )
-            }.await()
+            RedemptionResult.Success(
+                redemptionCount = (payload["redemptionCount"] as? Number)?.toInt() ?: 0,
+                redemptionLimit = (payload["redemptionLimit"] as? Number)?.toInt(),
+                redeemedAt = (payload["redeemedAt"] as? Number)?.toLong()
+                    ?: System.currentTimeMillis(),
+                code = code
+            )
+        } catch (error: FirebaseFunctionsException) {
+            when (error.code) {
+                FirebaseFunctionsException.Code.ALREADY_EXISTS -> RedemptionResult.AlreadyRedeemed
+                FirebaseFunctionsException.Code.RESOURCE_EXHAUSTED -> RedemptionResult.OutOfRedemptions
+                FirebaseFunctionsException.Code.FAILED_PRECONDITION -> RedemptionResult.NotEligible
+                else -> RedemptionResult.Error(error.message)
+            }
         } catch (error: Exception) {
             Log.e("GeoDrop", "Redeem drop failed", error)
             RedemptionResult.Error(error.localizedMessage)
         }
     }
-
 
     private suspend fun claimExplorerUsernameRemote(
         userId: String,
@@ -1521,7 +1500,9 @@ sealed class RedemptionResult {
     data class Success(
         val redemptionCount: Int,
         val redemptionLimit: Int?,
-        val redeemedAt: Long
+        val redeemedAt: Long,
+        /** Issued by the server for this user alone (task 4.3). */
+        val code: String? = null
     ) : RedemptionResult()
 
     object InvalidCode : RedemptionResult()
