@@ -114,6 +114,18 @@ rejects in exactly that situation. Any iOS user who collects before the first fi
 — or with location denied — unlocks from anywhere. This is a correctness bug in the
 product's core mechanic, not just a privacy issue.
 
+**Fixed 2026-08-06**, pulled forward out of Phase 3 sequence. `markCollected` is now
+fail-closed and mirrors A7's rejections: no fix, a fix older than 2 minutes (the same
+threshold as Android's `LOCATION_STALE_THRESHOLD_MILLIS`), or a `horizontalAccuracy` that
+is negative or worse than the pickup radius all reject the pickup. The distance comparison
+allows the radius plus the reading's own accuracy, matching Android. Both callers already
+surface the returned error in an alert, so each rejection reaches the user.
+
+One consequence worth knowing: **a user with "Precise Location" off can no longer collect
+at all**, and is told to turn it on. That is the correct outcome — a 30 m check against a
+1–5 km fix was previously passing or failing at random — but it is a hard stop until F4 is
+addressed. Android already behaves this way.
+
 ### F4 — iOS never handles reduced accuracy
 
 Neither `requestTemporaryFullAccuracyAuthorization` nor `accuracyAuthorization` appears

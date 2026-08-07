@@ -411,11 +411,14 @@ them); and iOS never handles reduced accuracy at all — no
 `requestTemporaryFullAccuracyAuthorization`, no `accuracyAuthorization` — so with Precise
 Location off, every unlock silently fails the 30 m check.
 
-**One finding is a correctness bug, not a privacy one:** iOS `markCollected` uses
+**One finding is a correctness bug, not a privacy one:** iOS `markCollected` used
 `if let distance = distanceToDrop(drop)`, and `distanceToDrop` returns `nil` when there is
-no fix — so **the proximity check is skipped entirely and the collect proceeds**. Android
-rejects in the same situation. Today this is the cheapest way to unlock any drop in the
-product from anywhere. Worth pulling forward ahead of 3.2/3.3; it is a one-line fix.
+no fix — so **the proximity check was skipped entirely and the collect proceeded**. Android
+rejects in the same situation. **Fixed in the same PR** (pulled forward ahead of 3.2/3.3):
+`markCollected` is now fail-closed and mirrors Android's rejections — missing fix, fix older
+than 2 minutes, or accuracy negative or worse than the pickup radius. Consequence: a user
+with "Precise Location" off can no longer collect until F4 is addressed, which is correct
+(the 30 m check was previously passing at random against a 1–5 km fix) and matches Android.
 
 **Sequencing note:** 3.2 and 3.3 are coupled and should be planned together —
 `pickUpDrop`'s range gate reads the browse stream's cached value, so removing the stream
