@@ -26,41 +26,32 @@ class ContextualPermissionPolicyTest {
         assertEquals(ContextualPermissionAction.REQUEST_FOREGROUND_LOCATION, action)
     }
 
+    /**
+     * Task 3.4 — alerts became membership-scoped, so they must not depend on any
+     * location grant. This is the property that replaced the old
+     * REQUIRE_NEARBY_LOCATION_FIRST and background-rationale steps.
+     */
     @Test
-    fun `alerts direct users to nearby before requesting location`() {
+    fun `alerts need no location grant at all`() {
         val action = ContextualPermissionPolicy.nextAction(
             intent = ContextualPermissionIntent.ENABLE_NEARBY_ALERTS,
             onboardingComplete = true,
-            foregroundLocation = PermissionGrantState.REQUESTABLE
+            foregroundLocation = PermissionGrantState.BLOCKED,
+            notifications = PermissionGrantState.GRANTED
         )
 
-        assertEquals(ContextualPermissionAction.REQUIRE_NEARBY_LOCATION_FIRST, action)
+        assertEquals(ContextualPermissionAction.ENABLE_NEARBY_ALERTS, action)
     }
 
     @Test
-    fun `alerts request notifications before background location`() {
+    fun `alerts request notifications first`() {
         val action = ContextualPermissionPolicy.nextAction(
             intent = ContextualPermissionIntent.ENABLE_NEARBY_ALERTS,
             onboardingComplete = true,
-            foregroundLocation = PermissionGrantState.GRANTED,
-            notifications = PermissionGrantState.REQUESTABLE,
-            backgroundLocation = PermissionGrantState.REQUESTABLE
+            notifications = PermissionGrantState.REQUESTABLE
         )
 
         assertEquals(ContextualPermissionAction.REQUEST_NOTIFICATIONS, action)
-    }
-
-    @Test
-    fun `background location is preceded by explicit rationale`() {
-        val action = ContextualPermissionPolicy.nextAction(
-            intent = ContextualPermissionIntent.ENABLE_NEARBY_ALERTS,
-            onboardingComplete = true,
-            foregroundLocation = PermissionGrantState.GRANTED,
-            notifications = PermissionGrantState.GRANTED,
-            backgroundLocation = PermissionGrantState.REQUESTABLE
-        )
-
-        assertEquals(ContextualPermissionAction.SHOW_BACKGROUND_LOCATION_RATIONALE, action)
     }
 
     @Test
@@ -68,9 +59,7 @@ class ContextualPermissionPolicyTest {
         val action = ContextualPermissionPolicy.nextAction(
             intent = ContextualPermissionIntent.ENABLE_NEARBY_ALERTS,
             onboardingComplete = true,
-            foregroundLocation = PermissionGrantState.GRANTED,
-            notifications = PermissionGrantState.GRANTED,
-            backgroundLocation = PermissionGrantState.GRANTED
+            notifications = PermissionGrantState.GRANTED
         )
 
         assertEquals(ContextualPermissionAction.ENABLE_NEARBY_ALERTS, action)

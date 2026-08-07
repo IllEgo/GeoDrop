@@ -15,11 +15,8 @@ enum class ContextualPermissionAction {
     NONE,
     REQUEST_FOREGROUND_LOCATION,
     OPEN_FOREGROUND_LOCATION_SETTINGS,
-    REQUIRE_NEARBY_LOCATION_FIRST,
     REQUEST_NOTIFICATIONS,
     OPEN_NOTIFICATION_SETTINGS,
-    SHOW_BACKGROUND_LOCATION_RATIONALE,
-    OPEN_BACKGROUND_LOCATION_SETTINGS,
     ENABLE_NEARBY_ALERTS
 }
 
@@ -33,11 +30,9 @@ object ContextualPermissionPolicy {
     fun nextAction(
         intent: ContextualPermissionIntent,
         onboardingComplete: Boolean,
-        foregroundLocation: PermissionGrantState,
+        foregroundLocation: PermissionGrantState = PermissionGrantState.GRANTED,
         notificationsRequired: Boolean = true,
-        notifications: PermissionGrantState = PermissionGrantState.REQUESTABLE,
-        backgroundLocationRequired: Boolean = true,
-        backgroundLocation: PermissionGrantState = PermissionGrantState.REQUESTABLE
+        notifications: PermissionGrantState = PermissionGrantState.REQUESTABLE
     ): ContextualPermissionAction {
         if (!onboardingComplete) return ContextualPermissionAction.NONE
 
@@ -50,23 +45,14 @@ object ContextualPermissionPolicy {
                     ContextualPermissionAction.OPEN_FOREGROUND_LOCATION_SETTINGS
             }
 
+            // Task 3.4 — alerts are membership-scoped and sent by the server, so this
+            // intent needs no location grant of any kind, foreground or background.
             ContextualPermissionIntent.ENABLE_NEARBY_ALERTS -> when {
-                foregroundLocation != PermissionGrantState.GRANTED ->
-                    ContextualPermissionAction.REQUIRE_NEARBY_LOCATION_FIRST
-
                 notificationsRequired && notifications == PermissionGrantState.REQUESTABLE ->
                     ContextualPermissionAction.REQUEST_NOTIFICATIONS
 
                 notificationsRequired && notifications == PermissionGrantState.BLOCKED ->
                     ContextualPermissionAction.OPEN_NOTIFICATION_SETTINGS
-
-                backgroundLocationRequired &&
-                    backgroundLocation == PermissionGrantState.REQUESTABLE ->
-                    ContextualPermissionAction.SHOW_BACKGROUND_LOCATION_RATIONALE
-
-                backgroundLocationRequired &&
-                    backgroundLocation == PermissionGrantState.BLOCKED ->
-                    ContextualPermissionAction.OPEN_BACKGROUND_LOCATION_SETTINGS
 
                 else -> ContextualPermissionAction.ENABLE_NEARBY_ALERTS
             }

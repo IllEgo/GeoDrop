@@ -761,6 +761,89 @@ export const notifyDropCreatorOnCollection = functions
     );
   });
 
+/**
+ * Task 3.4 — alerts are membership-scoped, not proximity-scoped. When a drop is added
+ * to an experience, everyone who explicitly joined that experience is notified. This
+ * replaces the on-device geofences that required ACCESS_BACKGROUND_LOCATION, and it is
+ * what the launch scope actually asks for: "push notifications only for experiences the
+ * user explicitly joined".
+ */
+export const notifyGroupMembersOnDropCreated = functions
+  .region("us-central1")
+  .firestore.document("drops/{dropId}")
+  .onCreate(async (snapshot, context) => {
+    const drop = snapshot.data();
+    if (!drop) return;
+
+    if (drop.isDeleted === true) return;
+    if (drop.isNsfw === true) return;
+    if (drop.visibility !== "GROUP") return;
+
+    const groupCode = typeof drop.groupCode === "string" ? drop.groupCode.trim() : "";
+    if (!groupCode) return;
+
+    const creatorRaw = drop.createdBy;
+    const creatorId = typeof creatorRaw === "string" ? creatorRaw.trim() : "";
+
+    const memberships = await admin
+      .firestore()
+      .collectionGroup("groups")
+      .where("code", "==", groupCode)
+      .get();
+
+    const memberIds = Array.from(
+      new Set(
+        memberships.docs
+          .map((doc) => doc.ref.parent.parent?.id ?? "")
+          .filter((uid) => uid.length > 0 && uid !== creatorId)
+      )
+    );
+
+    if (memberIds.length === 0) return;
+
+    const dropId = String(context.params.dropId ?? "");
+    if (!dropId) return;
+
+    const dropLabel = resolveDropLabel(drop);
+    const contentType = typeof drop.contentType === "string" ? drop.contentType : "TEXT";
+
+    const data: Record<string, string> = {
+      event: "DROP_ADDED_TO_EXPERIENCE",
+      dropId,
+      groupCode,
+      dropContentType: contentType,
+      title: "New drop in your experience",
+      body: `${dropLabel} is waiting to be found.`,
+      dropLabel,
+    };
+
+    const text = typeof drop.text === "string" ? drop.text.trim() : "";
+    if (text) {
+      data.dropTitle = truncate(text, 200);
+    }
+
+    const message: Omit<admin.messaging.MulticastMessage, "tokens"> = {
+      android: {
+        priority: "high",
+      },
+      data,
+    };
+
+    // Deliberately no location in the payload: the notification says a drop exists in
+    // an experience you joined, never where the recipient is.
+    let notified = 0;
+    for (const memberId of memberIds) {
+      const tokens = await fetchNotificationTokens(memberId);
+      if (tokens.length === 0) continue;
+      await sendToUserTokens(memberId, tokens, message);
+      notified += 1;
+    }
+
+    console.log(
+      `Notified ${notified} member(s) of group ${groupCode} about new drop ${dropId}.`
+    );
+  });
+
 export const cleanupCollectedNotesOnDropDelete = functions
   .region("us-central1")
   .firestore.document("drops/{dropId}")

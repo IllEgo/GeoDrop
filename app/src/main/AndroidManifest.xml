@@ -14,11 +14,6 @@
         android:name="android.hardware.camera"
         android:required="false" />
 
-    <!-- Needed for geofences while app is backgrounded (request at runtime with rationale).
-         Phase 3 reworks proximity unlocking onto one-time precise location and revisits
-         this permission; it is deliberately NOT part of the 2.8 sweep. -->
-    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
-
     <application
         android:name=".GeoDropApplication"
         android:allowBackup="true"
@@ -64,10 +59,6 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths" />
         </provider>
-
-        <receiver
-            android:name=".geo.GeofenceReceiver"
-            android:exported="false" />
 
         <receiver
             android:name=".geo.DropDecisionReceiver"

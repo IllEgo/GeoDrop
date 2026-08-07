@@ -24,7 +24,6 @@ import com.e3hi.geodrop.util.MessagingTokenStore
 import com.e3hi.geodrop.util.NotificationPreferences
 import com.e3hi.geodrop.util.PilotFeatureFlags
 import com.e3hi.geodrop.util.createNotificationChannelIfNeeded
-import com.e3hi.geodrop.geo.NearbyDropRegistrar
 import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuth.AuthStateListener
@@ -37,7 +36,6 @@ class MainActivity : ComponentActivity() {
 
     private val auth: FirebaseAuth by lazy { FirebaseAuth.getInstance() }
     private var authListener: AuthStateListener? = null
-    private val registrar = NearbyDropRegistrar()
     private val firestoreRepo by lazy { FirestoreRepo() }
     private val messagingTokenStore by lazy { MessagingTokenStore(this) }
 
@@ -46,7 +44,6 @@ class MainActivity : ComponentActivity() {
         PilotFeatureFlags.start()
         createNotificationChannelIfNeeded(this)
 
-        val groupPrefs = GroupPreferences(this)
         val notificationPrefs = NotificationPreferences(this)
 
         authListener = AuthStateListener { firebaseAuth ->
@@ -61,13 +58,8 @@ class MainActivity : ComponentActivity() {
             if (!PilotFeatureFlags.notificationsEnabled) {
                 notificationPrefs.setNearbyAlertsEnabled(false)
                 messagingTokenStore.clearSynced()
-                registrar.unregisterNearby(this)
             } else if (notificationPrefs.areNearbyAlertsEnabled() && hasNearbyAlertPermissions()) {
-                enableNearbyAlerts(
-                    currentUser.uid,
-                    notificationPrefs.getNotificationRadiusMeters(),
-                    groupPrefs.getMemberships().map { it.code }.toSet()
-                )
+                enableNearbyAlerts(currentUser.uid)
             }
         }
         authListener?.let { auth.addAuthStateListener(it) }
@@ -82,13 +74,13 @@ class MainActivity : ComponentActivity() {
                 ) { done ->
                     if (done) {
                         DropHereScreen(
-                            onNearbyAlertsEnabled = { radius, groups ->
+                            onNearbyAlertsEnabled = {
                                 auth.currentUser?.uid?.let { userId ->
-                                    enableNearbyAlerts(userId, radius, groups)
+                                    enableNearbyAlerts(userId)
                                 }
                             },
                             onNearbyAlertsDisabled = {
-                                registrar.unregisterNearby(this)
+                                messagingTokenStore.clearSynced()
                             }
                         )
                     } else {
@@ -103,38 +95,25 @@ class MainActivity : ComponentActivity() {
         Log.d("GeoDrop", "Firebase projectId=${opts.projectId}, appId=${opts.applicationId}")
     }
 
+    /**
+     * Task 3.4 — alerts are membership-scoped now, sent by the server when a drop is
+     * added to an experience the user joined. No location permission of any kind is
+     * involved; the device only needs to be able to show a notification.
+     */
     private fun hasNearbyAlertPermissions(): Boolean {
-        val foregroundGranted = ContextCompat.checkSelfPermission(
-            this,
-            Manifest.permission.ACCESS_FINE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
-        val notificationsGranted = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+        return Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
             ContextCompat.checkSelfPermission(
                 this,
                 Manifest.permission.POST_NOTIFICATIONS
             ) == PackageManager.PERMISSION_GRANTED
-        val backgroundGranted = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ||
-            ContextCompat.checkSelfPermission(
-                this,
-                Manifest.permission.ACCESS_BACKGROUND_LOCATION
-            ) == PackageManager.PERMISSION_GRANTED
-        return foregroundGranted && notificationsGranted && backgroundGranted
     }
 
-    private fun enableNearbyAlerts(userId: String, radius: Double, groups: Set<String>) {
-        if (!PilotFeatureFlags.notificationsEnabled) {
-            registrar.unregisterNearby(this)
-            return
-        }
+    private fun enableNearbyAlerts(userId: String) {
+        if (!PilotFeatureFlags.notificationsEnabled) return
         if (!hasNearbyAlertPermissions()) return
         lifecycleScope.launch {
             ensureMessagingTokenRegistered(userId)
         }
-        registrar.registerNearby(
-            this,
-            maxMeters = radius,
-            groupCodes = groups
-        )
     }
 
     private suspend fun ensureMessagingTokenRegistered(userId: String) {
