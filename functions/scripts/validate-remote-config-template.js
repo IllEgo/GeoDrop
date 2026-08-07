@@ -8,7 +8,6 @@ const expectedKeys = [
   "pilot_notifications_enabled",
   "pilot_coupons_enabled",
   "pilot_media_enabled",
-  "pilot_nsfw_enabled",
   "pilot_hunts_enabled",
 ];
 const templatePath = path.resolve(__dirname, "..", "..", "remoteconfig.template.json");

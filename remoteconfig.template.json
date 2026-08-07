@@ -16,10 +16,6 @@
       "defaultValue": { "value": "false" },
       "description": "Emergency control for media upload, exposure, and playback."
     },
-    "pilot_nsfw_enabled": {
-      "defaultValue": { "value": "false" },
-      "description": "Pilot guard for mature-content creation and exposure."
-    },
     "pilot_hunts_enabled": {
       "defaultValue": { "value": "false" },
       "description": "Pilot guard for scavenger-hunt creation and progression."
