@@ -124,7 +124,7 @@ struct DropFeedView: View {
             guard let settingsURL = URL(string: UIApplication.openSettingsURLString) else { return }
             UIApplication.shared.open(settingsURL)
         case .authorizedAlways, .authorizedWhenInUse:
-            locationService.startUpdating()
+            locationService.refreshApproximateLocation()
         @unknown default:
             guard let settingsURL = URL(string: UIApplication.openSettingsURLString) else { return }
             UIApplication.shared.open(settingsURL)
@@ -569,13 +569,21 @@ struct DropRowView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         
                         if !isMyDropsDestination {
+                            // This button *is* the unlock attempt (task 3.3): it takes a
+                            // precise fix and checks proximity. Gating it on
+                            // canPreviewContent would deadlock, since previewing now
+                            // requires an unlock that only this button can perform.
+                            let isUnlocking = viewModel.unlockingDropID == drop.id
                             Button(action: markCollected) {
-                                Label(hasCollected ? "Collected" : "Collect", systemImage: hasCollected ? "checkmark.circle.fill" : "tray.and.arrow.down")
-                                    .font(actionFont)
+                                Label(
+                                    hasCollected ? "Collected" : (isUnlocking ? "Checking…" : "Unlock"),
+                                    systemImage: hasCollected ? "checkmark.circle.fill" : "lock.open"
+                                )
+                                .font(actionFont)
                             }
                             .frame(maxWidth: .infinity)
                             .buttonStyle(.bordered)
-                            .disabled(hasCollected || !canPreviewContent)
+                            .disabled(hasCollected || isUnlocking)
                         }
                     }
                     
@@ -690,8 +698,10 @@ struct DropRowView: View {
             return
         }
         guard !viewModel.hasCollected(drop: drop) else { return }
-        if let error = viewModel.markCollected(drop: drop) {
-            infoAlertMessage = error.localizedDescription
+        Task {
+            if let error = await viewModel.markCollected(drop: drop) {
+                infoAlertMessage = error.localizedDescription
+            }
         }
     }
     

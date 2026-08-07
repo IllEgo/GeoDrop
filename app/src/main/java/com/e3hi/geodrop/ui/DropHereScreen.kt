@@ -15,7 +15,9 @@ import android.graphics.Paint
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffColorFilter
 import android.net.Uri
+import android.location.Location
 import android.os.Build
+import android.os.SystemClock
 import android.provider.Settings
 import android.util.Base64
 import android.util.Log
@@ -268,7 +270,6 @@ import com.e3hi.geodrop.data.remainingRedemptions
 import com.e3hi.geodrop.data.requiresRedemption
 import com.e3hi.geodrop.data.userLikeStatus
 import com.e3hi.geodrop.data.isBusiness
-import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
 import com.e3hi.geodrop.data.isExpired
 import com.e3hi.geodrop.data.remainingDecayMillis
@@ -284,9 +285,6 @@ import com.e3hi.geodrop.util.ContextualPermissionPolicy
 import com.e3hi.geodrop.util.PermissionGrantState
 import com.e3hi.geodrop.util.formatTimestamp
 import com.e3hi.geodrop.util.TermsPreferences
-import com.google.android.gms.location.LocationCallback
-import com.google.android.gms.location.LocationRequest
-import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
@@ -392,6 +390,7 @@ fun DropHereScreen(
     var termsPrivacyDialogTab by remember { mutableStateOf<Int?>(null) }
     var permissionStateVersion by remember { mutableIntStateOf(0) }
     var foregroundLocationRequested by rememberSaveable { mutableStateOf(false) }
+    var preciseLocationRequested by rememberSaveable { mutableStateOf(false) }
     var notificationPermissionRequested by rememberSaveable { mutableStateOf(false) }
     var backgroundLocationRequested by rememberSaveable { mutableStateOf(false) }
     var alertPermissionFlowToken by remember { mutableIntStateOf(0) }
@@ -1240,6 +1239,10 @@ fun DropHereScreen(
     var otherDropsRefreshing by remember { mutableStateOf(false) }
     var otherDropsError by remember { mutableStateOf<String?>(null) }
     var otherDropsCurrentLocation by remember { mutableStateOf<LatLng?>(null) }
+    // Drops whose proximity was proven this session by attemptUnlock. Content is revealed
+    // for these; nothing about *where* the user was is kept (task 3.5).
+    var unlockedDropIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var unlockInProgressDropId by remember { mutableStateOf<String?>(null) }
     var otherDropsSelectedId by remember { mutableStateOf<String?>(null) }
     val dismissedBrowseDropIds = rememberSaveable(
         saver = listSaver(
@@ -1332,8 +1335,10 @@ fun DropHereScreen(
             Manifest.permission.ACCESS_BACKGROUND_LOCATION
         ) == PackageManager.PERMISSION_GRANTED
 
+    // Browsing needs approximate location only (task 3.2), so COARSE alone is a full
+    // grant here. Precise is a separate, later ask — see preciseLocationState.
     val foregroundLocationState = when {
-        hasFineLocation -> PermissionGrantState.GRANTED
+        hasForegroundLocation -> PermissionGrantState.GRANTED
         !foregroundLocationRequested -> PermissionGrantState.REQUESTABLE
         permissionActivity != null && (
             ActivityCompat.shouldShowRequestPermissionRationale(
@@ -1343,6 +1348,17 @@ fun DropHereScreen(
                 permissionActivity,
                 Manifest.permission.ACCESS_COARSE_LOCATION
             )
+        ) -> PermissionGrantState.REQUESTABLE
+        else -> PermissionGrantState.BLOCKED
+    }
+    // Precise is asked for at the unlock attempt, so its state is tracked separately
+    // from the coarse grant that browsing runs on.
+    val preciseLocationState = when {
+        hasFineLocation -> PermissionGrantState.GRANTED
+        !preciseLocationRequested -> PermissionGrantState.REQUESTABLE
+        permissionActivity != null && ActivityCompat.shouldShowRequestPermissionRationale(
+            permissionActivity,
+            Manifest.permission.ACCESS_FINE_LOCATION
         ) -> PermissionGrantState.REQUESTABLE
         else -> PermissionGrantState.BLOCKED
     }
@@ -1375,6 +1391,23 @@ fun DropHereScreen(
             snackbar.showMessage(
                 scope,
                 "Location is off. You can keep browsing and enable it later from Nearby."
+            )
+        }
+    }
+    // Precise location is requested only when the user attempts to unlock a drop
+    // (task 3.3). A grant is not retained beyond the checks that need it: nothing
+    // starts a stream, and the fix is discarded once the proximity question is answered.
+    val preciseLocationLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        preciseLocationRequested = true
+        permissionStateVersion += 1
+        if (granted) {
+            snackbar.showMessage(scope, "Precise location on. Try the drop again.")
+        } else {
+            snackbar.showMessage(
+                scope,
+                "Unlocking needs precise location. Browsing still works without it."
             )
         }
     }
@@ -1421,11 +1454,10 @@ fun DropHereScreen(
         ) {
             ContextualPermissionAction.REQUEST_FOREGROUND_LOCATION -> {
                 foregroundLocationRequested = true
+                // Coarse only. Precise is requested at the moment of an unlock attempt
+                // (task 3.3), not to browse a map.
                 foregroundLocationLauncher.launch(
-                    arrayOf(
-                        Manifest.permission.ACCESS_FINE_LOCATION,
-                        Manifest.permission.ACCESS_COARSE_LOCATION
-                    )
+                    arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION)
                 )
             }
             ContextualPermissionAction.OPEN_FOREGROUND_LOCATION_SETTINGS ->
@@ -1445,7 +1477,10 @@ fun DropHereScreen(
             ContextualPermissionPolicy.nextAction(
                 intent = ContextualPermissionIntent.ENABLE_NEARBY_ALERTS,
                 onboardingComplete = hasViewedOnboarding,
-                foregroundLocation = foregroundLocationState,
+                // Geofencing needs FINE (NearbyDropRegistrar refuses to register
+                // without it), so this flow reports the *precise* state — unlike
+                // browsing, which is satisfied by the coarse grant (task 3.2).
+                foregroundLocation = preciseLocationState,
                 notificationsRequired = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU,
                 notifications = notificationPermissionState,
                 backgroundLocationRequired = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q,
@@ -1684,6 +1719,10 @@ fun DropHereScreen(
         }
     }
 
+    /**
+     * Precise, one-shot. Used where the user's own position *is* the content being
+     * authored — placing a drop or a hunt step. Never used to browse.
+     */
     suspend fun getLatestLocation(): Pair<Double, Double>? = withContext(Dispatchers.IO) {
         if (!hasForegroundLocation) return@withContext null
         val fresh = try {
@@ -1700,6 +1739,59 @@ fun DropHereScreen(
         }
 
         loc?.let { it.latitude to it.longitude }
+    }
+
+    /**
+     * Approximate, one-shot. Everything the map and the nearby lists need: distance
+     * labels, sorting, and centring. Task 3.2 — browsing never asks for GPS-grade
+     * precision, and nothing here is retained or streamed.
+     */
+    suspend fun getApproximateLocation(): Pair<Double, Double>? = withContext(Dispatchers.IO) {
+        if (!hasForegroundLocation) return@withContext null
+        val fresh = try {
+            val cts = CancellationTokenSource()
+            Tasks.await(
+                fused.getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, cts.token)
+            )
+        } catch (_: Exception) {
+            null
+        }
+
+        val loc = fresh ?: try {
+            Tasks.await(fused.lastLocation)
+        } catch (_: Exception) {
+            null
+        }
+
+        loc?.let { it.latitude to it.longitude }
+    }
+
+    /**
+     * Precise, one-shot, requested at the moment of an unlock attempt and discarded as
+     * soon as the proximity question is answered (task 3.3, direction doc steps 2–5).
+     *
+     * Returns null when the fix is missing, stale, or too imprecise to decide a
+     * [DROP_PICKUP_RADIUS_METERS] question — callers must fail closed, exactly as
+     * [DropDecisionReceiver] does for the authoritative check.
+     */
+    suspend fun getPreciseFixForUnlock(): Location? = withContext(Dispatchers.IO) {
+        if (!hasFineLocation) return@withContext null
+        val fix = try {
+            val cts = CancellationTokenSource()
+            Tasks.await(fused.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cts.token))
+        } catch (_: Exception) {
+            null
+        } ?: return@withContext null
+
+        val ageMillis = fix.elapsedRealtimeNanos.takeIf { it > 0L }?.let { nanos ->
+            (SystemClock.elapsedRealtimeNanos() - nanos) / 1_000_000
+        } ?: Long.MAX_VALUE
+        if (ageMillis > UNLOCK_LOCATION_STALE_THRESHOLD_MILLIS) return@withContext null
+
+        val accuracy = fix.accuracy.takeIf { fix.hasAccuracy() && it > 0f } ?: return@withContext null
+        if (accuracy > DROP_PICKUP_RADIUS_METERS) return@withContext null
+
+        fix
     }
 
     fun clearAudio() {
@@ -1784,6 +1876,63 @@ fun DropHereScreen(
         }
     }
 
+    /**
+     * The unlock attempt (task 3.3, direction doc steps 2–5): request precise location
+     * *now*, answer the proximity question, then let the fix go. A success is remembered
+     * as an unlocked drop id — the record of the unlock, not of where the user was.
+     */
+    fun attemptUnlock(drop: Drop) {
+        if (!canParticipate) {
+            snackbar.showMessage(scope, participationRestriction("unlock drops"))
+            return
+        }
+        val expiresAt = drop.decayAtMillis()
+        if (expiresAt != null && expiresAt <= System.currentTimeMillis()) {
+            snackbar.showMessage(scope, "This drop has already expired.")
+            return
+        }
+        if (!hasFineLocation) {
+            // Browsing got by on approximate location; a 30 m question cannot be
+            // answered with it, so this is where precise is asked for.
+            if (preciseLocationState == PermissionGrantState.BLOCKED) {
+                snackbar.showMessage(
+                    scope,
+                    "Precise location is off for GeoDrop. Turn it on in Settings to unlock drops."
+                )
+                openApplicationSettings()
+            } else {
+                preciseLocationRequested = true
+                preciseLocationLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+            }
+            return
+        }
+
+        scope.launch {
+            unlockInProgressDropId = drop.id
+            val fix = try {
+                getPreciseFixForUnlock()
+            } finally {
+                unlockInProgressDropId = null
+            }
+            if (fix == null) {
+                snackbar.showMessage(
+                    scope,
+                    "Couldn't confirm your location accurately enough. Step outside or try again."
+                )
+                return@launch
+            }
+            val distance = distanceBetweenMeters(fix.latitude, fix.longitude, drop.lat, drop.lng)
+            if (distance > DROP_PICKUP_RADIUS_METERS + fix.accuracy) {
+                snackbar.showMessage(
+                    scope,
+                    "Move within ${DROP_PICKUP_RADIUS_METERS.roundToInt()} meters to unlock this drop."
+                )
+                return@launch
+            }
+            unlockedDropIds = unlockedDropIds + drop.id
+        }
+    }
+
     fun pickUpDrop(drop: Drop) {
         if (!canParticipate) {
             snackbar.showMessage(scope, participationRestriction("pick up drops"))
@@ -1794,16 +1943,11 @@ fun DropHereScreen(
             snackbar.showMessage(scope, "This drop has already expired.")
             return
         }
-        val currentLocation = otherDropsCurrentLocation
-        val withinRange = currentLocation?.let {
-            distanceBetweenMeters(it.latitude, it.longitude, drop.lat, drop.lng) <=
-                    DROP_PICKUP_RADIUS_METERS
-        } ?: false
-        if (!withinRange) {
-            snackbar.showMessage(
-                scope,
-                "Move within ${DROP_PICKUP_RADIUS_METERS.roundToInt()} meters to pick up this drop."
-            )
+        // Proximity was proven by attemptUnlock, which is the only way to reach this
+        // button. DropDecisionReceiver re-checks with its own precise fix and fails
+        // closed, so nothing here is load-bearing for correctness.
+        if (drop.id !in unlockedDropIds) {
+            attemptUnlock(drop)
             return
         }
 
@@ -2641,7 +2785,7 @@ fun DropHereScreen(
                     )
                         .sortedByDescending { it.createdAt }
                     val latestLocation = if (hasForegroundLocation) {
-                        getLatestLocation()?.let { (lat, lng) -> LatLng(lat, lng) }
+                        getApproximateLocation()?.let { (lat, lng) -> LatLng(lat, lng) }
                     } else {
                         null
                     }
@@ -2651,15 +2795,15 @@ fun DropHereScreen(
                         when {
                             id in collectedDropIds || id in ignoredDropIds -> true
                             dismissedBrowseDropIds.contains(id) -> {
-                                val withinPickupRange = latestLocation?.let { location ->
+                                val nearbyAgain = latestLocation?.let { location ->
                                     distanceBetweenMeters(
                                         location.latitude,
                                         location.longitude,
                                         drop.lat,
                                         drop.lng
-                                    ) <= DROP_PICKUP_RADIUS_METERS
+                                    ) <= BROWSE_NEARBY_THRESHOLD_METERS
                                 } ?: false
-                                !withinPickupRange
+                                !nearbyAgain
                             }
                             else -> false
                         }
@@ -2698,24 +2842,14 @@ fun DropHereScreen(
         }
     }
 
-    LaunchedEffect(explorerHomeVisible, hasForegroundLocation) {
+    // Task 3.2 — the explorer surface used to hold a continuous PRIORITY_HIGH_ACCURACY
+    // stream (5 s interval) for as long as it was visible, purely to keep distance
+    // labels fresh. That is precise location for browsing, held indefinitely, which the
+    // direction doc's steps 1 and 5 exclude. Distances now come from a coarse one-shot
+    // refreshed with the list, and precision is requested only at an unlock attempt.
+    LaunchedEffect(explorerHomeVisible, hasForegroundLocation, otherDropsRefreshToken) {
         if (!explorerHomeVisible || !hasForegroundLocation) return@LaunchedEffect
-        val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 5_000L)
-            .setMinUpdateIntervalMillis(2_000L)
-            .build()
-        val callback = object : LocationCallback() {
-            override fun onLocationResult(result: LocationResult) {
-                result.lastLocation?.let { loc ->
-                    otherDropsCurrentLocation = LatLng(loc.latitude, loc.longitude)
-                }
-            }
-        }
-        try {
-            fused.requestLocationUpdates(locationRequest, callback, android.os.Looper.getMainLooper())
-            awaitCancellation()
-        } finally {
-            fused.removeLocationUpdates(callback)
-        }
+        otherDropsCurrentLocation = getApproximateLocation()?.let { (lat, lng) -> LatLng(lat, lng) }
     }
 
     val currentExplorerDestination = remember(explorerDestination) {
@@ -2761,7 +2895,7 @@ fun DropHereScreen(
                     myDrops = drops
                     myDropCountHint = drops.size
                     myDropPendingReviewHint = drops.count { it.reportCount > 0 }
-                    myDropsCurrentLocation = getLatestLocation()?.let { (lat, lng) -> LatLng(lat, lng) }
+                    myDropsCurrentLocation = getApproximateLocation()?.let { (lat, lng) -> LatLng(lat, lng) }
                     myDropsSelectedId = myDropsSelectedId?.takeIf { id -> drops.any { it.id == id } }
                         ?: drops.firstOrNull()?.id
                 } catch (e: Exception) {
@@ -2904,7 +3038,7 @@ fun DropHereScreen(
         val shouldUpdateLocation = currentHomeDestination == HomeDestination.Explorer &&
                 currentExplorerDestination == ExplorerDestination.Collected
         collectedCurrentLocation = if (shouldUpdateLocation) {
-            getLatestLocation()?.let { (lat, lng) -> LatLng(lat, lng) }
+            getApproximateLocation()?.let { (lat, lng) -> LatLng(lat, lng) }
         } else {
             null
         }
@@ -2974,14 +3108,6 @@ fun DropHereScreen(
             return@report
         }
         val hasCollected = collectedDropIds.contains(drop.id)
-        val withinPickupRange = otherDropsCurrentLocation?.let { location ->
-            distanceBetweenMeters(
-                location.latitude,
-                location.longitude,
-                drop.lat,
-                drop.lng
-            ) <= DROP_PICKUP_RADIUS_METERS
-        } ?: false
         if (drop.reportedBy.containsKey(userId)) {
             Toast.makeText(ctx, "You've already reported this drop.", Toast.LENGTH_SHORT).show()
             return@report
@@ -3701,6 +3827,8 @@ fun DropHereScreen(
                                                 refreshing = otherDropsRefreshing,
                                                 drops = sortedOtherDrops,
                                                 currentLocation = otherDropsCurrentLocation,
+                                                unlockedDropIds = unlockedDropIds,
+                                                unlockingDropId = unlockInProgressDropId,
                                                 preciseLocationEnabled = hasFineLocation,
                                                 approximateLocationEnabled = hasCoarseLocation,
                                                 locationNeedsSettings = foregroundLocationState == PermissionGrantState.BLOCKED,
@@ -4303,11 +4431,31 @@ fun DropHereScreen(
                     TextButton(
                         onClick = {
                             showLocationNeededForAlerts = false
-                            showExplorerProfile = false
-                            openExplorerDestination(ExplorerDestination.Discover)
+                            // With the coarse grant already in hand, sending the user
+                            // back to Nearby would loop -- its control only asks for
+                            // approximate location now. Ask for precise here instead.
+                            if (hasCoarseLocation && !hasFineLocation) {
+                                if (preciseLocationState == PermissionGrantState.BLOCKED) {
+                                    openApplicationSettings(resumeAlertFlow = true)
+                                } else {
+                                    preciseLocationRequested = true
+                                    preciseLocationLauncher.launch(
+                                        Manifest.permission.ACCESS_FINE_LOCATION
+                                    )
+                                }
+                            } else {
+                                showExplorerProfile = false
+                                openExplorerDestination(ExplorerDestination.Discover)
+                            }
                         }
                     ) {
-                        Text("Go to Nearby")
+                        Text(
+                            if (hasCoarseLocation && !hasFineLocation) {
+                                "Allow precise location"
+                            } else {
+                                "Go to Nearby"
+                            }
+                        )
                     }
                 },
                 dismissButton = {
@@ -7139,6 +7287,18 @@ private fun TermsPrivacyDialog(
 
 private const val NOTIFICATION_RADIUS_STEP_METERS = 50f
 private const val DROP_PICKUP_RADIUS_METERS = 30.0
+
+/**
+ * A fix older than this is not trusted for an unlock. Mirrors
+ * `DropDecisionReceiver.LOCATION_STALE_THRESHOLD_MILLIS`.
+ */
+private const val UNLOCK_LOCATION_STALE_THRESHOLD_MILLIS = 2 * 60 * 1000L
+
+/**
+ * Browse-scale proximity, answerable with an approximate fix. Used only for list
+ * behaviour such as re-showing a drop the user dismissed earlier — never to unlock.
+ */
+private const val BROWSE_NEARBY_THRESHOLD_METERS = 150.0
 private const val MAX_BUSINESS_TEMPLATE_SUGGESTIONS = 6
 
 private fun formatCoordinate(value: Double): String {
@@ -8709,6 +8869,8 @@ private fun BusinessDropAnalyticsCard(drop: Drop, onDeleteDrop: (() -> Unit)? = 
 @Composable
 private fun OtherDropsExplorerSection(
     modifier: Modifier = Modifier,
+    unlockedDropIds: Set<String> = emptySet(),
+    unlockingDropId: String? = null,
     topContentPadding: Dp = 0.dp,
     fabClearance: Dp = 0.dp,
     destinationLabel: String = "",
@@ -8921,15 +9083,8 @@ private fun OtherDropsExplorerSection(
                                     drop.reportedBy.containsKey(id)
                                 } == true
                                 val hasCollected = collectedDropIds.contains(drop.id)
-                                val withinPickupRange = currentLocation?.let { location ->
-                                    distanceBetweenMeters(
-                                        location.latitude,
-                                        location.longitude,
-                                        drop.lat,
-                                        drop.lng
-                                    ) <= DROP_PICKUP_RADIUS_METERS
-                                } ?: false
-                                val canReportDrop = isSignedIn && !isOwnDrop && (hasCollected || withinPickupRange)
+                                val isUnlocked = hasCollected || drop.id in unlockedDropIds
+                                val canReportDrop = isSignedIn && !isOwnDrop && isUnlocked
                                 val reportRestrictionMessage = when {
                                     isOwnDrop -> "You created this drop."
                                     !isSignedIn -> "Sign in to report drops."
@@ -8941,6 +9096,8 @@ private fun OtherDropsExplorerSection(
                                     drop = drop,
                                     isSelected = drop.id == selectedId,
                                     currentLocation = currentLocation,
+                                    isUnlocked = isUnlocked,
+                                    isUnlocking = unlockingDropId == drop.id,
                                     userLike = userLike,
                                     canPickUp = canParticipate,
                                     pickupRestrictionMessage = collectRestrictionMessage,
@@ -8949,7 +9106,7 @@ private fun OtherDropsExplorerSection(
                                     alreadyReported = alreadyReported,
                                     reportRestrictionMessage = reportRestrictionMessage,
                                     isReporting = browseReportingDropId == drop.id,
-                                    canIgnoreForNow = !withinPickupRange,
+                                    canIgnoreForNow = !isUnlocked,
                                     onIgnoreForNow = { onIgnoreForNow(drop) },
                                     onSelect = { onSelect(drop) },
                                     onPickUp = { onPickUp(drop) },
@@ -10579,6 +10736,8 @@ private fun OtherDropRow(
     drop: Drop,
     isSelected: Boolean,
     currentLocation: LatLng?,
+    isUnlocked: Boolean,
+    isUnlocking: Boolean,
     userLike: DropLikeStatus,
     canPickUp: Boolean,
     pickupRestrictionMessage: String?,
@@ -10598,9 +10757,10 @@ private fun OtherDropRow(
     val distanceMeters = currentLocation?.let { location ->
         distanceBetweenMeters(location.latitude, location.longitude, drop.lat, drop.lng)
     }
-    val withinPickupRange =
-        distanceMeters != null && distanceMeters <= DROP_PICKUP_RADIUS_METERS
-    val canPreviewContent = withinPickupRange
+    // Task 3.2/3.3 — `currentLocation` is now an approximate fix, so it can no longer
+    // decide a 30 m question. Content is revealed only once attemptUnlock has proven
+    // proximity with a precise fix taken at the moment of the attempt.
+    val canPreviewContent = isUnlocked
     val context = LocalContext.current
     val mediaAttachment = remember(
         context,
@@ -10824,7 +10984,17 @@ private fun OtherDropRow(
                             )
                         }
                     }
-                    if (withinPickupRange) {
+                    if (!isUnlocked) {
+                        Button(
+                            onClick = onPickUp,
+                            enabled = canPickUp && !isUnlocking,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(if (isUnlocking) "Checking your location…" else "Unlock drop")
+                        }
+                    }
+
+                    if (isUnlocked) {
                         Spacer(Modifier.height(12.dp))
                         if (canPickUp) {
                             Button(
@@ -10842,7 +11012,7 @@ private fun OtherDropRow(
                             )
                         }
                     }
-                    if (withinPickupRange && canIgnoreForNow) {
+                    if (isUnlocked && canIgnoreForNow) {
                         Spacer(Modifier.height(12.dp))
                         OutlinedButton(
                             onClick = onIgnoreForNow,
