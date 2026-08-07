@@ -520,7 +520,7 @@ service cloud.firestore {
           && !beforeRedeemedBy.keys().hasAny([userId])
           && afterRedeemedBy.keys().hasAny([userId])
           && beforeRedeemedBy.diff(afterRedeemedBy).affectedKeys().hasOnly([userId])
-          && afterRedeemedBy[userId] is int
+          && afterRedeemedBy.get(userId, '') is int
           && afterCount == beforeCount + 1
           && (limit < 0 || afterCount <= limit);
       }
@@ -569,7 +569,12 @@ service cloud.firestore {
       allow update: if isSignedIn()
         && isRedeemableDrop(resource.data)
         && isNotExpired(resource.data)
+        // A write to `redeemedBy.<uid>` reports the TOP-LEVEL `redeemedBy` as the
+        // affected key, so both forms must be listed — exactly as the collect rule
+        // does for `collectedBy`. Listing only the dotted form made hasOnly() false
+        // for every real redemption, which is why no redemption had ever succeeded.
         && resource.data.diff(request.resource.data).affectedKeys().hasOnly([
+          'redeemedBy',
           'redeemedBy.' + request.auth.uid,
           'redemptionCount'
         ])
