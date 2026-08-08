@@ -92,7 +92,10 @@ import com.e3hi.geodrop.data.requiresRedemption
 import com.e3hi.geodrop.data.isRedeemedBy
 import com.e3hi.geodrop.data.UserMode
 import com.e3hi.geodrop.data.likeStatus
-import com.e3hi.geodrop.geo.DropDecisionReceiver
+import com.e3hi.geodrop.geo.DropCollectionRequest
+import com.e3hi.geodrop.geo.DropCollectionResult
+import com.e3hi.geodrop.geo.DropCollector
+import com.e3hi.geodrop.geo.pickupFailureMessage
 import com.e3hi.geodrop.ui.theme.GeoDropTheme
 import com.e3hi.geodrop.util.formatTimestamp
 import com.e3hi.geodrop.util.EXTRA_SHOW_DECISION_OPTIONS
@@ -1166,37 +1169,44 @@ class DropDetailActivity : ComponentActivity() {
                                                     }
                                                     val current = loadedState ?: return@Button
                                                     decisionProcessing = true
-                                                    val pickupIntent = Intent(appContext, DropDecisionReceiver::class.java).apply {
-                                                        action = DropDecisionReceiver.ACTION_PICK_UP
-                                                        putExtra(DropDecisionReceiver.EXTRA_DROP_ID, dropId)
-                                                        FirebaseAuth.getInstance().currentUser?.uid?.let {
-                                                            putExtra(DropDecisionReceiver.EXTRA_USER_ID, it)
+                                                    val request = DropCollectionRequest(
+                                                        dropId = dropId,
+                                                        text = current.text.orEmpty(),
+                                                        description = current.description,
+                                                        contentType = current.contentType,
+                                                        mediaUrl = current.mediaUrl,
+                                                        mediaMimeType = current.mediaMimeType,
+                                                        mediaData = current.mediaData,
+                                                        lat = current.lat,
+                                                        lng = current.lng,
+                                                        createdAt = current.createdAt,
+                                                        groupCode = current.groupCode,
+                                                        dropType = current.dropType,
+                                                        businessId = current.businessId,
+                                                        businessName = current.businessName,
+                                                        redemptionLimit = current.redemptionLimit,
+                                                        redemptionCount = current.redemptionCount,
+                                                        isNsfw = current.isNsfw,
+                                                        nsfwLabels = current.nsfwLabels,
+                                                        decayDays = current.decayDays
+                                                    )
+                                                    scope.launch {
+                                                        val result = DropCollector.collect(
+                                                            context = appContext,
+                                                            request = request,
+                                                            userId = FirebaseAuth.getInstance().currentUser?.uid
+                                                        )
+                                                        decisionProcessing = false
+                                                        if (result == DropCollectionResult.Collected) {
+                                                            NotificationManagerCompat.from(appContext)
+                                                                .cancel(dropId.hashCode())
+                                                            decisionHandled = true
+                                                            decisionStatusMessage = "Drop added to your collection."
+                                                            hasCollected = true
+                                                            Toast.makeText(context, "Drop added to your collection.", Toast.LENGTH_SHORT).show()
+                                                        } else {
+                                                            Toast.makeText(context, pickupFailureMessage(result), Toast.LENGTH_SHORT).show()
                                                         }
-                                                        current.text?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_TEXT, it) }
-                                                        current.description?.takeIf { it.isNotBlank() }?.let {
-                                                            putExtra(DropDecisionReceiver.EXTRA_DROP_DESCRIPTION, it)
-                                                        }
-                                                        current.lat?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_LAT, it) }
-                                                        current.lng?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_LNG, it) }
-                                                        current.createdAt?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_CREATED_AT, it) }
-                                                        current.groupCode?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_GROUP, it) }
-                                                        putExtra(DropDecisionReceiver.EXTRA_DROP_CONTENT_TYPE, current.contentType.name)
-                                                        current.mediaUrl?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_MEDIA_URL, it) }
-                                                        current.mediaMimeType?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_MEDIA_MIME_TYPE, it) }
-                                                        current.mediaData?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_MEDIA_DATA, it) }
-                                                    }
-                                                    val result = runCatching {
-                                                        appContext.sendBroadcast(pickupIntent)
-                                                        NotificationManagerCompat.from(appContext).cancel(dropId.hashCode())
-                                                    }
-                                                    decisionProcessing = false
-                                                    if (result.isSuccess) {
-                                                        decisionHandled = true
-                                                        decisionStatusMessage = "Drop added to your collection."
-                                                        hasCollected = true
-                                                        Toast.makeText(context, "Drop added to your collection.", Toast.LENGTH_SHORT).show()
-                                                    } else {
-                                                        Toast.makeText(context, "Couldn't pick up this drop.", Toast.LENGTH_SHORT).show()
                                                     }
                                                 },
                                                 enabled = canParticipate && !decisionProcessing && loadedState != null,
@@ -1208,15 +1218,14 @@ class DropDetailActivity : ComponentActivity() {
                                             OutlinedButton(
                                                 onClick = {
                                                     decisionProcessing = true
-                                                    val ignoreIntent = Intent(appContext, DropDecisionReceiver::class.java).apply {
-                                                        action = DropDecisionReceiver.ACTION_IGNORE
-                                                        putExtra(DropDecisionReceiver.EXTRA_DROP_ID, dropId)
-                                                        FirebaseAuth.getInstance().currentUser?.uid?.let {
-                                                            putExtra(DropDecisionReceiver.EXTRA_USER_ID, it)
-                                                        }
-                                                    }
+                                                    // Written directly rather than broadcast to
+                                                    // DropDecisionReceiver, whose notification flag
+                                                    // would otherwise discard the decision.
                                                     val result = runCatching {
-                                                        appContext.sendBroadcast(ignoreIntent)
+                                                        NoteInventory(appContext).apply {
+                                                            setActiveUser(FirebaseAuth.getInstance().currentUser?.uid)
+                                                            markIgnored(dropId)
+                                                        }
                                                         NotificationManagerCompat.from(appContext).cancel(dropId.hashCode())
                                                     }
                                                     decisionProcessing = false
