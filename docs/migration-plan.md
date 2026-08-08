@@ -763,6 +763,30 @@ Scope when this task runs:
 
 **Do not absorb Phase 6.** The pilot's funnel metrics are questions about people, not drops.
 
+**Implementation complete 2026-08-07 — awaiting the 4.4 gate.** The server half was
+deployed as ruleset `24b8bd69-6e39-446d-a2b0-eeaa6a3ff688`: `rollUpExperienceActivity`
+maintains `drops`, `collects`, and `redemptions` at
+`groups/{groupCode}/analytics/summary`, while `reconcileExperienceActivity` recomputes
+those documents daily. The existing rules suite proves the parent experience owner can
+read the summary, members and signed-out users cannot, and no client can write it.
+
+Both clients now consume that rollup instead of trying to recreate experience totals
+from whichever drops happen to be visible locally. Android and iOS resolve only
+memberships where the signed-in business is the owner, treat a missing summary as a
+zero-activity experience, and show one aggregate card per owned experience alongside
+the existing per-drop dashboard. The client models carry counts and timestamps only —
+never attendee identity.
+
+**Verification:** Android `testDebugUnitTest`, `lintDebug`, and `assembleDebug` pass. The
+two focused model tests cover the server field shape plus fail-safe handling of missing,
+malformed, and negative counters. This Windows workstation has no Swift/Xcode toolchain,
+so the iOS compile and compact-device layout review remain gate evidence rather than
+being inferred from the Android result.
+
+**Gate:** Review an owner dashboard with known collect/redemption activity on Android
+and iOS; confirm that a non-owner cannot see the summary; record a successful macOS/iOS
+build. Do not begin 4.5 until that evidence is accepted.
+
 ### 4.5 — Scoped push notifications (explicitly joined experiences only)
 ### 4.6 — QR entry point and low-friction onboarding
 

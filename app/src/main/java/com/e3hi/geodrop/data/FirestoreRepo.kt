@@ -499,6 +499,31 @@ class FirestoreRepo(
         }
     }
 
+    /**
+     * Reads the task 4.4 server rollups for experiences this user owns.
+     *
+     * Missing summary documents are represented as zeroes so a newly-created
+     * experience still appears in the dashboard before its first drop.
+     */
+    suspend fun getOwnedExperienceAnalytics(userId: String): List<ExperienceAnalytics> {
+        if (userId.isBlank()) return emptyList()
+
+        return fetchUserGroupMemberships(userId)
+            .filter { membership ->
+                membership.role == GroupRole.OWNER && membership.ownerId == userId
+            }
+            .map { membership ->
+                val summary = db.collection("groups")
+                    .document(membership.code)
+                    .collection("analytics")
+                    .document("summary")
+                    .get()
+                    .await()
+                ExperienceAnalytics.fromMap(membership.code, summary.data)
+            }
+            .sortedBy { it.groupCode }
+    }
+
     suspend fun migrateExplorerAccount(previousUserId: String, newUserId: String) {
         if (previousUserId.isBlank() || newUserId.isBlank() || previousUserId == newUserId) return
 

@@ -225,6 +225,7 @@ import com.e3hi.geodrop.data.CollectedNote
 import com.e3hi.geodrop.data.BusinessDropTemplate
 import com.e3hi.geodrop.data.Drop
 import com.e3hi.geodrop.data.DropContentType
+import com.e3hi.geodrop.data.ExperienceAnalytics
 import com.e3hi.geodrop.data.GroupMembership
 import com.e3hi.geodrop.data.GroupAlreadyExistsException
 import com.e3hi.geodrop.data.GroupNotFoundException
@@ -1285,6 +1286,9 @@ fun DropHereScreen(
     var huntBuilderError by remember { mutableStateOf<String?>(null) }
     var showBusinessDashboard by remember { mutableStateOf(false) }
     var businessDrops by remember { mutableStateOf<List<Drop>>(emptyList()) }
+    var businessExperienceAnalytics by remember {
+        mutableStateOf<List<ExperienceAnalytics>>(emptyList())
+    }
     var businessDashboardLoading by remember { mutableStateOf(false) }
     var businessDashboardError by remember { mutableStateOf<String?>(null) }
     var businessDashboardRefreshToken by remember { mutableStateOf(0) }
@@ -2992,6 +2996,7 @@ fun DropHereScreen(
 
             try {
                 businessDrops = repo.getBusinessDrops(userId!!)
+                businessExperienceAnalytics = repo.getOwnedExperienceAnalytics(userId)
             } catch (error: Exception) {
                 if (showBusinessDashboard) {
                     businessDashboardError = error.localizedMessage ?: "Couldn't load your dashboard."
@@ -3009,6 +3014,7 @@ fun DropHereScreen(
 
             if (!isBusinessUser || userId.isNullOrBlank()) {
                 businessDrops = emptyList()
+                businessExperienceAnalytics = emptyList()
             }
         }
     }
@@ -4472,6 +4478,7 @@ fun DropHereScreen(
         if (showBusinessDashboard) {
             BusinessDashboardDialog(
                 drops = businessDrops,
+                experiences = businessExperienceAnalytics,
                 loading = businessDashboardLoading,
                 error = businessDashboardError,
                 onDismiss = { showBusinessDashboard = false },
@@ -8232,16 +8239,19 @@ private fun BusinessCategoryOptionRow(
 @OptIn(ExperimentalLayoutApi::class)
 private fun BusinessDashboardDialog(
     drops: List<Drop>,
+    experiences: List<ExperienceAnalytics>,
     loading: Boolean,
     error: String?,
     onDismiss: () -> Unit,
     onRefresh: () -> Unit,
     onDeleteDrop: (Drop) -> Unit
 ) {
+    val maxDialogHeight = LocalConfiguration.current.screenHeightDp.dp * 0.9f
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
+                .heightIn(max = maxDialogHeight)
                 .padding(16.dp),
             shape = MaterialTheme.shapes.large,
             tonalElevation = 6.dp
@@ -8249,6 +8259,7 @@ private fun BusinessDashboardDialog(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
                     .padding(24.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
@@ -8305,14 +8316,6 @@ private fun BusinessDashboardDialog(
                         )
                     }
 
-                    drops.isEmpty() -> {
-                        Text(
-                            text = "You haven't shared any business drops yet. Create one to see analytics here.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
                     else -> {
                         val sorted = drops.sortedByDescending { it.createdAt }
                         val totalRedemptions = sorted.sumOf { it.redemptionCount }
@@ -8347,6 +8350,45 @@ private fun BusinessDashboardDialog(
                             )
                         }
 
+                        Text(
+                            text = "Experience totals",
+                            style = MaterialTheme.typography.titleSmall
+                        )
+                        Text(
+                            text = "Server-verified activity across invite-only experiences you own.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        if (experiences.isEmpty()) {
+                            Text(
+                                text = "Create an experience to see its aggregate activity here.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        } else {
+                            LazyColumn(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(max = 280.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                items(experiences, key = { "experience_${it.groupCode}" }) { analytics ->
+                                    ExperienceAnalyticsCard(analytics)
+                                }
+                            }
+                        }
+
+                        Divider()
+
+                        if (sorted.isEmpty()) {
+                            Text(
+                                text = "You haven't shared any business drops yet. Create one to see per-drop analytics here.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
                         val flaggedDrops = sorted.filter { it.reportCount > 0 }
                         if (flaggedDrops.isNotEmpty()) {
                             Text(
@@ -8374,21 +8416,61 @@ private fun BusinessDashboardDialog(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        LazyColumn(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(max = 360.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            items(sorted, key = { "all_${it.id}" }) { drop ->
-                                BusinessDropAnalyticsCard(
-                                    drop = drop,
-                                    onDeleteDrop = { onDeleteDrop(drop) }
-                                )
+                        if (sorted.isNotEmpty()) {
+                            LazyColumn(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(max = 360.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                items(sorted, key = { "all_${it.id}" }) { drop ->
+                                    BusinessDropAnalyticsCard(
+                                        drop = drop,
+                                        onDeleteDrop = { onDeleteDrop(drop) }
+                                    )
+                                }
                             }
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+@OptIn(ExperimentalLayoutApi::class)
+private fun ExperienceAnalyticsCard(analytics: ExperienceAnalytics) {
+    ElevatedCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = "Experience ${analytics.groupCode}",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = "${analytics.drops} drops",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Text(
+                    text = "${analytics.collects} collects",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Text(
+                    text = "${analytics.redemptions} redemptions",
+                    style = MaterialTheme.typography.bodyMedium
+                )
             }
         }
     }

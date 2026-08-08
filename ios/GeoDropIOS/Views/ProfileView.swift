@@ -210,6 +210,7 @@ struct BusinessDashboardView: View {
     @Environment(\.geoDropTheme) private var geoDropTheme
 
     @State private var drops: [Drop] = []
+    @State private var experienceAnalytics: [ExperienceAnalytics] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var didLoad = false
@@ -257,7 +258,7 @@ struct BusinessDashboardView: View {
     @ViewBuilder
     private var dashboardContent: some View {
         Group {
-            if isLoading && drops.isEmpty {
+            if isLoading && drops.isEmpty && experienceAnalytics.isEmpty {
                 VStack(spacing: 16) {
                     ProgressView()
                         .tint(geoDropTheme.colors.primary)
@@ -286,6 +287,7 @@ struct BusinessDashboardView: View {
                     LazyVStack(alignment: .leading, spacing: 24) {
                         header
                         metricsGrid
+                        experienceAnalyticsSection
                         dropList
                     }
                     .padding(24)
@@ -334,6 +336,56 @@ struct BusinessDashboardView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
+    }
+
+    @ViewBuilder
+    private var experienceAnalyticsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Experience totals")
+                .font(.headline)
+                .foregroundColor(geoDropTheme.colors.onSurface)
+            Text("Server-verified activity across invite-only experiences you own.")
+                .font(.footnote)
+                .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
+
+            if experienceAnalytics.isEmpty {
+                Text("Create an experience to see its aggregate activity here.")
+                    .font(.footnote)
+                    .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
+            } else {
+                LazyVStack(alignment: .leading, spacing: 12) {
+                    ForEach(experienceAnalytics) { analytics in
+                        experienceAnalyticsCard(analytics)
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func experienceAnalyticsCard(_ analytics: ExperienceAnalytics) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Experience \(analytics.groupCode)")
+                .font(.subheadline.weight(.semibold))
+                .foregroundColor(geoDropTheme.colors.onSurface)
+            HStack(spacing: 16) {
+                Label("\(analytics.drops) drops", systemImage: "mappin.and.ellipse")
+                Label("\(analytics.collects) collects", systemImage: "checkmark.circle")
+                Label("\(analytics.redemptions) redeemed", systemImage: "creditcard")
+            }
+            .font(.caption)
+            .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(geoDropTheme.colors.surfaceVariant)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(geoDropTheme.colors.outlineVariant.opacity(0.6))
+        )
     }
 
     @ViewBuilder
@@ -390,8 +442,8 @@ struct BusinessDashboardView: View {
         isLoading = true
         errorMessage = nil
         do {
-            let fetched = try await viewModel.fetchBusinessDrops()
-            drops = fetched
+            drops = try await viewModel.fetchBusinessDrops()
+            experienceAnalytics = try await viewModel.fetchOwnedExperienceAnalytics()
         } catch {
             errorMessage = error.localizedDescription
         }

@@ -13,6 +13,38 @@ struct GroupMembership: Identifiable, Equatable {
     }
 }
 
+/// Owner-only aggregate written by the task 4.4 backend at
+/// `groups/{groupCode}/analytics/summary`.
+struct ExperienceAnalytics: Identifiable, Equatable {
+    var id: String { groupCode }
+    let groupCode: String
+    let drops: Int
+    let collects: Int
+    let redemptions: Int
+    let updatedAtMilliseconds: Int64?
+    let reconciledAtMilliseconds: Int64?
+
+    init(groupCode: String, data: [String: Any]?) {
+        func count(_ field: String) -> Int {
+            max(0, (data?[field] as? NSNumber)?.intValue ?? 0)
+        }
+
+        func timestamp(_ field: String) -> Int64? {
+            guard let value = (data?[field] as? NSNumber)?.int64Value, value > 0 else {
+                return nil
+            }
+            return value
+        }
+
+        self.groupCode = groupCode
+        self.drops = count("drops")
+        self.collects = count("collects")
+        self.redemptions = count("redemptions")
+        self.updatedAtMilliseconds = timestamp("updatedAt")
+        self.reconciledAtMilliseconds = timestamp("reconciledAt")
+    }
+}
+
 /// Group membership roles, as written by the `manageGroup` callable — the only writer
 /// of these documents. It emits `OWNER` or `SUBSCRIBER`; there is no editor role
 /// (task 2.7).

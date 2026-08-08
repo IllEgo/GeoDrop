@@ -1065,6 +1065,12 @@ final class AppViewModel: ObservableObject {
         guard session.profile.role == .business else { return [] }
         return try await firestore.getBusinessDrops(businessId: session.user.uid)
     }
+
+    func fetchOwnedExperienceAnalytics() async throws -> [ExperienceAnalytics] {
+        guard case let .signedIn(session) = authState else { return [] }
+        guard session.profile.role == .business else { return [] }
+        return try await firestore.getOwnedExperienceAnalytics(userId: session.user.uid)
+    }
     
     // MARK: - Private
 

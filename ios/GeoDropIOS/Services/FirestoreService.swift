@@ -449,6 +449,30 @@ final class FirestoreService {
         return snapshot.documents.compactMap(Drop.init(document:))
     }
 
+    /// Reads the task 4.4 rollup for every experience this user owns. A missing
+    /// summary is returned as zeroes so new experiences are visible immediately.
+    func getOwnedExperienceAnalytics(userId: String) async throws -> [ExperienceAnalytics] {
+        guard !userId.isEmpty else { return [] }
+
+        let ownedMemberships = try await fetchUserGroupMemberships(userId: userId)
+            .filter { $0.role == .owner && $0.ownerId == userId }
+        var analytics: [ExperienceAnalytics] = []
+
+        for membership in ownedMemberships {
+            let snapshot = try await getDocument(
+                db.collection("groups")
+                    .document(membership.code)
+                    .collection("analytics")
+                    .document("summary")
+            )
+            analytics.append(
+                ExperienceAnalytics(groupCode: membership.code, data: snapshot.data())
+            )
+        }
+
+        return analytics.sorted { $0.groupCode < $1.groupCode }
+    }
+
     // MARK: - Groups
 
     func fetchUserGroupMemberships(userId: String) async throws -> [GroupMembership] {
