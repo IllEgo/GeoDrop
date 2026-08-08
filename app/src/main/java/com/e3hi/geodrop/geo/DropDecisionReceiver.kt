@@ -1,17 +1,10 @@
 package com.e3hi.geodrop.geo
 
-import android.Manifest
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
-import android.location.Location
-import android.os.Build
-import android.os.SystemClock
 import android.util.Log
 import androidx.core.app.NotificationManagerCompat
-import androidx.core.content.ContextCompat
-import com.e3hi.geodrop.data.CollectedNote
 import com.e3hi.geodrop.data.DropContentType
 import com.e3hi.geodrop.data.DropType
 import com.e3hi.geodrop.data.FirestoreRepo
@@ -19,23 +12,27 @@ import com.e3hi.geodrop.data.NoteInventory
 import com.e3hi.geodrop.util.ExplorerAccountStore
 import com.e3hi.geodrop.util.PilotFeatureFlags
 import com.google.android.gms.location.LocationServices
-import com.google.android.gms.location.Priority
-import com.google.android.gms.tasks.CancellationTokenSource
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
-import java.util.concurrent.TimeUnit
 
 /**
- * Handles user's response to a nearby drop notification (pick up vs ignore).
+ * Handles the user's response to a nearby drop *notification* (pick up vs ignore).
+ *
+ * The in-app pickup buttons call [DropCollector] directly. They used to broadcast
+ * here, which silently coupled collecting a drop to the notification feature flag
+ * below: with notifications disabled the receiver returned before saving anything,
+ * while the UI still reported success. Keep this entry point notification-only.
  */
 class DropDecisionReceiver : BroadcastReceiver() {
     private val repo by lazy { FirestoreRepo() }
 
     override fun onReceive(context: Context, intent: Intent) {
+        // Scoped to this receiver because it exists to serve notification actions.
+        // Collecting a drop must not depend on it — see DropCollector.
         if (!PilotFeatureFlags.notificationsEnabled) return
         val action = intent.action ?: return
         val dropId = intent.getStringExtra(EXTRA_DROP_ID) ?: return
@@ -98,43 +95,23 @@ class DropDecisionReceiver : BroadcastReceiver() {
         val huntTotalSteps = if (intent.hasExtra(EXTRA_DROP_HUNT_TOTAL_STEPS)) {
             intent.getIntExtra(EXTRA_DROP_HUNT_TOTAL_STEPS, 0).takeIf { it > 0 }
         } else null
-        val expiresAt = if (decayDays != null && createdAt != null) {
-            createdAt + TimeUnit.DAYS.toMillis(decayDays.toLong())
-        } else {
-            null
-        }
-        if (expiresAt != null && expiresAt <= System.currentTimeMillis()) {
-            Log.d(TAG, "Drop $dropId has expired; ignoring pick up action.")
-            return
-        }
-
-        if (!isWithinPickupRange(context, lat, lng)) {
-            Log.d(TAG, "Ignoring pick up for drop $dropId because user is not within range.")
-            return
-        }
-
-        val dropperUsername = runCatching { repo.fetchDropperUsername(dropId) }.getOrNull()
-        val inventory = NoteInventory(context)
-        inventory.setActiveUser(userId)
-        val note = CollectedNote(
-            id = dropId,
+        val request = DropCollectionRequest(
+            dropId = dropId,
             text = text,
-            description = description?.takeIf { it.isNotBlank() },
+            description = description,
             contentType = contentType,
             mediaUrl = mediaUrl,
             mediaMimeType = mediaMimeType,
             mediaData = mediaData,
             lat = lat,
             lng = lng,
+            createdAt = createdAt,
             groupCode = groupCode,
-            dropCreatedAt = createdAt,
-            dropperUsername = dropperUsername,
             dropType = dropType,
             businessId = businessId,
             businessName = businessName,
             redemptionLimit = redemptionLimit,
             redemptionCount = redemptionCount,
-            collectedAt = System.currentTimeMillis(),
             isNsfw = resolvedIsNsfw,
             nsfwLabels = nsfwLabels,
             decayDays = decayDays,
@@ -142,37 +119,19 @@ class DropDecisionReceiver : BroadcastReceiver() {
             huntStepIndex = huntStepIndex,
             huntTotalSteps = huntTotalSteps
         )
-        inventory.saveCollected(note)
 
-        if (!userId.isNullOrBlank()) {
-            accountStore.setLastExplorerUid(userId)
-        }
-
-        if (!userId.isNullOrBlank()) {
-            try {
-                repo.markDropCollected(dropId, userId)
-            } catch (error: Exception) {
-                Log.w(TAG, "Failed to mark drop $dropId as collected for $userId", error)
-            }
-
-            // Advance scavenger hunt progress so the next step unlocks
-            if (!huntId.isNullOrBlank() && huntStepIndex != null && huntTotalSteps != null) {
-                try {
-                    repo.advanceHuntProgress(
-                        userId = userId,
-                        huntId = huntId,
-                        collectedDropId = dropId,
-                        nextStepIndex = huntStepIndex + 1,
-                        totalSteps = huntTotalSteps
-                    )
-                } catch (error: Exception) {
-                    Log.w(TAG, "Failed to advance hunt $huntId progress for $userId", error)
-                }
-            }
+        val result = DropCollector.collect(
+            context = context,
+            request = request,
+            userId = userId,
+            repo = repo
+        )
+        if (result != DropCollectionResult.Collected) {
+            Log.d(TAG, "Pick up for drop $dropId was not collected: $result")
+            return
         }
 
         removeGeofence(context, dropId)
-        Log.d(TAG, "Collected drop $dropId and added to inventory")
     }
 
     private suspend fun handleIgnore(context: Context, intent: Intent, dropId: String) {
@@ -194,74 +153,6 @@ class DropDecisionReceiver : BroadcastReceiver() {
         }.onFailure { error ->
             Log.w(TAG, "Failed to remove geofence $dropId", error)
         }
-    }
-
-    private suspend fun isWithinPickupRange(
-        context: Context,
-        dropLat: Double?,
-        dropLng: Double?
-    ): Boolean {
-        if (dropLat == null || dropLng == null) {
-            Log.w(TAG, "Drop coordinates are unavailable; rejecting pickup.")
-            return false
-        }
-
-        val finePermission = ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.ACCESS_FINE_LOCATION
-        )
-        val coarsePermission = ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.ACCESS_COARSE_LOCATION
-        )
-        val hasFineLocation = finePermission == PackageManager.PERMISSION_GRANTED
-        val hasCoarseLocation = coarsePermission == PackageManager.PERMISSION_GRANTED
-        if (!hasFineLocation && !hasCoarseLocation) {
-            Log.w(TAG, "Location permission unavailable for pickup validation; rejecting pickup.")
-            return false
-        }
-
-        val fused = LocationServices.getFusedLocationProviderClient(context)
-        val currentLocation = runCatching {
-            val token = CancellationTokenSource()
-            fused.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, token.token).await()
-        }.getOrNull() ?: runCatching {
-            fused.lastLocation.await()
-        }.getOrNull()
-
-        val location = currentLocation ?: run {
-            Log.w(TAG, "Couldn't obtain current location to validate drop proximity; rejecting pickup.")
-            return false
-        }
-
-        if (isLocationStale(location)) {
-            Log.w(TAG, "Location reading for pickup check is stale; rejecting pickup.")
-            return false
-        }
-
-        val accuracy = location.accuracy.takeIf { location.hasAccuracy() && it > 0f }
-        if (accuracy == null || accuracy > PICKUP_RADIUS_METERS) {
-            Log.w(TAG, "Location accuracy is insufficient (${accuracy ?: Float.NaN}m); rejecting pickup.")
-            return false
-        }
-        val results = FloatArray(1)
-        Location.distanceBetween(location.latitude, location.longitude, dropLat, dropLng, results)
-        return results[0] <= PICKUP_RADIUS_METERS + accuracy
-    }
-
-    private fun isLocationStale(location: Location): Boolean {
-        val ageMillis = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
-            val elapsedNanos = location.elapsedRealtimeNanos
-            if (elapsedNanos > 0L) {
-                (SystemClock.elapsedRealtimeNanos() - elapsedNanos) / 1_000_000
-            } else {
-                Long.MAX_VALUE
-            }
-        } else {
-            System.currentTimeMillis() - location.time
-        }
-
-        return ageMillis > LOCATION_STALE_THRESHOLD_MILLIS
     }
 
     companion object {
@@ -292,7 +183,5 @@ class DropDecisionReceiver : BroadcastReceiver() {
         const val EXTRA_DROP_HUNT_STEP_INDEX = "extra_drop_hunt_step_index"
         const val EXTRA_DROP_HUNT_TOTAL_STEPS = "extra_drop_hunt_total_steps"
         private const val TAG = "DropDecisionReceiver"
-        private const val PICKUP_RADIUS_METERS = 30.0f
-        private val LOCATION_STALE_THRESHOLD_MILLIS = TimeUnit.MINUTES.toMillis(2)
     }
 }

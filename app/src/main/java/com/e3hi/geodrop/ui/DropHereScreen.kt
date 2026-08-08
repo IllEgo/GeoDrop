@@ -265,7 +265,10 @@ import com.e3hi.geodrop.data.isExpired
 import com.e3hi.geodrop.data.remainingDecayMillis
 import com.e3hi.geodrop.data.decayAtMillis
 import com.e3hi.geodrop.data.likeStatus
-import com.e3hi.geodrop.geo.DropDecisionReceiver
+import com.e3hi.geodrop.geo.DropCollectionResult
+import com.e3hi.geodrop.geo.DropCollector
+import com.e3hi.geodrop.geo.pickupFailureMessage
+import com.e3hi.geodrop.geo.toCollectionRequest
 import com.e3hi.geodrop.util.ExplorerAccountStore
 import com.e3hi.geodrop.util.GroupPreferences
 import com.e3hi.geodrop.util.NotificationPreferences
@@ -1716,7 +1719,7 @@ fun DropHereScreen(
      *
      * Returns null when the fix is missing, stale, or too imprecise to decide a
      * [DROP_PICKUP_RADIUS_METERS] question — callers must fail closed, exactly as
-     * [DropDecisionReceiver] does for the authoritative check.
+     * [DropCollector] does for the authoritative check.
      */
     suspend fun getPreciseFixForUnlock(): Location? = withContext(Dispatchers.IO) {
         if (!hasFineLocation) return@withContext null
@@ -1893,68 +1896,26 @@ fun DropHereScreen(
             return
         }
         // Proximity was proven by attemptUnlock, which is the only way to reach this
-        // button. DropDecisionReceiver re-checks with its own precise fix and fails
-        // closed, so nothing here is load-bearing for correctness.
+        // button. DropCollector re-checks with its own precise fix and fails closed,
+        // so nothing here is load-bearing for correctness.
         if (drop.id !in unlockedDropIds) {
             attemptUnlock(drop)
             return
         }
 
         val appContext = ctx.applicationContext
-        val intent = Intent(appContext, DropDecisionReceiver::class.java).apply {
-            action = DropDecisionReceiver.ACTION_PICK_UP
-            putExtra(DropDecisionReceiver.EXTRA_DROP_ID, drop.id)
-            currentUserId?.let { putExtra(DropDecisionReceiver.EXTRA_USER_ID, it) }
-            if (drop.text.isNotBlank()) {
-                putExtra(DropDecisionReceiver.EXTRA_DROP_TEXT, drop.text)
+        val userId = currentUserId
+        scope.launch {
+            val result = DropCollector.collect(
+                context = appContext,
+                request = drop.toCollectionRequest(),
+                userId = userId
+            )
+            if (result != DropCollectionResult.Collected) {
+                snackbar.showMessage(scope, pickupFailureMessage(result))
+                return@launch
             }
-            drop.description?.takeIf { it.isNotBlank() }?.let { description ->
-                putExtra(DropDecisionReceiver.EXTRA_DROP_DESCRIPTION, description)
-            }
-            putExtra(DropDecisionReceiver.EXTRA_DROP_CONTENT_TYPE, drop.contentType.name)
-            drop.mediaUrl?.takeIf { it.isNotBlank() }?.let {
-                putExtra(DropDecisionReceiver.EXTRA_DROP_MEDIA_URL, it)
-            }
-            drop.mediaMimeType?.takeIf { it.isNotBlank() }?.let {
-                putExtra(DropDecisionReceiver.EXTRA_DROP_MEDIA_MIME_TYPE, it)
-            }
-            drop.mediaData?.takeIf { it.isNotBlank() }?.let {
-                putExtra(DropDecisionReceiver.EXTRA_DROP_MEDIA_DATA, it)
-            }
-            putExtra(DropDecisionReceiver.EXTRA_DROP_LAT, drop.lat)
-            putExtra(DropDecisionReceiver.EXTRA_DROP_LNG, drop.lng)
-            if (drop.createdAt > 0) {
-                putExtra(DropDecisionReceiver.EXTRA_DROP_CREATED_AT, drop.createdAt)
-            }
-            drop.groupCode?.takeIf { it.isNotBlank() }?.let {
-                putExtra(DropDecisionReceiver.EXTRA_DROP_GROUP, it)
-            }
-            putExtra(DropDecisionReceiver.EXTRA_DROP_TYPE, drop.dropType.name)
-            drop.businessId?.takeIf { it.isNotBlank() }?.let {
-                putExtra(DropDecisionReceiver.EXTRA_DROP_BUSINESS_ID, it)
-            }
-            drop.businessName?.takeIf { it.isNotBlank() }?.let {
-                putExtra(DropDecisionReceiver.EXTRA_DROP_BUSINESS_NAME, it)
-            }
-            drop.redemptionLimit?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_REDEMPTION_LIMIT, it) }
-            putExtra(DropDecisionReceiver.EXTRA_DROP_REDEMPTION_COUNT, drop.redemptionCount)
-            putExtra(DropDecisionReceiver.EXTRA_DROP_IS_NSFW, drop.isNsfw)
-            if (drop.nsfwLabels.isNotEmpty()) {
-                putStringArrayListExtra(
-                    DropDecisionReceiver.EXTRA_DROP_NSFW_LABELS,
-                    ArrayList(drop.nsfwLabels)
-                )
-            }
-            drop.decayDays?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_DECAY_DAYS, it) }
-            drop.huntId?.takeIf { it.isNotBlank() }?.let {
-                putExtra(DropDecisionReceiver.EXTRA_DROP_HUNT_ID, it)
-            }
-            drop.huntStepIndex?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_HUNT_STEP_INDEX, it) }
-            drop.huntTotalSteps?.let { putExtra(DropDecisionReceiver.EXTRA_DROP_HUNT_TOTAL_STEPS, it) }
-        }
 
-        val result = runCatching { appContext.sendBroadcast(intent) }
-        if (result.isSuccess) {
             val remaining = otherDrops.filterNot { it.id == drop.id }
             otherDrops = remaining
             if (otherDropsSelectedId == drop.id) {
@@ -1966,38 +1927,10 @@ fun DropHereScreen(
                 param("drop_type", drop.dropType.name)
             }
             pickupCelebrationDrop = drop
-
-            val userId = currentUserId
-            if (!userId.isNullOrBlank()) {
-                scope.launch {
-                    try {
-                        repo.markDropCollected(drop.id, userId)
-                    } catch (error: Exception) {
-                        Log.w("DropHere", "Failed to sync collected drop ${drop.id}", error)
-                    }
-                    // Advance scavenger hunt progress so the next step unlocks on the map
-                    val huntId = drop.huntId
-                    val stepIndex = drop.huntStepIndex
-                    val totalSteps = drop.huntTotalSteps
-                    if (!huntId.isNullOrBlank() && stepIndex != null && totalSteps != null) {
-                        try {
-                            repo.advanceHuntProgress(
-                                userId = userId,
-                                huntId = huntId,
-                                collectedDropId = drop.id,
-                                nextStepIndex = stepIndex + 1,
-                                totalSteps = totalSteps
-                            )
-                            // Refresh the browse map so the newly-unlocked step appears
-                            otherDropsRefreshToken += 1
-                        } catch (error: Exception) {
-                            Log.w("DropHere", "Failed to advance hunt $huntId for $userId", error)
-                        }
-                    }
-                }
+            // Refresh the browse map so a newly-unlocked hunt step appears.
+            if (drop.isHuntDrop()) {
+                otherDropsRefreshToken += 1
             }
-        } else {
-            snackbar.showMessage(scope, "Couldn't pick up this drop.")
         }
     }
 
@@ -6992,7 +6925,7 @@ private const val DROP_PICKUP_RADIUS_METERS = 30.0
 
 /**
  * A fix older than this is not trusted for an unlock. Mirrors
- * `DropDecisionReceiver.LOCATION_STALE_THRESHOLD_MILLIS`.
+ * `DropCollector.LOCATION_STALE_THRESHOLD_MILLIS`.
  */
 private const val UNLOCK_LOCATION_STALE_THRESHOLD_MILLIS = 2 * 60 * 1000L
 
