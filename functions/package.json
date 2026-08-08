@@ -22,6 +22,8 @@
     "roles:check": "node scripts/normalize-account-roles.js",
     "roles:apply": "node scripts/normalize-account-roles.js --apply",
     "roles:rehearse": "node scripts/rehearse-account-roles.js",
+    "seed:drop:check": "node scripts/seed-test-drop.js",
+    "seed:drop:apply": "node scripts/seed-test-drop.js --apply",
     "data:inventory": "node scripts/data-inventory.js",
     "data:inventory:json": "node scripts/data-inventory.js --json",
     "remoteconfig:validate": "node scripts/validate-remote-config-template.js",
