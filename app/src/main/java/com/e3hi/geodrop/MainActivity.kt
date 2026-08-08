@@ -6,18 +6,11 @@ import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.animation.Crossfade
-import androidx.compose.animation.core.tween
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import android.util.Log
 import com.e3hi.geodrop.data.FirestoreRepo
 import com.e3hi.geodrop.ui.DropHereScreen
-import com.e3hi.geodrop.ui.GhostSplashScreen
 import com.e3hi.geodrop.ui.theme.GeoDropTheme
 import com.e3hi.geodrop.util.GroupPreferences
 import com.e3hi.geodrop.util.MessagingTokenStore
@@ -66,27 +59,16 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             GeoDropTheme {
-                var splashDone by remember { mutableStateOf(false) }
-                Crossfade(
-                    targetState = splashDone,
-                    animationSpec = tween(300),
-                    label = "SplashToMain"
-                ) { done ->
-                    if (done) {
-                        DropHereScreen(
-                            onNearbyAlertsEnabled = {
-                                auth.currentUser?.uid?.let { userId ->
-                                    enableNearbyAlerts(userId)
-                                }
-                            },
-                            onNearbyAlertsDisabled = {
-                                messagingTokenStore.clearSynced()
-                            }
-                        )
-                    } else {
-                        GhostSplashScreen(onFinished = { splashDone = true })
+                DropHereScreen(
+                    onNearbyAlertsEnabled = {
+                        auth.currentUser?.uid?.let { userId ->
+                            enableNearbyAlerts(userId)
+                        }
+                    },
+                    onNearbyAlertsDisabled = {
+                        messagingTokenStore.clearSynced()
                     }
-                }
+                )
             }
         }
 

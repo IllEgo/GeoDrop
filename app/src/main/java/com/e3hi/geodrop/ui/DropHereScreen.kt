@@ -8,12 +8,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.Canvas
-import android.graphics.Paint
-import android.graphics.PorterDuff
-import android.graphics.PorterDuffColorFilter
 import android.net.Uri
 import android.location.Location
 import android.os.Build
@@ -82,7 +76,6 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.rememberScrollState
@@ -168,8 +161,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.layout.onSizeChanged
@@ -208,8 +199,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.coerceAtLeast
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.times
@@ -294,7 +283,6 @@ import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.auth.api.signin.GoogleSignInStatusCodes
 import com.google.android.gms.common.api.ApiException
-import com.google.android.gms.maps.model.BitmapDescriptor
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.LatLng
 import com.google.firebase.auth.FirebaseAuth
@@ -1237,6 +1225,7 @@ fun DropHereScreen(
     var otherDropsRefreshing by remember { mutableStateOf(false) }
     var otherDropsError by remember { mutableStateOf<String?>(null) }
     var otherDropsCurrentLocation by remember { mutableStateOf<LatLng?>(null) }
+    var otherDropsLocationAccuracyMeters by remember { mutableStateOf<Double?>(null) }
     // Drops whose proximity was proven this session by attemptUnlock. Content is revealed
     // for these; nothing about *where* the user was is kept (task 3.5).
     var unlockedDropIds by remember { mutableStateOf<Set<String>>(emptySet()) }
@@ -1280,6 +1269,7 @@ fun DropHereScreen(
     var myDropsError by remember { mutableStateOf<String?>(null) }
     var myDropsRefreshToken by remember { mutableStateOf(0) }
     var myDropsCurrentLocation by remember { mutableStateOf<LatLng?>(null) }
+    var myDropsLocationAccuracyMeters by remember { mutableStateOf<Double?>(null) }
     var myDropsDeletingId by remember { mutableStateOf<String?>(null) }
     var myDropsPendingDelete by remember { mutableStateOf<Drop?>(null) }
     var myDropsSelectedId by remember { mutableStateOf<String?>(null) }
@@ -1301,7 +1291,6 @@ fun DropHereScreen(
     var selectedHomeDestination by rememberSaveable { mutableStateOf(HomeDestination.Explorer.name) }
     var nearbyAlertsEnabled by remember { mutableStateOf(notificationPrefs.areNearbyAlertsEnabled()) }
     var defaultExplorerDestinationName by remember { mutableStateOf(notificationPrefs.getDefaultExplorerDestination()) }
-    var showLocationNeededForAlerts by remember { mutableStateOf(false) }
     var showNotificationPermissionRecovery by remember { mutableStateOf(false) }
 
     val permissionActivity = ctx as? Activity
@@ -1379,11 +1368,12 @@ fun DropHereScreen(
         }
     }
     // Precise location is requested only when the user attempts to unlock a drop
-    // (task 3.3). A grant is not retained beyond the checks that need it: nothing
-    // starts a stream, and the fix is discarded once the proximity question is answered.
+    // (task 3.3). Android may retain the permission choice, but nothing starts a stream
+    // and the precise fix is discarded once the proximity question is answered.
     val preciseLocationLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { results ->
+        val granted = results[Manifest.permission.ACCESS_FINE_LOCATION] == true
         preciseLocationRequested = true
         permissionStateVersion += 1
         if (granted) {
@@ -1407,8 +1397,7 @@ fun DropHereScreen(
         }
     }
 
-    fun openApplicationSettings(resumeAlertFlow: Boolean = false) {
-        resumeAlertPermissionFlow = resumeAlertFlow
+    fun openApplicationSettings() {
         ctx.startActivity(
             Intent(
                 Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
@@ -1690,7 +1679,7 @@ fun DropHereScreen(
      * labels, sorting, and centring. Task 3.2 — browsing never asks for GPS-grade
      * precision, and nothing here is retained or streamed.
      */
-    suspend fun getApproximateLocation(): Pair<Double, Double>? = withContext(Dispatchers.IO) {
+    suspend fun getApproximateLocation(): ApproximateLocationFix? = withContext(Dispatchers.IO) {
         if (!hasForegroundLocation) return@withContext null
         val fresh = try {
             val cts = CancellationTokenSource()
@@ -1707,7 +1696,14 @@ fun DropHereScreen(
             null
         }
 
-        loc?.let { it.latitude to it.longitude }
+        loc?.let { location ->
+            ApproximateLocationFix(
+                position = LatLng(location.latitude, location.longitude),
+                accuracyMeters = location.accuracy
+                    .takeIf { location.hasAccuracy() && it > 0f }
+                    ?.toDouble()
+            )
+        }
     }
 
     /**
@@ -1846,7 +1842,12 @@ fun DropHereScreen(
                 openApplicationSettings()
             } else {
                 preciseLocationRequested = true
-                preciseLocationLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                preciseLocationLauncher.launch(
+                    arrayOf(
+                        Manifest.permission.ACCESS_FINE_LOCATION,
+                        Manifest.permission.ACCESS_COARSE_LOCATION
+                    )
+                )
             }
             return
         }
@@ -2692,6 +2693,7 @@ fun DropHereScreen(
                 otherDropsLoading = true
                 otherDropsError = null
                 otherDropsCurrentLocation = null
+                otherDropsLocationAccuracyMeters = null
             }
             val rawUid = FirebaseAuth.getInstance().currentUser?.uid
             val effectiveUid = when (userMode) {
@@ -2714,11 +2716,12 @@ fun DropHereScreen(
                         joinedGroups.map { it.code }.toSet()
                     )
                         .sortedByDescending { it.createdAt }
-                    val latestLocation = if (hasForegroundLocation) {
-                        getApproximateLocation()?.let { (lat, lng) -> LatLng(lat, lng) }
+                    val approximateFix = if (hasForegroundLocation) {
+                        getApproximateLocation()
                     } else {
                         null
                     }
+                    val latestLocation = approximateFix?.position
                     dismissedBrowseDropIds.removeAll { id -> drops.none { it.id == id } }
                     val filteredDrops = drops.filterNot { drop ->
                         val id = drop.id
@@ -2740,8 +2743,8 @@ fun DropHereScreen(
                     }
                     otherDrops = filteredDrops
                     otherDropsCurrentLocation = latestLocation
+                    otherDropsLocationAccuracyMeters = approximateFix?.accuracyMeters
                     otherDropsSelectedId = otherDropsSelectedId?.takeIf { id -> filteredDrops.any { it.id == id } }
-                        ?: filteredDrops.firstOrNull()?.id
                     otherDropsError = null
                 } catch (e: Exception) {
                     if (hadExistingDrops) {
@@ -2761,6 +2764,7 @@ fun DropHereScreen(
             otherDropsLoading = false
             otherDropsRefreshing = false
             otherDropsCurrentLocation = null
+            otherDropsLocationAccuracyMeters = null
             otherDropsSelectedId = null
             if (!browseReportProcessing) {
                 browseReportDialogOpen = false
@@ -2778,8 +2782,14 @@ fun DropHereScreen(
     // direction doc's steps 1 and 5 exclude. Distances now come from a coarse one-shot
     // refreshed with the list, and precision is requested only at an unlock attempt.
     LaunchedEffect(explorerHomeVisible, hasForegroundLocation, otherDropsRefreshToken) {
-        if (!explorerHomeVisible || !hasForegroundLocation) return@LaunchedEffect
-        otherDropsCurrentLocation = getApproximateLocation()?.let { (lat, lng) -> LatLng(lat, lng) }
+        if (!explorerHomeVisible || !hasForegroundLocation) {
+            otherDropsCurrentLocation = null
+            otherDropsLocationAccuracyMeters = null
+            return@LaunchedEffect
+        }
+        val approximateFix = getApproximateLocation()
+        otherDropsCurrentLocation = approximateFix?.position
+        otherDropsLocationAccuracyMeters = approximateFix?.accuracyMeters
     }
 
     val currentExplorerDestination = remember(explorerDestination) {
@@ -2810,6 +2820,7 @@ fun DropHereScreen(
             myDropsError = null
             myDropsDeletingId = null
             myDropsCurrentLocation = null
+            myDropsLocationAccuracyMeters = null
             val uid = FirebaseAuth.getInstance().currentUser?.uid
             if (!hasExplorerAccount) {
                 myDrops = emptyList()
@@ -2825,9 +2836,10 @@ fun DropHereScreen(
                     myDrops = drops
                     myDropCountHint = drops.size
                     myDropPendingReviewHint = drops.count { it.reportCount > 0 }
-                    myDropsCurrentLocation = getApproximateLocation()?.let { (lat, lng) -> LatLng(lat, lng) }
+                    val approximateFix = getApproximateLocation()
+                    myDropsCurrentLocation = approximateFix?.position
+                    myDropsLocationAccuracyMeters = approximateFix?.accuracyMeters
                     myDropsSelectedId = myDropsSelectedId?.takeIf { id -> drops.any { it.id == id } }
-                        ?: drops.firstOrNull()?.id
                 } catch (e: Exception) {
                     myDropsError = e.message ?: "Failed to load your drops."
                 } finally {
@@ -2840,6 +2852,7 @@ fun DropHereScreen(
             myDropsLoading = false
             myDropsDeletingId = null
             myDropsCurrentLocation = null
+            myDropsLocationAccuracyMeters = null
             myDropsSelectedId = null
         }
     }
@@ -2883,24 +2896,12 @@ fun DropHereScreen(
     }
 
 
-    val filteredOtherDrops = remember(selectedExplorerGroupCode, otherDrops, explorerGroups, blockedCreatorIds, otherDropsCurrentLocation) {
+    val filteredOtherDrops = remember(selectedExplorerGroupCode, otherDrops, explorerGroups, blockedCreatorIds) {
         val groupFiltered = selectedExplorerGroupCode?.takeIf { code -> explorerGroups.any { it.code == code } }?.let { code ->
             otherDrops.filter { drop -> drop.groupCode == code }
         } ?: otherDrops
-        val unblocked = if (blockedCreatorIds.isEmpty()) groupFiltered
+        if (blockedCreatorIds.isEmpty()) groupFiltered
         else groupFiltered.filter { drop -> drop.createdBy !in blockedCreatorIds }
-        val location = otherDropsCurrentLocation
-        unblocked.filter { drop ->
-            // A drop in an experience the user joined is nearby by definition — the
-            // event supplies the bounded geography. Only ambient public drops are
-            // distance-bounded.
-            location == null ||
-                !drop.groupCode.isNullOrBlank() ||
-                drop.isBusinessDrop() ||
-                distanceBetweenMeters(
-                    location.latitude, location.longitude, drop.lat, drop.lng
-                ) <= NEARBY_LIST_RADIUS_METERS
-        }
     }
     var otherDropsSortKey by rememberSaveable { mutableStateOf(DropSortOption.NEAREST.name) }
     val otherDropsSortOption = remember(otherDropsSortKey) {
@@ -2910,14 +2911,6 @@ fun DropHereScreen(
     val dropSortOptions = remember { DropSortOption.entries }
     val sortedOtherDrops = remember(filteredOtherDrops, otherDropsSortOption, otherDropsCurrentLocation) {
         sortDrops(filteredOtherDrops, otherDropsSortOption, otherDropsCurrentLocation)
-    }
-    val closestCommunityDropMeters = remember(sortedOtherDrops, otherDropsCurrentLocation) {
-        val loc = otherDropsCurrentLocation ?: return@remember null
-        sortedOtherDrops
-            .filter { !it.isBusinessDrop() }
-            .minOfOrNull { drop ->
-                distanceBetweenMeters(loc.latitude, loc.longitude, drop.lat, drop.lng)
-            }
     }
     val myDropsSortOption = remember(myDropsSortKey) {
         runCatching { DropSortOption.valueOf(myDropsSortKey) }
@@ -2959,14 +2952,14 @@ fun DropHereScreen(
     LaunchedEffect(selectedExplorerGroupCode, sortedOtherDrops) {
         val current = otherDropsSelectedId
         if (current != null && sortedOtherDrops.none { drop -> drop.id == current }) {
-            otherDropsSelectedId = sortedOtherDrops.firstOrNull()?.id
+            otherDropsSelectedId = null
         }
     }
 
     LaunchedEffect(selectedExplorerGroupCode, sortedMyDrops) {
         val current = myDropsSelectedId
         if (current != null && sortedMyDrops.none { drop -> drop.id == current }) {
-            myDropsSelectedId = sortedMyDrops.firstOrNull()?.id
+            myDropsSelectedId = null
         }
     }
 
@@ -2974,7 +2967,7 @@ fun DropHereScreen(
         val shouldUpdateLocation = currentHomeDestination == HomeDestination.Explorer &&
                 currentExplorerDestination == ExplorerDestination.Collected
         collectedCurrentLocation = if (shouldUpdateLocation) {
-            getApproximateLocation()?.let { (lat, lng) -> LatLng(lat, lng) }
+            getApproximateLocation()?.position
         } else {
             null
         }
@@ -3763,13 +3756,12 @@ fun DropHereScreen(
                                                 refreshing = otherDropsRefreshing,
                                                 drops = sortedOtherDrops,
                                                 currentLocation = otherDropsCurrentLocation,
+                                                currentLocationAccuracyMeters = otherDropsLocationAccuracyMeters,
                                                 unlockedDropIds = unlockedDropIds,
                                                 unlockingDropId = unlockInProgressDropId,
-                                                preciseLocationEnabled = hasFineLocation,
                                                 approximateLocationEnabled = hasCoarseLocation,
                                                 locationNeedsSettings = foregroundLocationState == PermissionGrantState.BLOCKED,
                                                 onRequestLocation = { requestNearbyLocationAccess() },
-                                                notificationRadiusMeters = NEARBY_LIST_RADIUS_METERS,
                                                 error = otherDropsError,
                                                 emptyMessage = selectedExplorerGroupCode?.let { code ->
                                                     "Nothing in $code yet — be the first to drop something here."
@@ -3879,6 +3871,7 @@ fun DropHereScreen(
                                             loading = myDropsLoading,
                                             drops = sortedMyDrops,
                                             currentLocation = myDropsCurrentLocation,
+                                            currentLocationAccuracyMeters = myDropsLocationAccuracyMeters,
                                             deletingId = myDropsDeletingId,
                                             error = myDropsError,
                                             emptyMessage = selectedExplorerGroupCode?.let { code ->
@@ -3989,27 +3982,6 @@ fun DropHereScreen(
                         }
                         } // AnimatedContent
                     }
-                }
-
-                if (explorerHomeVisible && effectiveExplorerDestination == ExplorerDestination.Discover) {
-                    GhostMascot(
-                        closestDropMeters = closestCommunityDropMeters,
-                        triggerFound = pickupCelebrationVisible,
-                        triggerDropping = isSubmitting,
-                        modifier = if (pickupCelebrationVisible) {
-                            Modifier
-                                .align(Alignment.Center)
-                                .size(160.dp)
-                                .zIndex(1f)
-                        } else {
-                            Modifier
-                                .align(Alignment.TopStart)
-                                .offset(x = 8.dp)
-                                .padding(top = mapAwareTopPadding + 8.dp)
-                                .size(80.dp)
-                                .zIndex(1f)
-                        }
-                    )
                 }
 
             }
@@ -4340,58 +4312,6 @@ fun DropHereScreen(
                 onDismiss = {
                     if (!explorerProfileSubmitting) {
                         showExplorerProfile = false
-                    }
-                }
-            )
-        }
-
-        if (showLocationNeededForAlerts) {
-            AlertDialog(
-                onDismissRequest = { showLocationNeededForAlerts = false },
-                title = { Text("Set up location from Nearby first") },
-                text = {
-                    Text(
-                        if (hasCoarseLocation) {
-                            "Nearby alerts need precise location. Go to Nearby and use its location control so the request stays connected to discovery."
-                        } else {
-                            "Nearby alerts use your location to detect drops around you. Go to Nearby and choose “Use my location” first; browsing remains available if you decide not to."
-                        }
-                    )
-                },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            showLocationNeededForAlerts = false
-                            // With the coarse grant already in hand, sending the user
-                            // back to Nearby would loop -- its control only asks for
-                            // approximate location now. Ask for precise here instead.
-                            if (hasCoarseLocation && !hasFineLocation) {
-                                if (preciseLocationState == PermissionGrantState.BLOCKED) {
-                                    openApplicationSettings(resumeAlertFlow = true)
-                                } else {
-                                    preciseLocationRequested = true
-                                    preciseLocationLauncher.launch(
-                                        Manifest.permission.ACCESS_FINE_LOCATION
-                                    )
-                                }
-                            } else {
-                                showExplorerProfile = false
-                                openExplorerDestination(ExplorerDestination.Discover)
-                            }
-                        }
-                    ) {
-                        Text(
-                            if (hasCoarseLocation && !hasFineLocation) {
-                                "Allow precise location"
-                            } else {
-                                "Go to Nearby"
-                            }
-                        )
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showLocationNeededForAlerts = false }) {
-                        Text("Not now")
                     }
                 }
             )
@@ -5311,39 +5231,6 @@ private fun RegisterScreen(
 }
 
 @Composable
-private fun GhostWaveAnimation(modifier: Modifier = Modifier) {
-    val context = LocalContext.current
-    val spriteSheet: ImageBitmap = remember {
-        BitmapFactory.decodeResource(context.resources, R.drawable.ghost_wave).asImageBitmap()
-    }
-    val cols = 12
-    val rows = 9
-    val frameCount = cols * rows
-    val frameWidth  = remember(spriteSheet) { spriteSheet.width  / cols }
-    val frameHeight = remember(spriteSheet) { spriteSheet.height / rows }
-    var frame by remember { mutableStateOf(0) }
-
-    LaunchedEffect(Unit) {
-        while (true) {
-            delay(1000L / 12L)
-            frame = (frame + 1) % frameCount
-        }
-    }
-
-    Canvas(modifier = modifier) {
-        val col = frame % cols
-        val row = frame / cols
-        drawImage(
-            image     = spriteSheet,
-            srcOffset = IntOffset(col * frameWidth, row * frameHeight),
-            srcSize   = IntSize(frameWidth, frameHeight),
-            dstOffset = IntOffset(0, 0),
-            dstSize   = IntSize(size.width.toInt(), size.height.toInt()),
-        )
-    }
-}
-
-@Composable
 private fun UserModeSelectionScreen(
     onSelectGuest: () -> Unit,
     onSelectSignIn: () -> Unit,
@@ -5365,11 +5252,6 @@ private fun UserModeSelectionScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            GhostWaveAnimation(
-                modifier = Modifier
-                    .size(120.dp)
-                    .align(Alignment.CenterHorizontally)
-            )
             Text(
                 text = "GeoDrop",
                 style = MaterialTheme.typography.displaySmall.copy(
@@ -6480,17 +6362,6 @@ private fun DropComposerDialog(
             }
         }
 
-        if (isSubmitting) {
-            GhostMascot(
-                closestDropMeters = null,
-                triggerFound = false,
-                triggerDropping = true,
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .size(150.dp)
-                    .zIndex(1f)
-            )
-        }
         } // Box
     }
 }
@@ -7073,6 +6944,43 @@ private fun TermsPrivacyDialog(
     }
 }
 
+private data class ApproximateLocationFix(
+    val position: LatLng,
+    val accuracyMeters: Double?
+)
+
+internal fun approximateLocationZoom(accuracyMeters: Double?): Float = when {
+    accuracyMeters == null -> 13f
+    accuracyMeters <= 100.0 -> 15f
+    accuracyMeters <= 500.0 -> 14f
+    accuracyMeters <= 1_500.0 -> 13f
+    else -> 12f
+}
+
+private const val MIN_APPROXIMATE_AREA_RADIUS_METERS = 250.0
+private const val DEFAULT_APPROXIMATE_AREA_RADIUS_METERS = 1_000.0
+
+internal fun approximateAreaRadiusMeters(accuracyMeters: Double?): Double {
+    val reportedAccuracy = accuracyMeters?.takeIf { it.isFinite() && it > 0.0 }
+        ?: return DEFAULT_APPROXIMATE_AREA_RADIUS_METERS
+    return max(reportedAccuracy, MIN_APPROXIMATE_AREA_RADIUS_METERS)
+}
+
+internal enum class BrowseDistanceBand(val displayName: String) {
+    NEARBY("Nearby"),
+    SHORT_WALK("A short walk"),
+    FARTHER_OUT("Farther out")
+}
+
+private const val NEARBY_DISTANCE_BAND_MAX_METERS = 300.0
+private const val SHORT_WALK_DISTANCE_BAND_MAX_METERS = 1_000.0
+
+internal fun browseDistanceBand(distanceMeters: Double): BrowseDistanceBand = when {
+    distanceMeters <= NEARBY_DISTANCE_BAND_MAX_METERS -> BrowseDistanceBand.NEARBY
+    distanceMeters <= SHORT_WALK_DISTANCE_BAND_MAX_METERS -> BrowseDistanceBand.SHORT_WALK
+    else -> BrowseDistanceBand.FARTHER_OUT
+}
+
 private const val DROP_PICKUP_RADIUS_METERS = 30.0
 
 /**
@@ -7087,15 +6995,6 @@ private const val UNLOCK_LOCATION_STALE_THRESHOLD_MILLIS = 2 * 60 * 1000L
  */
 private const val BROWSE_NEARBY_THRESHOLD_METERS = 150.0
 
-/**
- * How far the Nearby list reaches for ambient public drops. Fixed rather than a user
- * setting: the growth unit is an organiser-run experience, not a consumer feed, so a
- * per-user distance knob was one more thing to explain at an event without adding value.
- *
- * Drops belonging to an experience the user joined, and business drops, ignore this
- * entirely. An organiser's drops must never hide from an attendee who walked to the venue.
- */
-private const val NEARBY_LIST_RADIUS_METERS = 300.0
 private const val MAX_BUSINESS_TEMPLATE_SUGGESTIONS = 6
 
 private fun formatCoordinate(value: Double): String {
@@ -8655,11 +8554,10 @@ private fun OtherDropsExplorerSection(
     refreshing: Boolean,
     drops: List<Drop>,
     currentLocation: LatLng?,
-    preciseLocationEnabled: Boolean,
+    currentLocationAccuracyMeters: Double?,
     approximateLocationEnabled: Boolean,
     locationNeedsSettings: Boolean,
     onRequestLocation: () -> Unit,
-    notificationRadiusMeters: Double,
     error: String?,
     emptyMessage: String? = null,
     selectedId: String?,
@@ -8682,38 +8580,38 @@ private fun OtherDropsExplorerSection(
     onRefresh: () -> Unit
 ) {
     Box(modifier = modifier.fillMaxSize()) {
-        if (!preciseLocationEnabled) {
-            Surface(
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(horizontal = 20.dp)
-                    .padding(top = topContentPadding + 12.dp)
-                    .zIndex(3f),
-                shape = RoundedCornerShape(16.dp),
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
-                tonalElevation = 6.dp
+        Surface(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(horizontal = 20.dp)
+                .padding(top = topContentPadding + 76.dp)
+                .zIndex(3f),
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
+            tonalElevation = 6.dp
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = if (approximateLocationEnabled) {
-                            "Use precise location for accurate distance"
-                        } else {
-                            "Browse without sharing your location"
-                        },
-                        style = MaterialTheme.typography.titleSmall
-                    )
-                    Text(
-                        text = if (approximateLocationEnabled) {
-                            "Nearby still works with approximate location. Precise access is needed for accurate pickup distance and optional nearby alerts."
-                        } else {
-                            "All visible drops remain available. Turn on location here when you want distance, pickup, and map positioning."
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                Text(
+                    text = if (approximateLocationEnabled) {
+                        if (currentLocation == null) "Finding your approximate area" else "Approximate area shown"
+                    } else {
+                        "Browse without sharing your location"
+                    },
+                    style = MaterialTheme.typography.titleSmall
+                )
+                Text(
+                    text = if (approximateLocationEnabled) {
+                        "Your location is shown as a broad area. Drop distances are grouped as Nearby, A short walk, or Farther out. Precise location is requested only when you unlock a drop."
+                    } else {
+                        "All visible drops remain available. Turn on approximate location to group drops into broad distance bands and position the map."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (!approximateLocationEnabled) {
                     TextButton(onClick = onRequestLocation) {
                         Text(if (locationNeedsSettings) "Open Settings" else "Use my location")
                     }
@@ -8805,7 +8703,7 @@ private fun OtherDropsExplorerSection(
                         drops = drops,
                         selectedDropId = selectedId,
                         currentLocation = currentLocation,
-                        notificationRadiusMeters = notificationRadiusMeters,
+                        currentLocationAccuracyMeters = currentLocationAccuracyMeters,
                         onDropClick = onSelect,
                         modifier = Modifier.fillMaxSize()
                     )
@@ -8902,7 +8800,8 @@ private fun OtherDropsExplorerSection(
 }
 
 private enum class DropSortOption(val displayName: String) {
-    NEAREST("Nearest"),
+    // Keep the serialized key for saved-state compatibility, but group by broad bands.
+    NEAREST("Nearby drops"),
     MOST_POPULAR("Most popular"),
     NEWEST("Newest"),
     ENDING_SOON("Ending soon")
@@ -8916,14 +8815,18 @@ private fun sortDrops(
     return when (option) {
         DropSortOption.NEAREST -> {
             val location = currentLocation ?: return drops
-            drops.sortedBy { drop ->
-                distanceBetweenMeters(
-                    location.latitude,
-                    location.longitude,
-                    drop.lat,
-                    drop.lng
-                )
-            }
+            drops.sortedWith(
+                compareBy<Drop> { drop ->
+                    browseDistanceBand(
+                        distanceBetweenMeters(
+                            location.latitude,
+                            location.longitude,
+                            drop.lat,
+                            drop.lng
+                        )
+                    ).ordinal
+                }.thenByDescending { it.createdAt }
+            )
         }
 
         // Popularity ranks on likes alone. The net-score weighting it replaced went
@@ -8955,14 +8858,16 @@ private fun sortCollectedNotes(
                     val lat = note.lat
                     val lng = note.lng
                     if (lat == null || lng == null) {
-                        Double.MAX_VALUE
+                        BrowseDistanceBand.entries.size
                     } else {
-                        distanceBetweenMeters(
-                            location.latitude,
-                            location.longitude,
-                            lat,
-                            lng
-                        )
+                        browseDistanceBand(
+                            distanceBetweenMeters(
+                                location.latitude,
+                                location.longitude,
+                                lat,
+                                lng
+                            )
+                        ).ordinal
                     }
                 }.thenByDescending { it.collectedAt }
             )
@@ -9887,6 +9792,7 @@ private fun MyDropsContent(
     loading: Boolean,
     drops: List<Drop>,
     currentLocation: LatLng?,
+    currentLocationAccuracyMeters: Double?,
     deletingId: String?,
     error: String?,
     emptyMessage: String? = null,
@@ -9991,6 +9897,7 @@ private fun MyDropsContent(
                         drops = drops,
                         selectedDropId = selectedId,
                         currentLocation = currentLocation,
+                        currentLocationAccuracyMeters = currentLocationAccuracyMeters,
                         onDropClick = onSelect,
                         modifier = Modifier.fillMaxSize()
                     )
@@ -10211,6 +10118,7 @@ private fun MyDropsMap(
     drops: List<Drop>,
     selectedDropId: String?,
     currentLocation: LatLng?,
+    currentLocationAccuracyMeters: Double?,
     onDropClick: (Drop) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -10218,25 +10126,34 @@ private fun MyDropsMap(
     val uiSettings = remember { MapUiSettings(zoomControlsEnabled = true) }
     var cameraCenteredOnUser by remember { mutableStateOf(false) }
 
-    // Move camera when selected drop changes or drops first load
+    // An explicit drop selection wins. Without one, wait for the user's approximate
+    // area; use the first drop only as a temporary fallback when location is unavailable.
     LaunchedEffect(drops, selectedDropId) {
         val targetDrop = drops.firstOrNull { it.id == selectedDropId }
-        val target = targetDrop?.let { LatLng(it.lat, it.lng) }
-            ?: if (!cameraCenteredOnUser) currentLocation else null
-            ?: drops.firstOrNull()?.let { LatLng(it.lat, it.lng) }
-        if (target != null) {
-            val zoomLevel = if (targetDrop != null) 18f else 15f
-            val update = CameraUpdateFactory.newLatLngZoom(target, zoomLevel)
-            cameraPositionState.animate(update)
-            if (targetDrop == null) cameraCenteredOnUser = true
+        if (targetDrop != null) {
+            cameraPositionState.animate(
+                CameraUpdateFactory.newLatLngZoom(LatLng(targetDrop.lat, targetDrop.lng), 18f)
+            )
+        } else if (!cameraCenteredOnUser && currentLocation == null) {
+            drops.firstOrNull()?.let { firstDrop ->
+                cameraPositionState.animate(
+                    CameraUpdateFactory.newLatLngZoom(LatLng(firstDrop.lat, firstDrop.lng), 13f)
+                )
+            }
         }
     }
 
-    // Center on user location only the first time it becomes available
-    LaunchedEffect(currentLocation) {
+    // Center on the approximate area only the first time it becomes available. The
+    // zoom reflects the fix's accuracy instead of implying GPS-grade precision.
+    LaunchedEffect(currentLocation, currentLocationAccuracyMeters, selectedDropId) {
         if (cameraCenteredOnUser || selectedDropId != null) return@LaunchedEffect
         currentLocation?.let {
-            cameraPositionState.animate(CameraUpdateFactory.newLatLngZoom(it, 15f))
+            cameraPositionState.animate(
+                CameraUpdateFactory.newLatLngZoom(
+                    it,
+                    approximateLocationZoom(currentLocationAccuracyMeters)
+                )
+            )
             cameraCenteredOnUser = true
         }
     }
@@ -10249,11 +10166,13 @@ private fun MyDropsMap(
         uiSettings = uiSettings
     ) {
         currentLocation?.let { location ->
-            Marker(
-                state = MarkerState(location),
-                title = "Your current location",
-                icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE),
-                zIndex = 1f
+            Circle(
+                center = location,
+                radius = approximateAreaRadiusMeters(currentLocationAccuracyMeters),
+                strokeColor = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.25f),
+                strokeWidth = 1f,
+                fillColor = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.12f),
+                zIndex = 0f
             )
         }
 
@@ -10690,7 +10609,7 @@ private fun OtherDropRow(
                     distanceMeters?.let { distance ->
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            text = "You're ${formatDistanceMeters(distance)} away.",
+                            text = browseDistanceBand(distance).displayName,
                             style = MaterialTheme.typography.bodySmall,
                             color = supportingColor
                         )
@@ -10951,86 +10870,51 @@ private fun OtherDropsMap(
     drops: List<Drop>,
     selectedDropId: String?,
     currentLocation: LatLng?,
-    notificationRadiusMeters: Double,
+    currentLocationAccuracyMeters: Double?,
     onDropClick: (Drop) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
-    val baseMarkerBitmap = remember {
-        BitmapFactory.decodeResource(
-            context.resources,
-            R.drawable.explorer_drop_marker
-        )?.let { bitmap ->
-            if (bitmap.config == Bitmap.Config.ARGB_8888) {
-                bitmap
-            } else {
-                bitmap.copy(Bitmap.Config.ARGB_8888, false)
-            }
-        }
-    }
     val businessMarkerDescriptor = remember {
         runCatching {
-            BitmapFactory.decodeResource(
-                context.resources,
-                R.drawable.business_drop_marker
-            )?.let { bitmap ->
-                val argbBitmap = if (bitmap.config == Bitmap.Config.ARGB_8888) {
-                    bitmap
-                } else {
-                    bitmap.copy(Bitmap.Config.ARGB_8888, false)
-                }
-                BitmapDescriptorFactory.fromBitmap(argbBitmap)
-            }
+            BitmapDescriptorFactory.fromResource(R.drawable.business_drop_marker)
         }.getOrElse { error ->
             Log.e("GeoDrop", "Failed to load business drop marker", error)
             null
         }
-    }
-    val markerDescriptorCache = remember(baseMarkerBitmap) { mutableMapOf<Float, BitmapDescriptor>() }
-
-    fun descriptorForHue(hue: Float): BitmapDescriptor {
-        markerDescriptorCache[hue]?.let { return it }
-        val descriptor = baseMarkerBitmap?.let { base ->
-            val tinted = Bitmap.createBitmap(base.width, base.height, Bitmap.Config.ARGB_8888)
-            val canvas = Canvas(tinted)
-            canvas.drawBitmap(base, 0f, 0f, null)
-            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                colorFilter = PorterDuffColorFilter(
-                    android.graphics.Color.HSVToColor(floatArrayOf(hue, 0.8f, 1f)),
-                    PorterDuff.Mode.SRC_ATOP
-                )
-                alpha = 200
-            }
-            canvas.drawBitmap(base, 0f, 0f, paint)
-            BitmapDescriptorFactory.fromBitmap(tinted)
-        } ?: BitmapDescriptorFactory.defaultMarker(hue)
-        markerDescriptorCache[hue] = descriptor
-        return descriptor
     }
 
     val cameraPositionState = rememberCameraPositionState()
     val uiSettings = remember { MapUiSettings(zoomControlsEnabled = true) }
     var cameraCenteredOnUser by remember { mutableStateOf(false) }
 
-    // Move camera when selected drop changes or drops first load
+    // An explicit drop selection wins. Without one, wait for the user's approximate
+    // area; use the first drop only as a temporary fallback when location is unavailable.
     LaunchedEffect(drops, selectedDropId) {
         val targetDrop = drops.firstOrNull { it.id == selectedDropId }
-        val target = targetDrop?.let { LatLng(it.lat, it.lng) }
-            ?: if (!cameraCenteredOnUser) currentLocation else null
-            ?: drops.firstOrNull()?.let { LatLng(it.lat, it.lng) }
-        if (target != null) {
-            val zoomLevel = if (targetDrop != null) 18f else 15f
-            val update = CameraUpdateFactory.newLatLngZoom(target, zoomLevel)
-            cameraPositionState.animate(update)
-            if (targetDrop == null) cameraCenteredOnUser = true
+        if (targetDrop != null) {
+            cameraPositionState.animate(
+                CameraUpdateFactory.newLatLngZoom(LatLng(targetDrop.lat, targetDrop.lng), 18f)
+            )
+        } else if (!cameraCenteredOnUser && currentLocation == null) {
+            drops.firstOrNull()?.let { firstDrop ->
+                cameraPositionState.animate(
+                    CameraUpdateFactory.newLatLngZoom(LatLng(firstDrop.lat, firstDrop.lng), 13f)
+                )
+            }
         }
     }
 
-    // Center on user location only the first time it becomes available
-    LaunchedEffect(currentLocation) {
+    // Center on the approximate area only the first time it becomes available. The
+    // zoom reflects the fix's accuracy instead of implying GPS-grade precision.
+    LaunchedEffect(currentLocation, currentLocationAccuracyMeters, selectedDropId) {
         if (cameraCenteredOnUser || selectedDropId != null) return@LaunchedEffect
         currentLocation?.let {
-            cameraPositionState.animate(CameraUpdateFactory.newLatLngZoom(it, 15f))
+            cameraPositionState.animate(
+                CameraUpdateFactory.newLatLngZoom(
+                    it,
+                    approximateLocationZoom(currentLocationAccuracyMeters)
+                )
+            )
             cameraCenteredOnUser = true
         }
     }
@@ -11043,22 +10927,13 @@ private fun OtherDropsMap(
         uiSettings = uiSettings
     ) {
         currentLocation?.let { location ->
-            if (notificationRadiusMeters > 0.0) {
-                Circle(
-                    center = location,
-                    radius = notificationRadiusMeters,
-                    strokeColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
-                    strokeWidth = 2f,
-                    fillColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
-                    zIndex = 0f
-                )
-            }
-
-            Marker(
-                state = MarkerState(location),
-                title = "Your current location",
-                icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE),
-                zIndex = 1f
+            Circle(
+                center = location,
+                radius = approximateAreaRadiusMeters(currentLocationAccuracyMeters),
+                strokeColor = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.25f),
+                strokeWidth = 1f,
+                fillColor = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.12f),
+                zIndex = 0.5f
             )
         }
 
@@ -11100,10 +10975,10 @@ private fun OtherDropsMap(
 
             val markerIcon = when {
                 drop.isBusinessDrop() && businessMarkerDescriptor != null -> businessMarkerDescriptor
-                isSelected -> descriptorForHue(BitmapDescriptorFactory.HUE_BLUE)
-                drop.isNsfw -> descriptorForHue(BitmapDescriptorFactory.HUE_MAGENTA)
-                drop.huntId != null -> descriptorForHue(BitmapDescriptorFactory.HUE_ORANGE)
-                else -> descriptorForHue(likeHueFor(drop.likeCount))
+                isSelected -> BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE)
+                drop.isNsfw -> BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_MAGENTA)
+                drop.huntId != null -> BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ORANGE)
+                else -> BitmapDescriptorFactory.defaultMarker(likeHueFor(drop.likeCount))
             }
 
             Marker(
@@ -11159,14 +11034,6 @@ private fun distanceBetweenMeters(
     val sinLng = sin(dLng / 2)
     val h = sinLat * sinLat + cos(originLat) * cos(targetLat) * sinLng * sinLng
     return 2 * radius * asin(min(1.0, sqrt(h)))
-}
-
-private fun formatDistanceMeters(distance: Double): String {
-    return if (distance >= 1000) {
-        String.format(Locale.getDefault(), "%.2f km", distance / 1000.0)
-    } else {
-        "${distance.roundToInt()} m"
-    }
 }
 
 private fun likeHueFor(likes: Long): Float {

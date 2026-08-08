@@ -499,6 +499,27 @@ browsing with precise denied, and instrumented proof that precise access is not 
 the check. The code holds no fix beyond the check by construction, but "verified on device"
 is your call, outdoors, at your target GPS accuracy. iOS is compile-verified only.
 
+**Android device follow-up 2026-08-07.** Coarse-only browsing worked, but the UI rendered
+the intentionally approximate fix as an exact "current location" pin, auto-selected the
+first drop before centring the user, and offered a precise-location control wired to the
+already-satisfied coarse flow. The follow-up keeps the 3.2/3.3 boundary intact: browsing is
+still a balanced-power, one-shot coarse fix, now shown as an accuracy area with an
+accuracy-aware zoom; no drop is selected automatically; and the coarse-to-precise Android
+permission upgrade is requested only at the existing unlock boundary. The rebuilt internal
+APK was installed on the coarse-only test device and showed the approximate area with its
+reported ~2 km radius, satisfying the 3.2 device check. The 3.3 gate remains open
+until an outdoor drop unlock proves the target GPS accuracy and one-shot lifetime on device.
+
+**Coarse-location presentation refinement 2026-08-07.** Browse surfaces no longer expose
+exact metre/kilometre distances from an approximate fix or promise a strict nearest-first
+order. Distances are presented as **Nearby**, **A short walk**, or **Farther out**, and the
+saved `NEAREST` sort key now groups by those bands with newest-first ordering inside each
+band. The hard 300 m client-side browse cutoff was also removed so a coarse fix cannot hide
+a genuinely nearby drop. Both maps now draw only a soft accuracy area (with a conservative
+fallback/minimum radius) for the user, never a centre pin or a precise-looking numeric
+accuracy. These are browse-only presentation and candidate-list changes; the one-shot
+precise fix and 30 m unlock enforcement from 3.3 are unchanged.
+
 ### 3.4 — Remove background and continuous location
 **Deliverable:** Background location permission and any continuous tracking removed from
 manifest and code.
