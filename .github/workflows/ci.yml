@@ -132,6 +132,7 @@ jobs:
           --project geodrop-ci
           "npm --prefix functions run migrate:launch:rehearse &&
           npm --prefix functions run account:rehearse &&
+          npm --prefix functions run merge:rehearse &&
           npm --prefix functions run moderation:rehearse &&
           npm --prefix functions run wipe:rehearse &&
           npm --prefix functions run roles:rehearse"

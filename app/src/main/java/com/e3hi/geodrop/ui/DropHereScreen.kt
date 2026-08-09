@@ -226,6 +226,7 @@ import com.e3hi.geodrop.data.BusinessDropTemplate
 import com.e3hi.geodrop.data.Drop
 import com.e3hi.geodrop.data.DropContentType
 import com.e3hi.geodrop.data.ExperienceAnalytics
+import com.e3hi.geodrop.data.GuestAccountUpgrade
 import com.e3hi.geodrop.data.GroupMembership
 import com.e3hi.geodrop.data.GroupAlreadyExistsException
 import com.e3hi.geodrop.data.GroupNotFoundException
@@ -350,6 +351,13 @@ fun DropHereScreen(
     val haptic = LocalHapticFeedback.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val auth = remember { FirebaseAuth.getInstance() }
+    // Declared up here, ahead of the sign-in helpers below, because the guest
+    // upgrade at sign-in needs the merge callable (task 4.6).
+    val repo = remember { FirestoreRepo() }
+    // Same reason: the sign-in path reports the guest-upgrade outcome through
+    // `status` and refreshes My Drops after a merge.
+    var status by remember { mutableStateOf<String?>(null) }
+    var myDropsRefreshToken by remember { mutableStateOf(0) }
     var currentUser by remember { mutableStateOf(auth.currentUser) }
     val termsPrefs = remember(ctx) { TermsPreferences(ctx) }
     val legalConsentRepo = remember { LegalConsentRepo() }
@@ -452,6 +460,29 @@ fun DropHereScreen(
         accountAuthStatus = null
     }
 
+    /**
+     * Task 4.6 — say what happened to the guest's activity.
+     *
+     * Linking is the silent case: the uid never changed, so there is nothing to
+     * report. A merge is worth confirming, and a *failed* merge has to be said
+     * out loud — the user is signed in, so the flow looks like it worked, and
+     * the drops they made as a guest are the thing they would notice missing.
+     */
+    fun reportGuestContentOutcome(outcome: GuestAccountUpgrade.GuestContent?) {
+        when (outcome) {
+            GuestAccountUpgrade.GuestContent.MERGED -> {
+                myDropsRefreshToken += 1
+                status = ctx.getString(R.string.guest_upgrade_content_merged)
+            }
+
+            GuestAccountUpgrade.GuestContent.MERGE_FAILED -> {
+                status = ctx.getString(R.string.guest_upgrade_content_not_merged)
+            }
+
+            else -> Unit
+        }
+    }
+
     fun dismissAccountAuthDialog() {
         if (accountAuthSubmitting || accountGoogleSigningIn) return
         showAccountSignIn = false
@@ -532,9 +563,16 @@ fun DropHereScreen(
         val selectedMode = accountAuthMode
         val selectedType = accountType
         val task = try {
+            // Task 4.6 — registering as a guest links the anonymous account in
+            // place, so the uid and everything attached to it survives. Signing
+            // in to an account that already exists cannot link, so the guest's
+            // content is handed over server-side instead.
             when (selectedMode) {
-                AccountAuthMode.SIGN_IN -> auth.signInWithEmailAndPassword(email, password)
-                AccountAuthMode.REGISTER -> auth.createUserWithEmailAndPassword(email, password)
+                AccountAuthMode.SIGN_IN ->
+                    GuestAccountUpgrade.signInWithEmail(auth, repo, email, password)
+
+                AccountAuthMode.REGISTER ->
+                    GuestAccountUpgrade.registerWithEmail(auth, email, password)
             }
         } catch (error: Exception) {
             accountAuthSubmitting = false
@@ -550,6 +588,7 @@ fun DropHereScreen(
         task.addOnCompleteListener { authTask ->
             if (authTask.isSuccessful) {
                 val current = auth.currentUser
+                reportGuestContentOutcome(authTask.result?.guestContent)
 
                 if (selectedMode == AccountAuthMode.SIGN_IN) {
                     if (current?.isEmailVerified == false) {
@@ -708,7 +747,10 @@ fun DropHereScreen(
             accountAuthSubmitting = true
             val credential = GoogleAuthProvider.getCredential(idToken, null)
             runCatching {
-                auth.signInWithCredential(credential)
+                // Task 4.6 — link the guest session in place where possible, and
+                // move its content server-side where the credential already
+                // belongs to an account.
+                GuestAccountUpgrade.signInWithCredential(auth, repo, credential)
                     .addOnCompleteListener { authTask ->
                         accountAuthSubmitting = false
                         accountGoogleSigningIn = false
@@ -716,7 +758,12 @@ fun DropHereScreen(
                             resetAccountAuthFields(clearEmail = true)
                             val selectedType = accountType
                             showAccountSignIn = false
-                            val isNewUser = authTask.result?.additionalUserInfo?.isNewUser == true
+                            reportGuestContentOutcome(authTask.result?.guestContent)
+                            // `createdAccount` rather than `isNewUser`: linking a
+                            // guest to a fresh Google credential is how that
+                            // account comes into existence, but Firebase reports
+                            // isNewUser = false for a link.
+                            val isNewUser = authTask.result?.createdAccount == true
                             if (selectedType == AccountType.BUSINESS && isNewUser) {
                                 showBusinessOnboarding = true
                                 showBusinessWelcome = true
@@ -1181,7 +1228,6 @@ fun DropHereScreen(
     val scope = rememberCoroutineScope()
 
     val fused = remember { LocationServices.getFusedLocationProviderClient(ctx) }
-    val repo = remember { FirestoreRepo() }
     val mediaStorage = remember { MediaStorageRepo() }
     val groupPrefs = remember { GroupPreferences(ctx) }
     val explorerAccountStore = remember { ExplorerAccountStore(ctx) }
@@ -1226,7 +1272,6 @@ fun DropHereScreen(
     var groupCodeInput by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
     var redemptionLimitInput by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
     var decayDaysInput by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
-    var status by remember { mutableStateOf<String?>(null) }
     var showOtherDropsMap by remember { mutableStateOf(false) }
     var otherDrops by remember { mutableStateOf<List<Drop>>(emptyList()) }
     var otherDropsLoading by remember { mutableStateOf(false) }
@@ -1275,7 +1320,6 @@ fun DropHereScreen(
     var myDrops by remember { mutableStateOf<List<Drop>>(emptyList()) }
     var myDropsLoading by remember { mutableStateOf(false) }
     var myDropsError by remember { mutableStateOf<String?>(null) }
-    var myDropsRefreshToken by remember { mutableStateOf(0) }
     var myDropsCurrentLocation by remember { mutableStateOf<LatLng?>(null) }
     var myDropsLocationAccuracyMeters by remember { mutableStateOf<Double?>(null) }
     var myDropsDeletingId by remember { mutableStateOf<String?>(null) }
@@ -1503,31 +1547,19 @@ fun DropHereScreen(
         onDispose { userDataSync.stop() }
     }
 
+    // Task 4.6 — record who is signed in, for the notification receivers that
+    // resolve a uid from this store when they run without an activity.
+    //
+    // Guest content no longer moves here. It used to try, and in the wrong
+    // direction: the whole block ran only when the *current* user was anonymous,
+    // so guest→account never migrated at all — what it actually did was copy a
+    // real account's display name onto a fresh guest session on sign-out, then
+    // throw when rules refused the drops half. Continuity now happens at the
+    // sign-in call site, which is the only place that still holds the guest's
+    // session token, by linking the account in place or merging server-side.
     LaunchedEffect(currentUser?.uid) {
         val user = currentUser ?: return@LaunchedEffect
-        if (!user.isAnonymous) {
-            explorerAccountStore.setLastExplorerUid(user.uid)
-            return@LaunchedEffect
-        }
-
-        val storedExplorerId = explorerAccountStore.getLastExplorerUid()
-        if (storedExplorerId.isNullOrBlank()) {
-            explorerAccountStore.setLastExplorerUid(user.uid)
-            return@LaunchedEffect
-        }
-
-        if (storedExplorerId == user.uid) return@LaunchedEffect
-
-        val migrationResult = runCatching {
-            repo.migrateExplorerAccount(storedExplorerId, user.uid)
-        }
-
-        if (migrationResult.isSuccess) {
-            explorerAccountStore.setLastExplorerUid(user.uid)
-            myDropsRefreshToken += 1
-        } else {
-            Log.e("GeoDrop", "Explorer account migration failed", migrationResult.exceptionOrNull())
-        }
+        explorerAccountStore.setLastExplorerUid(user.uid)
     }
 
     fun handleSignOut(switchToGuest: Boolean = false) {

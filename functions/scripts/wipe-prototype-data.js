@@ -77,7 +77,14 @@ const DELETE_USER_SUBCOLLECTIONS = ["groups", "inventory", "huntProgress"];
 // accountDeletionReceipts is compliance evidence that a deletion happened, and
 // it already has its own retention policy (purgeExpiredDeletionReceipts sweeps
 // by expiresAt). Wiping it would destroy the audit trail, not prototype content.
-const PRESERVE_ROOT_COLLECTIONS = ["users", "usernames", "accountDeletionReceipts"];
+// accountMergeReceipts (task 4.6) is the same kind of record, swept by the same
+// scheduled purge.
+const PRESERVE_ROOT_COLLECTIONS = [
+  "users",
+  "usernames",
+  "accountDeletionReceipts",
+  "accountMergeReceipts",
+];
 
 // Documentation of intent — user subcollections preserve by default, so
 // anything absent from DELETE_USER_SUBCOLLECTIONS survives whether or not it is
@@ -85,6 +92,7 @@ const PRESERVE_ROOT_COLLECTIONS = ["users", "usernames", "accountDeletionReceipt
 const PRESERVE_USER_SUBCOLLECTIONS = [
   "blockedCreators",
   "notificationTokens",
+  "notificationSettings",
   "reportStatuses",
   "legalAcceptances",
 ];

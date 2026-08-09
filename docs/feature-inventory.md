@@ -83,7 +83,7 @@ Classified inline; none left unclassified.
 | Moderation queue / cases / appeals / audit | **L** (Phase 5.2) | backend `moderationOperations.ts` | `moderationCases`, `moderationAppeals`, `moderationAuditEvents`, `users/{uid}/reportStatuses` | Built ahead of plan. **Backend-only — no client moderator console yet** (a `functions/scripts` CLI exists). |
 | Business drop templates + `TOUR_STOP` type | Supporting (L) | A `data/BusinessDropTemplates.kt`, `BusinessCategory.kt`; i `Models/BusinessDropTemplate.swift` | `drops` | Supports business + tourism verticals. |
 | Remote-config feature flags (fail-closed) | Infra | A/i `PilotFeatureFlags` | Firebase Remote Config + BuildConfig | Gating infra: creation, notifications, coupons, media, nsfw, hunts. |
-| Explorer account migration (uid transfer) | Infra | A `FirestoreRepo.migrateExplorerAccount` | `users`, `drops` | Migration utility for local guest → signed-in uid. |
+| Guest → account continuity | Infra | A `data/GuestAccountUpgrade.kt`; i `Services/AuthService.swift`; backend `mergeGuestAccount` | `users`, `drops`, `usernames`, `accountMergeReceipts` | **Rewritten at 4.6.** Sign-in links the anonymous account in place (uid preserved); `mergeGuestAccount` covers only the case where the credential already belongs to an account. Replaces `migrateExplorerAccount`, which pointed the wrong way and was refused by rules. |
 | Rate limiting / account reputation | **D·absent** (Phase 5.3) | — | — | Not implemented; direction doc requires it before public exposure (esp. before public groups). |
 
 ---
@@ -120,6 +120,7 @@ Not blockers for this task, but they change later phases and are recorded here.
 | `groups` | A `FirestoreRepo.kt:44`; i `FirestoreService.swift:502`; Fn `index.ts:439`; rules `:120` |
 | `huntChains` | **A only** `FirestoreRepo.kt:41`; rules `:581` |
 | `accountDeletionReceipts` | Fn `accountLifecycle.ts:322,411` (backend-only) |
+| `accountMergeReceipts` | Fn `accountLifecycle.ts` `mergeGuestAccount` (backend-only); rules deny client read and write |
 | `dropModerationQueue` | Fn `index.ts:9,20,641,668` (backend-only) |
 | `moderationCases` / `moderationAppeals` / `moderationAuditEvents` | Fn `moderationOperations.ts` (backend-only) |
 
