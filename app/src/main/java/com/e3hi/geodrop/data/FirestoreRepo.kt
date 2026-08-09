@@ -496,12 +496,15 @@ class FirestoreRepo(
             .get()
             .await()
 
+        // Flag-gated drops are deliberately kept. The owner dashboard shows them
+        // marked as unreachable by attendees, because the server rollup counts
+        // them either way and a list that silently omits them cannot be
+        // reconciled against the totals shown above it.
         return snapshot.documents.mapNotNull { doc ->
             val drop = doc.toDrop()
 
             when {
                 drop.isDeleted -> null
-                !drop.isEnabledForRelease() -> null
                 drop.isBusinessDrop() && drop.isExpired() -> null
                 else -> drop
             }
@@ -1420,17 +1423,11 @@ class FirestoreRepo(
         }
     }
 
-    private fun Drop.isEnabledForRelease(): Boolean {
-        if (!PilotFeatureFlags.couponsEnabled && dropType == DropType.RESTAURANT_COUPON) {
-            return false
-        }
-        if (!PilotFeatureFlags.mediaEnabled && contentType != DropContentType.TEXT) {
-            return false
-        }
-        if (isNsfw) return false
-        if (!PilotFeatureFlags.huntsEnabled && !huntId.isNullOrBlank()) return false
-        return true
-    }
+    private fun Drop.isEnabledForRelease(): Boolean = releaseAvailability(
+        couponsEnabled = PilotFeatureFlags.couponsEnabled,
+        mediaEnabled = PilotFeatureFlags.mediaEnabled,
+        huntsEnabled = PilotFeatureFlags.huntsEnabled
+    ).isAvailable
 
     private fun DocumentSnapshot.toCollectedNoteOrNull(): CollectedNote? {
         val noteId = id.takeIf { it.isNotBlank() } ?: getString("id") ?: return null

@@ -241,6 +241,9 @@ import com.e3hi.geodrop.data.MediaStorageRepo
 import com.e3hi.geodrop.data.NoteInventory
 import com.e3hi.geodrop.data.UserDataSyncRepository
 import com.e3hi.geodrop.data.DropType
+import com.e3hi.geodrop.data.DropReleaseAvailability
+import com.e3hi.geodrop.data.releaseAvailability
+import com.e3hi.geodrop.data.ownerExplanation
 import com.e3hi.geodrop.data.HuntBuilderState
 import com.e3hi.geodrop.data.HuntChain
 import com.e3hi.geodrop.data.HuntStepDraft
@@ -271,6 +274,7 @@ import com.e3hi.geodrop.geo.pickupFailureMessage
 import com.e3hi.geodrop.geo.toCollectionRequest
 import com.e3hi.geodrop.util.ExplorerAccountStore
 import com.e3hi.geodrop.util.GroupPreferences
+import com.e3hi.geodrop.util.PilotFeatureFlags
 import com.e3hi.geodrop.util.NotificationPreferences
 import com.e3hi.geodrop.util.ContextualPermissionAction
 import com.e3hi.geodrop.util.ContextualPermissionIntent
@@ -8338,7 +8342,8 @@ private fun BusinessDashboardDialog(
                                 items(flaggedDrops, key = { it.id }) { drop ->
                                     BusinessDropAnalyticsCard(
                                         drop = drop,
-                                        onDeleteDrop = { onDeleteDrop(drop) }
+                                        onDeleteDrop = { onDeleteDrop(drop) },
+                                        availability = drop.currentReleaseAvailability()
                                     )
                                 }
                             }
@@ -8359,7 +8364,8 @@ private fun BusinessDashboardDialog(
                                 items(sorted, key = { "all_${it.id}" }) { drop ->
                                     BusinessDropAnalyticsCard(
                                         drop = drop,
-                                        onDeleteDrop = { onDeleteDrop(drop) }
+                                        onDeleteDrop = { onDeleteDrop(drop) },
+                                        availability = drop.currentReleaseAvailability()
                                     )
                                 }
                             }
@@ -8438,8 +8444,19 @@ private fun DashboardMetricCard(value: String, label: String, modifier: Modifier
     }
 }
 
+/** The live flag values, resolved at render time rather than threaded through state. */
+private fun Drop.currentReleaseAvailability(): DropReleaseAvailability = releaseAvailability(
+    couponsEnabled = PilotFeatureFlags.couponsEnabled,
+    mediaEnabled = PilotFeatureFlags.mediaEnabled,
+    huntsEnabled = PilotFeatureFlags.huntsEnabled
+)
+
 @Composable
-private fun BusinessDropAnalyticsCard(drop: Drop, onDeleteDrop: (() -> Unit)? = null) {
+private fun BusinessDropAnalyticsCard(
+    drop: Drop,
+    onDeleteDrop: (() -> Unit)? = null,
+    availability: DropReleaseAvailability = DropReleaseAvailability.AVAILABLE
+) {
     ElevatedCard(
         modifier = Modifier
             .fillMaxWidth()
@@ -8483,6 +8500,30 @@ private fun BusinessDropAnalyticsCard(drop: Drop, onDeleteDrop: (() -> Unit)? = 
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+
+            availability.ownerExplanation()?.let { explanation ->
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant
+                ) {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        Text(
+                            text = "Not visible to attendees",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = explanation,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
 
             val redemptionStatus = if (drop.dropType == DropType.RESTAURANT_COUPON) {
                 val remaining = drop.remainingRedemptions()
