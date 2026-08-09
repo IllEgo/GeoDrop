@@ -63,6 +63,12 @@ jobs:
       - name: Validate fail-closed Remote Config template
         run: npm run remoteconfig:validate
 
+      # The emulator creates indexes on demand, so no emulator test can catch a
+      # missing collection-group index. This is the only guard against a query
+      # that passes CI and fails FAILED_PRECONDITION in production.
+      - name: Validate collection-group indexes
+        run: npm run indexes:validate
+
   firebase-rules:
     name: Firebase rules emulator tests
     runs-on: ubuntu-latest

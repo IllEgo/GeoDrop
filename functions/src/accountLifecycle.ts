@@ -118,6 +118,17 @@ const storagePathFromDrop = (
   }
 };
 
+/**
+ * Requires the `inventory.id` COLLECTION_GROUP index in
+ * `firestore.indexes.json`. Default single-field indexing covers COLLECTION
+ * scope only, so without it this query fails `FAILED_PRECONDITION` in
+ * production while passing on the emulator, which creates indexes on demand.
+ * It went out that way once: an account that had ever created a drop could not
+ * be deleted, and failed here *after* report anonymisation had already run.
+ *
+ * @param {string[]} dropIds Drops whose collected copies should be removed.
+ * @return {Promise<number>} How many inventory copies were deleted.
+ */
 const deleteOwnedInventoryCopies = async (
   dropIds: string[]
 ): Promise<number> => {

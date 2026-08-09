@@ -2,8 +2,20 @@
   "indexes": [],
   "fieldOverrides": [
     {
+      "_comment": "Task 4.5 — notifyGroupMembersOnDropCreated resolves recipients with collectionGroup('groups').where('code','==',...). Default single-field indexing covers COLLECTION scope only, so without the COLLECTION_GROUP entry every invocation failed FAILED_PRECONDITION. The three COLLECTION entries are repeated here because a fieldOverrides entry REPLACES the defaults rather than adding to them.",
       "collectionGroup": "groups",
       "fieldPath": "code",
+      "indexes": [
+        { "order": "ASCENDING", "queryScope": "COLLECTION" },
+        { "order": "DESCENDING", "queryScope": "COLLECTION" },
+        { "arrayConfig": "CONTAINS", "queryScope": "COLLECTION" },
+        { "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" }
+      ]
+    },
+    {
+      "_comment": "Same failure, found while verifying the 4.6 deploy: deleteAccount's deleteOwnedInventoryCopies runs collectionGroup('inventory').where('id','in',...). Without this, deleting an account that ever created a drop failed FAILED_PRECONDITION after report anonymisation had already run — a partial deletion. The COLLECTION entries are repeated for the same replacement reason as above.",
+      "collectionGroup": "inventory",
+      "fieldPath": "id",
       "indexes": [
         { "order": "ASCENDING", "queryScope": "COLLECTION" },
         { "order": "DESCENDING", "queryScope": "COLLECTION" },

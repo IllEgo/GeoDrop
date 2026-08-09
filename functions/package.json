@@ -31,6 +31,7 @@
     "data:inventory": "node scripts/data-inventory.js",
     "data:inventory:json": "node scripts/data-inventory.js --json",
     "remoteconfig:validate": "node scripts/validate-remote-config-template.js",
+    "indexes:validate": "node scripts/validate-collection-group-indexes.js",
     "wipe:check": "node scripts/wipe-prototype-data.js",
     "wipe:apply": "node scripts/wipe-prototype-data.js --apply",
     "wipe:rehearse": "node scripts/rehearse-prototype-wipe.js"
