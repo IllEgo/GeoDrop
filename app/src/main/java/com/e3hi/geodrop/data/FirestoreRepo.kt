@@ -459,9 +459,15 @@ class FirestoreRepo(
     }
 
     suspend fun getDropsForUser(uid: String): List<Drop> {
+        // Every filter here is load-bearing for authorization, not just for the
+        // result set: the drops `list` rule requires the canonical isDeleted and
+        // isNsfw booleans, and Firestore refuses a list it cannot prove safe from
+        // the query alone. Dropping either filter fails the whole query with
+        // PERMISSION_DENIED regardless of what the collection holds.
         val snapshot = drops
             .whereEqualTo("createdBy", uid)
             .whereEqualTo("isDeleted", false)
+            .whereEqualTo("isNsfw", false)
             .get()
             .await()
 
@@ -480,10 +486,13 @@ class FirestoreRepo(
     suspend fun getBusinessDrops(businessId: String): List<Drop> {
         if (businessId.isBlank()) return emptyList()
 
+        // isNsfw is required by the `list` rule, exactly as in getDropsForUser —
+        // without it the business dashboard fails to load at all.
         val snapshot = drops
             .whereEqualTo("businessId", businessId)
             .whereEqualTo("createdBy", businessId)
             .whereEqualTo("isDeleted", false)
+            .whereEqualTo("isNsfw", false)
             .get()
             .await()
 
@@ -559,6 +568,17 @@ class FirestoreRepo(
                 }
             }
 
+            // KNOWN BROKEN — needs a server-side path, not a client fix.
+            //
+            // Both halves are refused by rules, and adding query filters only
+            // moves the failure from the first to the second:
+            //   1. the `list` rule needs isDeleted and isNsfw equality filters;
+            //   2. no update rule permits rewriting createdBy at all, which is
+            //      correct — a client that could reassign authorship could steal
+            //      or disown drops.
+            // Reassigning ownership is an Admin-SDK operation. Until a callable
+            // exists, this throws and the caller reports the migration as failed
+            // rather than silently dropping the guest's drops on the floor.
             val existingDrops = drops
                 .whereEqualTo("createdBy", previousUserId)
                 .get()
