@@ -617,21 +617,13 @@ final class FirestoreService {
         return profile
     }
 
-    func migrateExplorerAccount(previousUserId: String, newUserId: String) async {
-        guard !previousUserId.isEmpty, !newUserId.isEmpty, previousUserId != newUserId else { return }
-        do {
-            let snapshot = try await getDocument(users.document(previousUserId))
-            guard snapshot.exists, let data = snapshot.data() else { return }
-            // Copy only what a client is allowed to author on someone's profile. Copying
-            // the whole document would carry `role`, business metadata, moderation state,
-            // and the previous account's `username` — all server-authored, and all
-            // rejected by firestore.rules (task 2.7).
-            guard let displayName = data["displayName"] as? String, !displayName.isEmpty else { return }
-            try await setDocument(users.document(newUserId), data: ["displayName": displayName], merge: true)
-        } catch {
-            print("GeoDrop: Failed to migrate explorer account \(error)")
-        }
-    }
+    // Task 4.6 — `migrateExplorerAccount` lived here and copied a display name
+    // between profiles. It had no caller on iOS, so an iOS guest lost everything
+    // on sign-in with nothing even attempting a repair, and the copy it did
+    // perform could not have moved drops anyway: no rule permits rewriting
+    // `createdBy`. Continuity now happens in `AuthService`, by linking the
+    // anonymous account in place or, where that is impossible, by the
+    // `mergeGuestAccount` callable.
 
     func registerMessagingToken(userId: String, token: String, platform: String) async {
         let trimmedUserId = userId.trimmingCharacters(in: .whitespacesAndNewlines)

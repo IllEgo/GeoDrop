@@ -1215,6 +1215,7 @@ export const cleanupCollectedNotesOnDropDelete = functions
 
 export {
   deleteAccount,
+  mergeGuestAccount,
   purgeExpiredAccountExports,
   purgeExpiredDeletionReceipts,
   requestAccountExport,

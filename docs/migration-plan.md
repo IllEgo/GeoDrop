@@ -927,11 +927,62 @@ back. Two things to confirm while you are there:
 **Deliverable** is the working feature behind a flag; **Acceptance** is a demoed happy path
 plus the failure cases you care about; **Gate** is your sign-off before the flag flips on.
 
-**Prerequisite, already known:** `migrateExplorerAccount` cannot work as written — rules
-refuse both enumerating the previous account's drops and rewriting `createdBy` (the latter
-correctly), so a guest signing into a real account still loses every drop they made. It
-needs an Admin-SDK callable. Recorded under the 4.4 gate resolution above; it sits directly
-under this task's onboarding flow.
+#### Prerequisite — guest→account continuity (done, gate open)
+
+`migrateExplorerAccount` could not work: rules refuse both enumerating the previous
+account's drops and rewriting `createdBy`, the latter correctly — a client able to reassign
+authorship could steal or disown drops. **Implemented 2026-08-09; not yet deployed.**
+
+**The audit found the cause was upstream of the broken repair.** Sign-in called
+`signInWithCredential` (Android `DropHereScreen.kt`, iOS `AuthService.swift`), which issues
+a *new* uid, so guest content was orphaned by construction. And the repair ran in the wrong
+direction: its effect was gated on the *current* user being anonymous, so guest→account
+never migrated at all — what it actually did was copy a real account's `displayName` onto a
+fresh guest session at sign-out, then throw when rules refused the drops half. iOS's copy
+of the same function **had no caller**.
+
+**Link first; merge only when linking is impossible.** `linkWithCredential` upgrades the
+anonymous account in place and keeps the uid, so the ordinary case needs no server call and
+nothing moves. The new `mergeGuestAccount` callable covers the one case linking cannot —
+the credential already belongs to an account, i.e. a returning attendee — where Firebase
+must issue a different uid.
+
+**The uid is never taken from the request.** The callable verifies the guest's own ID token,
+requires the resolved account to be genuinely anonymous (`providerData` empty), refuses a
+guest that is the caller, honours revocation, and deletes the guest auth user last. A
+callable that accepted a named uid would let any account claim any other account's drops.
+
+Moved: authored drops (`createdBy`, plus `createdByUsername` where present), collect claims
+and likes (`collectedBy`/`likedBy` keys), `inventory`, `huntProgress`, `groups`, and
+`blockedCreators`. **The destination wins every collision** — a claim is one-way per 4.2, so
+a merge must not become a way to un-collect. `displayName`/`username` move only into empty
+space. Not moved: `role`, business metadata, moderation state, `legalAcceptances`,
+`notificationSettings`, `notificationTokens`, `reportStatuses`.
+
+**`blockedCreators` moves, which is one item beyond the agreed list** — losing a block list
+on sign-in is a safety regression rather than lost convenience.
+
+Provenance goes to a new `accountMergeReceipts` collection (digests and counts, never raw
+uids), **not onto the profile**: per 2.7, `hasOnlyAllowedUserFields()` sees the *merged*
+document, so a new server-written profile field would refuse every later client profile
+update. Client-unreadable and unwritable, pinned in `accountRoleRules.test.js`; added to the
+wipe script's `PRESERVE_ROOT_COLLECTIONS` (that rail refuses to run on an unclassified root
+collection) and swept by the existing receipt purge.
+
+Also removed: the `allowTransferFrom` argument both clients sent to `claimExplorerUsername`.
+The callable never read it, so the username transfer it implied always failed
+`already-exists`.
+
+**Verification.** `functions/scripts/rehearse-guest-merge.js`, wired into the CI
+`p0-rehearsals` chain, asserts four refusals (naming a uid with no token, a garbage token, a
+real but non-anonymous token, the caller's own token), that every content type moves, that
+account-scoped state stays behind, that the destination's claim survives a collision, and
+that a retry after completion is a no-op rather than an error. Green locally, with the full
+17-suite rules run and the other five rehearsals. Android `testDebugUnitTest`, `lintDebug`,
+`assembleDebug` pass; iOS is compile-verified by CI only.
+
+**Needs a deploy** (rules + functions) and **the device demo below** before it can be
+trusted. Nothing about this is live yet.
 
 ---
 

@@ -56,6 +56,7 @@ const seed = async () => {
   batch.set(db.collection("users").doc("owner"), {role: "EXPLORER", displayName: "Owner"});
   batch.set(db.collection("usernames").doc("owner.name"), {userId: "owner"});
   batch.set(db.collection("accountDeletionReceipts").doc("receipt-1"), {uid: "gone"});
+  batch.set(db.collection("accountMergeReceipts").doc("merge-1"), {status: "completed"});
   batch.set(db.collection("users").doc("owner").collection("legalAcceptances").doc("v1"), {policyVersion: "v1"});
   batch.set(db.collection("users").doc("owner").collection("groups").doc("group-1"), {code: "group-1"});
   batch.set(db.collection("users").doc("owner").collection("inventory").doc("drop-1"), {id: "drop-1"});
@@ -93,16 +94,18 @@ const runWipe = (args, {expectFailure = false} = {}) => {
 };
 
 const countAll = async () => {
-  const [drops, groups, reports, hunts, cases, users, usernames, receipts] = await Promise.all([
-    db.collection("drops").get(),
-    db.collection("groups").get(),
-    db.collection("reports").get(),
-    db.collection("huntChains").get(),
-    db.collection("moderationCases").get(),
-    db.collection("users").get(),
-    db.collection("usernames").get(),
-    db.collection("accountDeletionReceipts").get(),
-  ]);
+  const [drops, groups, reports, hunts, cases, users, usernames, receipts, mergeReceipts] =
+    await Promise.all([
+      db.collection("drops").get(),
+      db.collection("groups").get(),
+      db.collection("reports").get(),
+      db.collection("huntChains").get(),
+      db.collection("moderationCases").get(),
+      db.collection("users").get(),
+      db.collection("usernames").get(),
+      db.collection("accountDeletionReceipts").get(),
+      db.collection("accountMergeReceipts").get(),
+    ]);
   const owner = db.collection("users").doc("owner");
   const [memberships, inventory, progress, tokens, blocked, legal] = await Promise.all([
     owner.collection("groups").get(),
@@ -117,6 +120,7 @@ const countAll = async () => {
     drops: drops.size, groups: groups.size, reports: reports.size,
     huntChains: hunts.size, moderationCases: cases.size,
     users: users.size, usernames: usernames.size, receipts: receipts.size,
+    mergeReceipts: mergeReceipts.size,
     memberships: memberships.size, inventory: inventory.size,
     huntProgress: progress.size, tokens: tokens.size, blocked: blocked.size,
     legal: legal.size,
@@ -175,6 +179,9 @@ const main = async () => {
   if (afterApply.tokens !== seeded.tokens) failures.push("notification tokens were deleted");
   if (afterApply.blocked !== seeded.blocked) failures.push("blocked creators were deleted");
   if (afterApply.receipts !== seeded.receipts) failures.push("account deletion receipts were deleted");
+  if (afterApply.mergeReceipts !== seeded.mergeReceipts) {
+    failures.push("account merge receipts were deleted");
+  }
   if (afterApply.legal !== seeded.legal) failures.push("legal acceptances were deleted");
 
   const backedUp = JSON.parse(

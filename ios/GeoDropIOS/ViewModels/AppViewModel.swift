@@ -393,14 +393,36 @@ final class AppViewModel: ObservableObject {
 
     // MARK: - Auth
 
+    /// Task 4.6 — say what happened to the guest's activity, but only when there
+    /// is something to say. Linking is silent because the uid never changed; a
+    /// failed merge is not, because the sign-in looks successful and the drops
+    /// they made as a guest are exactly what they would notice missing.
+    private static func signInStatus(
+        _ base: String,
+        _ outcome: AuthService.GuestContentOutcome
+    ) -> String {
+        switch outcome {
+        case .notApplicable, .linked:
+            return base
+        case .merged:
+            return "\(base) Your guest drops and collections moved to this account."
+        case .mergeFailed:
+            return "\(base) Your guest drops and collections couldn't be moved — " +
+                "sign in again from the same device to retry."
+        }
+    }
+
     func signIn(email: String, password: String) {
         isAuthenticating = true
         resetAuthFlowMessages()
         Task {
             do {
-                try await authService.signIn(email: email, password: password)
+                let outcome = try await authService.signIn(email: email, password: password)
                 await MainActor.run {
-                    self.authFlowStatus = "Signed in successfully."
+                    self.authFlowStatus = AppViewModel.signInStatus(
+                        "Signed in successfully.",
+                        outcome
+                    )
                     self.isAuthenticating = false
                 }
             } catch {
@@ -417,9 +439,12 @@ final class AppViewModel: ObservableObject {
         resetAuthFlowMessages()
         Task {
             do {
-                try await authService.createAccount(email: email, password: password)
+                let outcome = try await authService.createAccount(email: email, password: password)
                 await MainActor.run {
-                    self.authFlowStatus = "Account created successfully."
+                    self.authFlowStatus = AppViewModel.signInStatus(
+                        "Account created successfully.",
+                        outcome
+                    )
                     self.isAuthenticating = false
                 }
             } catch {
@@ -481,9 +506,12 @@ final class AppViewModel: ObservableObject {
         resetAuthFlowMessages()
         Task {
             do {
-                try await authService.signInWithGoogle(presenting: viewController)
+                let outcome = try await authService.signInWithGoogle(presenting: viewController)
                 await MainActor.run {
-                    self.authFlowStatus = "Signed in with Google."
+                    self.authFlowStatus = AppViewModel.signInStatus(
+                        "Signed in with Google.",
+                        outcome
+                    )
                     self.isGoogleSigningIn = false
                     self.isAuthenticating = false
                 }

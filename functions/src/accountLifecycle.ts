@@ -184,6 +184,383 @@ const anonymizeSubmittedReports = async (
   return snapshot.size;
 };
 
+/**
+ * Task 4.6 — subcollections that follow a guest into their real account.
+ *
+ * `inventory` and `huntProgress` are what the pilot loop produces: the drops the
+ * attendee collected and how far along the trail they are. `groups` is their
+ * experience membership, without which the GROUP drops they were invited to stop
+ * being visible at all. `blockedCreators` moves because losing a block list on
+ * sign-in is a safety regression, not merely lost convenience.
+ */
+const MERGED_USER_SUBCOLLECTIONS = [
+  "inventory",
+  "huntProgress",
+  "groups",
+  "blockedCreators",
+];
+
+/**
+ * Task 4.6 — subcollections that deliberately stay behind.
+ *
+ * `legalAcceptances` belongs to the account that accepted, and the destination
+ * accepted separately. `notificationTokens` is device state that re-registers on
+ * next launch, and `notificationSettings` is the destination's own choice.
+ * `reportStatuses` is moderation correspondence addressed to the account that
+ * filed the report. Listed rather than merely omitted so an unrecognised
+ * subcollection is reported instead of silently dropped.
+ */
+const RETAINED_USER_SUBCOLLECTIONS = [
+  "legalAcceptances",
+  "notificationTokens",
+  "notificationSettings",
+  "reportStatuses",
+];
+
+/**
+ * Drop maps whose per-user key follows the guest.
+ *
+ * `reportedBy` is excluded on purpose: a report is a safety record filed by a
+ * session, and reassigning it would rewrite who reported what.
+ */
+const MERGED_DROP_MAPS = ["collectedBy", "likedBy"];
+
+type MergeGuestAccountRequest = {
+  guestIdToken?: unknown;
+};
+
+/**
+ * Read the subject claim of a JWT **without verifying it**.
+ *
+ * The result is never authorization. It is used only to recognise a retry whose
+ * account is already gone; every path that moves content goes through
+ * `verifyIdToken` instead.
+ *
+ * @param {string} token A serialized JWT.
+ * @return {string|null} The claimed uid, or null if the token is not readable.
+ */
+const unverifiedUidFromToken = (token: string): string | null => {
+  const segments = token.split(".");
+  if (segments.length < 2) return null;
+  try {
+    const claims = JSON.parse(
+      Buffer.from(segments[1], "base64url").toString("utf8")
+    );
+    const uid = claims?.user_id ?? claims?.sub;
+    return typeof uid === "string" && uid.trim() ? uid.trim() : null;
+  } catch (_) {
+    return null;
+  }
+};
+
+/**
+ * @param {string} uid The account to look for.
+ * @return {Promise<boolean>} Whether an Auth account still exists for it.
+ */
+const accountExists = async (uid: string): Promise<boolean> => {
+  try {
+    await admin.auth().getUser(uid);
+    return true;
+  } catch (_) {
+    return false;
+  }
+};
+
+/**
+ * Task 4.6 — establish that the caller really held the guest session.
+ *
+ * The uid is never taken from the request. It comes out of a verified ID token,
+ * because a callable that accepted a named uid would let any account claim any
+ * other account's drops. Anonymity is then confirmed against the Auth record, so
+ * this can never absorb a real account even with a valid token.
+ *
+ * @param {string} destinationUid The signed-in account receiving the content.
+ * @param {unknown} rawToken The guest session's ID token, from the client.
+ * @return {Promise<string|null>} The guest uid, or null when the guest account is
+ *   already gone — which means a previous merge succeeded.
+ */
+const resolveMergeableGuest = async (
+  destinationUid: string,
+  rawToken: unknown
+): Promise<string | null> => {
+  const token = typeof rawToken === "string" ? rawToken.trim() : "";
+  if (!token) {
+    throw new functions.https.HttpsError(
+      "invalid-argument",
+      "The guest session token is required to keep your guest activity.",
+      {reason: "GUEST_TOKEN_REQUIRED"}
+    );
+  }
+
+  let decoded: admin.auth.DecodedIdToken;
+  try {
+    decoded = await admin.auth().verifyIdToken(token);
+  } catch (_) {
+    // Verification fails for a token whose user has been deleted, which is
+    // exactly how a retry of an already-completed merge arrives: this callable
+    // deletes the guest account on success. Distinguish that from a forged token
+    // by reading the *unverified* claims and asking Auth whether that account
+    // still exists.
+    //
+    // Safe because of what each branch does, not because the claims are trusted:
+    // if the named account still exists, this refuses without touching anything,
+    // so no content can move on an unverified token. If it does not exist, there
+    // is nothing to merge and the answer is a no-op.
+    const claimedUid = unverifiedUidFromToken(token);
+    if (claimedUid && !(await accountExists(claimedUid))) return null;
+    throw new functions.https.HttpsError(
+      "permission-denied",
+      "That guest session could not be verified. Sign in again to keep your guest activity.",
+      {reason: "GUEST_TOKEN_INVALID"}
+    );
+  }
+
+  const guestUid = decoded.uid;
+  if (guestUid === destinationUid) {
+    throw new functions.https.HttpsError(
+      "failed-precondition",
+      "That guest session is already this account.",
+      {reason: "SAME_ACCOUNT"}
+    );
+  }
+
+  if (decoded.firebase?.sign_in_provider !== "anonymous") {
+    throw new functions.https.HttpsError(
+      "permission-denied",
+      "Only a guest session can be merged into an account.",
+      {reason: "GUEST_NOT_ANONYMOUS"}
+    );
+  }
+
+  let guest: admin.auth.UserRecord;
+  try {
+    guest = await admin.auth().getUser(guestUid);
+  } catch (_) {
+    // The guest account is gone, so a previous merge already ran to completion.
+    return null;
+  }
+
+  if (guest.providerData.length > 0) {
+    throw new functions.https.HttpsError(
+      "permission-denied",
+      "Only a guest session can be merged into an account.",
+      {reason: "GUEST_NOT_ANONYMOUS"}
+    );
+  }
+
+  const validAfter = guest.tokensValidAfterTime ?
+    Math.floor(Date.parse(guest.tokensValidAfterTime) / 1000) : 0;
+  if (Number.isFinite(validAfter) && decoded.auth_time < validAfter) {
+    throw new functions.https.HttpsError(
+      "permission-denied",
+      "That guest session has expired. Sign in again to keep your guest activity.",
+      {reason: "GUEST_TOKEN_REVOKED"}
+    );
+  }
+
+  return guestUid;
+};
+
+/**
+ * Task 4.6 — move the identity fields, but only into empty space.
+ *
+ * A merge must never rename the account the user just signed into. The guest's
+ * display name and username are taken only where the destination has none, which
+ * is the case that matters: a guest who set a name before deciding to sign in.
+ *
+ * @param {admin.firestore.DocumentSnapshot} guestProfile The guest profile.
+ * @param {admin.firestore.DocumentSnapshot} destinationProfile The destination profile.
+ * @param {string} guestUid The guest uid.
+ * @param {string} destinationUid The destination uid.
+ * @return {Promise<Object>} The destination's username after the merge, for drop
+ *   attribution, plus whether each identity field actually moved.
+ */
+const mergeProfileIdentity = async (
+  guestProfile: admin.firestore.DocumentSnapshot,
+  destinationProfile: admin.firestore.DocumentSnapshot,
+  guestUid: string,
+  destinationUid: string
+): Promise<{
+  username: string | null;
+  movedDisplayName: boolean;
+  movedUsername: boolean;
+}> => {
+  const firestore = admin.firestore();
+  const trimmed = (value: unknown): string =>
+    typeof value === "string" ? value.trim() : "";
+
+  const guestDisplayName = trimmed(guestProfile.get("displayName"));
+  const destinationDisplayName = trimmed(destinationProfile.get("displayName"));
+  const guestUsername = trimmed(guestProfile.get("username"));
+  const destinationUsername = trimmed(destinationProfile.get("username"));
+
+  const updates: admin.firestore.DocumentData = {};
+  if (guestDisplayName && !destinationDisplayName) {
+    updates.displayName = guestDisplayName;
+  }
+
+  let resultingUsername = destinationUsername || null;
+  let movedUsername = false;
+  if (guestUsername && !destinationUsername) {
+    // The username index is the source of truth for who owns a handle, so it
+    // moves in a transaction that re-reads the pointer. A handle that stopped
+    // pointing at the guest between read and write is left alone.
+    movedUsername = await firestore.runTransaction(async (transaction) => {
+      const usernameRef = firestore.collection("usernames").doc(guestUsername);
+      const current = await transaction.get(usernameRef);
+      if (current.exists && current.get("userId") !== guestUid) return false;
+      transaction.set(usernameRef, {userId: destinationUid}, {merge: true});
+      return true;
+    });
+    if (movedUsername) {
+      updates.username = guestUsername;
+      resultingUsername = guestUsername;
+    }
+  } else if (guestUsername && destinationUsername) {
+    // The destination keeps its own handle, so the guest's is released rather
+    // than left pointing at an account that is about to be deleted.
+    await firestore.runTransaction(async (transaction) => {
+      const usernameRef = firestore.collection("usernames").doc(guestUsername);
+      const current = await transaction.get(usernameRef);
+      if (current.exists && current.get("userId") === guestUid) {
+        transaction.delete(usernameRef);
+      }
+    });
+  }
+
+  if (Object.keys(updates).length > 0) {
+    await firestore.collection("users").doc(destinationUid).set(updates, {merge: true});
+  }
+
+  return {
+    username: resultingUsername,
+    movedDisplayName: Boolean(updates.displayName),
+    movedUsername,
+  };
+};
+
+/**
+ * Task 4.6 — reassign authorship with the Admin SDK.
+ *
+ * `createdBy` is immutable to clients by design (no `allow update` in
+ * firestore.rules permits changing it), which is exactly why this cannot be a
+ * client fix: a client that could reassign authorship could steal or disown drops.
+ *
+ * @param {string} guestUid The guest uid.
+ * @param {string} destinationUid The destination uid.
+ * @param {string|null} username The destination's username after the identity merge.
+ * @return {Promise<number>} How many drops changed hands.
+ */
+const reassignAuthoredDrops = async (
+  guestUid: string,
+  destinationUid: string,
+  username: string | null
+): Promise<number> => {
+  const firestore = admin.firestore();
+  const snapshot = await firestore.collection("drops")
+    .where("createdBy", "==", guestUid)
+    .get();
+  if (snapshot.empty) return 0;
+
+  const writer = firestore.bulkWriter();
+  snapshot.docs.forEach((document) => {
+    const updates: admin.firestore.DocumentData = {createdBy: destinationUid};
+    // Only touch the denormalised handle where the drop already carried one,
+    // and only when the destination has a handle to put there. Leaving the
+    // guest's handle on a reassigned drop would misattribute it.
+    if (typeof document.get("createdByUsername") === "string") {
+      updates.createdByUsername = username ?? FieldValue.delete();
+    }
+    writer.update(document.ref, updates);
+  });
+  await writer.close();
+  return snapshot.size;
+};
+
+/**
+ * Task 4.6 — move the guest's per-user keys inside drop maps.
+ *
+ * The destination wins every collision. A claim is one-way as of task 4.2, so a
+ * merge must never overwrite or remove a claim the destination already holds —
+ * otherwise merging would become a way to un-collect.
+ *
+ * @param {string} guestUid The guest uid.
+ * @param {string} destinationUid The destination uid.
+ * @return {Promise<number>} How many drop documents were rewritten.
+ */
+const moveDropMapEntries = async (
+  guestUid: string,
+  destinationUid: string
+): Promise<number> => {
+  const firestore = admin.firestore();
+  const touched = new Set<string>();
+
+  for (const field of MERGED_DROP_MAPS) {
+    const snapshot = await firestore.collection("drops")
+      .where(new FieldPath(field, guestUid), "!=", null)
+      .get();
+
+    for (const document of snapshot.docs) {
+      const map = document.get(field);
+      const guestValue = map && typeof map === "object" ?
+        (map as Record<string, unknown>)[guestUid] : undefined;
+      const destinationValue = map && typeof map === "object" ?
+        (map as Record<string, unknown>)[destinationUid] : undefined;
+
+      const updates: Array<string | FieldValue | FieldPath | unknown> = [
+        new FieldPath(field, guestUid),
+        FieldValue.delete(),
+      ];
+      if (destinationValue === undefined || destinationValue === null) {
+        updates.push(new FieldPath(field, destinationUid), guestValue ?? true);
+      }
+
+      await document.ref.update(
+        updates[0] as FieldPath,
+        updates[1],
+        ...updates.slice(2)
+      );
+      touched.add(document.ref.path);
+    }
+  }
+
+  return touched.size;
+};
+
+/**
+ * Task 4.6 — copy the guest's subcollections, without overwriting.
+ *
+ * The destination's own document wins on an id collision: further trail progress
+ * or an existing inventory copy is not replaced by the guest's older one.
+ *
+ * @param {admin.firestore.DocumentReference} guestRef The guest profile document.
+ * @param {admin.firestore.DocumentReference} destinationRef The destination profile document.
+ * @return {Promise<Record<string, number>>} Documents moved, per subcollection.
+ */
+const mergeUserSubcollections = async (
+  guestRef: admin.firestore.DocumentReference,
+  destinationRef: admin.firestore.DocumentReference
+): Promise<Record<string, number>> => {
+  const counts: Record<string, number> = {};
+
+  for (const name of MERGED_USER_SUBCOLLECTIONS) {
+    const snapshot = await guestRef.collection(name).get();
+    if (snapshot.empty) continue;
+
+    let moved = 0;
+    for (const document of snapshot.docs) {
+      const target = destinationRef.collection(name).doc(document.id);
+      const existing = await target.get();
+      if (existing.exists) continue;
+      await target.set(document.data());
+      moved += 1;
+    }
+    counts[name] = moved;
+  }
+
+  return counts;
+};
+
 export const requestAccountExport = functions
   .region(REGION)
   .runWith({
@@ -379,6 +756,139 @@ export const deleteAccount = functions
     return receipt;
   });
 
+/**
+ * Task 4.6 — keep a guest's activity when they sign into an existing account.
+ *
+ * The common upgrade path never reaches here: the clients call
+ * `linkWithCredential` first, which turns the anonymous account into a real one
+ * *in place* and keeps the uid, so nothing needs moving. This callable exists for
+ * the case linking cannot resolve — the credential already belongs to an account,
+ * a returning attendee — where Firebase necessarily issues a different uid.
+ *
+ * Everything the pilot loop produces follows the user: authored drops, collect
+ * claims, inventory copies, trail progress, and experience membership. Nothing
+ * that describes the *account* follows: role, business metadata, moderation
+ * state, and legal acceptances stay with the session that earned them.
+ */
+export const mergeGuestAccount = functions
+  .region(REGION)
+  .runWith({
+    enforceAppCheck: true,
+    timeoutSeconds: 540,
+    memory: "1GB",
+  })
+  .https.onCall(async (data: MergeGuestAccountRequest, context) => {
+    const destinationUid = requireRecentlyAuthenticatedUser(context);
+    const guestUid = await resolveMergeableGuest(destinationUid, data?.guestIdToken);
+
+    // A retry after the guest account was already deleted is a success, not an
+    // error: the work it is asking for is done. Reporting it as a failure would
+    // make the client show "we couldn't keep your drops" about drops it kept.
+    if (!guestUid) {
+      return {
+        status: "already-merged",
+        counts: {
+          drops: 0,
+          dropMapEntries: 0,
+          subcollections: {},
+        },
+      };
+    }
+
+    const firestore = admin.firestore();
+    const guestRef = firestore.collection("users").doc(guestUid);
+    const destinationRef = firestore.collection("users").doc(destinationUid);
+    const [guestProfile, destinationProfile] = await Promise.all([
+      guestRef.get(),
+      destinationRef.get(),
+    ]);
+
+    // A business account is never a guest session, so this should be
+    // unreachable; refuse rather than carry business content across accounts.
+    if (guestProfile.get("role") === "BUSINESS") {
+      throw new functions.https.HttpsError(
+        "failed-precondition",
+        "A business account cannot be merged.",
+        {reason: "GUEST_NOT_EXPLORER"}
+      );
+    }
+
+    // Anything the guest holds that this callable does not know about. Reported
+    // rather than guessed at: a new subcollection should show up in the receipt
+    // and in the logs instead of being silently left behind on a deleted account.
+    const guestCollections = await guestRef.listCollections();
+    const unexpectedSubcollections = guestCollections
+      .map((collection) => collection.id)
+      .filter((id) => !MERGED_USER_SUBCOLLECTIONS.includes(id) &&
+        !RETAINED_USER_SUBCOLLECTIONS.includes(id));
+    if (unexpectedSubcollections.length > 0) {
+      console.warn(
+        "Guest merge left unrecognised subcollections behind: " +
+        `${unexpectedSubcollections.join(", ")}. Classify them in ` +
+        "MERGED_USER_SUBCOLLECTIONS or RETAINED_USER_SUBCOLLECTIONS."
+      );
+    }
+
+    // Identity first: the drop reassignment below needs to know which username
+    // the destination ends up with before it can attribute drops to it.
+    const identity = await mergeProfileIdentity(
+      guestProfile,
+      destinationProfile,
+      guestUid,
+      destinationUid
+    );
+
+    const [drops, dropMapEntries, subcollections] = await Promise.all([
+      reassignAuthoredDrops(guestUid, destinationUid, identity.username),
+      moveDropMapEntries(guestUid, destinationUid),
+      mergeUserSubcollections(guestRef, destinationRef),
+    ]);
+
+    await firestore.recursiveDelete(guestRef);
+
+    const mergedAt = new Date();
+    const expiresAt = new Date(
+      mergedAt.getTime() +
+      DELETION_RECEIPT_LIFETIME_DAYS * 24 * 60 * 60 * 1000
+    );
+    const receiptRef = firestore.collection("accountMergeReceipts").doc();
+    const counts = {
+      drops,
+      dropMapEntries,
+      subcollections,
+      movedDisplayName: identity.movedDisplayName,
+      movedUsername: identity.movedUsername,
+    };
+    const receipt = {
+      receiptId: receiptRef.id,
+      status: "completed",
+      mergedAt: mergedAt.toISOString(),
+      counts,
+      unexpectedSubcollections,
+    };
+    // Digests, never the uids: this is an audit record of a merge, not a lookup
+    // table linking a person's guest session to their account.
+    await receiptRef.set({
+      ...receipt,
+      guestUidDigest: crypto.createHash("sha256").update(guestUid).digest("hex"),
+      destinationUidDigest: crypto.createHash("sha256")
+        .update(destinationUid).digest("hex"),
+      expiresAt: Timestamp.fromDate(expiresAt),
+    });
+
+    console.log(
+      `Guest merge ${receiptRef.id}: moved ${drops} drop(s), ` +
+      `${dropMapEntries} drop map entr(ies), ` +
+      `${JSON.stringify(subcollections)} into the destination account.`
+    );
+
+    // Authentication is deleted last, as in deleteAccount: a retry stays
+    // possible while any data step can still fail. It also makes the merge
+    // one-way — the guest token cannot be replayed against another account.
+    await admin.auth().deleteUser(guestUid);
+    return receipt;
+  });
+
 export const purgeExpiredAccountExports = functions
   .region(REGION)
   .pubsub.schedule("every 24 hours")
@@ -408,12 +918,17 @@ export const purgeExpiredDeletionReceipts = functions
   .pubsub.schedule("every 24 hours")
   .onRun(async () => {
     const firestore = admin.firestore();
-    const expired = await firestore.collection("accountDeletionReceipts")
-      .where("expiresAt", "<=", Timestamp.now())
-      .limit(500)
-      .get();
-    const writer = firestore.bulkWriter();
-    expired.docs.forEach((document) => writer.delete(document.ref));
-    await writer.close();
-    console.log(`Purged ${expired.size} expired account deletion receipts.`);
+    // Both receipt collections share the retention window, so they share the
+    // sweep. A merge receipt left behind would outlive its own policy.
+    const collections = ["accountDeletionReceipts", "accountMergeReceipts"];
+    for (const name of collections) {
+      const expired = await firestore.collection(name)
+        .where("expiresAt", "<=", Timestamp.now())
+        .limit(500)
+        .get();
+      const writer = firestore.bulkWriter();
+      expired.docs.forEach((document) => writer.delete(document.ref));
+      await writer.close();
+      console.log(`Purged ${expired.size} expired documents from ${name}.`);
+    }
   });

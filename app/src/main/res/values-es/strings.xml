@@ -102,6 +102,8 @@
     <string name="explorer_profile_save">Guardar perfil</string>
     <string name="explorer_profile_status_saved">Perfil actualizado para %1$s.</string>
     <string name="explorer_profile_status_claiming">Finalizando la configuración de tu perfil de explorador…</string>
+    <string name="guest_upgrade_content_merged">Tus drops y colecciones de invitado se movieron a esta cuenta.</string>
+    <string name="guest_upgrade_content_not_merged">Iniciaste sesión, pero no se pudieron mover tus drops y colecciones de invitado. Vuelve a iniciar sesión desde el mismo dispositivo para intentarlo de nuevo.</string>
     <string name="faq_title">Conoce GeoDrop</string>
     <string name="faq_intro">GeoDrop se basa en compartir drops vinculados a lugares. Aquí tienes un resumen de cómo funciona todo.</string>
     <string name="faq_question_core_features">¿Cuáles son las funciones principales de GeoDrop?</string>

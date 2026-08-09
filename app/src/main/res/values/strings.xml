@@ -95,6 +95,8 @@
     <string name="explorer_profile_save">Save profile</string>
     <string name="explorer_profile_status_saved">Profile updated for %1$s.</string>
     <string name="explorer_profile_status_claiming">Finishing your explorer setup…</string>
+    <string name="guest_upgrade_content_merged">Your guest drops and collections moved to this account.</string>
+    <string name="guest_upgrade_content_not_merged">You\'re signed in, but your guest drops and collections couldn\'t be moved. Sign in again from the same device to retry.</string>
     <string name="faq_title">Get to know GeoDrop</string>
     <string name="faq_intro">GeoDrop is built around sharing location-based drops. Here\'s a quick overview of how everything fits together.</string>
     <string name="faq_question_core_features">What are GeoDrop\'s core features?</string>

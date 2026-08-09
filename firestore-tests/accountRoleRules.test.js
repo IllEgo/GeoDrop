@@ -316,6 +316,28 @@ function dropData(overrides = {}) {
     const suspended = env.authenticatedContext('suspended', {suspended: true});
     await assertFails(suspended.firestore().doc('users/suspended').update({displayName: 'Nope'}));
 
+    // Task 4.6 — the guest-merge audit trail is server-only in both directions.
+    // Reading it would correlate a guest session with the account it became, and
+    // writing it would let a client fabricate a merge that never happened. These
+    // assertions exist so that a future permissive wildcard fails here rather
+    // than silently exposing the trail.
+    currentCase = 'account merge receipts are invisible and unwritable';
+    await env.clearFirestore();
+    await seed(env, {
+      'users/explorer': {role: 'EXPLORER', displayName: 'Explorer', nsfwEnabled: false},
+      'accountMergeReceipts/receipt-1': {status: 'completed', guestUidDigest: 'abc'},
+    });
+    const merger = env.authenticatedContext('explorer');
+    await assertFails(merger.firestore().doc('accountMergeReceipts/receipt-1').get());
+    await assertFails(merger.firestore().collection('accountMergeReceipts').get());
+    await assertFails(
+      merger.firestore().doc('accountMergeReceipts/forged').set({status: 'completed'})
+    );
+    await assertFails(merger.firestore().doc('accountMergeReceipts/receipt-1').delete());
+    await assertFails(
+      env.unauthenticatedContext().firestore().doc('accountMergeReceipts/receipt-1').get()
+    );
+
     console.log('All account-role rule tests passed.');
   } catch (err) {
     console.error(`Account-role rule tests failed during ${currentCase}:`, err);

@@ -14,7 +14,9 @@ import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.SetOptions
 import com.google.firebase.firestore.ktx.firestore
+import com.google.android.gms.tasks.Task
 import com.google.firebase.functions.FirebaseFunctionsException
+import com.google.firebase.functions.HttpsCallableResult
 import com.google.firebase.functions.ktx.functions
 import com.google.firebase.ktx.Firebase
 import com.e3hi.geodrop.util.GroupPreferences
@@ -597,64 +599,25 @@ class FirestoreRepo(
             .sortedBy { it.groupCode }
     }
 
-    suspend fun migrateExplorerAccount(previousUserId: String, newUserId: String) {
-        if (previousUserId.isBlank() || newUserId.isBlank() || previousUserId == newUserId) return
+    /**
+     * Task 4.6 — hand a guest's activity to the account they just signed into.
+     *
+     * This replaces a client-side migration that could never work: no rule
+     * permits rewriting `createdBy`, and that is correct, because a client able
+     * to reassign authorship could steal or disown drops. The server does it with
+     * the Admin SDK, and proves the caller held the guest session by verifying
+     * the guest's own ID token rather than trusting a uid in the request.
+     *
+     * Most sign-ins never call this. `GuestAccountUpgrade` links the anonymous
+     * account in place first, which keeps the uid and leaves nothing to move.
+     */
+    fun mergeGuestAccountTask(guestIdToken: String): Task<HttpsCallableResult> =
+        functions.getHttpsCallable("mergeGuestAccount")
+            .call(hashMapOf("guestIdToken" to guestIdToken))
 
-        try {
-            val previousProfile = users.document(previousUserId).get().await()
-            if (previousProfile.exists()) {
-                // Copy only what a client is allowed to author on a profile. Copying the
-                // whole document would carry `role`, business metadata, moderation state,
-                // and the previous `username` — all server-authored, and all rejected by
-                // firestore.rules (task 2.7). The username moves below, through the
-                // callable that owns it.
-                previousProfile.getString("displayName")?.takeIf { it.isNotBlank() }?.let { name ->
-                    users.document(newUserId).set(mapOf("displayName" to name), SetOptions.merge()).await()
-                }
-                val previousUsername = previousProfile.getString("username")?.takeIf { it.isNotBlank() }
-                if (!previousUsername.isNullOrBlank()) {
-                    val sanitized = runCatching { ExplorerUsername.sanitize(previousUsername) }.getOrNull()
-                    if (!sanitized.isNullOrBlank()) {
-                        try {
-                            claimExplorerUsernameRemote(
-                                userId = newUserId,
-                                sanitizedUsername = sanitized,
-                                transferFrom = previousUserId
-                            )
-                        } catch (error: Exception) {
-                            Log.w(
-                                "GeoDrop",
-                                "Failed to transfer username $previousUsername from $previousUserId",
-                                error
-                            )
-                        }
-                    }
-                }
-            }
-
-            // KNOWN BROKEN — needs a server-side path, not a client fix.
-            //
-            // Both halves are refused by rules, and adding query filters only
-            // moves the failure from the first to the second:
-            //   1. the `list` rule needs isDeleted and isNsfw equality filters;
-            //   2. no update rule permits rewriting createdBy at all, which is
-            //      correct — a client that could reassign authorship could steal
-            //      or disown drops.
-            // Reassigning ownership is an Admin-SDK operation. Until a callable
-            // exists, this throws and the caller reports the migration as failed
-            // rather than silently dropping the guest's drops on the floor.
-            val existingDrops = drops
-                .whereEqualTo("createdBy", previousUserId)
-                .get()
-                .await()
-
-            existingDrops.documents.forEach { doc ->
-                doc.reference.update("createdBy", newUserId).await()
-            }
-        } catch (error: Exception) {
-            Log.e("GeoDrop", "Failed to migrate explorer account", error)
-            throw error
-        }
+    suspend fun mergeGuestAccount(guestIdToken: String) {
+        if (guestIdToken.isBlank()) return
+        mergeGuestAccountTask(guestIdToken).await()
     }
 
     suspend fun getVisibleDropsForUser(
@@ -996,17 +959,17 @@ class FirestoreRepo(
 
     private suspend fun claimExplorerUsernameRemote(
         userId: String,
-        sanitizedUsername: String,
-        transferFrom: String? = null
+        sanitizedUsername: String
     ): String {
         if (claimExplorerUsernameCallableUnavailable.get()) {
-            return claimExplorerUsernameFallback(userId, sanitizedUsername, transferFrom)
+            return claimExplorerUsernameFallback(userId, sanitizedUsername)
         }
 
+        // A `transferFrom`/`allowTransferFrom` argument used to be sent here for the
+        // guest migration. The callable never read it — it always claims for the
+        // authenticated caller — so the transfer it implied could not happen. As of
+        // task 4.6 a username moves as part of `mergeGuestAccount`, server-side.
         val payload = hashMapOf<String, Any?>("desiredUsername" to sanitizedUsername)
-        if (!transferFrom.isNullOrBlank()) {
-            payload["allowTransferFrom"] = transferFrom
-        }
 
         val callable = functions.getHttpsCallable("claimExplorerUsername")
 
@@ -1054,7 +1017,7 @@ class FirestoreRepo(
                             error
                         )
                     }
-                    return claimExplorerUsernameFallback(userId, sanitizedUsername, transferFrom)
+                    return claimExplorerUsernameFallback(userId, sanitizedUsername)
                 }
 
                 FirebaseFunctionsException.Code.PERMISSION_DENIED -> {
@@ -1063,7 +1026,7 @@ class FirestoreRepo(
                         "claimExplorerUsername permission denied; falling back to client transaction",
                         error
                     )
-                    return claimExplorerUsernameFallback(userId, sanitizedUsername, transferFrom)
+                    return claimExplorerUsernameFallback(userId, sanitizedUsername)
                 }
 
                 FirebaseFunctionsException.Code.UNAVAILABLE,
@@ -1073,7 +1036,7 @@ class FirestoreRepo(
                         "claimExplorerUsername function unavailable; falling back to client transaction",
                         error
                     )
-                    return claimExplorerUsernameFallback(userId, sanitizedUsername, transferFrom)
+                    return claimExplorerUsernameFallback(userId, sanitizedUsername)
                 }
 
                 else -> throw error
@@ -1087,8 +1050,7 @@ class FirestoreRepo(
 
     private suspend fun claimExplorerUsernameFallback(
         userId: String,
-        sanitizedUsername: String,
-        transferFrom: String?
+        sanitizedUsername: String
     ): String {
         return try {
             db.runTransaction { transaction ->
@@ -1102,11 +1064,9 @@ class FirestoreRepo(
                 val existingOwner = usernameSnapshot.getString("userId")?.takeIf { it.isNotBlank() }
 
                 if (existingOwner != null && existingOwner != userId) {
-                    if (transferFrom.isNullOrBlank() || transferFrom != existingOwner) {
-                        throw IllegalStateException(
-                            "That username is already taken. Try another one."
-                        )
-                    }
+                    throw IllegalStateException(
+                        "That username is already taken. Try another one."
+                    )
                 }
 
                 transaction.set(usernameRef, mapOf("userId" to userId), SetOptions.merge())
