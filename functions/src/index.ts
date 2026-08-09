@@ -148,17 +148,43 @@ const resolveDropLabel = (data: admin.firestore.DocumentData | undefined | null)
   }
 };
 
+/** What actually happened to a send, as opposed to what was attempted. */
+interface SendOutcome {
+  delivered: number;
+  failed: number;
+  pruned: number;
+}
+
+/**
+ * Sends to one user's devices and reports the result per device.
+ *
+ * The return value exists because the callers used to log "notified N" off the
+ * fact that a send was attempted. During the 4.5 verification that read
+ * "Notified 1" while the only token was stale and the push reached nobody — the
+ * one number an operator would trust mid-pilot, wrong in the direction that
+ * hides failure. FCM answers per token, so report that answer.
+ *
+ * @param {string} userId Owner of the tokens.
+ * @param {string[]} tokens The device tokens to send to.
+ * @param {object} message The multicast payload, minus its tokens.
+ * @return {Promise<SendOutcome>} Delivered, failed, and pruned device counts.
+ */
 const sendToUserTokens = async (
   userId: string,
   tokens: string[],
   message: Omit<admin.messaging.MulticastMessage, "tokens">
-): Promise<void> => {
+): Promise<SendOutcome> => {
+  const outcome: SendOutcome = {delivered: 0, failed: 0, pruned: 0};
+
   for (const batch of chunkArray(tokens, 500)) {
     if (batch.length === 0) continue;
     const response = await messaging.sendEachForMulticast({
       ...message,
       tokens: batch,
     });
+
+    outcome.delivered += response.successCount;
+    outcome.failed += response.failureCount;
 
     const invalid: string[] = [];
     response.responses.forEach((result, index) => {
@@ -175,8 +201,11 @@ const sendToUserTokens = async (
 
     if (invalid.length > 0) {
       await removeInvalidTokens(userId, invalid);
+      outcome.pruned += invalid.length;
     }
   }
+
+  return outcome;
 };
 
 const USERNAME_MIN_LENGTH = 3;
@@ -907,9 +936,12 @@ export const notifyDropCreatorOnCollection = functions
       data,
     };
 
-    await sendToUserTokens(creatorId, tokens, message);
+    const outcome = await sendToUserTokens(creatorId, tokens, message);
     console.log(
-      `Notified ${creatorId} about new collection on drop ${dropId} by ${newCollectors.length} user(s).`
+      `Collection alert for drop ${dropId} (${newCollectors.length} new collector(s)): ` +
+      `delivered to ${outcome.delivered}/${tokens.length} device(s) for ${creatorId}` +
+      `${outcome.failed > 0 ? `, ${outcome.failed} failed` : ""}` +
+      `${outcome.pruned > 0 ? `, ${outcome.pruned} stale token(s) removed` : ""}.`
     );
   });
 
@@ -1012,24 +1044,36 @@ export const notifyGroupMembersOnDropCreated = functions
 
     // Deliberately no location in the payload: the notification says a drop exists in
     // an experience you joined, never where the recipient is.
-    let notified = 0;
+    let reached = 0;
+    let devices = 0;
+    let failed = 0;
+    let pruned = 0;
     let optedOut = 0;
+    let tokenless = 0;
+
     for (const memberId of memberIds) {
       if (!(await wantsExperienceAlerts(memberId))) {
         optedOut += 1;
         continue;
       }
       const tokens = await fetchNotificationTokens(memberId);
-      if (tokens.length === 0) continue;
-      await sendToUserTokens(memberId, tokens, message);
-      notified += 1;
-    }
-    if (optedOut > 0) {
-      console.log(`Skipped ${optedOut} member(s) of group ${groupCode} who opted out.`);
+      if (tokens.length === 0) {
+        // Alerts on, nowhere to send: the silent failure worth counting.
+        tokenless += 1;
+        continue;
+      }
+      const outcome = await sendToUserTokens(memberId, tokens, message);
+      devices += outcome.delivered;
+      failed += outcome.failed;
+      pruned += outcome.pruned;
+      if (outcome.delivered > 0) reached += 1;
     }
 
+    // One line, and every number in it is an outcome rather than an attempt.
     console.log(
-      `Notified ${notified} member(s) of group ${groupCode} about new drop ${dropId}.`
+      `Drop ${dropId} in group ${groupCode}: reached ${reached}/${memberIds.length} member(s) ` +
+      `on ${devices} device(s); ${optedOut} opted out, ${tokenless} had no registered device, ` +
+      `${failed} send(s) failed, ${pruned} stale token(s) removed.`
     );
   });
 
