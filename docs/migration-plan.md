@@ -64,6 +64,8 @@ from an account that had accepted the policies was refused).
 | 2026-08-07 | Firestore rules | Deploy | 4.3 prerequisite | ruleset `f319574d-7935-4bf0-bb37-c815f5b33394`; verified byte-identical. **Redemption is now possible in production for the first time** — the allowed-keys list omitted the top-level `redeemedBy`, so `hasOnly()` was false for every real redemption |
 | 2026-08-07 | Firestore rules + **functions** | Deploy | 4.3 complete | ruleset `91f5ac5d-7196-4925-b657-7e216131aa68`, verified byte-identical, released **with** the `redeemDrop` callable. Redemption is now server-owned: no client-writable path to `redeemedBy`/`redemptionCount`, and no `redemptionCode` on a readable document. Rules and functions must ship together here — rules alone would leave no redemption path at all |
 | 2026-08-07 | Firestore rules + functions | Deploy | 4.4 server side | ruleset `24b8bd69-6e39-446d-a2b0-eeaa6a3ff688`, verified byte-identical. Ships the organiser rollup trigger, the daily reconcile, and the owner-read-only analytics rules block |
+| 2026-08-09 | Firestore rules + **indexes** | Deploy | 4.5 | ruleset `ff3f8688-a382-440a-bc80-a0bc354fad2e` (createTime 04:12:49Z), verified byte-identical to repo. First index deploy in the project's history: `groups.code` now carries all four configs **READY**, including the `COLLECTION_GROUP` scope `notifyGroupMembersOnDropCreated` needs |
+| 2026-08-09 | Functions | Deploy | 4.5 | All 26 functions `ACTIVE`, `updateTime` 04:56:11–04:56:32Z; `notifyGroupMembersOnDropCreated` at 04:56:22Z. **Which commit this release carries is unproven** — see the caveat under 4.5. Recorded retroactively on 2026-08-09 rather than in the session that deployed it |
 
 ### Verifying what is actually live
 
@@ -78,6 +80,21 @@ GET https://firebaserules.googleapis.com/v1/{rulesetName}
 
 Authenticate with the service-account key in `.secrets/` (gitignored). The response
 carries `createTime`, which dates the deployment.
+
+Rules are the only artefact that can be verified this exactly. For the two others that
+now ship to production:
+
+```
+GET https://firestore.googleapis.com/v1/projects/geodrop-dfcba/databases/(default)/collectionGroups/{collection}/fields/{field}
+GET https://cloudfunctions.googleapis.com/v2/projects/geodrop-dfcba/locations/-/functions
+```
+
+The field response lists every live index and its `state`, which is real proof. The
+functions response gives only `updateTime` — **it does not prove which commit is
+deployed**, and the key in `.secrets/` can read neither Cloud Logging nor the functions
+upload bucket, so deployed function *source* cannot be diffed the way rules can. Where a
+function's behaviour is observable (a changed log line, a changed return shape), use that
+as the check instead of inferring from timestamps.
 
 ### Deploy order and the build caveat
 
@@ -825,12 +842,96 @@ Two defects surfaced by this review and fixed on the way through, both pre-exist
   documented in place. This blocks nothing in 4.5 but sits directly under 4.6's onboarding.
 
 ### 4.5 — Scoped push notifications (explicitly joined experiences only)
+
+**Deliverable:** the membership-scoped alert working behind the notifications flag.
+**Acceptance:** a demoed happy path plus the failure cases — opted out, no registered
+device, non-member.
+**Gate:** your sign-off before the flag flips on.
+
+**Implemented 2026-08-08 (PRs #52, #53), deployed 2026-08-09. The gate is still open —
+see "Still open" below.**
+
+**The feature was built at 3.4 and had never once worked in production.**
+`notifyGroupMembersOnDropCreated` resolves recipients with
+`collectionGroup("groups").where("code", "==", …)`, and no collection-group index existed
+for that field, so **every invocation since 3.4 ended in `FAILED_PRECONDITION`** —
+confirmed in the live logs against the drops seeded into `EATZ` for the 4.4 review.
+Nothing caught it: notifications are flag-off, so no device held a token and no delivery
+was expected anyway. No test could have caught it either — the emulator creates indexes on
+demand, so the query the emulator answers is not the query production refuses.
+
+**Three things shipped:**
+
+1. **`firestore.indexes.json`, wired into `firebase.json`** — the collection-group index
+   for `groups.code`. The field's three default collection-scope indexes are listed
+   alongside it because **a `fieldOverrides` entry replaces the defaults rather than adding
+   to them**; omitting them would have silently broken ordinary `groups` queries while
+   fixing the trigger. This is the project's first index config, and like rules, **merging
+   does not create it** — it needs a deploy, which is why the deployment log now has an
+   *indexes* row.
+2. **A server-visible opt-out** at `users/{uid}/notificationSettings/preferences`, read by
+   the trigger before each send. Membership decides who *may* be notified; this decides who
+   still wants to be. **Absent means opted in** — joining an experience is the opt-in, per
+   the launch scope — and **a read failure also means opted in**, because a transient
+   Firestore error must not silently unsubscribe an attendee mid-event. Rules keep the
+   document owner-only and shaped (`experienceAlertsEnabled` bool, `updatedAt` int, nothing
+   else), pinned by `firestore-tests/notificationPreferenceRules.test.js` (17th suite).
+3. **Turning alerts off now reaches the server twice over.** Android deletes the FCM token
+   *and* writes the preference. It used to clear a local sync marker only, which left both
+   the send and the delivery intact — the user's choice was honoured by accident, and only
+   on the device where it was made. Two writes are needed rather than one: the token stops
+   FCM delivering to *this* device, the preference stops the trigger sending to tokens
+   registered on *others*.
+
+**Delivery counts now report deliveries, not attempts (PR #53).** During verification the
+trigger logged `Notified 1 member(s)` while the only registered token was stale and the
+push reached nobody — FCM had answered per token and the code discarded that answer. That
+is the number an operator reads mid-pilot to decide whether attendees were reached, and it
+was wrong in the direction that hides failure. `sendToUserTokens` now returns delivered /
+failed / pruned counts and both callers log outcomes, with **"no registered device" counted
+separately** because it is the quiet failure: alerts are on, the send is skipped, and
+nothing anywhere reports a problem. Both test accounts were in exactly that state.
+
+**Acceptance tooling:** `functions/scripts/demo-experience-notification.js
+--code=<CODE> --audit` reports who would be notified and why the rest would not, writing
+nothing; `--code=<CODE> --owner=<uid> --apply` creates a real drop so the deployed trigger
+fires end to end; `--retire --apply` soft-deletes the demo drops afterwards. Not wired into
+`functions/package.json`, unlike the other operational scripts — invoke it by path.
+
+**The payload still carries no location**, as at 3.4: it says a drop exists in an
+experience you joined, never where the recipient is.
+
+**Still open — this needs your phone.** Nobody has yet seen a scoped push land on a
+device. The demo needs **both** switches, since `PilotFeatureFlags.notificationsEnabled`
+is `BuildConfig.FEATURE_NOTIFICATIONS_ENABLED && remoteConfig.getBoolean(…)`: an internal
+build with `GEODROP_FEATURE_NOTIFICATIONS_ENABLED=true`, *and* Remote Config
+`pilot_notifications_enabled` flipped on. That key is global and `conditions` is empty in
+`remoteconfig.template.json`, so flipping it is a production change — every other client
+is protected only by its build flag defaulting to false. Flip it for the demo, then flip it
+back. Two things to confirm while you are there:
+
+- **iOS has no opt-out and no token removal.** PR #52 touched Android only. iOS registers
+  tokens (`FirestoreService.swift`) but never writes `notificationSettings/preferences` and
+  never deletes its token, so an iOS user who turns alerts off keeps being sent to. The
+  server honours the preference for whoever writes it; iOS cannot write it. Parity
+  follow-up, not a blocker for the Android demo.
+- **Which commit the live functions release carries is unproven.** The deploy completed
+  04:56:22Z, two minutes after #53 merged (04:54:12Z), but `firebase deploy` uploads its
+  source before the functions finish updating, so the timing is suggestive rather than
+  conclusive, and this project's credentials cannot verify deployed function source. **The
+  log line is its own tell:** if the demo prints `reached 1/2 member(s)`, #53 is live; if it
+  prints `Notified 1 member(s)`, redeploy functions before trusting any delivery number.
+
 ### 4.6 — QR entry point and low-friction onboarding
 
-For each: **Deliverable** is the working feature behind a flag; **Acceptance** is a
-demoed happy path plus the failure cases you care about; **Gate** is your sign-off before
-the flag flips on. 4.3 and 4.4 are what organizers actually pay for — give those the most
-review attention.
+**Deliverable** is the working feature behind a flag; **Acceptance** is a demoed happy path
+plus the failure cases you care about; **Gate** is your sign-off before the flag flips on.
+
+**Prerequisite, already known:** `migrateExplorerAccount` cannot work as written — rules
+refuse both enumerating the previous account's drops and rewriting `createdBy` (the latter
+correctly), so a guest signing into a real account still loses every drop they made. It
+needs an Admin-SDK callable. Recorded under the 4.4 gate resolution above; it sits directly
+under this task's onboarding flow.
 
 ---
 
