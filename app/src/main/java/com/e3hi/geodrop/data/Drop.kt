@@ -59,6 +59,58 @@ fun Drop.remainingRedemptions(): Int? {
 
 fun Drop.isBusinessDrop(): Boolean = dropType != DropType.COMMUNITY
 
+/**
+ * Why a drop is or is not live for attendees in this release.
+ *
+ * The pilot flags are client-side kill switches, while the organiser rollup is
+ * computed server-side and counts every drop regardless. Hiding gated drops from
+ * an owner's own dashboard made the two disagree with no explanation — the card
+ * read "4 drops" over a list of 2, and reported redemptions against drops that
+ * were nowhere on screen. The owner sees all of their drops; the ones attendees
+ * cannot reach say so.
+ *
+ * Flags are parameters rather than read from PilotFeatureFlags here so this stays
+ * a pure function over the drop.
+ */
+enum class DropReleaseAvailability {
+    AVAILABLE,
+    COUPONS_DISABLED,
+    MEDIA_DISABLED,
+    HUNTS_DISABLED,
+    FLAGGED;
+
+    val isAvailable: Boolean get() = this == AVAILABLE
+}
+
+fun Drop.releaseAvailability(
+    couponsEnabled: Boolean,
+    mediaEnabled: Boolean,
+    huntsEnabled: Boolean
+): DropReleaseAvailability {
+    if (isNsfw) return DropReleaseAvailability.FLAGGED
+    if (!couponsEnabled && dropType == DropType.RESTAURANT_COUPON) {
+        return DropReleaseAvailability.COUPONS_DISABLED
+    }
+    if (!mediaEnabled && contentType != DropContentType.TEXT) {
+        return DropReleaseAvailability.MEDIA_DISABLED
+    }
+    if (!huntsEnabled && !huntId.isNullOrBlank()) return DropReleaseAvailability.HUNTS_DISABLED
+    return DropReleaseAvailability.AVAILABLE
+}
+
+/** Owner-facing explanation, or null when the drop is live. */
+fun DropReleaseAvailability.ownerExplanation(): String? = when (this) {
+    DropReleaseAvailability.AVAILABLE -> null
+    DropReleaseAvailability.COUPONS_DISABLED ->
+        "Offers are off for this release, so attendees can't see or redeem this drop. It still counts in your totals."
+    DropReleaseAvailability.MEDIA_DISABLED ->
+        "Photo and audio drops are off for this release, so attendees can't see this drop. It still counts in your totals."
+    DropReleaseAvailability.HUNTS_DISABLED ->
+        "Scavenger hunts are off for this release, so attendees can't see this drop. It still counts in your totals."
+    DropReleaseAvailability.FLAGGED ->
+        "Hidden from attendees while it's under moderation review."
+}
+
 fun Drop.isRedeemedBy(userId: String?): Boolean {
     if (userId.isNullOrBlank()) return false
     return redeemedBy.containsKey(userId)

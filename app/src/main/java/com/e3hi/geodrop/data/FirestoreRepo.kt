@@ -327,6 +327,67 @@ class FirestoreRepo(
         Log.d("GeoDrop", "Registered messaging token for $trimmedUserId")
     }
 
+    /**
+     * Task 4.5 — opting out has to remove the token, not just stop rendering.
+     *
+     * A token left behind keeps FCM delivering to this device; the client would
+     * drop the message, but the send still happens and the user's choice would be
+     * honoured only by accident.
+     */
+    suspend fun unregisterMessagingToken(userId: String, token: String) {
+        val trimmedUserId = userId.trim()
+        val trimmedToken = token.trim()
+        if (trimmedUserId.isEmpty() || trimmedToken.isEmpty()) return
+
+        userNotificationTokensCollection(trimmedUserId)
+            .document(trimmedToken)
+            .delete()
+            .await()
+
+        Log.d("GeoDrop", "Removed messaging token for $trimmedUserId")
+    }
+
+    /**
+     * Task 4.5 — the server-visible half of the alert opt-out.
+     *
+     * The local toggle cannot stop a Cloud Function, and a user who opts out on
+     * one device would otherwise keep being notified through a token registered
+     * on another. `notifyGroupMembersOnDropCreated` reads this before sending.
+     */
+    suspend fun setExperienceAlertsEnabled(userId: String, enabled: Boolean) {
+        val trimmedUserId = userId.trim()
+        if (trimmedUserId.isEmpty()) return
+
+        users.document(trimmedUserId)
+            .collection("notificationSettings")
+            .document("preferences")
+            .set(
+                hashMapOf(
+                    "experienceAlertsEnabled" to enabled,
+                    "updatedAt" to System.currentTimeMillis()
+                )
+            )
+            .await()
+
+        Log.d("GeoDrop", "Experience alerts set to $enabled for $trimmedUserId")
+    }
+
+    /** Absent means opted in — joining an experience is the opt-in. */
+    suspend fun areExperienceAlertsEnabled(userId: String): Boolean {
+        val trimmedUserId = userId.trim()
+        if (trimmedUserId.isEmpty()) return true
+
+        return runCatching {
+            val snapshot = users.document(trimmedUserId)
+                .collection("notificationSettings")
+                .document("preferences")
+                .get()
+                .await()
+            if (!snapshot.exists()) return@runCatching true
+            snapshot.getBoolean("experienceAlertsEnabled") != false
+        }.getOrDefault(true)
+    }
+
     suspend fun ensureUserProfile(userId: String, displayName: String? = null): UserProfile {
         if (userId.isBlank()) return UserProfile()
 
@@ -496,12 +557,15 @@ class FirestoreRepo(
             .get()
             .await()
 
+        // Flag-gated drops are deliberately kept. The owner dashboard shows them
+        // marked as unreachable by attendees, because the server rollup counts
+        // them either way and a list that silently omits them cannot be
+        // reconciled against the totals shown above it.
         return snapshot.documents.mapNotNull { doc ->
             val drop = doc.toDrop()
 
             when {
                 drop.isDeleted -> null
-                !drop.isEnabledForRelease() -> null
                 drop.isBusinessDrop() && drop.isExpired() -> null
                 else -> drop
             }
@@ -1420,17 +1484,11 @@ class FirestoreRepo(
         }
     }
 
-    private fun Drop.isEnabledForRelease(): Boolean {
-        if (!PilotFeatureFlags.couponsEnabled && dropType == DropType.RESTAURANT_COUPON) {
-            return false
-        }
-        if (!PilotFeatureFlags.mediaEnabled && contentType != DropContentType.TEXT) {
-            return false
-        }
-        if (isNsfw) return false
-        if (!PilotFeatureFlags.huntsEnabled && !huntId.isNullOrBlank()) return false
-        return true
-    }
+    private fun Drop.isEnabledForRelease(): Boolean = releaseAvailability(
+        couponsEnabled = PilotFeatureFlags.couponsEnabled,
+        mediaEnabled = PilotFeatureFlags.mediaEnabled,
+        huntsEnabled = PilotFeatureFlags.huntsEnabled
+    ).isAvailable
 
     private fun DocumentSnapshot.toCollectedNoteOrNull(): CollectedNote? {
         val noteId = id.takeIf { it.isNotBlank() } ?: getString("id") ?: return null

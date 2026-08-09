@@ -787,6 +787,43 @@ being inferred from the Android result.
 and iOS; confirm that a non-owner cannot see the summary; record a successful macOS/iOS
 build. Do not begin 4.5 until that evidence is accepted.
 
+**Gate resolution — closed 2026-08-08 on Android evidence; iOS visual review deferred.**
+
+Evidence accepted:
+
+- **Known activity, reviewed on Android.** `functions/scripts/seed-experience-activity.js`
+  seeded experience `EATZ` (owner `robertp8@hawaii.edu`) with a decided-in-advance shape:
+  4 drops, 6 collects, 2 redemptions. The script writes only drops; the deployed
+  `rollUpExperienceActivity` trigger computed the summary, and `--verify` confirmed it
+  matched source. The owner reviewed that dashboard and accepted it.
+- **Non-owner denial.** `firestore-tests/organizerRollupRules.test.js`, green on every CI
+  run, asserts the owner can read the summary and that members, strangers, and signed-out
+  users cannot, with ownership proven against the parent group document.
+- **iOS build.** The `iOS simulator build` job passed on `master` at `a7cf346`.
+
+Deferred, with reasons rather than waivers:
+
+- **The iOS dashboard was never opened.** There is no macOS or Xcode toolchain available
+  to this project today, so no one has seen the iOS owner dashboard render this rollup.
+  CI proves it compiles; nothing proves it looks right. Whoever gains Mac access should
+  run the review before the pilot, not because the gate is open but because it is real
+  verification that was skipped.
+- **iOS dashboard parity.** The review found the per-drop list hid flag-gated drops while
+  the aggregate counted them, so an organiser saw "4 drops" over a list of 2 with 2
+  redemptions attributed to drops that were not on screen. Android now lists every drop and
+  labels the unreachable ones (PR #51). iOS `ProfileView` still hides them, so the two
+  clients currently disagree. Filed as follow-up, not fixed here.
+
+Two defects surfaced by this review and fixed on the way through, both pre-existing:
+
+- Owner-facing drop queries were refused outright by the `drops` list rule for want of an
+  `isNsfw` filter, breaking the business dashboard and My Drops for every account (PR #50,
+  covered by `firestore-tests/ownerQueryShapeRules.test.js`).
+- `migrateExplorerAccount` cannot work as written — rules refuse both enumerating the
+  previous account's drops and rewriting `createdBy`, the latter correctly. A guest signing
+  into a real account still loses their drops. Needs an Admin-SDK callable; unfixed and
+  documented in place. This blocks nothing in 4.5 but sits directly under 4.6's onboarding.
+
 ### 4.5 — Scoped push notifications (explicitly joined experiences only)
 ### 4.6 — QR entry point and low-friction onboarding
 

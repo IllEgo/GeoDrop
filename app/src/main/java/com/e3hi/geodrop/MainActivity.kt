@@ -66,7 +66,9 @@ class MainActivity : ComponentActivity() {
                         }
                     },
                     onNearbyAlertsDisabled = {
-                        messagingTokenStore.clearSynced()
+                        auth.currentUser?.uid?.let { userId ->
+                            disableNearbyAlerts(userId)
+                        } ?: messagingTokenStore.clearSynced()
                     }
                 )
             }
@@ -95,6 +97,35 @@ class MainActivity : ComponentActivity() {
         if (!hasNearbyAlertPermissions()) return
         lifecycleScope.launch {
             ensureMessagingTokenRegistered(userId)
+            runCatching { firestoreRepo.setExperienceAlertsEnabled(userId, true) }
+                .onFailure { error ->
+                    Log.w("GeoDrop", "Failed to record the alert opt-in", error)
+                }
+        }
+    }
+
+    /**
+     * Task 4.5 — turning alerts off has to reach the server twice over.
+     *
+     * The token goes so FCM stops delivering to this device, and the preference is
+     * written so the trigger skips this user even when another device still holds
+     * a token. Clearing only the local sync marker, as this used to, left both the
+     * send and the delivery intact.
+     */
+    private fun disableNearbyAlerts(userId: String) {
+        val token = messagingTokenStore.lastSyncedToken()
+        messagingTokenStore.clearSynced()
+        lifecycleScope.launch {
+            runCatching { firestoreRepo.setExperienceAlertsEnabled(userId, false) }
+                .onFailure { error ->
+                    Log.w("GeoDrop", "Failed to record the alert opt-out", error)
+                }
+            if (!token.isNullOrBlank()) {
+                runCatching { firestoreRepo.unregisterMessagingToken(userId, token) }
+                    .onFailure { error ->
+                        Log.w("GeoDrop", "Failed to remove the messaging token", error)
+                    }
+            }
         }
     }
 

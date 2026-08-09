@@ -751,6 +751,31 @@ service cloud.firestore {
       allow delete: if isCurrentUser(userId);
     }
 
+    // Task 4.5 — the experience-alert opt-out, where the server can see it.
+    // Membership decides who *may* be notified; this decides who still wants to
+    // be. It has to live server-side: the local toggle cannot stop a trigger, and
+    // a user who opts out on one device would otherwise keep being notified
+    // through tokens registered on another.
+    //
+    // Absent means opted in. Joining an experience is the opt-in, per the launch
+    // scope, so a member who never touched the setting is notified about the
+    // experiences they explicitly joined and nothing else.
+    match /users/{userId}/notificationSettings/{settingsId} {
+      function hasValidPreferenceShape() {
+        return settingsId == 'preferences'
+          && request.resource.data.keys().hasOnly([
+            'experienceAlertsEnabled',
+            'updatedAt'
+          ])
+          && request.resource.data.experienceAlertsEnabled is bool
+          && request.resource.data.updatedAt is int;
+      }
+
+      allow read: if isCurrentUser(userId);
+      allow create, update: if isCurrentUser(userId) && hasValidPreferenceShape();
+      allow delete: if isCurrentUser(userId);
+    }
+
     match /users/{userId}/reportStatuses/{reportId} {
       allow read: if isCurrentUser(userId);
       allow create, update, delete: if false;
