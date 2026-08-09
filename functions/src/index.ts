@@ -914,6 +914,35 @@ export const notifyDropCreatorOnCollection = functions
   });
 
 /**
+ * Task 4.5 — the recipient's own opt-out, read where the send happens.
+ *
+ * Membership decides who may be notified; this decides who still wants to be. A
+ * missing document means opted in: joining an experience is the opt-in, so a
+ * member who never opened the setting hears about the experiences they joined.
+ * Any read failure also means opted in — a transient Firestore error must not
+ * silently unsubscribe an attendee mid-event.
+ *
+ * @param {string} userId The member being considered for a send.
+ * @return {Promise<boolean>} Whether this member still wants experience alerts.
+ */
+const wantsExperienceAlerts = async (userId: string): Promise<boolean> => {
+  try {
+    const snapshot = await admin
+      .firestore()
+      .collection("users")
+      .doc(userId)
+      .collection("notificationSettings")
+      .doc("preferences")
+      .get();
+    if (!snapshot.exists) return true;
+    return snapshot.get("experienceAlertsEnabled") !== false;
+  } catch (error) {
+    console.error(`Failed to read alert preference for ${userId}; defaulting to enabled.`, error);
+    return true;
+  }
+};
+
+/**
  * Task 3.4 — alerts are membership-scoped, not proximity-scoped. When a drop is added
  * to an experience, everyone who explicitly joined that experience is notified. This
  * replaces the on-device geofences that required ACCESS_BACKGROUND_LOCATION, and it is
@@ -984,11 +1013,19 @@ export const notifyGroupMembersOnDropCreated = functions
     // Deliberately no location in the payload: the notification says a drop exists in
     // an experience you joined, never where the recipient is.
     let notified = 0;
+    let optedOut = 0;
     for (const memberId of memberIds) {
+      if (!(await wantsExperienceAlerts(memberId))) {
+        optedOut += 1;
+        continue;
+      }
       const tokens = await fetchNotificationTokens(memberId);
       if (tokens.length === 0) continue;
       await sendToUserTokens(memberId, tokens, message);
       notified += 1;
+    }
+    if (optedOut > 0) {
+      console.log(`Skipped ${optedOut} member(s) of group ${groupCode} who opted out.`);
     }
 
     console.log(
