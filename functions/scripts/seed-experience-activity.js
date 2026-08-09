@@ -154,11 +154,18 @@ const verify = async () => {
     db.collection("drops").where("groupCode", "==", groupCode).get(),
   ]);
 
+  // Mirrors reconcileExperienceActivity exactly: `drops` counts live drops only,
+  // while collects and redemptions are kept for retired drops too. Those events
+  // happened, so retiring a drop after an event must not erase its activity.
+  // Computing this any other way makes the script disagree with production and
+  // report a drift that is not there.
   const live = dropsSnapshot.docs.filter((doc) => doc.get("isDeleted") !== true);
   const actualFromSource = {
     drops: live.length,
-    collects: live.reduce((sum, doc) => sum + Object.keys(doc.get("collectedBy") || {}).length, 0),
-    redemptions: live.reduce((sum, doc) => sum + Object.keys(doc.get("redeemedBy") || {}).length, 0),
+    collects: dropsSnapshot.docs.reduce(
+      (sum, doc) => sum + Object.keys(doc.get("collectedBy") || {}).length, 0),
+    redemptions: dropsSnapshot.docs.reduce(
+      (sum, doc) => sum + Object.keys(doc.get("redeemedBy") || {}).length, 0),
   };
 
   const rollup = summary.exists ? summary.data() : null;
