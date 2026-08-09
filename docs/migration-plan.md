@@ -66,6 +66,9 @@ from an account that had accepted the policies was refused).
 | 2026-08-07 | Firestore rules + functions | Deploy | 4.4 server side | ruleset `24b8bd69-6e39-446d-a2b0-eeaa6a3ff688`, verified byte-identical. Ships the organiser rollup trigger, the daily reconcile, and the owner-read-only analytics rules block |
 | 2026-08-09 | Firestore rules + **indexes** | Deploy | 4.5 | ruleset `ff3f8688-a382-440a-bc80-a0bc354fad2e` (createTime 04:12:49Z), verified byte-identical to repo. First index deploy in the project's history: `groups.code` now carries all four configs **READY**, including the `COLLECTION_GROUP` scope `notifyGroupMembersOnDropCreated` needs |
 | 2026-08-09 | Functions | Deploy | 4.5 | All 26 functions `ACTIVE`, `updateTime` 04:56:11–04:56:32Z; `notifyGroupMembersOnDropCreated` at 04:56:22Z. **Which commit this release carries is unproven** — see the caveat under 4.5. Recorded retroactively on 2026-08-09 rather than in the session that deployed it |
+| 2026-08-09 | Firestore rules + functions | Deploy | 4.6 prerequisite | ruleset `f4aa366b-d23d-49d6-af09-816e33fd1a3c` (21:08:28Z), verified byte-identical to repo and confirmed to contain the `accountMergeReceipts` block. Ships `mergeGuestAccount`, created 21:09:45Z. **27 functions, all `ACTIVE`, all carrying this release** — the deploy ran to completion even though the invoking shell timed out at two minutes mid-output, which is why the function list was checked rather than trusted |
+| 2026-08-09 | Firestore indexes | Read-only check | 4.6 prerequisite | `drops` has **no field overrides**, so `collectedBy`/`likedBy`/`createdBy` inherit `__default__/fields/*` and the merge's map-key queries are answerable in production. Same check found **`inventory.id` has no `COLLECTION_GROUP` index**, which breaks `deleteAccount` — see the follow-up under 4.6 |
+| 2026-08-09 | Firestore indexes | Deploy | 5.4 defect fix | `inventory.id` declared with `COLLECTION_GROUP ASCENDING` plus the three collection-scope indexes (an override replaces the defaults). All four went `CREATING` → `READY`; `usesAncestorConfig` is now false for that field, confirming the override took effect without dropping the defaults. **This is what makes `deleteAccount` work for an account that ever created a drop** |
 
 ### Verifying what is actually live
 
@@ -981,8 +984,44 @@ that a retry after completion is a no-op rather than an error. Green locally, wi
 17-suite rules run and the other five rehearsals. Android `testDebugUnitTest`, `lintDebug`,
 `assembleDebug` pass; iOS is compile-verified by CI only.
 
-**Needs a deploy** (rules + functions) and **the device demo below** before it can be
-trusted. Nothing about this is live yet.
+**Deployed 2026-08-09** — ruleset `f4aa366b-d23d-49d6-af09-816e33fd1a3c` and
+`mergeGuestAccount`, both verified live and logged above. **The device demo below is still
+outstanding**, so the merge path has never run against a real pair of accounts.
+
+**The 4.5 index check was repeated here, and it passes for the right reason.** The merge's
+`collectedBy.<uid> != null` queries are **collection-scoped**, and `drops` carries no field
+overrides, so they inherit the default single-field indexes and production answers them.
+4.5 broke because its query was a `collectionGroup` — a scope the default config does *not*
+cover. That is the distinction to carry forward: **collection-scoped map-key queries are
+free; collection-group queries need a declared index.**
+
+**Follow-up found by that check — `deleteAccount` is broken in production.**
+`deleteOwnedInventoryCopies` (`accountLifecycle.ts:121`) runs
+`collectionGroup("inventory").where("id", "in", …)`, and **`inventory.id` has no
+`COLLECTION_GROUP` index**, so that query fails `FAILED_PRECONDITION`. It runs inside the
+`Promise.all` ahead of the destructive steps, so:
+
+- an account that **owns no drops** deletes normally — the loop never issues a query;
+- an account that **created any drop** fails to delete at all, after
+  `anonymizeSubmittedReports` and `scrubUserFromDropMaps` have already partly run. A
+  **partial deletion**, on the path that exists to satisfy a deletion promise.
+
+**Fixed and deployed the same session.** `firestore.indexes.json` now declares
+`inventory.id` with the `COLLECTION_GROUP` entry **and** the three collection-scope indexes
+alongside it, because a `fieldOverrides` entry *replaces* the field's defaults rather than
+adding to them — getting that wrong would have broken ordinary `inventory` queries while
+fixing deletion. Deployed and logged above; nobody was stranded, since prod is pre-pilot and
+wiped.
+
+**The class of bug now has a guard, which matters more than the fix.**
+`functions/scripts/validate-collection-group-indexes.js` (`npm run indexes:validate`, wired
+into the CI functions job) statically pairs every filtered
+`collectionGroup(...).where(...)` in `functions/` with a declared `COLLECTION_GROUP` index
+and fails the build when one is missing. **No emulator test can do this** — the emulator
+creates indexes on demand, so the query it answers is not the query production refuses,
+which is exactly why both instances shipped. Verified by deleting the new entry and watching
+it fail on `accountLifecycle.ts`, then restoring it. A dynamic field path it cannot read
+statically is reported rather than passed.
 
 ---
 
