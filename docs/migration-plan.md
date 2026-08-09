@@ -68,6 +68,8 @@ from an account that had accepted the policies was refused).
 | 2026-08-09 | Functions | Deploy | 4.5 | All 26 functions `ACTIVE`, `updateTime` 04:56:11–04:56:32Z; `notifyGroupMembersOnDropCreated` at 04:56:22Z. **Which commit this release carries is unproven** — see the caveat under 4.5. Recorded retroactively on 2026-08-09 rather than in the session that deployed it |
 | 2026-08-09 | Firestore rules + functions | Deploy | 4.6 prerequisite | ruleset `f4aa366b-d23d-49d6-af09-816e33fd1a3c` (21:08:28Z), verified byte-identical to repo and confirmed to contain the `accountMergeReceipts` block. Ships `mergeGuestAccount`, created 21:09:45Z. **27 functions, all `ACTIVE`, all carrying this release** — the deploy ran to completion even though the invoking shell timed out at two minutes mid-output, which is why the function list was checked rather than trusted |
 | 2026-08-09 | Firestore indexes | Read-only check | 4.6 prerequisite | `drops` has **no field overrides**, so `collectedBy`/`likedBy`/`createdBy` inherit `__default__/fields/*` and the merge's map-key queries are answerable in production. Same check found **`inventory.id` has no `COLLECTION_GROUP` index**, which breaks `deleteAccount` — see the follow-up under 4.6 |
+| 2026-08-09 | Remote Config | Publish — **reverted, see the row below** | Pilot device demo | Version **2** (22:11:42Z, `REST_API`, `firebase-adminsdk-fbsvc@`). `pilot_creation_enabled`, `pilot_hunts_enabled`, `pilot_notifications_enabled` → `true` for the device-demo session; coupons and media stay false. Enabled **in memory via `--enable`, not in the committed template**, which remains all-false. **Revert:** `cd functions && node scripts/publish-remote-config.js --project=geodrop-dfcba --apply --confirm-project=geodrop-dfcba` — publishing the committed template *is* the revert. Verified against `listVersions`, not a command's exit status: four earlier attempts reported success and published nothing |
+| 2026-08-09 | Remote Config | Publish — **revert of the row above** | Pilot device demo | Version **3** (22:30:53Z). All five keys fail-closed again; the demo was deferred to 2026-08-10 rather than held open overnight. Achieved by publishing the committed template with no `--enable`, which is the whole point of that design: the revert needs no memory of what was flipped. Re-enable with `--enable=…` when the demo runs |
 | 2026-08-09 | Firestore indexes | Deploy | 5.4 defect fix | `inventory.id` declared with `COLLECTION_GROUP ASCENDING` plus the three collection-scope indexes (an override replaces the defaults). All four went `CREATING` → `READY`; `usesAncestorConfig` is now false for that field, confirming the override took effect without dropping the defaults. **This is what makes `deleteAccount` work for an account that ever created a drop** |
 
 ### Verifying what is actually live
@@ -98,6 +100,37 @@ deployed**, and the key in `.secrets/` can read neither Cloud Logging nor the fu
 upload bucket, so deployed function *source* cannot be diffed the way rules can. Where a
 function's behaviour is observable (a changed log line, a changed return shape), use that
 as the check instead of inferring from timestamps.
+
+### Remote Config: publishing it, and proving it published
+
+**Nothing in the Firebase CLI publishes Remote Config**, and `firebase deploy --only
+remoteconfig` silently publishes nothing while reporting success (see the correction under
+2.8). Publish with the script, which asserts the resulting live version rather than
+reporting that a target list was accepted:
+
+```
+cd functions
+node scripts/publish-remote-config.js --project=geodrop-dfcba            # dry run
+node scripts/publish-remote-config.js --project=geodrop-dfcba --apply \
+  --confirm-project=geodrop-dfcba
+```
+
+Temporarily enabling a flag for a supervised demo takes `--enable=<key,key>` plus
+`--allow-enabled`, and **never an edit to the template** — the committed file stays
+fail-closed, so *publishing the committed template is the revert* and there is no dirty
+working file for a later commit to pick up. `remoteconfig:validate` fails CI on an enabled
+key, which is the backstop.
+
+Verify independently, the same way as rules — never from a command's exit status:
+
+```
+GET https://firebaseremoteconfig.googleapis.com/v1/projects/geodrop-dfcba/remoteConfig
+GET https://firebaseremoteconfig.googleapis.com/v1/projects/geodrop-dfcba/remoteConfig:listVersions
+```
+
+`listVersions` is the authoritative history: a publish that happened appears there
+immediately, with its `updateOrigin` (`REST_API` vs `CONSOLE`) and author. A console edit
+left as an unpublished draft leaves no entry at all.
 
 ### Deploy order and the build caveat
 
@@ -360,7 +393,16 @@ permission.
 **Owner actions.** `pilot_nsfw_enabled` was removed from `remoteconfig.template.json`,
 the validator's key list, and the release-evidence template on 2026-08-07, and the template
 was published — Remote Config is managed as code here, so this was a repo change plus a
-deploy rather than a console edit. **Still owner-only:** drop
+publish rather than a console edit.
+
+> **Corrected 2026-08-09: "plus a deploy" was wrong, and cost four failed attempts.**
+> The Firebase CLI has **no Remote Config publish command** — only
+> `remoteconfig:get`, `remoteconfig:rollback`, and `remoteconfig:versions:list`. Worse,
+> `firebase deploy --only remoteconfig` *accepts* the target, because `firebase.json`
+> carries a `remoteconfig` key, and then publishes **nothing while printing
+> "Deploy complete!"**. The v1 publish recorded above has `updateOrigin: REST_API`, which
+> is the tell: it went through the API, not a deploy. Use
+> `functions/scripts/publish-remote-config.js` — see below. **Still owner-only:** drop
 `GEODROP_FEATURE_NSFW_ENABLED` from whatever build configuration the release pipeline
 selects. It lives outside the repo (the example xcconfig no longer lists it, and the
 Android `buildConfigField` went at 2.8), so nothing here can reach it. It is inert either
