@@ -4,6 +4,11 @@ Status: pre-pilot. Decisions below were made after a formal idea validation (Jul
 This file defines **what we are building and what we are deliberately not building.**
 When a request conflicts with this document, say so before implementing.
 
+Redesign alignment approved 2026-08-09: the decisions in
+`redesign-alignment-proposal.md` are now part of this direction. The closed v1 boundary
+still applies; the alignment clarifies how existing launch items work and does not make
+every drafted design feature launch scope.
+
 ---
 
 ## What GeoDrop is
@@ -39,20 +44,24 @@ at scale is out of scope for now.
 
 Build only these. Treat the list as closed.
 
-- Account creation, plus controlled guest access
+- Account creation, plus controlled view-only guest access; require an account at the
+  first unlock attempt and resume that exact attempt after authentication
 - Map view and nearby-drop list
-- Text and photo drops
-- Proximity unlocking
+- Text and photo drops authored inside invite-only Experiences by approved organizers for
+  Pilot 1
+- Proximity unlocking through a server-authoritative check; locked payload content is not
+  client-readable before success
 - Drop expiration
-- Collect / claim
+- Durable, immutable unlock receipts in Collection
 - Basic creator profile
 - Report and block
-- Simple redemption code for business rewards
-- Organizer analytics
+- Unique server-issued codes for business rewards, with **issued** and confirmed **used**
+  states kept distinct
+- Private aggregate organizer Results in-app, supplemented by a founder post-event report
 - Push notifications **only** for experiences the user explicitly joined
 
-Audio drops are permitted where they serve tours or storytelling, but must never block
-the pilot. If audio work threatens the timeline, cut it.
+Audio drops are permitted later where they serve tours or storytelling, but are cut from
+Pilot 1. Video remains prohibited.
 
 ## Explicitly deferred — do not build
 
@@ -70,6 +79,9 @@ to reverse this section:
 - Multiple account types with extensive permission matrices
 - National or global discovery
 - Consumer subscriptions, display ads, location-data sale, crypto/token rewards
+- Scheduled future publishing of drops for Pilot 1
+- Merchant accounts, merchant scanners, or a business-facing redemption app
+- Reusable Experience templates and bulk authoring for Pilot 1
 
 If you notice unused code or config for a deferred feature, flag it rather than
 extending it.
@@ -93,6 +105,9 @@ Requirements:
 - Reporting and blocking must exist before any public exposure.
 - A documented moderation queue must exist before any public exposure.
 - Organizers control the drops within their event.
+- Pilot 1 creation is restricted at the authorization layer to approved organizers. The
+  existing internal `BUSINESS` role represents an approved organizer; it is not a merchant
+  employee account and does not create a third account type.
 - Rate limits and account reputation apply to creation.
 
 ## Location privacy (part of the product, not compliance overhead)
@@ -101,8 +116,11 @@ GeoDrop must never continuously broadcast a user's position. The required design
 
 1. Show nearby content using **approximate** location.
 2. Request **precise** location only at the moment the user attempts to unlock a drop.
-3. Check proximity.
-4. Record the successful unlock — not a continuous location history.
+3. Send one precise fix plus age/accuracy to the server for the proximity check. The
+   server may trust the client-reported GPS only as a pilot-grade signal; App Check and
+   rate limits mitigate abuse, but this is not cryptographic proof of presence.
+4. Record the successful unlock and payload version — never the submitted coordinates or
+   a continuous location history. Do not log request coordinates.
 5. Stop requesting precise location afterward.
 6. Never show a user's live position to other users by default.
 
@@ -118,8 +136,8 @@ unlock completes, or persist a location trail.
 ## Monetization context
 
 Revenue is **B2B first**. This affects what we build: organizer-facing tooling,
-analytics, redemption tracking, and reusable experience templates are load-bearing;
-consumer paywalls are not. Pricing under test (hypotheses, not established rates):
+analytics, redemption tracking, and eventually reusable experience templates are
+load-bearing; consumer paywalls are not. Pricing under test (hypotheses, not established rates):
 self-service event $49–99, customized small event $200–500, branded activation
 $750–2,500+, local business subscription tiers around $29/$49/$79 per month.
 
@@ -135,9 +153,11 @@ Prioritize work that compounds those.
 
 ## What we are measuring
 
-Pilot 1 is a single real E3HI event: 10–20 drops, one prize, one trail, 2–3 multimedia
+Pilot 1 is a single real E3HI event: 10–20 drops, one prize, one trail, 2–3 text/photo
 drops, a QR code entry point, and very low-friction onboarding, for roughly 50–150
-attendees. The loop under test is:
+attendees. The participant redesign and outdoor qualification are Android-first; preserve
+iOS source and shared-backend compatibility, but do not block the Android pilot on iOS
+visual parity. The loop under test is:
 
 > see invitation → open GeoDrop → discover drop → walk to location → unlock → get value → unlock another
 
@@ -156,6 +176,16 @@ Downloads are not the success metric. Instrument the funnel so these are answera
 These are internal targets, not industry benchmarks. Also worth capturing: how much
 explanation users needed, whether GPS accuracy caused frustration, which drop types
 produced excitement, and whether discovery was enjoyable independent of the prize.
+For this small Android pilot, report absolute funnel counts and treat qualitative findings
+and at least five interviews as primary. Percentage thresholds remain directional. Aim for
+at least 40 eligible Android participants where the event population allows it.
+
+The real-event QR funnel must be tested through a normal Play install path on a device that
+has never installed GeoDrop. A sideloaded APK or closed-test enrollment flow is not evidence
+that QR → install → restored Experience is ready. Prefer a fail-closed production listing;
+open testing is acceptable only if its additional opt-in step is disclosed in the funnel.
+This does not make app-store discovery the acquisition strategy: the organizer/E3HI
+invitation remains the distribution channel, while Play is the trusted install mechanism.
 
 ## 90-day go/no-go
 

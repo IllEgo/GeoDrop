@@ -113,8 +113,8 @@ function dropData(overrides = {}) {
 
     currentCase = 'profile creation cannot carry server-authored fields';
     await env.clearFirestore();
-    // Business metadata at create would be a way around the callable, which is
-    // where the verified-email requirement lives.
+    // Business metadata at create would bypass the server-owned approval
+    // workflow, so it remains forbidden even before a status exists.
     await assertFails(
       newcomer.firestore().doc('users/newcomer').set({
         role: 'EXPLORER',

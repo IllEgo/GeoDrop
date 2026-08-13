@@ -5,6 +5,13 @@ Status: drafted, not yet reviewed against Legal (data deletion/export) or Backen
 Resolves the open item flagged in `top-level-navigation.md`: "Account tab itself has no other detailed spec beyond permission status and organizer entry point."
 Depends on: `top-level-navigation.md` (this is that doc's third tab), `organizer-access-request-flow.md` (surfaces its states here), `geodrop-wireframe-spec-v1.md` §2.5a/b/c (the permissions this screen lets someone revisit).
 
+> **R0 alignment override (approved 2026-08-09; see
+> `redesign-alignment-proposal.md`):** the tab label is **Account**. Preserve
+> the already-governed export and deletion behavior from the migration/account lifecycle
+> work rather than treating those actions as open product questions. Organizer maps to the
+> internal `BUSINESS` role; application status is server-owned workflow state, not a new
+> account type. Participant UI never labels the person an Explorer.
+
 ## Design principle
 
 This is the least-visited tab in the app, and that's fine — it doesn't need to compete with Map or Collection for attention or polish. Its job is to be the reliable, boring place where account-level things live: permissions, the Organizer door, and the handful of account-lifecycle actions (sign out, delete account) every app needs somewhere. Nothing here should try to be engaging: no achievements, no stats celebration, no personality-forward copy. Matches the same "organizer-facing tooling is neutral/professional" register already established for B2B surfaces in this project, extended here because account settings is a utility, not a moment.

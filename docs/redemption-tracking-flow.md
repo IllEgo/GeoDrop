@@ -5,6 +5,15 @@ Status: drafted, not yet reviewed against Backend feasibility.
 Updated 2026-07-29: added dispute-resolution capability (§4, "Copy summary") plus per-code timestamp and history log (§2) — resolves the "does marking a code redeemed require business confirmation" open item by adding an audit path rather than a confirmation requirement.
 Depends on: `geodrop-product-spec-v1.md` §4.9 (redemption acceptance criteria, v1 done-state, non-goals), `experience-creation-flow.md` (this screen lives inside an experience, same as Drops).
 
+> **R0 alignment override (approved 2026-08-09; see
+> `redesign-alignment-proposal.md`):** preserve the organizer-only/manual-
+> business-validation model, but use precise state names: assigning a pre-generated unique
+> code is **issued** and reserves inventory; only later organizer confirmation makes it
+> **used**. Use owner-authorized online mutations with timestamped correction history.
+> Offline code display is required after issuance; offline mark-used/correction queues are
+> deferred. "This can't be undone" copy is superseded because audited correction is allowed.
+> Copy Summary is optional polish after the core R8 gate.
+
 ## Design principle
 
 Per §4.9's explicit v1 done-state, **the business validates a code manually against a founder-supplied list — no scanner, no merchant account, no business dashboard.** The moment at the counter (Explorer shows their code, business employee checks it against a paper or spreadsheet list) has no app or screen at all. This document is not that moment. It covers the *other* moment: after the fact, someone — the Organizer or founder — has to tell the system a code was actually used, so issued/redeemed counts stay accurate and queryable per business (a real acceptance criterion).

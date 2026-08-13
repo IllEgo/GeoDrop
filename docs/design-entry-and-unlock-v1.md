@@ -5,6 +5,15 @@
 > **Upload to:** Frontend Engineer, Backend Engineer, Product Manager, DevOps project knowledge bases.
 > **Platform:** Android only, per `PROJECT-STATE.md` v0.3. iOS notes marked `[iOS later]`.
 
+> **R0 alignment override (approved 2026-08-09; see
+> `redesign-alignment-proposal.md`):** preview and guest browsing come before
+> authentication; account creation is triggered by the first **Unlock** attempt, not by
+> Join, and the same attempt resumes afterward. Approximate location is requested only from
+> a contextual Nearby action; precise location starts only after Unlock is pressed. Do not
+> stream a live precise distance. Push permission follows the first successful unlock.
+> Use production/open Play distribution evidence, owned-domain App Links, Install Referrer,
+> and an event-code fallback. `voice-and-glossary-v1.md` overrides stale role terminology.
+
 ---
 
 ## Part 1 — Entry: what the QR does for someone without the app

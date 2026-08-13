@@ -4,147 +4,52 @@ import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.googlefonts.Font
-import androidx.compose.ui.text.googlefonts.GoogleFont
 import androidx.compose.ui.unit.sp
-import com.e3hi.geodrop.R
 
-private val googleFontProvider = GoogleFont.Provider(
-    providerAuthority = "com.google.android.gms.fonts",
-    providerPackage = "com.google.android.gms",
-    certificates = R.array.com_google_android_gms_fonts_certs
+// Android's platform sans is the offline-safe Roboto family and renders ʻokina
+// and kahakō. R3 removes network-loaded display faces from the foundation.
+val GeoDropSans = FontFamily.SansSerif
+val GeoDropMono = FontFamily.Monospace
+
+// Compatibility aliases for pre-R4 screens. New components use GeoDropSans.
+val RoundedMFontFamily = GeoDropSans
+val RalewayFontFamily = GeoDropSans
+
+private fun geoDropStyle(
+    size: Int,
+    lineHeight: Int,
+    weight: FontWeight,
+    family: FontFamily = GeoDropSans
+) = TextStyle(
+    fontFamily = family,
+    fontWeight = weight,
+    fontSize = size.sp,
+    lineHeight = lineHeight.sp
 )
 
-val RoundedMFontFamily = FontFamily(
-    Font(
-        googleFont = GoogleFont("M PLUS Rounded 1c"),
-        fontProvider = googleFontProvider,
-        weight = FontWeight.Bold
-    )
+val GeoDropTypography = Typography(
+    displayLarge = geoDropStyle(34, 40, FontWeight.SemiBold),
+    displayMedium = geoDropStyle(34, 40, FontWeight.SemiBold),
+    displaySmall = geoDropStyle(34, 40, FontWeight.SemiBold),
+    headlineLarge = geoDropStyle(26, 32, FontWeight.SemiBold),
+    headlineMedium = geoDropStyle(26, 32, FontWeight.SemiBold),
+    headlineSmall = geoDropStyle(26, 32, FontWeight.SemiBold),
+    titleLarge = geoDropStyle(20, 26, FontWeight.SemiBold),
+    titleMedium = geoDropStyle(20, 26, FontWeight.SemiBold),
+    titleSmall = geoDropStyle(20, 26, FontWeight.SemiBold),
+    bodyLarge = geoDropStyle(17, 26, FontWeight.Normal),
+    bodyMedium = geoDropStyle(15, 22, FontWeight.Normal),
+    bodySmall = geoDropStyle(13, 18, FontWeight.Normal),
+    labelLarge = geoDropStyle(13, 18, FontWeight.Medium),
+    labelMedium = geoDropStyle(13, 18, FontWeight.Medium),
+    labelSmall = geoDropStyle(13, 18, FontWeight.Medium)
 )
 
-val RalewayFontFamily = FontFamily(
-    Font(
-        googleFont = GoogleFont("Raleway"),
-        fontProvider = googleFontProvider,
-        weight = FontWeight.Normal
-    ),
-    Font(
-        googleFont = GoogleFont("Raleway"),
-        fontProvider = googleFontProvider,
-        weight = FontWeight.SemiBold
-    ),
-    Font(
-        googleFont = GoogleFont("Raleway"),
-        fontProvider = googleFontProvider,
-        weight = FontWeight.Bold
-    )
+val RewardCodeTextStyle = geoDropStyle(
+    size = 28,
+    lineHeight = 34,
+    weight = FontWeight.Medium,
+    family = GeoDropMono
 )
 
-val Typography = Typography(
-    displayLarge = TextStyle(
-        fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.ExtraBold,
-        fontSize = 57.sp,
-        lineHeight = 64.sp,
-        letterSpacing = (-0.25).sp
-    ),
-    displayMedium = TextStyle(
-        fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.Bold,
-        fontSize = 45.sp,
-        lineHeight = 52.sp,
-        letterSpacing = 0.sp
-    ),
-    displaySmall = TextStyle(
-        fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.Bold,
-        fontSize = 36.sp,
-        lineHeight = 44.sp,
-        letterSpacing = 0.sp
-    ),
-    headlineLarge = TextStyle(
-        fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.ExtraBold,
-        fontSize = 32.sp,
-        lineHeight = 40.sp,
-        letterSpacing = 0.sp
-    ),
-    headlineMedium = TextStyle(
-        fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.Bold,
-        fontSize = 28.sp,
-        lineHeight = 36.sp,
-        letterSpacing = 0.sp
-    ),
-    headlineSmall = TextStyle(
-        fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.Bold,
-        fontSize = 24.sp,
-        lineHeight = 32.sp,
-        letterSpacing = 0.sp
-    ),
-    titleLarge = TextStyle(
-        fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.Bold,
-        fontSize = 22.sp,
-        lineHeight = 28.sp,
-        letterSpacing = 0.sp
-    ),
-    titleMedium = TextStyle(
-        fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 16.sp,
-        lineHeight = 24.sp,
-        letterSpacing = 0.15.sp
-    ),
-    titleSmall = TextStyle(
-        fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 14.sp,
-        lineHeight = 20.sp,
-        letterSpacing = 0.1.sp
-    ),
-    bodyLarge = TextStyle(
-        fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.Normal,
-        fontSize = 16.sp,
-        lineHeight = 24.sp,
-        letterSpacing = 0.5.sp
-    ),
-    bodyMedium = TextStyle(
-        fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.Normal,
-        fontSize = 14.sp,
-        lineHeight = 20.sp,
-        letterSpacing = 0.25.sp
-    ),
-    bodySmall = TextStyle(
-        fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.Normal,
-        fontSize = 12.sp,
-        lineHeight = 16.sp,
-        letterSpacing = 0.4.sp
-    ),
-    labelLarge = TextStyle(
-        fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 14.sp,
-        lineHeight = 20.sp,
-        letterSpacing = 0.1.sp
-    ),
-    labelMedium = TextStyle(
-        fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.Medium,
-        fontSize = 12.sp,
-        lineHeight = 16.sp,
-        letterSpacing = 0.5.sp
-    ),
-    labelSmall = TextStyle(
-        fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.Medium,
-        fontSize = 11.sp,
-        lineHeight = 16.sp,
-        letterSpacing = 0.5.sp
-    )
-)
+val Typography = GeoDropTypography

@@ -8,6 +8,14 @@
 **Updated 2026-07-29:** added Experience Preview (1.0.5), the pre-auth screen shown between QR resolve and account/guest-session onboarding — previously referenced only in earlier IA research, not yet formally spec'd in this document.
 **Updated 2026-07-29 (second pass):** added Enter Event Code (1.0b), the code-entry fallback/equal-path for joining an experience without scanning a QR — closes a gap surfaced by `top-level-navigation.md`.
 
+> **R0 alignment override (approved 2026-08-09; see
+> `redesign-alignment-proposal.md`):** implement the account-required unlock
+> branch: preview and view-only browsing first, then authenticate on the first Unlock and
+> resume it. Load a useful Experience/list without location; request approximate location
+> from a contextual Nearby action, precise only after Unlock, and push after first success.
+> Collection stores an immutable unlock-time payload snapshot. Nearby/Collection/Account
+> are the final tab labels. The server never exposes locked payload content before success.
+
 ---
 
 ## How to read this

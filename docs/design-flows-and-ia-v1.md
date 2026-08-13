@@ -6,6 +6,14 @@
 > **Upload to:** Frontend Engineer, Backend Engineer, Product Manager project knowledge bases.
 > **Companion files:** `design-system-v1.md`, `voice-and-glossary-v1.md`.
 
+> **R0 alignment override (approved 2026-08-09; see
+> `redesign-alignment-proposal.md`):** use one shared shell with
+> Nearby/Collection/Account. Approved organizer tools are reached through Account, not a
+> permanent mode or fourth tab. Guest browsing gates an account only at the first unlock.
+> Location permission is contextual, precise permission begins after Unlock, and push
+> permission follows the first success. Keep the existing private aggregate Results view;
+> founder reporting supplements it. Shareable Results images are deferred polish.
+
 ---
 
 ## 0. Three things that shaped every decision below

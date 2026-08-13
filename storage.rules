@@ -2,6 +2,36 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
 
+    // R2 uploads are private staging objects. The app may preview/delete only
+    // its own non-anonymous image, and no Firebase download token is accepted.
+    match /drop-upload-staging/{userId}/{uploadId} {
+      function isActiveStagingOwner() {
+        return request.auth != null
+          && request.auth.uid == userId
+          && request.auth.token.firebase.sign_in_provider != 'anonymous'
+          && (!request.auth.token.keys().hasAny(['suspended'])
+            || request.auth.token.suspended != true);
+      }
+
+      allow read, delete: if isActiveStagingOwner();
+
+      allow create: if isActiveStagingOwner()
+        && resource == null
+        && request.resource.size <= 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/(jpeg|png|webp)')
+        && request.resource.metadata.keys().hasOnly(['ownerId', 'purpose'])
+        && request.resource.metadata.ownerId == request.auth.uid
+        && request.resource.metadata.purpose == 'DROP_STAGING';
+
+      allow update: if false;
+    }
+
+    // Published payload media never has a direct Firebase client path. Access
+    // is granted only by getCollectionMedia's short-lived signed URL.
+    match /drop-payloads/{allPaths=**} {
+      allow read, write: if false;
+    }
+
     // New uploads start private and pending. A trusted backend associates the
     // object with a canonical, public, safe Firestore drop before non-owners
     // can read it. The first path segment remains flexible for compatibility

@@ -19,6 +19,14 @@
     "pilot_hunts_enabled": {
       "defaultValue": { "value": "false" },
       "description": "Pilot guard for scavenger-hunt creation and progression."
+    },
+    "pilot_redesign_backend_enabled": {
+      "defaultValue": { "value": "false" },
+      "description": "R2 rollout guard. Authorization remains enforced when false or true."
+    },
+    "pilot_redesign_min_contract_version": {
+      "defaultValue": { "value": "2147483647" },
+      "description": "Unsupported-by-default minimum redesign data contract. Lower only at an approved client gate."
     }
   },
   "conditions": []

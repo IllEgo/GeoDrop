@@ -29,6 +29,33 @@ principal is deliberately **not** an account type:
 | Suspended | Auth custom claim `suspended` (+ `moderationStatus` on the profile for display) | A state, not a type. `isSignedIn()` in `firestore.rules` fails closed on the claim, so a suspended principal loses every write path at once. |
 | Guest | Anonymous Firebase Auth, no `role` at all | Viewing only. `isNonAnonymousUser()` gates creation (task 1.2). |
 
+## Approved redesign target (not live until R2)
+
+Task R0 approved a narrower Pilot 1 creation contract without adding an account type:
+
+- `EXPLORER` remains the default internal role, but Pilot 1 participants do not receive a
+  public/community creation surface or authorization path. They browse joined Experiences,
+  unlock, collect, report, and manage their account.
+- `BUSINESS` remains the second and only elevated role. In redesigned product copy it means
+  an approved **Organizer**. It is not a merchant employee account.
+- Only a `BUSINESS` account that owns the Experience may create or mutate that Experience's
+  drops. Ownership remains scoped membership state, not a role.
+- Organizer applications use founder review. If the app needs `pending`/`approved`/`denied`
+  display state, add a server-authored `organizerAccessStatus`; this is workflow state, not
+  a role, and it must be added to every profile allow-list/writer test in the R2 change.
+- Guest sessions remain anonymous Firebase Auth for continuity, but are view-only: preview,
+  join, and browse are allowed; unlock, Collection writes, creation, and reward issuance
+  require a linked non-anonymous account. Resume the pending unlock after linking/merge.
+- "Explorer" never appears as an identity in participant UI. Guest-facing content calls
+  the Experience creator the **host**; professional/account tooling may say Organizer.
+
+**Migration boundary:** the table above and the writer descriptions below still document
+the deployed task-2.7 implementation. In particular, authenticated Explorer community
+creation and verified-email `updateBusinessProfile` promotion remain deployed behavior
+until R2 is separately approved and deployed. R2 has changed local source so profile edits
+require prior organizer approval and only an admin/operator decision can elevate the role.
+Do not present that source change as live security evidence before the deployment gate.
+
 ## Who may write what
 
 Profile fields are split by author. `firestore.rules` enforces the split; the split is
@@ -44,24 +71,28 @@ in the allow-list because documents created before 2.8 still carry them, and
 lock every one of those profiles out of its own updates. `hasPilotSafeContentPreference()`
 still pins any surviving value to `false`.
 
-**Server-authored** — `role`, `businessName`, `businessCategories`, `moderationStatus`,
-`suspendedAt`, `suspendedBy`, `suspensionReason`, `suspensionCaseId`, `reinstatedAt`,
-`legalAcceptanceVersion`, `legalAcceptedAt`.
+**Server-authored** — `role`, `organizerAccessStatus`,
+`organizerAccessSubmittedAt`, `organizerAccessReviewedAt`, `businessName`,
+`businessCategories`, `moderationStatus`, `suspendedAt`, `suspendedBy`,
+`suspensionReason`, `suspensionCaseId`, `reinstatedAt`, `legalAcceptanceVersion`,
+`legalAcceptedAt`.
 
 **Every Admin-SDK writer of `users/{uid}` must appear in the server-authored list.** A
 field written there but missing from the list locks the account out of its own profile:
 `hasOnlyAllowedUserFields()` sees the *merged* document, so one stray key makes every
-later client update fail. The writers today are `updateBusinessProfile`,
-`claimExplorerUsername`, `acceptLegalPolicies`, and the moderation callables. Add to the
-list when adding a writer.
+later client update fail. The writers today are `setOrganizerAccessDecision`,
+`ingestOrganizerApplication`, `updateBusinessProfile`, `claimExplorerUsername`,
+`acceptLegalPolicies`, and the moderation callables. Add to the list when adding a writer.
 
 Server-authored fields may be **present** on a document a client updates — the Admin SDK
 writes them and bypasses rules — but a client can neither introduce, change, nor remove
 one (`preservesServerAuthoredFields()`, plus `preservesRole()` for `role`). Two
 consequences worth stating plainly:
 
-- **The only path to `BUSINESS` is the `updateBusinessProfile` callable**, which requires
-  a verified email. Before 2.7 a client could write itself a `businessName` directly, and
+- **Historical deployed path:** before R2 is deployed, the only path to `BUSINESS` is the
+  verified-email `updateBusinessProfile` callable. In R2 source that callable cannot
+  elevate; admin/operator approval is the only target path. Before 2.7 a client could
+  write itself a `businessName` directly, and
   the Android client then *inferred* `BUSINESS` from that metadata — unlocking the
   business UI for an account the server still treated as an explorer, with no verified
   email. Both halves are gone: the rules refuse the write, and the clients trust only the

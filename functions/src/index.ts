@@ -546,13 +546,6 @@ export const updateBusinessProfile = functions
         "Sign in before updating a business profile."
       );
     }
-    if (context.auth?.token.email_verified !== true) {
-      throw new functions.https.HttpsError(
-        "failed-precondition",
-        "Verify your email before creating a business profile."
-      );
-    }
-
     const businessName = typeof data?.businessName === "string" ?
       data.businessName.trim() : "";
     const rawCategories = Array.isArray(data?.businessCategories) ?
@@ -571,11 +564,39 @@ export const updateBusinessProfile = functions
       );
     }
 
-    await admin.firestore().collection("users").doc(uid).set({
-      businessName,
-      businessCategories,
-      role: "BUSINESS",
-    }, {merge: true});
+    const firestore = admin.firestore();
+    const userRef = firestore.collection("users").doc(uid);
+    const creatorProfileRef = firestore.collection("creatorProfiles").doc(uid);
+    await firestore.runTransaction(async (transaction) => {
+      const user = await transaction.get(userRef);
+      if (!user.exists || user.get("role") !== "BUSINESS" ||
+          user.get("organizerAccessStatus") !== "APPROVED") {
+        throw new functions.https.HttpsError(
+          "permission-denied",
+          "Organizer approval is required before editing a business profile.",
+          {
+            reason: "ORGANIZER_APPROVAL_REQUIRED",
+            retryable: false,
+            field: null,
+            retryAfterSeconds: null,
+            distanceBucket: null,
+            contractVersion: 1,
+          }
+        );
+      }
+      const now = FieldValue.serverTimestamp();
+      transaction.set(userRef, {
+        businessName,
+        businessCategories,
+      }, {merge: true});
+      transaction.set(creatorProfileRef, {
+        schemaVersion: 1,
+        hostLabel: businessName,
+        username: user.get("username") ?? null,
+        organizationName: businessName,
+        updatedAt: now,
+      });
+    });
 
     return {businessName, businessCategories, role: "BUSINESS"};
   });
@@ -1231,7 +1252,39 @@ export {
   decideModerationAppeal,
   decideModerationCase,
   ingestUserReport,
+  ingestRedesignReport,
   listModerationQueue,
   submitModerationAppeal,
   triageModerationCase,
 } from "./moderationOperations";
+
+export {
+  blockHost,
+  correctRewardCodeUse,
+  createExperience,
+  createOrganizerApplicationLink,
+  deleteDrop,
+  experienceEntryPage,
+  getCollectionMedia,
+  getOrganizerDrop,
+  ingestOrganizerApplication,
+  joinExperience,
+  leaveExperience,
+  listRewardCodes,
+  markRewardCodeUsed,
+  provisionRewardCodes,
+  purgeExpiredRedesignData,
+  reconcileRedesignResults,
+  recordAuthCompletion,
+  recordClientEvent,
+  resolveExperience,
+  saveDrop,
+  sanitizeDropStagingUpload,
+  setDropLike,
+  setOrganizerAccessDecision,
+  submitFeedback,
+  submitReport,
+  unlockDrop,
+  unblockHost,
+  updateExperience,
+} from "./redesign";

@@ -10,6 +10,65 @@ context. Point Claude at it per task instead.
 
 ## How to run this
 
+### Approved redesign continuation (2026-08-09)
+
+The owner approved all F1–F7 and the resolution table in
+`docs/redesign-alignment-proposal.md`. That document now supplies the ordered **R0–R10**
+redesign sequence and gates. Current/deployed behavior recorded below remains historical
+fact until a later R task changes and verifies it; it must not be mistaken for the new
+target where the documents now differ.
+
+- **R0** is documentation normalization only. No app, rules, function, schema, or
+  deployment work belongs in it.
+- **R1** is approved and complete in `docs/redesign-backend-contracts-r1.md`.
+- **R2** is approved and complete with passing evidence in
+  `docs/redesign-server-boundary-r2.md`. It has not been deployed and its production audit
+  has not been run.
+- **R3** is approved and complete in `docs/redesign-android-foundation-r3.md` after the
+  verified build was installed and launched on a physical Android device.
+- **R4** is approved and complete with passing evidence in
+  `docs/redesign-navigation-shell-r4.md` after the verified build was reinstalled and
+  launched on a physical Android device. On 2026-08-10 the owner split R5 into **R5-L**
+  (local/device implementation) and **R5-P** (production funnel). **R5-L is approved and
+  complete; R5-P is deliberately deferred and remains blocking before any pilot or public
+  release. The owner explicitly authorized R6 local implementation on 2026-08-10 and
+  approved the implemented local/device participant experience on 2026-08-11 after the
+  working map and relocated demo drops were reviewed. Its crash fix and target participant
+  loop are locally implemented and device-smoke tested, while the real server/outdoor
+  qualification gate remains open in
+  `redesign-participant-loop-r6.md`. The owner then directed work to continue into **R7
+  local implementation** and approved its installed local/device Experience and core
+  text/photo authoring surface on 2026-08-11 after organizer-to-Explorer discovery passed
+  on the physical device. Timed venue, unapproved-server-denial, and cross-device evidence
+  remains open in `redesign-organizer-authoring-r7.md`; it is a pre-pilot dependency, not
+  an unrecorded pass. The owner then authorized **R8 local/device implementation**. Its
+  reward and aggregate Results surfaces are implemented, verified, installed, passed the
+  physical interaction walkthrough, and were approved by the owner on 2026-08-11. The
+  remaining pre-pilot dependencies are recorded in `redesign-rewards-results-r8.md`. The
+  owner then authorized **R9 local/device implementation**. Account, safety, moderation
+  intake, private rate limits, and fail-closed operations readiness are implemented and
+  verified locally; the R9 review APK was installed and the Account/report/block/unblock
+  flows were physically reviewed. A subsequent bottom-inset correction passed the full
+  automated Android gate, was installed on the physical device, and passed its focused
+  action-row and clean-log smoke test. R9 owner approval is pending, and its intentionally open
+  pre-pilot dependencies are recorded in `redesign-account-safety-operations-r9.md`.
+  **R10 and production actions are not authorized.** See
+  `redesign-entry-guest-permissions-r5.md`. Do not
+  deploy or enable the target backend, mutate production data, migrate screens ahead of
+  their approved R task, or perform the M4 legacy cutover.
+- The unfinished 4.6 QR deliverable is absorbed by **R5**.
+- Phase 5 requirements remain mandatory and are absorbed by **R9**; public exposure still
+  cannot precede their operational gate.
+- Phase 6 contracts begin in **R1** and final qualification occurs in **R10**.
+- Phase 7 store readiness is part of **R10**, including the approved real Play install
+  path. A sideload or closed-test enrollment is not QR-funnel acceptance evidence.
+- The R5 split is a sequencing exception for local redesign work only. R5-P must close
+  before R10 can authorize the pilot, and it does not weaken any hosting, App Link, Play,
+  clean-install, deployment, rollback, or production-data requirement.
+
+If a legacy task below conflicts with the approved R sequence, follow the R sequence and
+the signed redesign decision in `migration-decisions.md`; do not silently combine tasks.
+
 Every task below is sized for roughly one session and one PR, and ends at an approval
 gate. The working loop:
 
@@ -313,8 +372,9 @@ removed types.
 **Found and fixed:**
 1. **A client could grant itself the business surface.** `businessName` was client-writable
    and Android *inferred* `BUSINESS` from business metadata, bypassing the
-   `updateBusinessProfile` callable's verified-email gate. The server never agreed (the drop
-   rules read the stored `role`), so the result was business UI on an account with explorer
+   deployed `updateBusinessProfile` callable's verified-email gate. R2 changes local source
+   to approval-only. At the time, the server never agreed (the drop rules read the stored
+   `role`), so the result was business UI on an account with explorer
    permissions. Business metadata is now server-authored and the inference is gone.
 2. **Clients and rules disagreed about the same stored value.** Both clients case-folded
    `role`, so `"business"` read as BUSINESS on the client and EXPLORER on the server. Both
@@ -779,11 +839,24 @@ path, idempotency, all three un-collect shapes (null, false, whole-map rewrite),
 on someone else's behalf, removing another collector, and writing into another user's
 inventory. Full suite green.
 
-**Unchanged and worth restating:** proximity is still client-enforced on both platforms —
-no rule or callable verifies the collector was near the drop, and rules cannot check
-location. A claim is now honest about *who* and *once*, not about *where*.
+**Current deployed fact:** proximity is still client-enforced on both platforms — no rule
+or callable verifies the collector was near the drop, and rules cannot check location. A
+claim is honest about *who* and *once*, not about *where*.
+
+**Superseded as the target on 2026-08-09 (F1):** R1/R2 must split readable discovery
+metadata from a server-only payload and move receipt creation behind a server-authoritative
+`unlockDrop` callable. The callable receives one precise fix plus age/accuracy, persists no
+coordinates, and returns content only on success. Do not rewrite the paragraph above as if
+this is already deployed; it remains the migration's starting state.
 
 ### 4.3 — Redemption codes for business rewards
+
+**Superseded target semantics (F2, approved 2026-08-09):** the callable described below is
+still the deployed implementation, but it conflates code issuance with actual business
+use. R1/R2/R8 must replace that meaning with separate `issuedAt` and confirmed `usedAt`
+states, pre-generated reward code pools, organizer-authorized use/correction operations,
+and distinct `issuedCount`/`usedCount` rollups. Existing pre-pilot receipts migrate as
+issued, not proven used.
 
 **Prerequisite cleared 2026-08-07** — the redemption rule could never succeed: the
 allowed-keys list omitted the top-level `redeemedBy`, which is what a nested-map write
@@ -808,6 +881,11 @@ Scope when this task runs:
   pressure.
 
 ### 4.4 — Organizer analytics
+
+**Redesign decision (F4):** keep the existing private aggregate dashboard. Do not hide or
+replace it with a founder-only report. The report is an operational supplement. When F2 is
+implemented, replace the ambiguous redemption total with separate code-issued and
+code-used totals; attendee identity remains excluded.
 
 **Design decided 2026-08-07 — see P7 in `docs/migration-decisions.md`: a server-side
 rollup.** Per-drop stats already exist on both clients and read off the drop document; what
@@ -969,6 +1047,12 @@ back. Two things to confirm while you are there:
 
 ### 4.6 — QR entry point and low-friction onboarding
 
+**Absorbed by redesign task R5 (approved 2026-08-09):** Experience preview precedes auth
+and permissions; anonymous-auth guests may browse but cannot unlock, collect, create, or
+redeem; the first unlock attempt gates account creation and resumes the same target after
+link/merge. Entry uses an owned-domain Android App Link, `/e/<code>` web fallback, Play
+Install Referrer, and a human event code. Firebase Dynamic Links are not a fallback.
+
 **Deliverable** is the working feature behind a flag; **Acceptance** is a demoed happy path
 plus the failure cases you care about; **Gate** is your sign-off before the flag flips on.
 
@@ -1105,6 +1189,11 @@ understand what a drop was, did the prize drive everything.
 Data-safety declarations, permission rationales, UGC policy compliance, privacy policy,
 and a moderation-response commitment. Sequenced last because Phases 1–5 change every
 answer on those forms.
+
+**Approved distribution decision (F7):** qualify the real-event QR flow through a
+fail-closed production Play listing on a never-installed device. Open testing is the
+fallback only if its extra opt-in is measured and disclosed. Closed testing and sideloads
+remain useful engineering channels but cannot close the attendee funnel gate.
 
 ---
 

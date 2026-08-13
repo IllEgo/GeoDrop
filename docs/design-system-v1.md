@@ -4,6 +4,13 @@
 > **Upload to:** Frontend Engineer (primary), Product Manager.
 > **Companion files:** `design-flows-and-ia-v1.md`, `voice-and-glossary-v1.md`.
 
+> **R0 alignment decision (2026-08-09; see `redesign-alignment-proposal.md`):** accepted as
+> the Android-first visual foundation.
+> R3 must turn these tokens and components into verified light/dark, dynamic-type,
+> screen-reader, contrast, reduced-motion, and compact-device behavior before screen
+> migration. Preserve iOS and shared-backend compatibility, but iOS visual parity follows
+> the Android outdoor pilot gate.
+
 ---
 
 ## 0. Platform approach — corrected against PROJECT-STATE v0.3

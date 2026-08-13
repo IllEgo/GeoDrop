@@ -189,14 +189,22 @@ const setSuspended = async (
 const reverseEnforcementForOverturnedAppeal = async (
   reportId: string,
   subjectUserId: string,
-  dropId: string
+  dropId: string,
+  contentCollection: string
 ): Promise<void> => {
   const firestore = admin.firestore();
   if (dropId) {
-    const dropRef = firestore.collection("drops").doc(dropId);
+    const targetCollection = contentCollection === "experienceDrops" ?
+      "experienceDrops" : "drops";
+    const dropRef = firestore.collection(targetCollection).doc(dropId);
     const drop = await dropRef.get();
     if (drop.exists && drop.get("moderationRemovalCaseId") === reportId) {
-      await dropRef.set({
+      await dropRef.set(targetCollection === "experienceDrops" ? {
+        moderationState: "SAFE",
+        moderationRemovalCaseId: FieldValue.delete(),
+        moderatedAt: FieldValue.delete(),
+        updatedAt: FieldValue.serverTimestamp(),
+      } : {
         isDeleted: false,
         deletedAt: FieldValue.delete(),
         moderationRemovalCaseId: FieldValue.delete(),
@@ -224,6 +232,121 @@ const reverseEnforcementForOverturnedAppeal = async (
   }, {merge: true});
 };
 
+type ModerationReportInput = {
+  reportId: string;
+  dropId: string;
+  reporterId: string;
+  reasons: string[];
+  reportedAt: unknown;
+  context: ReportContext;
+  sourceCollection: "reports" | "safetyReports";
+  contentCollection: "drops" | "experienceDrops";
+  sourceRef: admin.firestore.DocumentReference;
+};
+
+const ingestModerationReport = async (input: ModerationReportInput): Promise<void> => {
+  const {
+    reportId,
+    dropId,
+    reporterId,
+    reasons,
+    reportedAt,
+    context,
+    sourceCollection,
+    contentCollection,
+    sourceRef,
+  } = input;
+  if (!reportId || !dropId || !reporterId) {
+    console.error(`Report ${reportId || "<missing>"} has invalid identifiers.`);
+    return;
+  }
+
+  const severity = severityFor(reasons);
+  const firestore = admin.firestore();
+  const dropSnapshot = await firestore.collection(contentCollection).doc(dropId).get();
+  const drop = dropSnapshot.data() ?? {};
+  const subjectUserId = typeof (drop.createdBy ?? drop.ownerId) === "string" ?
+    String(drop.createdBy ?? drop.ownerId).trim() : null;
+  let evidence: Record<string, unknown>;
+
+  if (contentCollection === "experienceDrops") {
+    const version = typeof drop.payloadVersion === "number" ? drop.payloadVersion : null;
+    const payloadSnapshot = version === null ? null : await firestore
+      .collection("dropPayloads").doc(dropId)
+      .collection("versions").doc(String(version)).get();
+    const payload = payloadSnapshot?.data() ?? {};
+    const assetId = typeof payload.mediaAssetId === "string" ? payload.mediaAssetId : null;
+    const asset = assetId ?
+      (await firestore.collection("dropMediaAssets").doc(assetId).get()).data() ?? {} : {};
+    evidence = {
+      contentType: drop.contentKind ?? payload.contentKind ?? "TEXT",
+      dropType: drop.dropKind ?? null,
+      visibility: "EXPERIENCE",
+      groupCode: drop.experienceCode ?? null,
+      text: payload.title ?? null,
+      description: payload.body ?? null,
+      mediaStoragePath: asset.storagePath ?? null,
+      mediaMimeType: payload.mediaMimeType ?? asset.mimeType ?? null,
+      mediaAltText: payload.mediaAltText ?? null,
+      isDeleted: drop.state === "DELETED",
+      isNsfw: false,
+      payloadVersion: version,
+      sourceContext: normalizeContext(context),
+    };
+  } else {
+    const contentType = typeof drop.contentType === "string" ?
+      drop.contentType : normalizeContext(context).contentType ?? "TEXT";
+    evidence = {
+      contentType,
+      dropType: drop.dropType ?? null,
+      visibility: drop.visibility ?? null,
+      groupCode: drop.groupCode ?? null,
+      text: drop.text ?? null,
+      description: drop.description ?? null,
+      mediaStoragePath: drop.mediaStoragePath ?? null,
+      mediaMimeType: drop.mediaMimeType ?? null,
+      isDeleted: drop.isDeleted === true,
+      isNsfw: drop.isNsfw === true,
+      sourceContext: normalizeContext(context),
+    };
+  }
+
+  const caseRef = firestore.collection(MODERATION_CASES).doc(reportId);
+  const batch = firestore.batch();
+  batch.set(caseRef, {
+    reportId,
+    dropId,
+    reporterId,
+    subjectUserId,
+    reasons,
+    severity,
+    severityRank: severityRank(severity),
+    status: "OPEN",
+    sourceCollection,
+    contentCollection,
+    receivedAt: FieldValue.serverTimestamp(),
+    reportedAt: reportedAt ?? null,
+    firstTriagedAt: null,
+    decidedAt: null,
+    assignedTo: null,
+    escalationState: severity === "HIGH" ? "REVIEW_PROMPTLY" : "STANDARD",
+    evidence,
+  }, {merge: false});
+  batch.set(reporterStatusRef(reporterId, reportId), {
+    reportId,
+    dropId,
+    status: "RECEIVED",
+    receivedAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+  batch.update(sourceRef, {
+    status: "queued",
+    severity,
+    receivedAt: FieldValue.serverTimestamp(),
+  });
+  await batch.commit();
+};
+
 export const ingestUserReport = functions
   .region(REGION)
   .firestore.document("reports/{reportId}")
@@ -233,65 +356,42 @@ export const ingestUserReport = functions
     const dropId = typeof report.dropId === "string" ? report.dropId.trim() : "";
     const reporterId = typeof report.reportedBy === "string" ?
       report.reportedBy.trim() : "";
-    if (!reportId || !dropId || !reporterId) {
-      console.error(`Report ${reportId || "<missing>"} has invalid identifiers.`);
-      return;
-    }
-
-    const reasons = stringArray(report.reasonCodes);
-    const severity = severityFor(reasons);
-    const firestore = admin.firestore();
-    const dropSnapshot = await firestore.collection("drops").doc(dropId).get();
-    const drop = dropSnapshot.data() ?? {};
-    const subjectUserId = typeof drop.createdBy === "string" ?
-      drop.createdBy.trim() : null;
-    const contentType = typeof drop.contentType === "string" ?
-      drop.contentType : normalizeContext(report.context).contentType ?? "TEXT";
-
-    const caseRef = firestore.collection(MODERATION_CASES).doc(reportId);
-    const batch = firestore.batch();
-    batch.set(caseRef, {
+    await ingestModerationReport({
       reportId,
       dropId,
       reporterId,
-      subjectUserId,
-      reasons,
-      severity,
-      severityRank: severityRank(severity),
-      status: "OPEN",
-      receivedAt: FieldValue.serverTimestamp(),
+      reasons: stringArray(report.reasonCodes),
       reportedAt: report.reportedAt ?? null,
-      firstTriagedAt: null,
-      decidedAt: null,
-      assignedTo: null,
-      escalationState: severity === "HIGH" ? "REVIEW_PROMPTLY" : "STANDARD",
-      evidence: {
-        contentType,
-        dropType: drop.dropType ?? null,
-        visibility: drop.visibility ?? null,
-        groupCode: drop.groupCode ?? null,
-        text: drop.text ?? null,
-        description: drop.description ?? null,
-        mediaStoragePath: drop.mediaStoragePath ?? null,
-        mediaMimeType: drop.mediaMimeType ?? null,
-        isDeleted: drop.isDeleted === true,
-        isNsfw: drop.isNsfw === true,
-        sourceContext: normalizeContext(report.context),
-      },
-    }, {merge: false});
-    batch.set(reporterStatusRef(reporterId, reportId), {
+      context: normalizeContext(report.context),
+      sourceCollection: "reports",
+      contentCollection: "drops",
+      sourceRef: snapshot.ref,
+    });
+  });
+
+export const ingestRedesignReport = functions
+  .region(REGION)
+  .firestore.document("safetyReports/{reportId}")
+  .onCreate(async (snapshot, context) => {
+    const reportId = String(context.params.reportId ?? "");
+    const report = snapshot.data();
+    const reason = typeof report.reason === "string" ? report.reason : "other";
+    await ingestModerationReport({
       reportId,
-      dropId,
-      status: "RECEIVED",
-      receivedAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
+      dropId: typeof report.dropId === "string" ? report.dropId.trim() : "",
+      reporterId: typeof report.reporterId === "string" ? report.reporterId.trim() : "",
+      reasons: stringArray([reason]),
+      reportedAt: report.submittedAt ?? null,
+      context: {
+        source: "REDESIGN_PARTICIPANT",
+        contentType: report.contentKind,
+        hasMedia: report.contentKind === "PHOTO",
+        dropType: report.dropKind,
+      },
+      sourceCollection: "safetyReports",
+      contentCollection: "experienceDrops",
+      sourceRef: snapshot.ref,
     });
-    batch.update(snapshot.ref, {
-      status: "queued",
-      severity,
-      receivedAt: FieldValue.serverTimestamp(),
-    });
-    await batch.commit();
   });
 
 export const listModerationQueue = functions
@@ -410,6 +510,10 @@ export const decideModerationCase = functions
       moderationCase.reporterId : "";
     const subjectUserId = typeof moderationCase.subjectUserId === "string" ?
       moderationCase.subjectUserId : "";
+    const sourceCollection = moderationCase.sourceCollection === "safetyReports" ?
+      "safetyReports" : "reports";
+    const contentCollection = moderationCase.contentCollection === "experienceDrops" ?
+      "experienceDrops" : "drops";
     const publicStatus = decision === "REMOVE_CONTENT" ?
       "ACTION_TAKEN" : decision === "DISMISS" ? "CLOSED" : "ESCALATED";
 
@@ -425,7 +529,7 @@ export const decideModerationCase = functions
       escalationState: decision === "ESCALATE" ?
         "LEGAL_OR_SAFETY_REVIEW" : "COMPLETE",
     }, {merge: true});
-    batch.set(firestore.collection("reports").doc(reportId), {
+    batch.set(firestore.collection(sourceCollection).doc(reportId), {
       status: publicStatus.toLowerCase(),
       resolvedAt: decision === "ESCALATE" ? null :
         FieldValue.serverTimestamp(),
@@ -439,11 +543,20 @@ export const decideModerationCase = functions
       }, {merge: true});
     }
     if (decision === "REMOVE_CONTENT" && dropId) {
-      batch.set(firestore.collection("drops").doc(dropId), {
-        isDeleted: true,
-        deletedAt: FieldValue.serverTimestamp(),
-        moderationRemovalCaseId: reportId,
-      }, {merge: true});
+      batch.set(
+        firestore.collection(contentCollection).doc(dropId),
+        contentCollection === "experienceDrops" ? {
+          moderationState: "REMOVED",
+          moderationRemovalCaseId: reportId,
+          moderatedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        } : {
+          isDeleted: true,
+          deletedAt: FieldValue.serverTimestamp(),
+          moderationRemovalCaseId: reportId,
+        },
+        {merge: true}
+      );
     }
     await batch.commit();
 
@@ -555,6 +668,8 @@ export const decideModerationAppeal = functions
       .get();
     const dropId = moderationCase.get("dropId") as string | undefined;
     const subjectUserId = moderationCase.get("subjectUserId") as string | undefined;
+    const contentCollection = moderationCase.get("contentCollection") === "experienceDrops" ?
+      "experienceDrops" : "drops";
     const batch = firestore.batch();
     batch.set(appealRef, {
       status: outcome,
@@ -578,7 +693,8 @@ export const decideModerationAppeal = functions
       await reverseEnforcementForOverturnedAppeal(
         reportId,
         subjectUserId ?? appellantId,
-        dropId ?? ""
+        dropId ?? "",
+        contentCollection
       );
     }
     await notifyReporter(appellantId, `appeal-${appealId}`, outcome);

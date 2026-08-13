@@ -17,6 +17,8 @@ const moderatorOneUid = "p0-moderator-one";
 const moderatorTwoUid = "p0-moderator-two";
 const reportId = "p0-moderation-report";
 const dropId = "p0-moderation-drop";
+const redesignReportId = "r9-redesign-moderation-report";
+const redesignDropId = "r9-redesign-moderation-drop";
 const coverageFixtures = [
   {suffix: "text", contentType: "TEXT", mimeType: null},
   {suffix: "photo", contentType: "PHOTO", mimeType: "image/jpeg"},
@@ -85,6 +87,24 @@ const seed = async () => {
     auth.setCustomUserClaims(moderatorTwoUid, {moderator: true}),
   ]);
   await db.collection("users").doc(subjectUid).set({moderationStatus: "ACTIVE"});
+  await Promise.all([
+    db.collection("experienceDrops").doc(redesignDropId).set({
+      schemaVersion: 1,
+      experienceCode: "R9GATE",
+      ownerId: subjectUid,
+      state: "PUBLISHED",
+      moderationState: "SAFE",
+      contentKind: "TEXT",
+      dropKind: "STANDARD",
+      payloadVersion: 1,
+    }),
+    db.doc(`dropPayloads/${redesignDropId}/versions/1`).set({
+      schemaVersion: 1,
+      title: "R9 safety intake",
+      body: "Synthetic redesigned moderation evidence",
+      contentKind: "TEXT",
+    }),
+  ]);
   await Promise.all(coverageFixtures.map((fixture) => {
     const fixtureDropId = fixture.suffix === "video" ?
       dropId : `p0-moderation-${fixture.suffix}-drop`;
@@ -104,6 +124,7 @@ const seed = async () => {
 const verify = async (appealId) => {
   const failures = [];
   const [drop, subject, moderationCase, reporterStatus, appeal, audits,
+    redesignDrop, redesignCase, redesignReporterStatus,
     ...coverageCases] =
     await Promise.all([
       db.collection("drops").doc(dropId).get(),
@@ -112,12 +133,27 @@ const verify = async (appealId) => {
       db.doc(`users/${reporterUid}/reportStatuses/${reportId}`).get(),
       db.collection("moderationAppeals").doc(appealId).get(),
       db.collection("moderationAuditEvents").get(),
+      db.collection("experienceDrops").doc(redesignDropId).get(),
+      db.collection("moderationCases").doc(redesignReportId).get(),
+      db.doc(`users/${reporterUid}/reportStatuses/${redesignReportId}`).get(),
       ...coverageFixtures.map((fixture) => {
         const fixtureReportId = fixture.suffix === "video" ?
           reportId : `p0-moderation-${fixture.suffix}-report`;
         return db.collection("moderationCases").doc(fixtureReportId).get();
       }),
     ]);
+  if (redesignDrop.get("moderationState") !== "REMOVED" ||
+      redesignDrop.get("moderationRemovalCaseId") !== redesignReportId) {
+    failures.push("Redesigned content was not removed from discovery");
+  }
+  if (redesignCase.get("sourceCollection") !== "safetyReports" ||
+      redesignCase.get("contentCollection") !== "experienceDrops" ||
+      redesignCase.get("evidence.text") !== "R9 safety intake") {
+    failures.push("Redesigned report did not enter the human moderation queue");
+  }
+  if (redesignReporterStatus.get("status") !== "ACTION_TAKEN") {
+    failures.push("Redesigned reporter did not receive the action status");
+  }
   if (drop.get("isDeleted") !== false || drop.get("moderationRemovalCaseId") != null) {
     failures.push("Overturned content was not restored");
   }
@@ -176,11 +212,23 @@ const main = async () => {
       },
     });
   }));
+  await db.collection("safetyReports").doc(redesignReportId).set({
+    schemaVersion: 1,
+    dropId: redesignDropId,
+    experienceCode: "R9GATE",
+    hostId: subjectUid,
+    reporterId: reporterUid,
+    reason: "HARASSMENT",
+    narrative: "Synthetic redesigned report",
+    status: "PENDING",
+    submittedAt: admin.firestore.Timestamp.now(),
+  });
   await Promise.all(coverageFixtures.map((fixture) => {
     const fixtureReportId = fixture.suffix === "video" ?
       reportId : `p0-moderation-${fixture.suffix}-report`;
     return waitForDocument(db.collection("moderationCases").doc(fixtureReportId));
   }));
+  await waitForDocument(db.collection("moderationCases").doc(redesignReportId));
   const queue = await callable("listModerationQueue", moderatorOneToken, {limit: 20});
   if (!queue.cases?.some((item) => item.id === reportId)) {
     throw new Error("Severity-ranked queue omitted the report");
@@ -194,6 +242,12 @@ const main = async () => {
     decision: "REMOVE_CONTENT",
     rationale: "Synthetic P0 rehearsal removal",
     suspendSubject: true,
+  });
+  await callable("decideModerationCase", moderatorOneToken, {
+    reportId: redesignReportId,
+    decision: "REMOVE_CONTENT",
+    rationale: "Synthetic R9 redesigned-content removal",
+    suspendSubject: false,
   });
   const appeal = await callable("submitModerationAppeal", subjectToken, {
     reportId,

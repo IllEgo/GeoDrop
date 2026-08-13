@@ -77,7 +77,6 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -185,8 +184,9 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import com.e3hi.geodrop.ui.theme.RalewayFontFamily
-import com.e3hi.geodrop.ui.theme.RoundedMFontFamily
+import com.e3hi.geodrop.ui.theme.GeoDropThemeTokens
+import com.e3hi.geodrop.ui.account.EditProfileDialog
+import com.e3hi.geodrop.ui.account.AccountAuthDialog
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.pointerInteropFilter
@@ -229,7 +229,6 @@ import com.e3hi.geodrop.data.ExperienceAnalytics
 import com.e3hi.geodrop.data.GuestAccountUpgrade
 import com.e3hi.geodrop.data.GroupMembership
 import com.e3hi.geodrop.data.GroupAlreadyExistsException
-import com.e3hi.geodrop.data.GroupNotFoundException
 import com.e3hi.geodrop.data.GroupRole
 import com.e3hi.geodrop.data.displayTitle
 import com.e3hi.geodrop.data.displayTitleParts
@@ -238,6 +237,8 @@ import com.e3hi.geodrop.data.FirestoreRepo
 import com.e3hi.geodrop.data.DropLikeStatus
 import com.e3hi.geodrop.data.LegalConsentRepo
 import com.e3hi.geodrop.data.LegalPolicyManifest
+import com.e3hi.geodrop.data.LegalConsentGateway
+import com.e3hi.geodrop.data.DebugDemoR5EntryGateway
 import com.e3hi.geodrop.data.MediaStorageRepo
 import com.e3hi.geodrop.data.NoteInventory
 import com.e3hi.geodrop.data.UserDataSyncRepository
@@ -257,6 +258,35 @@ import com.e3hi.geodrop.data.dropTemplatesFor
 import com.e3hi.geodrop.data.businessDropTypeOptionsFor
 import com.e3hi.geodrop.data.UserRole
 import com.e3hi.geodrop.data.RedemptionResult
+import com.e3hi.geodrop.data.FirebaseR5EntryGateway
+import com.e3hi.geodrop.data.R5EntryGateway
+import com.e3hi.geodrop.data.R5EntryChannel
+import com.e3hi.geodrop.data.R5EntryException
+import com.e3hi.geodrop.data.R5EntryFailureReason
+import com.e3hi.geodrop.data.R5EntryRequest
+import com.e3hi.geodrop.data.R5ExperienceAvailability
+import com.e3hi.geodrop.data.R5ExperienceMembership
+import com.e3hi.geodrop.data.R5PendingUnlock
+import com.e3hi.geodrop.data.FirebaseR6ParticipantGateway
+import com.e3hi.geodrop.data.R6CollectionReceipt
+import com.e3hi.geodrop.data.R6DiscoveryState
+import com.e3hi.geodrop.data.R6DropDiscovery
+import com.e3hi.geodrop.data.R6ParticipantException
+import com.e3hi.geodrop.data.R6ParticipantGateway
+import com.e3hi.geodrop.data.R6ParticipantPolicy
+import com.e3hi.geodrop.data.R6TrailProgress
+import com.e3hi.geodrop.data.R6UnlockFailureReason
+import com.e3hi.geodrop.data.R6UnlockRequest
+import com.e3hi.geodrop.data.R6UnlockResult
+import com.e3hi.geodrop.data.FirebaseR7OrganizerGateway
+import com.e3hi.geodrop.data.FirebaseR9AccountGateway
+import com.e3hi.geodrop.data.R7OrganizerAccessState
+import com.e3hi.geodrop.data.R7OrganizerAccessStatus
+import com.e3hi.geodrop.data.R7OrganizerGateway
+import com.e3hi.geodrop.data.R9AccountGateway
+import com.e3hi.geodrop.data.R9BlockedHost
+import com.e3hi.geodrop.data.R9JoinedExperience
+import com.e3hi.geodrop.data.R9ReportStatus
 import com.e3hi.geodrop.data.applyUserLike
 import com.e3hi.geodrop.data.isBusinessDrop
 import com.e3hi.geodrop.data.isRedeemedBy
@@ -264,6 +294,21 @@ import com.e3hi.geodrop.data.remainingRedemptions
 import com.e3hi.geodrop.data.requiresRedemption
 import com.e3hi.geodrop.data.userLikeStatus
 import com.e3hi.geodrop.data.isBusiness
+import com.e3hi.geodrop.ui.navigation.ExperienceNavigationItem
+import com.e3hi.geodrop.ui.navigation.GeoDropAccountDestination
+import com.e3hi.geodrop.ui.navigation.GeoDropExperienceTopBar
+import com.e3hi.geodrop.ui.navigation.GeoDropJoinExperienceDialog
+import com.e3hi.geodrop.ui.navigation.GeoDropNoExperienceState
+import com.e3hi.geodrop.ui.navigation.GeoDropParticipantNavigationBar
+import com.e3hi.geodrop.ui.navigation.GeoDropParticipantStateHost
+import com.e3hi.geodrop.ui.navigation.ParticipantDestination
+import com.e3hi.geodrop.ui.navigation.R4NavigationPolicy
+import com.e3hi.geodrop.ui.participant.R6CollectionContent
+import com.e3hi.geodrop.ui.participant.R6DiscoveryPresentation
+import com.e3hi.geodrop.ui.participant.R6NearbyContent
+import com.e3hi.geodrop.ui.participant.r6DistanceLabel
+import com.e3hi.geodrop.ui.organizer.R7OrganizerAccessDialog
+import com.e3hi.geodrop.ui.organizer.R7OrganizerContent
 import kotlinx.coroutines.delay
 import com.e3hi.geodrop.data.isExpired
 import com.e3hi.geodrop.data.remainingDecayMillis
@@ -281,6 +326,8 @@ import com.e3hi.geodrop.util.ContextualPermissionAction
 import com.e3hi.geodrop.util.ContextualPermissionIntent
 import com.e3hi.geodrop.util.ContextualPermissionPolicy
 import com.e3hi.geodrop.util.PermissionGrantState
+import com.e3hi.geodrop.util.R5EntryStore
+import com.e3hi.geodrop.util.R5EntryParser
 import com.e3hi.geodrop.util.formatTimestamp
 import com.e3hi.geodrop.util.TermsPreferences
 import com.google.android.gms.location.LocationServices
@@ -339,18 +386,40 @@ import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.math.sqrt
+import com.e3hi.geodrop.ui.components.PermissionPrimer
+import com.e3hi.geodrop.ui.components.PermissionPrimerVariant
 
 @SuppressLint("MissingPermission")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DropHereScreen(
     onNearbyAlertsEnabled: () -> Unit = {},
-    onNearbyAlertsDisabled: () -> Unit = {}
+    onNearbyAlertsDisabled: () -> Unit = {},
+    skipFirstRunOnboarding: Boolean = false,
+    r5EntrySessionId: String? = null,
+    r5ExperienceCode: String? = null,
+    r5EntryStore: R5EntryStore? = null,
+    r5EntryGateway: R5EntryGateway? = null,
+    r6ParticipantGateway: R6ParticipantGateway? = null,
+    r7OrganizerGateway: R7OrganizerGateway? = null,
+    r9AccountGateway: R9AccountGateway? = null,
+    legalConsentGateway: LegalConsentGateway? = null,
+    debugDeviceDemoEnabled: Boolean = false
 ) {
     val ctx = LocalContext.current
     val haptic = LocalHapticFeedback.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val auth = remember { FirebaseAuth.getInstance() }
+    val effectiveR5Store = remember(ctx, r5EntryStore) { r5EntryStore ?: R5EntryStore(ctx) }
+    val effectiveR5Gateway = r5EntryGateway ?: remember { FirebaseR5EntryGateway() }
+    val effectiveR6Gateway = r6ParticipantGateway ?: remember { FirebaseR6ParticipantGateway() }
+    val effectiveR7Gateway = r7OrganizerGateway ?: remember { FirebaseR7OrganizerGateway() }
+    val effectiveR9Gateway = r9AccountGateway ?: remember { FirebaseR9AccountGateway() }
+    val r6TargetEnabled = r6ParticipantGateway != null || PilotFeatureFlags.redesignBackendEnabled
+    val r7TargetEnabled = r7OrganizerGateway != null || PilotFeatureFlags.redesignBackendEnabled
+    val r9TargetEnabled = r9AccountGateway != null || PilotFeatureFlags.redesignBackendEnabled
+    val localDeviceDemoActive = debugDeviceDemoEnabled &&
+        r5ExperienceCode == DebugDemoR5EntryGateway.DEVICE_DEMO_CODE
     // Declared up here, ahead of the sign-in helpers below, because the guest
     // upgrade at sign-in needs the merge callable (task 4.6).
     val repo = remember { FirestoreRepo() }
@@ -360,7 +429,7 @@ fun DropHereScreen(
     var myDropsRefreshToken by remember { mutableStateOf(0) }
     var currentUser by remember { mutableStateOf(auth.currentUser) }
     val termsPrefs = remember(ctx) { TermsPreferences(ctx) }
-    val legalConsentRepo = remember { LegalConsentRepo() }
+    val effectiveLegalConsentGateway = legalConsentGateway ?: remember { LegalConsentRepo() }
     var legalManifest by remember { mutableStateOf<LegalPolicyManifest?>(null) }
     var legalManifestError by remember { mutableStateOf<String?>(null) }
     var legalManifestLoading by remember { mutableStateOf(true) }
@@ -368,11 +437,11 @@ fun DropHereScreen(
     var legalManifestRefreshToken by remember { mutableIntStateOf(0) }
     var legalAcceptanceRequestToken by remember { mutableIntStateOf(0) }
     var hasAcceptedTerms by remember { mutableStateOf(false) }
-    var hasViewedOnboarding by remember { mutableStateOf(termsPrefs.hasViewedFirstRunOnboarding()) }
+    var hasViewedOnboarding by remember(skipFirstRunOnboarding) {
+        mutableStateOf(skipFirstRunOnboarding || termsPrefs.hasViewedFirstRunOnboarding())
+    }
     var showOnboardingHelp by remember { mutableStateOf(false) }
-    var guestModeEnabled by rememberSaveable { mutableStateOf(false) }
     var showAccountSignIn by remember { mutableStateOf(false) }
-    var showRegisterScreen by remember { mutableStateOf(false) }
     var accountAuthMode by remember { mutableStateOf(AccountAuthMode.SIGN_IN) }
     var accountType by remember { mutableStateOf(AccountType.EXPLORER) }
     var accountTypeSelectionLocked by remember { mutableStateOf(false) }
@@ -383,6 +452,17 @@ fun DropHereScreen(
     var accountAuthSubmitting by remember { mutableStateOf(false) }
     var accountAuthError by remember { mutableStateOf<String?>(null) }
     var accountAuthStatus by remember { mutableStateOf<String?>(null) }
+    var r5UnlockAccountGate by rememberSaveable { mutableStateOf(false) }
+    var r5AuthCompletionPath by remember { mutableStateOf<String?>(null) }
+    var r5PendingUnlockDropId by rememberSaveable {
+        mutableStateOf(effectiveR5Store.pendingUnlock()?.dropId)
+    }
+    var r5PreciseGrantResumeToken by remember { mutableIntStateOf(0) }
+    var r5UnlockResumeStartedForDrop by rememberSaveable { mutableStateOf<String?>(null) }
+    var showR5NearbyPrimer by remember { mutableStateOf(false) }
+    var showR5PrecisePrimer by remember { mutableStateOf(false) }
+    var r5PrecisePrimerDismissedForDrop by rememberSaveable { mutableStateOf<String?>(null) }
+    var showR5NotificationPrimer by remember { mutableStateOf(false) }
     var pendingExplorerUsername by remember { mutableStateOf<String?>(null) }
     var showBusinessOnboarding by remember { mutableStateOf(false) }
     var showBusinessWelcome by remember { mutableStateOf(false) }
@@ -486,7 +566,7 @@ fun DropHereScreen(
     fun dismissAccountAuthDialog() {
         if (accountAuthSubmitting || accountGoogleSigningIn) return
         showAccountSignIn = false
-        showRegisterScreen = false
+        r5UnlockAccountGate = false
         resetAccountAuthFields(clearEmail = false)
         accountAuthMode = AccountAuthMode.SIGN_IN
         accountType = AccountType.EXPLORER
@@ -513,7 +593,9 @@ fun DropHereScreen(
         val password = accountPassword.text
         val confirm = accountConfirmPassword.text
         val username = accountUsername.text
-        val needsExplorerUsername = accountAuthMode == AccountAuthMode.REGISTER && accountType == AccountType.EXPLORER
+        val needsExplorerUsername = accountAuthMode == AccountAuthMode.REGISTER &&
+            accountType == AccountType.EXPLORER &&
+            !r5UnlockAccountGate
         var sanitizedExplorerUsername: String? = null
 
         when {
@@ -588,7 +670,22 @@ fun DropHereScreen(
         task.addOnCompleteListener { authTask ->
             if (authTask.isSuccessful) {
                 val current = auth.currentUser
-                reportGuestContentOutcome(authTask.result?.guestContent)
+                val guestContent = authTask.result?.guestContent
+                reportGuestContentOutcome(guestContent)
+
+                if (r5UnlockAccountGate) {
+                    r5AuthCompletionPath = when (guestContent) {
+                        GuestAccountUpgrade.GuestContent.LINKED -> "LINK"
+                        GuestAccountUpgrade.GuestContent.MERGED,
+                        GuestAccountUpgrade.GuestContent.MERGE_FAILED -> "MERGE"
+                        else -> null
+                    }
+                    accountAuthSubmitting = false
+                    resetAccountAuthFields(clearEmail = true)
+                    showAccountSignIn = false
+                    r5UnlockAccountGate = false
+                    return@addOnCompleteListener
+                }
 
                 if (selectedMode == AccountAuthMode.SIGN_IN) {
                     if (current?.isEmailVerified == false) {
@@ -758,7 +855,18 @@ fun DropHereScreen(
                             resetAccountAuthFields(clearEmail = true)
                             val selectedType = accountType
                             showAccountSignIn = false
-                            reportGuestContentOutcome(authTask.result?.guestContent)
+                            val guestContent = authTask.result?.guestContent
+                            reportGuestContentOutcome(guestContent)
+                            if (r5UnlockAccountGate) {
+                                r5AuthCompletionPath = when (guestContent) {
+                                    GuestAccountUpgrade.GuestContent.LINKED -> "LINK"
+                                    GuestAccountUpgrade.GuestContent.MERGED,
+                                    GuestAccountUpgrade.GuestContent.MERGE_FAILED -> "MERGE"
+                                    else -> null
+                                }
+                                r5UnlockAccountGate = false
+                                return@addOnCompleteListener
+                            }
                             // `createdAccount` rather than `isNewUser`: linking a
                             // guest to a fresh Google credential is how that
                             // account comes into existence, but Firebase reports
@@ -820,7 +928,7 @@ fun DropHereScreen(
         legalManifestLoading = true
         legalManifestError = null
         hasAcceptedTerms = false
-        runCatching { legalConsentRepo.fetchManifest() }
+        runCatching { effectiveLegalConsentGateway.fetchManifest() }
             .onSuccess { manifest ->
                 legalManifest = manifest
             }
@@ -854,7 +962,7 @@ fun DropHereScreen(
 
         hasAcceptedTerms = false
         legalAcceptanceSubmitting = true
-        runCatching { legalConsentRepo.recordAcceptance(manifest.version) }
+        runCatching { effectiveLegalConsentGateway.recordAcceptance(manifest.version) }
             .onSuccess {
                 termsPrefs.recordServerAcceptance(userId, manifest.version)
                 hasAcceptedTerms = true
@@ -880,7 +988,7 @@ fun DropHereScreen(
         val userId = currentUser?.uid
         val result = runCatching {
             if (userId != null) {
-                legalConsentRepo.recordAcceptance(manifest.version)
+                effectiveLegalConsentGateway.recordAcceptance(manifest.version)
             }
         }
         if (result.isSuccess) {
@@ -898,26 +1006,21 @@ fun DropHereScreen(
     }
 
     val verifiedUser = currentUser?.takeIf { user ->
-        user.isEmailVerified
+        !user.isAnonymous && (skipFirstRunOnboarding || user.isEmailVerified)
     }
 
-    val userMode = when {
-        verifiedUser != null -> UserMode.SIGNED_IN
-        guestModeEnabled -> UserMode.GUEST
-        else -> null
-    }
+    // The approved R5 flow is Experience-first: a missing or unverified account is
+    // view-only guest state, never an account-choice landing page.
+    val userMode = if (verifiedUser != null) UserMode.SIGNED_IN else UserMode.GUEST
 
     LaunchedEffect(userMode) {
         when (userMode) {
-            UserMode.SIGNED_IN -> {
-                guestModeEnabled = false
-            }
+            UserMode.SIGNED_IN -> Unit
 
             UserMode.GUEST -> {
                 explorerDestination = ExplorerDestination.Discover.name
             }
 
-            null -> {}
         }
     }
 
@@ -940,8 +1043,6 @@ fun DropHereScreen(
                 waitingForEmailVerification = false
                 verificationAccountType = null
             }
-        } else {
-            guestModeEnabled = false
         }
     }
 
@@ -1125,26 +1226,23 @@ fun DropHereScreen(
     }
 
     if (showAccountSignIn) {
-        AccountSignInDialog(
-            accountType = accountType,
-            canChangeAccountType = !accountTypeSelectionLocked,
-            onAccountTypeChange = { type ->
-                if (
-                    accountAuthSubmitting ||
-                    accountGoogleSigningIn ||
-                    accountTypeSelectionLocked
-                ) return@AccountSignInDialog
-                accountType = type
-                accountAuthError = null
-                accountAuthStatus = null
+        AccountAuthDialog(
+            unlockGate = r5UnlockAccountGate,
+            isRegister = accountAuthMode == AccountAuthMode.REGISTER,
+            onRegisterChanged = { register ->
+                if (!accountAuthSubmitting && !accountGoogleSigningIn) {
+                    accountType = AccountType.EXPLORER
+                    accountAuthMode = if (register) {
+                        AccountAuthMode.REGISTER
+                    } else {
+                        AccountAuthMode.SIGN_IN
+                    }
+                    accountAuthError = null
+                    accountAuthStatus = null
+                }
             },
-            mode = accountAuthMode,
-            onModeChange = { mode ->
-                if (accountAuthSubmitting || accountGoogleSigningIn) return@AccountSignInDialog
-                accountAuthMode = mode
-                accountAuthError = null
-                accountAuthStatus = null
-            },
+            isGuestUpgrade = accountTypeSelectionLocked || r5UnlockAccountGate,
+            showOrganizerGuidance = !accountTypeSelectionLocked,
             email = accountEmail,
             onEmailChange = { accountEmail = it },
             password = accountPassword,
@@ -1164,68 +1262,24 @@ fun DropHereScreen(
         )
     }
 
-    if (userMode == null && showRegisterScreen) {
-        RegisterScreen(
-            accountType = accountType,
-            onAccountTypeChange = { type ->
-                if (accountAuthSubmitting || accountGoogleSigningIn) return@RegisterScreen
-                accountType = type
-                accountAuthError = null
-                accountAuthStatus = null
-            },
-            mode = accountAuthMode,
-            onModeChange = { mode ->
-                if (accountAuthSubmitting || accountGoogleSigningIn) return@RegisterScreen
-                accountAuthMode = mode
-                accountAuthError = null
-                accountAuthStatus = null
-            },
-            email = accountEmail,
-            onEmailChange = { accountEmail = it },
-            password = accountPassword,
-            onPasswordChange = { accountPassword = it },
-            confirmPassword = accountConfirmPassword,
-            onConfirmPasswordChange = { accountConfirmPassword = it },
-            username = accountUsername,
-            onUsernameChange = { accountUsername = it },
-            isSubmitting = accountAuthSubmitting,
-            isGoogleSigningIn = accountGoogleSigningIn,
-            error = accountAuthError,
-            status = accountAuthStatus,
-            onSubmit = { performAccountAuth() },
-            onBack = { dismissAccountAuthDialog() },
-            onGoogleSignIn = { startAccountGoogleSignIn() }
-        )
-        return
-    }
-
-    if (userMode == null) {
-        UserModeSelectionScreen(
-            onSelectGuest = {
-                guestModeEnabled = true
-            },
-            onSelectSignIn = {
-                guestModeEnabled = false
-                openAccountAuthDialog(
-                    initialType = AccountType.EXPLORER,
-                    initialMode = AccountAuthMode.SIGN_IN,
-                    lockAccountType = false
-                )
-            },
-            onSelectRegister = {
-                guestModeEnabled = false
-                accountType = AccountType.EXPLORER
-                accountAuthMode = AccountAuthMode.REGISTER
-                resetAccountAuthFields(clearEmail = true)
-                showRegisterScreen = true
-            }
-        )
-        return
-    }
-
     val snackbar = remember { SnackbarHostState() }
     val manageGroupsSnackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+
+    LaunchedEffect(r5AuthCompletionPath, currentUser?.uid) {
+        val upgradePath = r5AuthCompletionPath ?: return@LaunchedEffect
+        if (currentUser?.isAnonymous != false) return@LaunchedEffect
+        runCatching {
+            effectiveR5Gateway.recordAuthCompletion(
+                entrySessionId = r5EntrySessionId
+                    ?: effectiveR5Store.activeEntrySessionId()
+                    ?: return@runCatching,
+                upgradePath = upgradePath,
+                pendingUnlockResumed = r5PendingUnlockDropId != null
+            )
+        }
+        r5AuthCompletionPath = null
+    }
 
     val fused = remember { LocationServices.getFusedLocationProviderClient(ctx) }
     val mediaStorage = remember { MediaStorageRepo() }
@@ -1283,6 +1337,20 @@ fun DropHereScreen(
     // for these; nothing about *where* the user was is kept (task 3.5).
     var unlockedDropIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var unlockInProgressDropId by remember { mutableStateOf<String?>(null) }
+    var r6Discoveries by remember { mutableStateOf<List<R6DropDiscovery>>(emptyList()) }
+    var r6Collection by remember { mutableStateOf<List<R6CollectionReceipt>>(emptyList()) }
+    var r6TrailProgress by remember { mutableStateOf<List<R6TrailProgress>>(emptyList()) }
+    var r6BlockedHostIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var r6DiscoveryLoading by remember { mutableStateOf(false) }
+    var r6DiscoveryRefreshing by remember { mutableStateOf(false) }
+    var r6DiscoveryError by remember { mutableStateOf<String?>(null) }
+    var r6CollectionLoading by remember { mutableStateOf(false) }
+    var r6CollectionError by remember { mutableStateOf<String?>(null) }
+    var r6SelectedDropId by rememberSaveable { mutableStateOf<String?>(null) }
+    var r6UnlockingDropId by remember { mutableStateOf<String?>(null) }
+    var r6UnlockResult by remember { mutableStateOf<R6UnlockResult?>(null) }
+    var r6UnlockError by remember { mutableStateOf<R6ParticipantException?>(null) }
+    var r6RefreshToken by remember { mutableIntStateOf(0) }
     var otherDropsSelectedId by remember { mutableStateOf<String?>(null) }
     val dismissedBrowseDropIds = rememberSaveable(
         saver = listSaver(
@@ -1317,6 +1385,12 @@ fun DropHereScreen(
     var showBlockedCreators by remember { mutableStateOf(false) }
     var blockedCreatorIds by remember { mutableStateOf<List<String>>(emptyList()) }
     var blockedCreatorsLoading by remember { mutableStateOf(false) }
+    var r9ExperienceHistory by remember { mutableStateOf<List<R9JoinedExperience>>(emptyList()) }
+    var r9BlockedHosts by remember { mutableStateOf<List<R9BlockedHost>>(emptyList()) }
+    var r9ReportStatuses by remember { mutableStateOf<List<R9ReportStatus>>(emptyList()) }
+    var r9AccountLoading by remember { mutableStateOf(false) }
+    var r9AccountError by remember { mutableStateOf<String?>(null) }
+    var r9RefreshToken by remember { mutableIntStateOf(0) }
     var myDrops by remember { mutableStateOf<List<Drop>>(emptyList()) }
     var myDropsLoading by remember { mutableStateOf(false) }
     var myDropsError by remember { mutableStateOf<String?>(null) }
@@ -1343,9 +1417,11 @@ fun DropHereScreen(
     var businessDashboardLoading by remember { mutableStateOf(false) }
     var businessDashboardError by remember { mutableStateOf<String?>(null) }
     var businessDashboardRefreshToken by remember { mutableStateOf(0) }
-    var selectedHomeDestination by rememberSaveable { mutableStateOf(HomeDestination.Explorer.name) }
+    var selectedParticipantDestination by rememberSaveable {
+        mutableStateOf(ParticipantDestination.NEARBY.name)
+    }
+    var showOrganizerTools by rememberSaveable { mutableStateOf(false) }
     var nearbyAlertsEnabled by remember { mutableStateOf(notificationPrefs.areNearbyAlertsEnabled()) }
-    var defaultExplorerDestinationName by remember { mutableStateOf(notificationPrefs.getDefaultExplorerDestination()) }
     var showNotificationPermissionRecovery by remember { mutableStateOf(false) }
 
     val permissionActivity = ctx as? Activity
@@ -1421,6 +1497,20 @@ fun DropHereScreen(
                 "Location is off. You can keep browsing and enable it later from Nearby."
             )
         }
+        scope.launch {
+            runCatching {
+                effectiveR5Gateway.recordClientEvent(
+                    eventName = "location_permission_result",
+                    entrySessionId = r5EntrySessionId ?: effectiveR5Store.activeEntrySessionId(),
+                    experienceCode = r5ExperienceCode ?: selectedExplorerGroupCode,
+                    params = mapOf(
+                        "precision" to "APPROXIMATE",
+                        "result" to if (granted) "GRANTED" else "DENIED",
+                        "context" to "NEARBY"
+                    )
+                )
+            }
+        }
     }
     // Precise location is requested only when the user attempts to unlock a drop
     // (task 3.3). Android may retain the permission choice, but nothing starts a stream
@@ -1432,12 +1522,28 @@ fun DropHereScreen(
         preciseLocationRequested = true
         permissionStateVersion += 1
         if (granted) {
-            snackbar.showMessage(scope, "Precise location on. Try the drop again.")
+            r5PreciseGrantResumeToken += 1
         } else {
+            r5PrecisePrimerDismissedForDrop = r5PendingUnlockDropId
             snackbar.showMessage(
                 scope,
                 "Unlocking needs precise location. Browsing still works without it."
             )
+        }
+        scope.launch {
+            runCatching {
+                effectiveR5Gateway.recordClientEvent(
+                    eventName = "location_permission_result",
+                    entrySessionId = r5EntrySessionId ?: effectiveR5Store.activeEntrySessionId(),
+                    experienceCode = r5ExperienceCode ?: selectedExplorerGroupCode,
+                    dropId = r5PendingUnlockDropId,
+                    params = mapOf(
+                        "precision" to "PRECISE",
+                        "result" to if (granted) "GRANTED" else "DENIED",
+                        "context" to "UNLOCK"
+                    )
+                )
+            }
         }
     }
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
@@ -1461,7 +1567,7 @@ fun DropHereScreen(
         )
     }
 
-    fun requestNearbyLocationAccess() {
+    fun performNearbyLocationAccessRequest() {
         when (
             ContextualPermissionPolicy.nextAction(
                 intent = ContextualPermissionIntent.NEARBY_DISCOVERY,
@@ -1480,6 +1586,14 @@ fun DropHereScreen(
             ContextualPermissionAction.OPEN_FOREGROUND_LOCATION_SETTINGS ->
                 openApplicationSettings()
             else -> Unit
+        }
+    }
+
+    fun requestNearbyLocationAccess() {
+        if (foregroundLocationState == PermissionGrantState.BLOCKED) {
+            openApplicationSettings()
+        } else if (foregroundLocationState == PermissionGrantState.REQUESTABLE) {
+            showR5NearbyPrimer = true
         }
     }
 
@@ -1525,21 +1639,33 @@ fun DropHereScreen(
         onDispose { groupPrefs.removeChangeListener(listener) }
     }
 
-    LaunchedEffect(explorerGroups) {
-        val availableCodes = explorerGroups.map { it.code }
-        val current = selectedExplorerGroupCode
-        if (availableCodes.isEmpty()) {
-            if (current != null) {
-                selectedExplorerGroupCode = null
-            }
-        } else if (current != null && current !in availableCodes) {
-            selectedExplorerGroupCode = availableCodes.firstOrNull()
+    LaunchedEffect(localDeviceDemoActive) {
+        if (localDeviceDemoActive) {
+            groupPrefs.addGroup(
+                GroupMembership(
+                    code = DebugDemoR5EntryGateway.DEVICE_DEMO_CODE,
+                    ownerId = null,
+                    role = GroupRole.SUBSCRIBER
+                )
+            )
+            joinedGroups = groupPrefs.getMemberships()
         }
     }
 
-    DisposableEffect(currentUser?.uid) {
+    LaunchedEffect(explorerGroups) {
+        val availableCodes = explorerGroups.map { it.code }
+        val resolved = R4NavigationPolicy.resolveActiveExperience(
+            currentCode = selectedExplorerGroupCode,
+            availableCodes = availableCodes
+        )
+        if (resolved != selectedExplorerGroupCode) {
+            selectedExplorerGroupCode = resolved
+        }
+    }
+
+    DisposableEffect(currentUser?.uid, localDeviceDemoActive) {
         val uid = currentUser?.uid
-        if (uid.isNullOrBlank()) {
+        if (uid.isNullOrBlank() || localDeviceDemoActive) {
             userDataSync.stop()
         } else {
             userDataSync.start(uid)
@@ -1562,7 +1688,7 @@ fun DropHereScreen(
         explorerAccountStore.setLastExplorerUid(user.uid)
     }
 
-    fun handleSignOut(switchToGuest: Boolean = false) {
+    fun handleSignOut() {
         if (signingOut) return
 
         showAccountMenu = false
@@ -1583,20 +1709,16 @@ fun DropHereScreen(
             val result = runCatching {
                 runCatching { googleSignInClient.signOut() }
                 auth.signOut()
+                auth.signInAnonymously().await()
             }
 
             signingOut = false
 
             if (result.isSuccess) {
-                selectedHomeDestination = HomeDestination.Explorer.name
+                selectedParticipantDestination = ParticipantDestination.NEARBY.name
+                showOrganizerTools = false
                 explorerDestination = ExplorerDestination.Discover.name
-                guestModeEnabled = switchToGuest
-                val message = if (switchToGuest) {
-                    "Browsing as a guest."
-                } else {
-                    "Signed out."
-                }
-                snackbar.showMessage(scope, message)
+                snackbar.showMessage(scope, "Browsing as a guest.")
             } else {
                 val message = result.exceptionOrNull()?.localizedMessage?.takeIf { it.isNotBlank() }
                     ?: "Couldn't sign out. Try again."
@@ -1608,6 +1730,9 @@ fun DropHereScreen(
     var userProfile by remember { mutableStateOf<UserProfile?>(null) }
     var userProfileLoading by remember { mutableStateOf(false) }
     var userProfileError by remember { mutableStateOf<String?>(null) }
+    var r7OrganizerAccessState by remember { mutableStateOf(R7OrganizerAccessState()) }
+    var r7OrganizerAccessLoading by remember { mutableStateOf(false) }
+    var showR7OrganizerAccess by remember { mutableStateOf(false) }
 
     val businessCategories = userProfile?.businessCategories.orEmpty()
 
@@ -1620,19 +1745,64 @@ fun DropHereScreen(
 
     val currentUserId = currentUser?.uid
 
-    LaunchedEffect(currentUserId, hasExplorerAccount) {
+    LaunchedEffect(
+        currentUserId,
+        currentUser?.isAnonymous,
+        explorerGroups,
+        r9TargetEnabled,
+        r9RefreshToken
+    ) {
+        val userId = currentUserId
+        if (
+            userId.isNullOrBlank() || currentUser?.isAnonymous != false || !r9TargetEnabled
+        ) {
+            r9ExperienceHistory = emptyList()
+            r9BlockedHosts = emptyList()
+            r9ReportStatuses = emptyList()
+            r9AccountLoading = false
+            r9AccountError = null
+            return@LaunchedEffect
+        }
+        r9AccountLoading = true
+        r9AccountError = null
+        val history = runCatching {
+            effectiveR9Gateway.loadExperienceHistory(userId, explorerGroups)
+        }
+        val blocks = runCatching { effectiveR9Gateway.loadBlockedHosts(userId) }
+        val reports = runCatching { effectiveR9Gateway.loadReportStatuses(userId) }
+        history.onSuccess { r9ExperienceHistory = it }
+        blocks.onSuccess {
+            r9BlockedHosts = it
+            r6BlockedHostIds = it.mapTo(mutableSetOf(), R9BlockedHost::hostId)
+        }
+        reports.onSuccess { r9ReportStatuses = it }
+        val firstFailure = listOf(history, blocks, reports).firstOrNull(Result<*>::isFailure)
+        r9AccountError = firstFailure?.exceptionOrNull()?.localizedMessage
+            ?.takeIf(String::isNotBlank)
+            ?.let { "Some account details could not be loaded. Choose Retry below." }
+        r9AccountLoading = false
+    }
+
+    LaunchedEffect(currentUserId, currentUser?.isAnonymous, r7TargetEnabled, permissionStateVersion) {
+        val userId = currentUserId
+        if (userId.isNullOrBlank() || currentUser?.isAnonymous != false || !r7TargetEnabled) {
+            r7OrganizerAccessState = R7OrganizerAccessState()
+            r7OrganizerAccessLoading = false
+            return@LaunchedEffect
+        }
+        r7OrganizerAccessLoading = true
+        runCatching { effectiveR7Gateway.loadAccessState(userId) }
+            .onSuccess { r7OrganizerAccessState = it }
+            .onFailure {
+                r7OrganizerAccessState = R7OrganizerAccessState()
+                userProfileError = it.localizedMessage ?: "Failed to load Organizer access."
+            }
+        r7OrganizerAccessLoading = false
+    }
+
+    LaunchedEffect(currentUserId) {
         notificationPrefs.setActiveUser(currentUserId)
         nearbyAlertsEnabled = notificationPrefs.areNearbyAlertsEnabled()
-        defaultExplorerDestinationName = notificationPrefs.getDefaultExplorerDestination()
-        if (hasExplorerAccount) {
-            val preferredDestination = defaultExplorerDestinationName
-                ?.let { name -> runCatching { ExplorerDestination.valueOf(name) }.getOrNull() }
-                ?.takeIf { destination -> destination != ExplorerDestination.Discover }
-            preferredDestination?.let { destination ->
-                selectedHomeDestination = HomeDestination.Explorer.name
-                explorerDestination = destination.name
-            }
-        }
     }
 
     LaunchedEffect(
@@ -1859,6 +2029,137 @@ fun DropHereScreen(
         }
     }
 
+    fun attemptR6Unlock(drop: R6DropDiscovery) {
+        if (!r6TargetEnabled || r6UnlockingDropId != null) return
+        if (!canParticipate) {
+            val pendingTarget = R5PendingUnlock(
+                experienceCode = drop.experienceCode,
+                dropId = drop.id
+            )
+            effectiveR5Store.savePendingUnlock(pendingTarget)
+            r5PendingUnlockDropId = drop.id
+            r5UnlockResumeStartedForDrop = null
+            r5PrecisePrimerDismissedForDrop = null
+            r5UnlockAccountGate = true
+            openAccountAuthDialog(
+                initialType = AccountType.EXPLORER,
+                initialMode = AccountAuthMode.REGISTER,
+                lockAccountType = true
+            )
+            return
+        }
+        if (!hasFineLocation) {
+            effectiveR5Store.savePendingUnlock(
+                R5PendingUnlock(experienceCode = drop.experienceCode, dropId = drop.id)
+            )
+            r5PendingUnlockDropId = drop.id
+            r5UnlockResumeStartedForDrop = null
+            r5PrecisePrimerDismissedForDrop = null
+            showR5PrecisePrimer = true
+            return
+        }
+
+        scope.launch {
+            r5UnlockResumeStartedForDrop = drop.id
+            r6UnlockingDropId = drop.id
+            r6UnlockResult = null
+            r6UnlockError = null
+            Firebase.crashlytics.apply {
+                setCustomKey("participant_unlock_path", "R6_SERVER")
+                setCustomKey("participant_unlock_stage", "LOCATION_FIX")
+                log("R6 unlock started")
+            }
+            try {
+                val fix = getPreciseFixForUnlock() ?: throw R6ParticipantException(
+                    reason = R6UnlockFailureReason.ACCURACY_INSUFFICIENT,
+                    retryable = true
+                )
+                Firebase.crashlytics.setCustomKey("participant_unlock_stage", "SERVER_CHECK")
+                val result = effectiveR6Gateway.unlock(
+                    R6UnlockRequest(
+                        dropId = drop.id,
+                        entrySessionId = r5EntrySessionId ?: effectiveR5Store.activeEntrySessionId(),
+                        latitude = fix.latitude,
+                        longitude = fix.longitude,
+                        accuracyM = fix.accuracy.toDouble(),
+                        capturedAtMillis = fix.time.takeIf { it > 0L } ?: System.currentTimeMillis()
+                    )
+                )
+                r6Collection = listOf(result.receipt) + r6Collection.filterNot {
+                    it.dropId == result.receipt.dropId
+                }
+                r6UnlockResult = result
+                effectiveR5Store.clearPendingUnlock()
+                r5PendingUnlockDropId = null
+                r5UnlockResumeStartedForDrop = null
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                Firebase.crashlytics.apply {
+                    setCustomKey("participant_unlock_stage", "FOUND")
+                    log("R6 unlock succeeded")
+                }
+                val notificationExperience = drop.experienceCode
+                if (
+                    PilotFeatureFlags.notificationsEnabled &&
+                    !nearbyAlertsEnabled &&
+                    !effectiveR5Store.notificationPrimerSeen(notificationExperience)
+                ) {
+                    effectiveR5Store.markNotificationPrimerSeen(notificationExperience)
+                    showR5NotificationPrimer = true
+                }
+                r6RefreshToken += 1
+            } catch (error: R6ParticipantException) {
+                r6UnlockError = error
+                r5UnlockResumeStartedForDrop = null
+                Firebase.crashlytics.apply {
+                    setCustomKey("participant_unlock_stage", "FAILED_${error.reason.name}")
+                    log("R6 unlock failed: ${error.reason.name}")
+                }
+            } catch (error: Exception) {
+                r6UnlockError = R6ParticipantException(
+                    reason = R6UnlockFailureReason.UNKNOWN,
+                    retryable = true,
+                    cause = error
+                )
+                r5UnlockResumeStartedForDrop = null
+                Firebase.crashlytics.recordException(error)
+            } finally {
+                r6UnlockingDropId = null
+            }
+        }
+    }
+
+    fun submitR6ReportById(dropId: String, reason: String, narrative: String?) {
+        scope.launch {
+            runCatching { effectiveR6Gateway.submitReport(dropId, reason, narrative) }
+                .onSuccess {
+                    r9RefreshToken += 1
+                    snackbar.showMessage(scope, "Report submitted. Track its status in Account.")
+                }
+                .onFailure { error ->
+                    snackbar.showMessage(scope, error.localizedMessage ?: "Couldn't submit the report.")
+                }
+        }
+    }
+
+    fun submitR6Report(drop: R6DropDiscovery, reason: String, narrative: String?) {
+        submitR6ReportById(drop.id, reason, narrative)
+    }
+
+    fun blockR6Host(drop: R6DropDiscovery) {
+        scope.launch {
+            runCatching { effectiveR6Gateway.blockHost(drop.id) }
+                .onSuccess {
+                    r6BlockedHostIds = r6BlockedHostIds + drop.ownerId
+                    r9RefreshToken += 1
+                    r6SelectedDropId = null
+                    snackbar.showMessage(scope, "Host blocked.")
+                }
+                .onFailure { error ->
+                    snackbar.showMessage(scope, error.localizedMessage ?: "Couldn't block this host.")
+                }
+        }
+    }
+
     /**
      * The unlock attempt (task 3.3, direction doc steps 2–5): request precise location
      * *now*, answer the proximity question, then let the fix go. A success is remembered
@@ -1866,7 +2167,34 @@ fun DropHereScreen(
      */
     fun attemptUnlock(drop: Drop) {
         if (!canParticipate) {
-            snackbar.showMessage(scope, participationRestriction("unlock drops"))
+            val pendingTarget = R5PendingUnlock(
+                experienceCode = r5ExperienceCode ?: selectedExplorerGroupCode,
+                dropId = drop.id
+            )
+            effectiveR5Store.savePendingUnlock(pendingTarget)
+            r5PendingUnlockDropId = drop.id
+            r5UnlockResumeStartedForDrop = null
+            r5PrecisePrimerDismissedForDrop = null
+            scope.launch {
+                runCatching {
+                    effectiveR5Gateway.recordClientEvent(
+                        eventName = "unlock_attempted",
+                        entrySessionId = r5EntrySessionId ?: effectiveR5Store.activeEntrySessionId(),
+                        experienceCode = pendingTarget.experienceCode,
+                        dropId = drop.id,
+                        params = mapOf(
+                            "accountState" to "GUEST",
+                            "accountGateShown" to true
+                        )
+                    )
+                }
+            }
+            r5UnlockAccountGate = true
+            openAccountAuthDialog(
+                initialType = AccountType.EXPLORER,
+                initialMode = AccountAuthMode.REGISTER,
+                lockAccountType = true
+            )
             return
         }
         val expiresAt = drop.decayAtMillis()
@@ -1875,27 +2203,24 @@ fun DropHereScreen(
             return
         }
         if (!hasFineLocation) {
-            // Browsing got by on approximate location; a 30 m question cannot be
-            // answered with it, so this is where precise is asked for.
-            if (preciseLocationState == PermissionGrantState.BLOCKED) {
-                snackbar.showMessage(
-                    scope,
-                    "Precise location is off for GeoDrop. Turn it on in Settings to unlock drops."
-                )
-                openApplicationSettings()
-            } else {
-                preciseLocationRequested = true
-                preciseLocationLauncher.launch(
-                    arrayOf(
-                        Manifest.permission.ACCESS_FINE_LOCATION,
-                        Manifest.permission.ACCESS_COARSE_LOCATION
-                    )
-                )
-            }
+            val pendingTarget = R5PendingUnlock(
+                experienceCode = r5ExperienceCode ?: selectedExplorerGroupCode,
+                dropId = drop.id
+            )
+            effectiveR5Store.savePendingUnlock(pendingTarget)
+            r5PendingUnlockDropId = drop.id
+            r5UnlockResumeStartedForDrop = null
+            r5PrecisePrimerDismissedForDrop = null
+            showR5PrecisePrimer = true
             return
         }
 
         scope.launch {
+            if (r5PendingUnlockDropId == drop.id) {
+                r5UnlockResumeStartedForDrop = drop.id
+                effectiveR5Store.clearPendingUnlock()
+                r5PendingUnlockDropId = null
+            }
             unlockInProgressDropId = drop.id
             val fix = try {
                 getPreciseFixForUnlock()
@@ -1921,9 +2246,118 @@ fun DropHereScreen(
         }
     }
 
+    LaunchedEffect(
+        currentUser?.uid,
+        currentUser?.isAnonymous,
+        r5PendingUnlockDropId,
+        r6TargetEnabled,
+        r6Discoveries,
+        otherDrops,
+        hasFineLocation,
+        r5PreciseGrantResumeToken
+    ) {
+        if (currentUser?.isAnonymous != false) return@LaunchedEffect
+        val targetId = r5PendingUnlockDropId ?: return@LaunchedEffect
+        if (r5UnlockResumeStartedForDrop == targetId) return@LaunchedEffect
+        if (r6TargetEnabled) {
+            val target = r6Discoveries.firstOrNull { it.id == targetId } ?: return@LaunchedEffect
+            if (hasFineLocation) {
+                attemptR6Unlock(target)
+            } else if (r5PrecisePrimerDismissedForDrop != targetId) {
+                showR5PrecisePrimer = true
+            }
+            return@LaunchedEffect
+        }
+        val target = otherDrops.firstOrNull { it.id == targetId } ?: return@LaunchedEffect
+        if (hasFineLocation) {
+            attemptUnlock(target)
+        } else if (r5PrecisePrimerDismissedForDrop != targetId) {
+            showR5PrecisePrimer = true
+        }
+    }
+
+    if (showR5NearbyPrimer) {
+        ModalBottomSheet(onDismissRequest = { showR5NearbyPrimer = false }) {
+            PermissionPrimer(
+                title = stringResource(R.string.r5_location_nearby_title),
+                explanation = stringResource(R.string.r5_location_nearby_body),
+                privacyPromise = stringResource(R.string.r5_location_nearby_privacy),
+                variant = PermissionPrimerVariant.SHEET,
+                onAllow = {
+                    showR5NearbyPrimer = false
+                    performNearbyLocationAccessRequest()
+                },
+                onNotNow = { showR5NearbyPrimer = false }
+            )
+        }
+    }
+
+    if (showR5PrecisePrimer) {
+        ModalBottomSheet(
+            onDismissRequest = {
+                r5PrecisePrimerDismissedForDrop = r5PendingUnlockDropId
+                showR5PrecisePrimer = false
+            }
+        ) {
+            PermissionPrimer(
+                title = stringResource(R.string.r5_location_precise_title),
+                explanation = stringResource(R.string.r5_location_precise_body),
+                privacyPromise = stringResource(R.string.r5_location_precise_privacy),
+                variant = PermissionPrimerVariant.SHEET,
+                allowLabel = if (preciseLocationState == PermissionGrantState.BLOCKED) {
+                    stringResource(R.string.r5_open_settings)
+                } else {
+                    null
+                },
+                onAllow = {
+                    showR5PrecisePrimer = false
+                    if (preciseLocationState == PermissionGrantState.BLOCKED) {
+                        r5PrecisePrimerDismissedForDrop = r5PendingUnlockDropId
+                        openApplicationSettings()
+                    } else {
+                        preciseLocationRequested = true
+                        preciseLocationLauncher.launch(
+                            arrayOf(
+                                Manifest.permission.ACCESS_FINE_LOCATION,
+                                Manifest.permission.ACCESS_COARSE_LOCATION
+                            )
+                        )
+                    }
+                },
+                onNotNow = {
+                    r5PrecisePrimerDismissedForDrop = r5PendingUnlockDropId
+                    showR5PrecisePrimer = false
+                }
+            )
+        }
+    }
+
+    if (showR5NotificationPrimer) {
+        AlertDialog(
+            onDismissRequest = { showR5NotificationPrimer = false },
+            title = { Text(stringResource(R.string.r5_notifications_title)) },
+            text = { Text(stringResource(R.string.r5_notifications_body)) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showR5NotificationPrimer = false
+                        alertPermissionFlowToken += 1
+                    }
+                ) {
+                    Text(stringResource(R.string.r5_notifications_allow))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showR5NotificationPrimer = false }) {
+                    Text(stringResource(R.string.r5_notifications_not_now))
+                }
+            }
+        )
+    }
+
     fun pickUpDrop(drop: Drop) {
         if (!canParticipate) {
-            snackbar.showMessage(scope, participationRestriction("pick up drops"))
+            attemptUnlock(drop)
             return
         }
         val expiresAt = drop.decayAtMillis()
@@ -1963,6 +2397,18 @@ fun DropHereScreen(
                 param("drop_type", drop.dropType.name)
             }
             pickupCelebrationDrop = drop
+            val notificationExperience = r5ExperienceCode
+                ?: selectedExplorerGroupCode
+                ?: effectiveR5Store.activeExperienceCode()
+            if (
+                PilotFeatureFlags.notificationsEnabled &&
+                !nearbyAlertsEnabled &&
+                !notificationExperience.isNullOrBlank() &&
+                !effectiveR5Store.notificationPrimerSeen(notificationExperience)
+            ) {
+                effectiveR5Store.markNotificationPrimerSeen(notificationExperience)
+                showR5NotificationPrimer = true
+            }
             // Refresh the browse map so a newly-unlocked hunt step appears.
             if (drop.isHuntDrop()) {
                 otherDropsRefreshToken += 1
@@ -2158,18 +2604,21 @@ fun DropHereScreen(
         }
     }
 
-    LaunchedEffect(userProfile?.role) {
-        val currentDestination = runCatching { HomeDestination.valueOf(selectedHomeDestination) }
-            .getOrDefault(HomeDestination.Explorer)
-        if (userProfile?.isBusiness() == true) {
-            if (currentDestination != HomeDestination.Business) {
-                selectedHomeDestination = HomeDestination.Business.name
-            }
+    LaunchedEffect(
+        r7OrganizerAccessState.status,
+        currentUser?.isAnonymous,
+        r7TargetEnabled,
+        userProfile?.role
+    ) {
+        val approvedForActiveSurface = if (r7TargetEnabled) {
+            r7OrganizerAccessState.status == R7OrganizerAccessStatus.APPROVED &&
+                currentUser?.isAnonymous == false
         } else {
+            userProfile?.isBusiness() == true
+        }
+        if (!approvedForActiveSurface) {
             dropType = DropType.COMMUNITY
-            if (currentDestination == HomeDestination.Business) {
-                selectedHomeDestination = HomeDestination.Explorer.name
-            }
+            showOrganizerTools = false
         }
     }
 
@@ -2639,17 +3088,117 @@ fun DropHereScreen(
 
 
     val isBusinessUser = userProfile?.isBusiness() == true
-    val currentHomeDestination = if (isBusinessUser) {
-        runCatching { HomeDestination.valueOf(selectedHomeDestination) }
-            .getOrDefault(HomeDestination.Business)
+    val r7OrganizerApproved =
+        r7OrganizerAccessState.status == R7OrganizerAccessStatus.APPROVED &&
+            currentUser?.isAnonymous == false
+    val organizerToolsAvailable = r7OrganizerApproved || (!r7TargetEnabled && isBusinessUser)
+    val accountOrganizerAccessState = if (!r7TargetEnabled && isBusinessUser) {
+        R7OrganizerAccessState(status = R7OrganizerAccessStatus.APPROVED)
     } else {
-        runCatching { HomeDestination.valueOf(selectedHomeDestination) }
-            .getOrDefault(HomeDestination.Explorer)
+        r7OrganizerAccessState
     }
-    val explorerHomeVisible = !isBusinessUser || currentHomeDestination == HomeDestination.Explorer
+    val currentParticipantDestination = R4NavigationPolicy.resolveDestination(
+        selectedParticipantDestination
+    )
 
     LaunchedEffect(
-        explorerHomeVisible,
+        currentParticipantDestination,
+        selectedExplorerGroupCode,
+        unlockInProgressDropId,
+        preciseLocationState
+    ) {
+        Firebase.crashlytics.apply {
+            setCustomKey("participant_destination", currentParticipantDestination.name)
+            setCustomKey("participant_has_active_experience", selectedExplorerGroupCode != null)
+            setCustomKey("participant_unlock_in_progress", unlockInProgressDropId != null)
+            setCustomKey("participant_precise_permission", preciseLocationState.name)
+            log("Participant surface changed to ${currentParticipantDestination.name}")
+        }
+    }
+    val nearbyVisible = currentParticipantDestination == ParticipantDestination.NEARBY &&
+        !showOrganizerTools
+    val r6ActiveExperienceCode = selectedExplorerGroupCode
+        ?: r5ExperienceCode
+        ?: explorerGroups.firstOrNull()?.code
+
+    LaunchedEffect(
+        r6TargetEnabled,
+        nearbyVisible,
+        r6ActiveExperienceCode,
+        currentUserId,
+        currentUser?.isAnonymous,
+        r6RefreshToken
+    ) {
+        if (!r6TargetEnabled || !nearbyVisible || r6ActiveExperienceCode.isNullOrBlank()) {
+            if (!r6TargetEnabled) {
+                r6Discoveries = emptyList()
+                r6Collection = emptyList()
+                r6TrailProgress = emptyList()
+                r6BlockedHostIds = emptySet()
+            }
+            r6DiscoveryLoading = false
+            r6DiscoveryRefreshing = false
+            return@LaunchedEffect
+        }
+
+        val hadDiscoveries = r6Discoveries.isNotEmpty()
+        r6DiscoveryLoading = !hadDiscoveries
+        r6DiscoveryRefreshing = hadDiscoveries
+        r6DiscoveryError = null
+        try {
+            r6Discoveries = effectiveR6Gateway.loadDiscoveries(r6ActiveExperienceCode)
+            val userId = currentUserId
+            if (!userId.isNullOrBlank()) {
+                r6BlockedHostIds = effectiveR6Gateway.loadBlockedHostIds(userId)
+                if (currentUser?.isAnonymous == false) {
+                    r6Collection = effectiveR6Gateway.loadCollection(userId)
+                    r6TrailProgress = effectiveR6Gateway.loadTrailProgress(
+                        userId,
+                        r6ActiveExperienceCode
+                    )
+                }
+            }
+            r6SelectedDropId = r6SelectedDropId?.takeIf { selected ->
+                r6Discoveries.any { it.id == selected }
+            }
+        } catch (error: Exception) {
+            r6DiscoveryError = error.localizedMessage
+                ?: "Couldn't load this Experience. Try again."
+        } finally {
+            r6DiscoveryLoading = false
+            r6DiscoveryRefreshing = false
+        }
+    }
+
+    LaunchedEffect(
+        r6TargetEnabled,
+        currentParticipantDestination,
+        currentUserId,
+        currentUser?.isAnonymous,
+        r6RefreshToken
+    ) {
+        if (
+            !r6TargetEnabled ||
+            currentParticipantDestination != ParticipantDestination.COLLECTION ||
+            currentUser?.isAnonymous != false ||
+            currentUserId.isNullOrBlank()
+        ) {
+            r6CollectionLoading = false
+            return@LaunchedEffect
+        }
+        r6CollectionLoading = r6Collection.isEmpty()
+        r6CollectionError = null
+        try {
+            r6Collection = effectiveR6Gateway.loadCollection(currentUserId)
+        } catch (error: Exception) {
+            r6CollectionError = error.localizedMessage ?: "Couldn't load your Collection."
+        } finally {
+            r6CollectionLoading = false
+        }
+    }
+
+    LaunchedEffect(
+        nearbyVisible,
         hasForegroundLocation,
         joinedGroups,
         otherDropsRefreshToken,
@@ -2657,7 +3206,7 @@ fun DropHereScreen(
         ignoredDropIds,
         dismissedBrowseDropIds.toList()
     ) {
-        if (explorerHomeVisible) {
+        if (nearbyVisible && !r6TargetEnabled) {
             val hadExistingDrops = otherDrops.isNotEmpty()
             if (hadExistingDrops) {
                 otherDropsRefreshing = true
@@ -2754,8 +3303,8 @@ fun DropHereScreen(
     // labels fresh. That is precise location for browsing, held indefinitely, which the
     // direction doc's steps 1 and 5 exclude. Distances now come from a coarse one-shot
     // refreshed with the list, and precision is requested only at an unlock attempt.
-    LaunchedEffect(explorerHomeVisible, hasForegroundLocation, otherDropsRefreshToken) {
-        if (!explorerHomeVisible || !hasForegroundLocation) {
+    LaunchedEffect(nearbyVisible, hasForegroundLocation, otherDropsRefreshToken) {
+        if (!nearbyVisible || !hasForegroundLocation) {
             otherDropsCurrentLocation = null
             otherDropsLocationAccuracyMeters = null
             return@LaunchedEffect
@@ -2785,8 +3334,8 @@ fun DropHereScreen(
         }
     }
 
-    LaunchedEffect(currentHomeDestination, currentExplorerDestination, myDropsRefreshToken) {
-        val shouldLoad = currentHomeDestination == HomeDestination.Explorer &&
+    LaunchedEffect(showOrganizerTools, currentExplorerDestination, myDropsRefreshToken) {
+        val shouldLoad = showOrganizerTools &&
                 currentExplorerDestination == ExplorerDestination.MyDrops
         if (shouldLoad) {
             myDropsLoading = true
@@ -2838,7 +3387,11 @@ fun DropHereScreen(
     }
 
     fun openExplorerDestination(destination: ExplorerDestination) {
-        selectedHomeDestination = HomeDestination.Explorer.name
+        selectedParticipantDestination = when (destination) {
+            ExplorerDestination.Collected -> ParticipantDestination.COLLECTION.name
+            ExplorerDestination.Discover -> ParticipantDestination.NEARBY.name
+            ExplorerDestination.MyDrops -> ParticipantDestination.ACCOUNT.name
+        }
         when (destination) {
             ExplorerDestination.Discover -> {
                 explorerDestination = destination.name
@@ -2876,6 +3429,52 @@ fun DropHereScreen(
         if (blockedCreatorIds.isEmpty()) groupFiltered
         else groupFiltered.filter { drop -> drop.createdBy !in blockedCreatorIds }
     }
+    val r6VisibleDiscoveries = remember(r6Discoveries, r6BlockedHostIds) {
+        r6Discoveries.filterNot { it.ownerId in r6BlockedHostIds }
+    }
+    val r6UnlockedDropIds = remember(r6Collection) { r6Collection.mapTo(mutableSetOf()) { it.dropId } }
+    val r6DiscoveryPresentation = remember(
+        r6VisibleDiscoveries,
+        r6UnlockedDropIds,
+        r6TrailProgress,
+        otherDropsCurrentLocation,
+        otherDropsLocationAccuracyMeters
+    ) {
+        r6VisibleDiscoveries.map { drop ->
+            val progress = drop.trailId?.let { trailId ->
+                r6TrailProgress.firstOrNull { it.trailId == trailId }
+            }
+            val distance = otherDropsCurrentLocation?.let { location ->
+                distanceBetweenMeters(location.latitude, location.longitude, drop.lat, drop.lng)
+            }
+            R6DiscoveryPresentation(
+                drop = drop,
+                state = R6ParticipantPolicy.discoveryState(
+                    drop = drop,
+                    unlockedDropIds = r6UnlockedDropIds,
+                    trailProgress = progress,
+                    approximateDistanceM = distance,
+                    approximateAccuracyM = otherDropsLocationAccuracyMeters,
+                    nowMillis = System.currentTimeMillis(),
+                    experienceEndsAtMillis = null
+                ),
+                distanceLabel = r6DistanceLabel(distance)
+            )
+        }
+    }
+    val r6ActiveTrailProgress = remember(r6TrailProgress, r6DiscoveryPresentation) {
+        r6TrailProgress.firstOrNull { progress ->
+            r6DiscoveryPresentation.any { it.drop.trailId == progress.trailId }
+        } ?: r6DiscoveryPresentation.firstOrNull { it.drop.trailId != null }?.drop?.let { drop ->
+            R6TrailProgress(
+                experienceCode = drop.experienceCode,
+                trailId = drop.trailId!!,
+                currentStepIndex = 0,
+                completedDropIds = emptyList(),
+                completedAtMillis = null
+            )
+        }
+    }
     var otherDropsSortKey by rememberSaveable { mutableStateOf(DropSortOption.NEAREST.name) }
     val otherDropsSortOption = remember(otherDropsSortKey) {
         runCatching { DropSortOption.valueOf(otherDropsSortKey) }
@@ -2903,11 +3502,9 @@ fun DropHereScreen(
             .getOrDefault(DropSortOption.NEWEST)
     }
     var collectedCurrentLocation by remember { mutableStateOf<LatLng?>(null) }
-    val filteredCollected = remember(selectedExplorerGroupCode, collectedNotes, explorerGroups) {
-        selectedExplorerGroupCode?.takeIf { code -> explorerGroups.any { it.code == code } }?.let { code ->
-            collectedNotes.filter { note -> note.groupCode == code }
-        } ?: collectedNotes
-    }
+    // R4 Collection is a complete cross-Experience history and is intentionally not
+    // filtered by the active Nearby Experience.
+    val filteredCollected = collectedNotes
     // Server-flagged content is hidden unconditionally; the viewer opt-out went with
     // the NSFW pilot flag at task 2.8.
     val visibleCollectedNotes =
@@ -2917,7 +3514,7 @@ fun DropHereScreen(
         sortCollectedNotes(visibleCollectedNotes, collectedSortOption, collectedCurrentLocation)
     }
 
-    LaunchedEffect(selectedExplorerGroupCode, sortedCollectedNotes) {
+    LaunchedEffect(sortedCollectedNotes) {
         collectedSelectedId = collectedSelectedId?.takeIf { id -> sortedCollectedNotes.any { it.id == id } }
             ?: sortedCollectedNotes.firstOrNull()?.id
     }
@@ -2936,9 +3533,8 @@ fun DropHereScreen(
         }
     }
 
-    LaunchedEffect(currentHomeDestination, currentExplorerDestination) {
-        val shouldUpdateLocation = currentHomeDestination == HomeDestination.Explorer &&
-                currentExplorerDestination == ExplorerDestination.Collected
+    LaunchedEffect(currentParticipantDestination) {
+        val shouldUpdateLocation = currentParticipantDestination == ParticipantDestination.COLLECTION
         collectedCurrentLocation = if (shouldUpdateLocation) {
             getApproximateLocation()?.position
         } else {
@@ -2948,14 +3544,14 @@ fun DropHereScreen(
 
     LaunchedEffect(
         isBusinessUser,
-        currentHomeDestination,
+        showOrganizerTools,
         showBusinessDashboard,
         businessDashboardRefreshToken,
         currentUserId
     ) {
         val userId = currentUserId
         val shouldFetch = isBusinessUser && !userId.isNullOrBlank() &&
-                (showBusinessDashboard || currentHomeDestination == HomeDestination.Business)
+                (showBusinessDashboard || showOrganizerTools)
 
         if (shouldFetch) {
             if (showBusinessDashboard) {
@@ -2992,7 +3588,6 @@ fun DropHereScreen(
     val collectRestrictionMessage = when (userMode) {
         UserMode.GUEST -> "Preview drops nearby, then create an account to pick them up when you're ready."
         UserMode.SIGNED_IN -> null
-        null -> null
     }
     val collectedLikeRestrictionMessage = when {
         !isSignedIn -> "Sign in to react to drops."
@@ -3122,7 +3717,7 @@ fun DropHereScreen(
             blockedCreatorIds = (blockedCreatorIds + creatorId).distinct()
             scope.launch {
                 runCatching { repo.blockDropCreator(userId, creatorId) }
-                snackbar.showMessage(scope, "Creator blocked. Their drops won't appear for you.")
+            snackbar.showMessage(scope, "Host blocked. Their drops won't appear for you.")
             }
         }
     }
@@ -3173,7 +3768,7 @@ fun DropHereScreen(
     val density = LocalDensity.current
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // Minimal top bar — only used for the business back-arrow; no height for explorer
+        // Organizer tools are nested under Account, never a separate mode or tab.
         Column(
             modifier = Modifier
                 .align(Alignment.TopCenter)
@@ -3182,7 +3777,7 @@ fun DropHereScreen(
                 .onSizeChanged { size -> topBarHeightPx = size.height }
                 .zIndex(1f)
         ) {
-            if (currentHomeDestination == HomeDestination.Explorer && isBusinessUser) {
+            if (showOrganizerTools && organizerToolsAvailable) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -3193,15 +3788,16 @@ fun DropHereScreen(
                             modifier = Modifier.fillMaxWidth(),
                             navigationIcon = {
                                 IconButton(onClick = {
-                                    selectedHomeDestination = HomeDestination.Business.name
+                                    showOrganizerTools = false
+                                    selectedParticipantDestination = ParticipantDestination.ACCOUNT.name
                                 }) {
                                     Icon(
                                         imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                                        contentDescription = "Back to business home"
+                                        contentDescription = stringResource(R.string.r4_back_to_account)
                                     )
                                 }
                             },
-                            title = {},
+                            title = { Text(stringResource(R.string.r4_organizer_tools_title)) },
                             colors = TopAppBarDefaults.topAppBarColors(
                                 containerColor = Color.Transparent,
                                 scrolledContainerColor = Color.Transparent
@@ -3212,12 +3808,37 @@ fun DropHereScreen(
                 }
                 Divider()
             } else {
+                when (currentParticipantDestination) {
+                    ParticipantDestination.NEARBY -> GeoDropExperienceTopBar(
+                        experiences = explorerGroups.map { membership ->
+                            ExperienceNavigationItem(
+                                code = membership.code,
+                                isOwned = membership.role == GroupRole.OWNER
+                            )
+                        },
+                        activeCode = selectedExplorerGroupCode,
+                        onSelectExperience = { code -> selectedExplorerGroupCode = code },
+                        onJoinExperience = { showManageGroups = true }
+                    )
+                    ParticipantDestination.COLLECTION -> TopAppBar(
+                        title = { Text(stringResource(R.string.r4_tab_collection)) },
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = MaterialTheme.colorScheme.surface
+                        )
+                    )
+                    ParticipantDestination.ACCOUNT -> TopAppBar(
+                        title = { Text(stringResource(R.string.r4_tab_account)) },
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = MaterialTheme.colorScheme.surface
+                        )
+                    )
+                }
                 SideEffect { explorerNavigationHeightPx = 0 }
             }
         }
 
         // Floating destination FABs — overlaid at the top of the map
-        if (currentHomeDestination == HomeDestination.Explorer && userMode != null) {
+        if (false) {
             val fabDestinations = remember(hasExplorerAccount) {
                 ExplorerDestination.values().filter { d ->
                     when (d) {
@@ -3283,6 +3904,27 @@ fun DropHereScreen(
         Scaffold(
             modifier = Modifier.fillMaxSize(),
             bottomBar = {
+                GeoDropParticipantNavigationBar(
+                    selected = currentParticipantDestination,
+                    onSelect = { destination ->
+                        showOrganizerTools = false
+                        selectedParticipantDestination = destination.name
+                        when (destination) {
+                            ParticipantDestination.NEARBY -> {
+                                explorerDestination = ExplorerDestination.Discover.name
+                            }
+                            ParticipantDestination.COLLECTION -> {
+                                collectedNotes = noteInventory.getCollectedNotes()
+                                explorerDestination = ExplorerDestination.Collected.name
+                            }
+                            ParticipantDestination.ACCOUNT -> Unit
+                        }
+                    },
+                    modifier = Modifier.heightIn(min = 64.dp)
+                )
+                /* R4 removed the legacy Profile / Drop Something / Manage Groups bar.
+                   It remains commented for this migration unit so the surrounding legacy
+                   dialog callbacks can be removed safely in their later owning tasks.
                 NavigationBar(
                     modifier = Modifier.height(56.dp),
                     containerColor = MaterialTheme.colorScheme.surface,
@@ -3324,7 +3966,6 @@ fun DropHereScreen(
                                         leadingIcon = { Icon(Icons.Rounded.CheckCircle, contentDescription = null) },
                                         onClick = {
                                             showAccountMenu = false
-                                            guestModeEnabled = false
                                             openAccountAuthDialog(
                                                 initialType = AccountType.EXPLORER,
                                                 initialMode = AccountAuthMode.SIGN_IN,
@@ -3369,7 +4010,7 @@ fun DropHereScreen(
                                         )
                                     }
                                     DropdownMenuItem(
-                                        text = { Text("Blocked creators") },
+                                        text = { Text("Blocked hosts") },
                                         leadingIcon = { Icon(Icons.Rounded.Block, contentDescription = null) },
                                         onClick = {
                                             showAccountMenu = false
@@ -3634,6 +4275,7 @@ fun DropHereScreen(
                         }
                     }
                 }
+                */
             },
             snackbarHost = {
                 SnackbarHost(
@@ -3657,7 +4299,22 @@ fun DropHereScreen(
             val fabClearanceDp = with(density) { fabRowBottomPx.toDp() } + 8.dp
 
             Box(modifier = Modifier.fillMaxSize()) {
-                if (isBusinessUser && currentHomeDestination == HomeDestination.Business) {
+                if (r7OrganizerApproved && showOrganizerTools) {
+                    R7OrganizerContent(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .padding(
+                                start = startPadding,
+                                top = navAwareTopPadding,
+                                end = endPadding,
+                                bottom = bottomPadding
+                            ),
+                        userId = currentUserId.orEmpty(),
+                        gateway = effectiveR7Gateway,
+                        localDemo = localDeviceDemoActive,
+                        currentLocationProvider = { getLatestLocation() }
+                    )
+                } else if (!r7TargetEnabled && isBusinessUser && showOrganizerTools) {
                     BusinessHomeDestination(
                         modifier = Modifier
                             .matchParentSize()
@@ -3671,12 +4328,10 @@ fun DropHereScreen(
                         businessCategories = businessCategories,
                         metrics = businessHomeMetrics,
                         onViewDashboard = {
-                            if (!userProfileLoading) {
-                                showBusinessDashboard = true
-                            }
+                            if (!userProfileLoading) showBusinessDashboard = true
                         },
                         onUpdateBusinessProfile = { showBusinessOnboarding = true },
-                        onViewMyDrops = { openExplorerDestination(ExplorerDestination.MyDrops) }
+                        onViewMyDrops = { showBusinessDashboard = true }
                     )
                 } else {
                     Column(
@@ -3688,18 +4343,175 @@ fun DropHereScreen(
                                 bottom = bottomPadding
                             )
                     ) {
+                        GeoDropParticipantStateHost(
+                            destination = currentParticipantDestination,
+                            activeExperienceCode = selectedExplorerGroupCode
+                        ) {
+                        if (currentParticipantDestination == ParticipantDestination.ACCOUNT) {
+                            GeoDropAccountDestination(
+                                identityLabel = when {
+                                    userMode == UserMode.GUEST -> stringResource(R.string.r4_guest_identity)
+                                    !userProfile?.displayName.isNullOrBlank() -> userProfile?.displayName.orEmpty()
+                                    !userProfile?.username.isNullOrBlank() -> "@${userProfile?.username}"
+                                    else -> currentUser?.email.orEmpty()
+                                },
+                                identitySupportingText = when {
+                                    userMode == UserMode.GUEST -> stringResource(R.string.r4_guest_identity_body)
+                                    isBusinessUser && !userProfile?.businessName.isNullOrBlank() -> userProfile?.businessName
+                                    else -> currentUser?.email
+                                },
+                                isGuest = userMode == UserMode.GUEST,
+                                locationGranted = hasForegroundLocation,
+                                notificationsGranted = hasNotificationPermission,
+                                joinedExperiences = explorerGroups.map { membership ->
+                                    ExperienceNavigationItem(
+                                        code = membership.code,
+                                        isOwned = membership.role == GroupRole.OWNER
+                                    )
+                                },
+                                experienceHistory = r9ExperienceHistory,
+                                reportStatuses = r9ReportStatuses,
+                                blockedHostCount = if (r9TargetEnabled) {
+                                    r9BlockedHosts.size
+                                } else {
+                                    blockedCreatorIds.size
+                                },
+                                accountDetailsLoading = r9AccountLoading,
+                                accountDetailsError = r9AccountError,
+                                organizerAccessState = accountOrganizerAccessState,
+                                signingOut = signingOut,
+                                onSignIn = {
+                                    openAccountAuthDialog(
+                                        initialType = AccountType.EXPLORER,
+                                        initialMode = AccountAuthMode.SIGN_IN,
+                                        lockAccountType = true
+                                    )
+                                },
+                                onEditProfile = {
+                                    if (isBusinessUser) {
+                                        showBusinessOnboarding = true
+                                    } else {
+                                        explorerProfileError = null
+                                        explorerProfileSubmitting = false
+                                        explorerUsernameField = TextFieldValue(userProfile?.username.orEmpty())
+                                        explorerDisplayNameField = TextFieldValue(userProfile?.displayName.orEmpty())
+                                        showExplorerProfile = true
+                                    }
+                                },
+                                onOpenLocationSettings = {
+                                    ctx.startActivity(
+                                        Intent(
+                                            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                            Uri.parse("package:${ctx.packageName}")
+                                        )
+                                    )
+                                },
+                                onOpenNotificationSettings = {
+                                    ctx.startActivity(
+                                        Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                                            putExtra(Settings.EXTRA_APP_PACKAGE, ctx.packageName)
+                                        }
+                                    )
+                                },
+                                onOpenOrganizerAccess = {
+                                    if (r7OrganizerAccessLoading) {
+                                        snackbar.showMessage(scope, "Loading Organizer access…")
+                                    } else if (!r7TargetEnabled) {
+                                        snackbar.showMessage(scope, "Organizer applications are not enabled in this build.")
+                                    } else {
+                                        showR7OrganizerAccess = true
+                                    }
+                                },
+                                onOpenOrganizerTools = { showOrganizerTools = true },
+                                onOpenBlockedCreators = {
+                                    val userId = currentUserId
+                                    if (!userId.isNullOrBlank()) {
+                                        blockedCreatorsLoading = true
+                                        showBlockedCreators = true
+                                        scope.launch {
+                                            if (r9TargetEnabled) {
+                                                r9BlockedHosts = runCatching {
+                                                    effectiveR9Gateway.loadBlockedHosts(userId)
+                                                }.getOrElse { emptyList() }
+                                            } else {
+                                                blockedCreatorIds = runCatching {
+                                                    repo.getBlockedCreatorIds(userId)
+                                                }.getOrElse { emptyList() }
+                                            }
+                                            blockedCreatorsLoading = false
+                                        }
+                                    }
+                                },
+                                onOpenData = { showAccountDataDialog = true },
+                                onRetryAccountDetails = { r9RefreshToken += 1 },
+                                onSignOut = { handleSignOut() },
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(top = navAwareTopPadding)
+                            )
+                        } else {
+                        val shellDestination = if (
+                            currentParticipantDestination == ParticipantDestination.COLLECTION
+                        ) {
+                            ExplorerDestination.Collected
+                        } else {
+                            ExplorerDestination.Discover
+                        }
+                        val participantMotion = GeoDropThemeTokens.motion
                         AnimatedContent(
-                            targetState = effectiveExplorerDestination,
+                            targetState = shellDestination,
                             modifier = Modifier.fillMaxSize(),
                             transitionSpec = {
-                                val forward = targetState.ordinal > initialState.ordinal
-                                slideInHorizontally { w -> if (forward) w else -w } togetherWith
-                                slideOutHorizontally { w -> if (forward) -w else w }
+                                if (participantMotion.reducedMotion) {
+                                    fadeIn(tween(participantMotion.crossFadeMillis)) togetherWith
+                                        fadeOut(tween(participantMotion.crossFadeMillis))
+                                } else {
+                                    val forward = targetState.ordinal > initialState.ordinal
+                                    slideInHorizontally { w -> if (forward) w else -w } togetherWith
+                                        slideOutHorizontally { w -> if (forward) -w else w }
+                                }
                             },
-                            label = "ExplorerDestination"
+                            label = "ParticipantDestination"
                         ) { destination ->
                         when (destination) {
                             ExplorerDestination.Discover -> {
+                                if (explorerGroups.isEmpty()) {
+                                    GeoDropNoExperienceState(
+                                        onJoinExperience = { showManageGroups = true },
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .padding(top = navAwareTopPadding)
+                                    )
+                                } else if (r6TargetEnabled) {
+                                    R6NearbyContent(
+                                        loading = r6DiscoveryLoading,
+                                        refreshing = r6DiscoveryRefreshing,
+                                        error = r6DiscoveryError,
+                                        items = r6DiscoveryPresentation,
+                                        selectedDropId = r6SelectedDropId,
+                                        unlockingDropId = r6UnlockingDropId,
+                                        trailProgress = r6ActiveTrailProgress,
+                                        currentLocation = otherDropsCurrentLocation,
+                                        approximateLocationEnabled = hasCoarseLocation,
+                                        topPadding = mapAwareTopPadding,
+                                        unlockResult = r6UnlockResult,
+                                        unlockError = r6UnlockError,
+                                        onSelect = { drop -> r6SelectedDropId = drop?.id },
+                                        onUnlock = { drop -> attemptR6Unlock(drop) },
+                                        onRequestLocation = { requestNearbyLocationAccess() },
+                                        onRefresh = { r6RefreshToken += 1 },
+                                        onDismissUnlockResult = {
+                                            r6UnlockResult = null
+                                            r6UnlockError = null
+                                            r6SelectedDropId = null
+                                        },
+                                        onReport = { drop, reason, narrative ->
+                                            submitR6Report(drop, reason, narrative)
+                                        },
+                                        onBlockHost = { drop -> blockR6Host(drop) },
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                } else {
                                 Column(
                                     modifier = Modifier.fillMaxSize(),
                                     verticalArrangement = Arrangement.spacedBy(20.dp)
@@ -3774,6 +4586,7 @@ fun DropHereScreen(
                                             )
                                         }
                                     }
+                                }
                                 }
                             }
 
@@ -3874,6 +4687,19 @@ fun DropHereScreen(
                             }
 
                             ExplorerDestination.Collected -> {
+                                if (r6TargetEnabled) {
+                                    R6CollectionContent(
+                                        loading = r6CollectionLoading,
+                                        error = r6CollectionError,
+                                        receipts = r6Collection,
+                                        topPadding = mapAwareTopPadding,
+                                        onRefresh = { r6RefreshToken += 1 },
+                                        onReport = { receipt, reason, narrative ->
+                                            submitR6ReportById(receipt.dropId, reason, narrative)
+                                        },
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                } else {
                                 Column(
                                     modifier = Modifier.fillMaxSize(),
                                     verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -3926,9 +4752,7 @@ fun DropHereScreen(
                                             reportedDropIds = reportedCollectedDropIds.toSet(),
                                             reportingDropId = browseReportingDropId,
                                             isReportProcessing = browseReportProcessing,
-                                            emptyMessage = selectedExplorerGroupCode?.let { code ->
-                                                "You haven't collected any drops for $code yet."
-                                            },
+                                            emptyMessage = "You haven't collected any drops yet.",
                                             sortOption = collectedSortOption,
                                             sortOptions = dropSortOptions,
                                             onSortOptionChange = { option ->
@@ -3953,9 +4777,12 @@ fun DropHereScreen(
                                         )
                                     }
                                 }
+                                }
                             }
                         }
                         } // AnimatedContent
+                        }
+                        }
                     }
                 }
 
@@ -4236,53 +5063,34 @@ fun DropHereScreen(
                     nearbyAlertsEnabled = false
                     notificationPrefs.setNearbyAlertsEnabled(false)
                     onNearbyAlertsDisabled()
-                    selectedHomeDestination = HomeDestination.Explorer.name
+                    selectedParticipantDestination = ParticipantDestination.NEARBY.name
+                    showOrganizerTools = false
                     explorerDestination = ExplorerDestination.Discover.name
-                    guestModeEnabled = false
                     accountDeletionReceipt = receipt
                     runCatching { googleSignInClient.signOut() }
                     runCatching { auth.signOut() }
                     currentUser = null
+                    scope.launch {
+                        runCatching { auth.signInAnonymously().await() }
+                            .onFailure {
+                                snackbar.showMessage(
+                                    scope,
+                                    "Account deleted. Guest browsing will reconnect when you're online."
+                                )
+                            }
+                    }
                 }
             )
         }
 
         if (showExplorerProfile) {
-            ExplorerProfileDialog(
-                memberSince = userProfile?.memberSince,
+            EditProfileDialog(
                 displayNameField = explorerDisplayNameField,
                 onDisplayNameChange = { explorerDisplayNameField = it },
                 username = explorerUsernameField,
                 onUsernameChange = { explorerUsernameField = it },
                 isSubmitting = explorerProfileSubmitting,
                 error = explorerProfileError,
-                nearbyAlertsEnabled = nearbyAlertsEnabled,
-                defaultExplorerDestination = defaultExplorerDestinationName,
-                onNearbyAlertsChange = { enabled ->
-                    if (enabled) {
-                        alertPermissionFlowToken += 1
-                    } else {
-                        nearbyAlertsEnabled = false
-                        notificationPrefs.setNearbyAlertsEnabled(false)
-                        onNearbyAlertsDisabled()
-                        snackbar.showMessage(scope, "Nearby alerts are off. Browsing still works.")
-                    }
-                },
-                onDefaultExplorerDestinationChange = { destinationName ->
-                    defaultExplorerDestinationName = destinationName
-                    notificationPrefs.setDefaultExplorerDestination(destinationName)
-                    val message = if (destinationName == null) {
-                        "Default destination cleared."
-                    } else {
-                        val destination = runCatching { ExplorerDestination.valueOf(destinationName) }
-                            .getOrDefault(ExplorerDestination.Discover)
-                        "Default destination set to ${explorerDestinationLabel(destination)}."
-                    }
-                    snackbar.showMessage(scope, message)
-                },
-                onAvatarUploadClick = {
-                    snackbar.showMessage(scope, "Avatar uploads are coming soon.")
-                },
                 onSubmit = { saveExplorerProfile() },
                 onDismiss = {
                     if (!explorerProfileSubmitting) {
@@ -4346,6 +5154,32 @@ fun DropHereScreen(
 
         if (showBusinessWelcome) {
             BusinessFirstRunDialog(onContinue = { showBusinessWelcome = false })
+        }
+
+        if (showR7OrganizerAccess) {
+            R7OrganizerAccessDialog(
+                accessState = r7OrganizerAccessState,
+                onDismiss = { showR7OrganizerAccess = false },
+                onContinueToApplication = {
+                    scope.launch {
+                        runCatching { effectiveR7Gateway.createApplicationLink() }
+                            .onSuccess { link ->
+                                runCatching {
+                                    ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(link.url)))
+                                }.onFailure {
+                                    snackbar.showMessage(scope, "Couldn't open the application form.")
+                                }
+                            }
+                            .onFailure { error ->
+                                snackbar.showMessage(
+                                    scope,
+                                    error.localizedMessage
+                                        ?: "Couldn't create the application link. Try again."
+                                )
+                            }
+                    }
+                }
+            )
         }
 
         if (showBusinessOnboarding && !showBusinessWelcome) {
@@ -4427,16 +5261,38 @@ fun DropHereScreen(
 
         if (showBlockedCreators) {
             BlockedCreatorsDialog(
-                creatorIds = blockedCreatorIds,
+                hosts = if (r9TargetEnabled) {
+                    r9BlockedHosts
+                } else {
+                    blockedCreatorIds.map { R9BlockedHost(it, "Blocked creator", null) }
+                },
                 loading = blockedCreatorsLoading,
-                onUnblock = { creatorId ->
+                onUnblock = { host ->
                     val userId = currentUserId
                     if (!userId.isNullOrBlank()) {
                         scope.launch {
-                            runCatching { repo.unblockDropCreator(userId, creatorId) }
-                            blockedCreatorIds = blockedCreatorIds.filter { it != creatorId }
-                            otherDropsRefreshToken += 1
-                            snackbar.showMessage(scope, "Creator unblocked.")
+                            val result = if (r9TargetEnabled) {
+                                runCatching { effectiveR9Gateway.unblockHost(host.hostId) }
+                            } else {
+                                runCatching {
+                                    repo.unblockDropCreator(userId, host.hostId)
+                                    true
+                                }
+                            }
+                            result.onSuccess {
+                                r9BlockedHosts = r9BlockedHosts.filter { it.hostId != host.hostId }
+                                r6BlockedHostIds = r6BlockedHostIds - host.hostId
+                                blockedCreatorIds = blockedCreatorIds.filter { it != host.hostId }
+                                otherDropsRefreshToken += 1
+                                r6RefreshToken += 1
+                                r9RefreshToken += 1
+                                snackbar.showMessage(scope, "Host unblocked.")
+                            }.onFailure { error ->
+                                snackbar.showMessage(
+                                    scope,
+                                    error.localizedMessage ?: "Couldn't unblock this host. Try again."
+                                )
+                            }
                         }
                     }
                 },
@@ -4463,104 +5319,73 @@ fun DropHereScreen(
         }
 
         if (showManageGroups) {
-            ManageGroupsDialog(
-                groups = joinedGroups,
+            GeoDropJoinExperienceDialog(
                 snackbarHostState = manageGroupsSnackbar,
                 onDismiss = {
                     showManageGroups = false
                     showGroupMenu = false
                 },
-                onCreate = { code ->
-                    val uid = FirebaseAuth.getInstance().currentUser?.uid
-                    if (uid.isNullOrBlank()) {
-                        manageGroupsSnackbar.showMessage(scope, "Sign in to manage groups.")
-                        return@ManageGroupsDialog
-                    }
+                onJoin = { code ->
                     scope.launch {
                         val normalized = GroupPreferences.normalizeGroupCode(code) ?: return@launch
                         try {
-                            val membership = repo.joinGroup(
-                                uid,
-                                normalized,
-                                allowCreateIfMissing = true
+                            val request = R5EntryRequest(
+                                code = normalized,
+                                entrySessionId = R5EntryParser.newEntrySessionId(),
+                                channel = R5EntryChannel.MANUAL
+                            )
+                            effectiveR5Gateway.ensureGuestSession(request.entrySessionId)
+                            val preview = effectiveR5Gateway.join(request)
+                            when (preview.availability) {
+                                R5ExperienceAvailability.CANCELLED -> throw R5EntryException(
+                                    R5EntryFailureReason.EXPERIENCE_CANCELLED,
+                                    retryable = false
+                                )
+                                R5ExperienceAvailability.ENDED -> throw R5EntryException(
+                                    R5EntryFailureReason.EXPERIENCE_ENDED,
+                                    retryable = false
+                                )
+                                R5ExperienceAvailability.ACTIVE,
+                                R5ExperienceAvailability.UPCOMING -> Unit
+                            }
+                            val membership = GroupMembership(
+                                code = preview.code.ifBlank { normalized },
+                                ownerId = null,
+                                role = if (preview.membership == R5ExperienceMembership.OWNER) {
+                                    GroupRole.OWNER
+                                } else {
+                                    GroupRole.SUBSCRIBER
+                                }
                             )
                             groupPrefs.addGroup(membership)
+                            effectiveR5Store.completeEntry(request.copy(code = membership.code))
                             joinedGroups = groupPrefs.getMemberships()
-                            if (dropVisibility == DropVisibility.GroupOnly && membership.role == GroupRole.OWNER) {
-                                groupCodeInput = TextFieldValue(normalized)
-                            }
-                            val message = if (membership.role == GroupRole.OWNER) {
-                                "Created group $normalized"
-                            } else {
-                                "Subscribed to $normalized"
-                            }
-                            manageGroupsSnackbar.showMessage(scope, message)
-                        } catch (error: Exception) {
-                            val message = when (error) {
-                                is GroupAlreadyExistsException ->
-                                    "Group ${error.code} already exist."
-                                is GroupNotFoundException ->
-                                    "Group $normalized doesn't exist. Ask the creator to share it once it's ready."
-                                else -> error.localizedMessage ?: "Couldn't save group $normalized"
-                            }
-                            manageGroupsSnackbar.showMessage(scope, message)
-                        }
-                    }
-                },
-                onSubscribe = { code ->
-                    val uid = FirebaseAuth.getInstance().currentUser?.uid
-                    if (uid.isNullOrBlank()) {
-                        manageGroupsSnackbar.showMessage(scope, "Sign in to manage groups.")
-                        return@ManageGroupsDialog
-                    }
-                    scope.launch {
-                        val normalized = GroupPreferences.normalizeGroupCode(code) ?: return@launch
-                        try {
-                            val membership = repo.joinGroup(
-                                uid,
-                                normalized,
-                                allowCreateIfMissing = false
+                            selectedExplorerGroupCode = membership.code
+                            manageGroupsSnackbar.showMessage(
+                                scope,
+                                ctx.getString(R.string.r4_join_success, normalized)
                             )
-                            groupPrefs.addGroup(membership)
-                            joinedGroups = groupPrefs.getMemberships()
-                            if (dropVisibility == DropVisibility.GroupOnly && membership.role == GroupRole.OWNER) {
-                                groupCodeInput = TextFieldValue(normalized)
-                            }
-                            val message = if (membership.role == GroupRole.OWNER) {
-                                "Created group $normalized"
-                            } else {
-                                "Subscribed to $normalized"
-                            }
-                            manageGroupsSnackbar.showMessage(scope, message)
                         } catch (error: Exception) {
                             val message = when (error) {
-                                is GroupNotFoundException ->
-                                    "Group $normalized doesn't exist. Ask the creator to share it once it's ready."
-                                else -> error.localizedMessage ?: "Couldn't save group $normalized"
+                                is R5EntryException -> when (error.reason) {
+                                    R5EntryFailureReason.INVALID_CODE,
+                                    R5EntryFailureReason.EXPERIENCE_NOT_FOUND ->
+                                        ctx.getString(R.string.r4_join_not_found, normalized)
+                                    R5EntryFailureReason.EXPERIENCE_CANCELLED ->
+                                        ctx.getString(R.string.r5_entry_error_cancelled)
+                                    R5EntryFailureReason.EXPERIENCE_ENDED ->
+                                        ctx.getString(R.string.r5_entry_error_ended)
+                                    R5EntryFailureReason.RATE_LIMITED ->
+                                        ctx.getString(R.string.r5_entry_error_rate_limited)
+                                    R5EntryFailureReason.OFFLINE ->
+                                        ctx.getString(R.string.r5_entry_error_offline)
+                                    R5EntryFailureReason.UNAVAILABLE,
+                                    R5EntryFailureReason.UNKNOWN ->
+                                        ctx.getString(R.string.r5_entry_error_unavailable)
+                                }
+                                else -> error.localizedMessage
+                                    ?: ctx.getString(R.string.r4_join_error, normalized)
                             }
-                            manageGroupsSnackbar.showMessage(scope, message)
-                        }
-                    }
-                },
-                onRemove = { code ->
-                    val uid = FirebaseAuth.getInstance().currentUser?.uid
-                    if (uid.isNullOrBlank()) {
-                        manageGroupsSnackbar.showMessage(scope, "Sign in to manage groups.")
-                        return@ManageGroupsDialog
-                    }
-                    scope.launch {
-                        val normalized = GroupPreferences.normalizeGroupCode(code) ?: return@launch
-                        try {
-                            repo.leaveGroup(uid, normalized)
-                            groupPrefs.removeGroup(normalized)
-                            joinedGroups = groupPrefs.getMemberships()
-                            val currentInput = GroupPreferences.normalizeGroupCode(groupCodeInput.text)
-                            if (currentInput == normalized) {
-                                groupCodeInput = TextFieldValue("")
-                            }
-                            manageGroupsSnackbar.showMessage(scope, "Removed group $normalized")
-                        } catch (error: Exception) {
-                            val message = error.localizedMessage ?: "Couldn't remove group $normalized"
                             manageGroupsSnackbar.showMessage(scope, message)
                         }
                     }
@@ -4804,11 +5629,6 @@ private fun FirstRunOnboardingScreen(
                 description = "Create drops with photos, audio, or coupons so nearby explorers can discover your business or story."
             ),
             OnboardingSlide(
-                icon = Icons.Rounded.AccountCircle,
-                title = "Build your profile",
-                description = "Personalize your explorer profile to track progress and highlight the drops you're proud of."
-            ),
-            OnboardingSlide(
                 icon = Icons.Rounded.Groups,
                 title = "Join community groups",
                 description = "Follow local crews or start your own group to coordinate adventures and share exclusive drops."
@@ -4957,371 +5777,7 @@ private val TERMS_PRIVACY_TABS = listOf(
     "Privacy Policy"
 )
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun RegisterScreen(
-    accountType: AccountType,
-    onAccountTypeChange: (AccountType) -> Unit,
-    mode: AccountAuthMode,
-    onModeChange: (AccountAuthMode) -> Unit,
-    email: TextFieldValue,
-    onEmailChange: (TextFieldValue) -> Unit,
-    password: TextFieldValue,
-    onPasswordChange: (TextFieldValue) -> Unit,
-    confirmPassword: TextFieldValue,
-    onConfirmPasswordChange: (TextFieldValue) -> Unit,
-    username: TextFieldValue,
-    onUsernameChange: (TextFieldValue) -> Unit,
-    isSubmitting: Boolean,
-    isGoogleSigningIn: Boolean,
-    error: String?,
-    status: String?,
-    onSubmit: () -> Unit,
-    onBack: () -> Unit,
-    onGoogleSignIn: () -> Unit
-) {
-    val isBusy = isSubmitting || isGoogleSigningIn
-    val focusManager = LocalFocusManager.current
-    val keyboardController = LocalSoftwareKeyboardController.current
-    val scrollState = rememberScrollState()
 
-    val hideKeyboard = {
-        keyboardController?.hide()
-        focusManager.clearFocus(force = true)
-    }
-    val submit = { hideKeyboard(); onSubmit() }
-    val back   = { hideKeyboard(); onBack() }
-
-    val isRegister = mode == AccountAuthMode.REGISTER
-    val requiresUsername = isRegister && accountType == AccountType.EXPLORER
-
-    BackHandler(enabled = !isBusy) { back() }
-
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = if (isRegister) "Join the World" else "Sign In",
-                        style = MaterialTheme.typography.titleLarge.copy(fontFamily = RalewayFontFamily)
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = { if (!isBusy) back() }) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
-                    }
-                }
-            )
-        }
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .padding(horizontal = 24.dp)
-                .imePadding()
-                .verticalScroll(scrollState),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Spacer(Modifier.height(8.dp))
-
-            // Account type selector
-            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                AccountType.entries.forEachIndexed { index, type ->
-                    SegmentedButton(
-                        shape = SegmentedButtonDefaults.itemShape(index, AccountType.entries.size),
-                        selected = accountType == type,
-                        onClick = { onAccountTypeChange(type) },
-                        enabled = !isBusy
-                    ) {
-                        Text(
-                            when (type) {
-                                AccountType.EXPLORER -> "Explorer"
-                                AccountType.BUSINESS -> "Business"
-                            }
-                        )
-                    }
-                }
-            }
-
-            // Description
-            Text(
-                text = when (accountType) {
-                    AccountType.EXPLORER -> "Explorer accounts let you drop, like, and collect rewards."
-                    AccountType.BUSINESS -> "Business accounts can publish offers and require business details."
-                },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            // Sign in / Register toggle
-            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                AccountAuthMode.entries.forEachIndexed { index, option ->
-                    SegmentedButton(
-                        shape = SegmentedButtonDefaults.itemShape(index, AccountAuthMode.entries.size),
-                        selected = mode == option,
-                        onClick = { onModeChange(option) },
-                        enabled = !isBusy
-                    ) {
-                        Text(
-                            when (option) {
-                                AccountAuthMode.SIGN_IN -> "Sign in"
-                                AccountAuthMode.REGISTER -> "Create account"
-                            }
-                        )
-                    }
-                }
-            }
-
-            // Username (Explorer register only)
-            if (requiresUsername) {
-                OutlinedTextField(
-                    value = username,
-                    onValueChange = onUsernameChange,
-                    label = { Text(stringResource(R.string.explorer_profile_username_label)) },
-                    placeholder = { Text(stringResource(R.string.explorer_profile_username_placeholder)) },
-                    enabled = !isBusy,
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(
-                        capitalization = KeyboardCapitalization.None,
-                        autoCorrect = false,
-                        keyboardType = KeyboardType.Ascii,
-                        imeAction = ImeAction.Next
-                    ),
-                    keyboardActions = KeyboardActions(
-                        onNext = { focusManager.moveFocus(FocusDirection.Next) }
-                    )
-                )
-                Text(
-                    text = stringResource(R.string.explorer_profile_hint),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            // Email
-            OutlinedTextField(
-                value = email,
-                onValueChange = onEmailChange,
-                label = { Text("Email address") },
-                enabled = !isBusy,
-                modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Email,
-                    imeAction = ImeAction.Next
-                ),
-                keyboardActions = KeyboardActions(
-                    onNext = { focusManager.moveFocus(FocusDirection.Next) }
-                )
-            )
-
-            // Password
-            OutlinedTextField(
-                value = password,
-                onValueChange = onPasswordChange,
-                label = { Text("Password") },
-                enabled = !isBusy,
-                modifier = Modifier.fillMaxWidth(),
-                visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Password,
-                    imeAction = if (isRegister) ImeAction.Next else ImeAction.Done
-                ),
-                keyboardActions = if (isRegister) {
-                    KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Next) })
-                } else {
-                    KeyboardActions(onDone = { submit() })
-                }
-            )
-
-            // Confirm password (register only)
-            if (isRegister) {
-                OutlinedTextField(
-                    value = confirmPassword,
-                    onValueChange = onConfirmPasswordChange,
-                    label = { Text("Confirm password") },
-                    enabled = !isBusy,
-                    modifier = Modifier.fillMaxWidth(),
-                    visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Password,
-                        imeAction = ImeAction.Done
-                    ),
-                    keyboardActions = KeyboardActions(onDone = { submit() })
-                )
-            }
-
-            // Error / status
-            error?.let {
-                Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-            }
-            status?.let {
-                Text(it, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
-            }
-
-            Spacer(Modifier.height(8.dp))
-
-            // Primary submit button
-            Button(
-                onClick = { submit() },
-                enabled = !isBusy,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                if (isSubmitting) {
-                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Working…")
-                } else {
-                    Text(if (isRegister) "Create account" else "Sign in")
-                }
-            }
-
-            Divider()
-            Text(
-                text = "Or continue with",
-                modifier = Modifier.fillMaxWidth(),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center
-            )
-
-            // Google sign-in button
-            OutlinedButton(
-                onClick = { hideKeyboard(); onGoogleSignIn() },
-                enabled = !isBusy,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                if (isGoogleSigningIn) {
-                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Connecting to Google…")
-                } else {
-                    Text("Sign in with Google")
-                }
-            }
-
-            Spacer(Modifier.height(24.dp))
-        }
-    }
-}
-
-@Composable
-private fun UserModeSelectionScreen(
-    onSelectGuest: () -> Unit,
-    onSelectSignIn: () -> Unit,
-    onSelectRegister: () -> Unit
-) {
-    val haptic = LocalHapticFeedback.current
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 24.dp)
-    ) {
-        // Header — pushed up from center to leave room for buttons
-        Column(
-            modifier = Modifier
-                .align(Alignment.Center)
-                .fillMaxWidth()
-                .padding(bottom = 200.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = "GeoDrop",
-                style = MaterialTheme.typography.displaySmall.copy(
-                    fontFamily = RoundedMFontFamily,
-                    fontWeight = FontWeight.Bold
-                ),
-                color = MaterialTheme.colorScheme.primary,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
-            )
-            Text(
-                text = "Step into a world of hidden drops",
-                style = MaterialTheme.typography.titleLarge.copy(fontFamily = RalewayFontFamily),
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
-            )
-            Text(
-                text = "Discover messages, memories, and treasures left by others - or leave your own behind.",
-                style = MaterialTheme.typography.bodyMedium.copy(fontFamily = RalewayFontFamily),
-                textAlign = TextAlign.Center,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
-
-        // Buttons anchored to the bottom
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .padding(bottom = 72.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            // 1st — filled + elevated shadow
-            AnimatedLandingButton { interactionSource, scale ->
-                ElevatedButton(
-                    onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        onSelectGuest()
-                    },
-                    interactionSource = interactionSource,
-                    elevation = ButtonDefaults.elevatedButtonElevation(
-                        defaultElevation = 6.dp,
-                        pressedElevation = 2.dp
-                    ),
-                    modifier = Modifier
-                        .fillMaxWidth(0.92f)
-                        .graphicsLayer { scaleX = scale; scaleY = scale }
-                ) {
-                    Text(
-                        "Explore as Guest",
-                        style = MaterialTheme.typography.labelLarge.copy(fontFamily = RalewayFontFamily),
-                        modifier = Modifier.padding(vertical = 4.dp)
-                    )
-                }
-            }
-
-            // 2nd — outlined
-            AnimatedLandingButton { interactionSource, scale ->
-                OutlinedButton(
-                    onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        onSelectRegister()
-                    },
-                    interactionSource = interactionSource,
-                    modifier = Modifier
-                        .fillMaxWidth(0.92f)
-                        .graphicsLayer { scaleX = scale; scaleY = scale }
-                ) {
-                    Text(
-                        "Join the World",
-                        style = MaterialTheme.typography.labelLarge.copy(fontFamily = RalewayFontFamily),
-                        modifier = Modifier.padding(vertical = 4.dp)
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun AnimatedLandingButton(
-    content: @Composable (interactionSource: MutableInteractionSource, scale: Float) -> Unit
-) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
-    val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.96f else 1f,
-        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-        label = "landingButtonScale"
-    )
-    content(interactionSource, scale)
-}
 
 private data class BusinessHomeMetrics(
     val liveDropCount: Int,
@@ -7319,6 +7775,7 @@ private fun ExplorerDestinationTabs(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AccountSignInDialog(
+    unlockGate: Boolean,
     accountType: AccountType,
     canChangeAccountType: Boolean,
     onAccountTypeChange: (AccountType) -> Unit,
@@ -7399,9 +7856,11 @@ private fun AccountSignInDialog(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Text(
-                    text = when (accountType) {
-                        AccountType.EXPLORER -> "Explorer account"
-                        AccountType.BUSINESS -> "Business account"
+                    text = if (unlockGate) {
+                        stringResource(R.string.r5_unlock_account_title)
+                    } else when (accountType) {
+                        AccountType.EXPLORER -> "Account"
+                        AccountType.BUSINESS -> "Organizer account"
                     },
                     style = MaterialTheme.typography.titleLarge
                 )
@@ -7416,8 +7875,8 @@ private fun AccountSignInDialog(
                             ) {
                                 Text(
                                     text = when (type) {
-                                        AccountType.EXPLORER -> "Explorer"
-                                        AccountType.BUSINESS -> "Business"
+                                        AccountType.EXPLORER -> "Participant"
+                                        AccountType.BUSINESS -> "Organizer"
                                     }
                                 )
                             }
@@ -7426,9 +7885,11 @@ private fun AccountSignInDialog(
                 }
 
                 Text(
-                    text = when (accountType) {
-                        AccountType.EXPLORER -> "Explorer accounts let you drop, like, and collect rewards."
-                        AccountType.BUSINESS -> "Business accounts can publish offers and require business details."
+                    text = if (unlockGate) {
+                        stringResource(R.string.r5_unlock_account_body)
+                    } else when (accountType) {
+                        AccountType.EXPLORER -> "Save finds and join Experiences with an account."
+                        AccountType.BUSINESS -> "Sign in with an approved Organizer account."
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -7490,7 +7951,9 @@ private fun AccountSignInDialog(
                 }
 
                 val isRegister = mode == AccountAuthMode.REGISTER
-                val requiresExplorerUsername = isRegister && accountType == AccountType.EXPLORER
+                val requiresExplorerUsername = isRegister &&
+                    accountType == AccountType.EXPLORER &&
+                    !unlockGate
 
                 if (requiresExplorerUsername) {
                     OutlinedTextField(
@@ -7701,278 +8164,6 @@ private fun AccountSignInDialog(
             }
         }
     }
-}
-
-@Composable
-private fun ExplorerProfileDialog(
-    memberSince: Long?,
-    displayNameField: TextFieldValue,
-    onDisplayNameChange: (TextFieldValue) -> Unit,
-    username: TextFieldValue,
-    onUsernameChange: (TextFieldValue) -> Unit,
-    isSubmitting: Boolean,
-    error: String?,
-    nearbyAlertsEnabled: Boolean,
-    defaultExplorerDestination: String?,
-    onNearbyAlertsChange: (Boolean) -> Unit,
-    onDefaultExplorerDestinationChange: (String?) -> Unit,
-    onAvatarUploadClick: () -> Unit,
-    onSubmit: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    Dialog(
-        onDismissRequest = {
-            if (!isSubmitting) onDismiss()
-        }
-    ) {
-        Surface(
-            shape = MaterialTheme.shapes.large,
-            tonalElevation = 6.dp,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-        ) {
-            val scrollState = rememberScrollState()
-            Column(
-                modifier = Modifier
-                    .padding(24.dp)
-                    .verticalScroll(scrollState),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Text(
-                    text = stringResource(R.string.explorer_profile_title),
-                    style = MaterialTheme.typography.titleLarge
-                )
-
-                Text(
-                    text = stringResource(R.string.explorer_profile_description),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                ExplorerProfileHeader(
-                    memberSince = memberSince,
-                    onAvatarUploadClick = onAvatarUploadClick
-                )
-
-                OutlinedTextField(
-                    value = displayNameField,
-                    onValueChange = onDisplayNameChange,
-                    label = { Text(stringResource(R.string.explorer_profile_display_name_label)) },
-                    placeholder = { Text(stringResource(R.string.explorer_profile_display_name_placeholder)) },
-                    singleLine = true,
-                    enabled = !isSubmitting,
-                    keyboardOptions = KeyboardOptions(
-                        imeAction = ImeAction.Next
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                OutlinedTextField(
-                    value = username,
-                    onValueChange = onUsernameChange,
-                    label = { Text(stringResource(R.string.explorer_profile_username_label)) },
-                    placeholder = { Text(stringResource(R.string.explorer_profile_username_placeholder)) },
-                    singleLine = true,
-                    enabled = !isSubmitting,
-                    keyboardOptions = KeyboardOptions(
-                        capitalization = KeyboardCapitalization.None,
-                        autoCorrect = false,
-                        keyboardType = KeyboardType.Ascii,
-                        imeAction = ImeAction.Done
-                    ),
-                    keyboardActions = KeyboardActions(onDone = { onSubmit() }),
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Text(
-                    text = stringResource(R.string.explorer_profile_hint),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                ExplorerPreferencesSection(
-                        nearbyAlertsEnabled = nearbyAlertsEnabled,
-                    defaultExplorerDestination = defaultExplorerDestination,
-                    enabled = !isSubmitting,
-                    onNearbyAlertsChange = onNearbyAlertsChange,
-                    onDefaultExplorerDestinationChange = onDefaultExplorerDestinationChange
-                )
-
-                error?.let { message ->
-                    Text(
-                        text = message,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    OutlinedButton(
-                        onClick = onDismiss,
-                        enabled = !isSubmitting,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text("Cancel")
-                    }
-
-                    Button(
-                        onClick = onSubmit,
-                        enabled = !isSubmitting,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        if (isSubmitting) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(18.dp),
-                                strokeWidth = 2.dp
-                            )
-                        } else {
-                            Text(stringResource(R.string.explorer_profile_save))
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-
-@Composable
-private fun ExplorerProfileHeader(
-    memberSince: Long?,
-    onAvatarUploadClick: () -> Unit
-) {
-    Surface(
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Surface(
-                modifier = Modifier.size(56.dp),
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.primaryContainer
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = Icons.Rounded.AccountCircle,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.size(36.dp)
-                    )
-                }
-            }
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                TextButton(onClick = onAvatarUploadClick, contentPadding = PaddingValues(0.dp)) {
-                    Text("Upload avatar")
-                }
-                Text(
-                    text = "Member since ${formatMemberSince(memberSince)}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun ExplorerPreferencesSection(
-    nearbyAlertsEnabled: Boolean,
-    defaultExplorerDestination: String?,
-    enabled: Boolean,
-    onNearbyAlertsChange: (Boolean) -> Unit,
-    onDefaultExplorerDestinationChange: (String?) -> Unit
-) {
-    val options = remember { listOf<String?>(null) + ExplorerDestination.entries.map { it.name } }
-    val selectedDestination = defaultExplorerDestination
-        ?.let { runCatching { ExplorerDestination.valueOf(it) }.getOrNull() }
-
-    Surface(
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Text("Preferences", style = MaterialTheme.typography.titleMedium)
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Nearby alerts", style = MaterialTheme.typography.labelMedium)
-                    Text(
-                        if (nearbyAlertsEnabled) "On" else "Off — browsing is unaffected",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                }
-                Switch(
-                    checked = nearbyAlertsEnabled,
-                    onCheckedChange = { if (enabled) onNearbyAlertsChange(it) },
-                    enabled = enabled
-                )
-            }
-
-            Text("Default explorer destination", style = MaterialTheme.typography.labelMedium)
-            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                options.forEachIndexed { index, option ->
-                    val shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size)
-                    val selected = option == defaultExplorerDestination
-                    val label = if (option == null) {
-                        "None"
-                    } else {
-                        explorerDestinationLabel(
-                            runCatching { ExplorerDestination.valueOf(option) }.getOrDefault(ExplorerDestination.Discover)
-                        )
-                    }
-                    SegmentedButton(
-                        selected = selected,
-                        onClick = { onDefaultExplorerDestinationChange(option) },
-                        shape = shape,
-                        enabled = enabled,
-                        label = { Text(label) }
-                    )
-                }
-            }
-            Text(
-                text = selectedDestination?.let { "Opens to ${explorerDestinationLabel(it)}." }
-                    ?: "No default selected. GeoDrop opens to Nearby.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}
-
-private fun explorerDestinationLabel(destination: ExplorerDestination): String {
-    return when (destination) {
-        ExplorerDestination.Discover -> "Nearby"
-        ExplorerDestination.MyDrops -> "My Drops"
-        ExplorerDestination.Collected -> "Collected"
-    }
-}
-
-
-private fun formatMemberSince(memberSince: Long?): String {
-    val millis = memberSince ?: return "recently"
-    return runCatching {
-        java.text.SimpleDateFormat("MMM yyyy", java.util.Locale.getDefault()).format(java.util.Date(millis))
-    }.getOrDefault("recently")
 }
 
 @Composable
@@ -9120,6 +9311,7 @@ private fun ExplorerDropListPanel(
                 ExplorerDropListPanelValue.Expanded at 0f
             }
         }
+        val panelTranslationX = finitePanelTranslation(state.offset, collapsedOffset)
 
         LaunchedEffect(anchors, expandWhen) {
             state.updateAnchors(anchors)
@@ -9176,7 +9368,7 @@ private fun ExplorerDropListPanel(
                     .width(currentPanelWidth)
                     .height(currentPanelHeight)
                     .heightIn(min = effectiveMinPanelHeight, max = availablePanelHeight)
-                    .graphicsLayer { translationX = state.offset },
+                    .graphicsLayer { translationX = panelTranslationX },
                 shape = RectangleShape,
                 tonalElevation = 8.dp,
                 shadowElevation = 0.dp,
@@ -10771,7 +10963,7 @@ private fun OtherDropRow(
                     if (!isUnlocked) {
                         Button(
                             onClick = onPickUp,
-                            enabled = canPickUp && !isUnlocking,
+                            enabled = !isUnlocking,
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text(if (isUnlocking) "Checking your location…" else "Unlock drop")
@@ -10780,14 +10972,14 @@ private fun OtherDropRow(
 
                     if (isUnlocked) {
                         Spacer(Modifier.height(12.dp))
-                        if (canPickUp) {
-                            Button(
-                                onClick = onPickUp,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text("Pick up drop")
-                            }
-                        } else {
+                        Button(
+                            onClick = onPickUp,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(if (canPickUp) "Pick up drop" else "Make an account to pick up")
+                        }
+                        if (!canPickUp) {
+                            Spacer(Modifier.height(4.dp))
                             Text(
                                 text = pickupRestrictionMessage
                                     ?: "Preview this drop while browsing as a guest. Sign in to pick it up nearby.",
@@ -12302,9 +12494,9 @@ private data class ExplorerDropCardColors(
 
 @Composable
 private fun BlockedCreatorsDialog(
-    creatorIds: List<String>,
+    hosts: List<R9BlockedHost>,
     loading: Boolean,
-    onUnblock: (String) -> Unit,
+    onUnblock: (R9BlockedHost) -> Unit,
     onDismiss: () -> Unit
 ) {
     Dialog(onDismissRequest = onDismiss) {
@@ -12326,7 +12518,7 @@ private fun BlockedCreatorsDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Blocked creators",
+                        text = "Blocked hosts",
                         style = MaterialTheme.typography.titleLarge,
                         modifier = Modifier.weight(1f)
                     )
@@ -12346,9 +12538,9 @@ private fun BlockedCreatorsDialog(
                             CircularProgressIndicator()
                         }
                     }
-                    creatorIds.isEmpty() -> {
+                    hosts.isEmpty() -> {
                         Text(
-                            text = "You haven't blocked any creators.",
+                            text = "You haven't blocked any hosts.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -12360,7 +12552,7 @@ private fun BlockedCreatorsDialog(
                                 .heightIn(max = 360.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            items(creatorIds) { creatorId ->
+                            items(hosts, key = R9BlockedHost::hostId) { host ->
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     verticalAlignment = Alignment.CenterVertically,
@@ -12372,13 +12564,13 @@ private fun BlockedCreatorsDialog(
                                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                     Text(
-                                        text = creatorId,
+                                        text = host.hostLabel,
                                         style = MaterialTheme.typography.bodyMedium,
                                         modifier = Modifier.weight(1f),
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
-                                    OutlinedButton(onClick = { onUnblock(creatorId) }) {
+                                    OutlinedButton(onClick = { onUnblock(host) }) {
                                         Text("Unblock")
                                     }
                                 }

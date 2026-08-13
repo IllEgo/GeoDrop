@@ -1,5 +1,49 @@
 {
-  "indexes": [],
+  "indexes": [
+    {
+      "collectionGroup": "experienceDrops",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "experienceCode", "order": "ASCENDING" },
+        { "fieldPath": "state", "order": "ASCENDING" },
+        { "fieldPath": "moderationState", "order": "ASCENDING" },
+        { "fieldPath": "publishedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "experienceDrops",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ownerId", "order": "ASCENDING" },
+        { "fieldPath": "state", "order": "ASCENDING" },
+        { "fieldPath": "publishedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "codes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "state", "order": "ASCENDING" },
+        { "fieldPath": "issuedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "analyticsEvents",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "actorKey", "order": "ASCENDING" },
+        { "fieldPath": "occurredAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "analyticsEvents",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "experienceKey", "order": "ASCENDING" },
+        { "fieldPath": "occurredAt", "order": "DESCENDING" }
+      ]
+    }
+  ],
   "fieldOverrides": [
     {
       "_comment": "Task 4.5 — notifyGroupMembersOnDropCreated resolves recipients with collectionGroup('groups').where('code','==',...). Default single-field indexing covers COLLECTION scope only, so without the COLLECTION_GROUP entry every invocation failed FAILED_PRECONDITION. The three COLLECTION entries are repeated here because a fieldOverrides entry REPLACES the defaults rather than adding to them.",
@@ -16,6 +60,61 @@
       "_comment": "Same failure, found while verifying the 4.6 deploy: deleteAccount's deleteOwnedInventoryCopies runs collectionGroup('inventory').where('id','in',...). Without this, deleting an account that ever created a drop failed FAILED_PRECONDITION after report anonymisation had already run — a partial deletion. The COLLECTION entries are repeated for the same replacement reason as above.",
       "collectionGroup": "inventory",
       "fieldPath": "id",
+      "indexes": [
+        { "order": "ASCENDING", "queryScope": "COLLECTION" },
+        { "order": "DESCENDING", "queryScope": "COLLECTION" },
+        { "arrayConfig": "CONTAINS", "queryScope": "COLLECTION" },
+        { "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" }
+      ]
+    },
+    {
+      "_comment": "R2 account deletion removes target receipts for organizer-owned drops through collection-group queries.",
+      "collectionGroup": "unlocks",
+      "fieldPath": "dropId",
+      "indexes": [
+        { "order": "ASCENDING", "queryScope": "COLLECTION" },
+        { "order": "DESCENDING", "queryScope": "COLLECTION" },
+        { "arrayConfig": "CONTAINS", "queryScope": "COLLECTION" },
+        { "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" }
+      ]
+    },
+    {
+      "_comment": "R2 account deletion removes target reward receipts for organizer-owned drops through collection-group queries.",
+      "collectionGroup": "rewardReceipts",
+      "fieldPath": "dropId",
+      "indexes": [
+        { "order": "ASCENDING", "queryScope": "COLLECTION" },
+        { "order": "DESCENDING", "queryScope": "COLLECTION" },
+        { "arrayConfig": "CONTAINS", "queryScope": "COLLECTION" },
+        { "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" }
+      ]
+    },
+    {
+      "_comment": "R2 account deletion removes private likes for organizer-owned drops.",
+      "collectionGroup": "likes",
+      "fieldPath": "dropId",
+      "indexes": [
+        { "order": "ASCENDING", "queryScope": "COLLECTION" },
+        { "order": "DESCENDING", "queryScope": "COLLECTION" },
+        { "arrayConfig": "CONTAINS", "queryScope": "COLLECTION" },
+        { "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" }
+      ]
+    },
+    {
+      "_comment": "R2 organizer deletion removes Trail progress when an owned Experience is removed.",
+      "collectionGroup": "trailProgress",
+      "fieldPath": "experienceCode",
+      "indexes": [
+        { "order": "ASCENDING", "queryScope": "COLLECTION" },
+        { "order": "DESCENDING", "queryScope": "COLLECTION" },
+        { "arrayConfig": "CONTAINS", "queryScope": "COLLECTION" },
+        { "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" }
+      ]
+    },
+    {
+      "_comment": "R2 retention purge removes reward-code audit events after 180 days.",
+      "collectionGroup": "events",
+      "fieldPath": "expiresAt",
       "indexes": [
         { "order": "ASCENDING", "queryScope": "COLLECTION" },
         { "order": "DESCENDING", "queryScope": "COLLECTION" },

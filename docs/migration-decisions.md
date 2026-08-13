@@ -5,7 +5,9 @@ orphan, or archive the data?** — with a recommendation and reasoning for each.
 last Phase 0 task; once signed it becomes the spec that Phases 1 (rules) and 2 (client
 removal) execute against.
 
-- **Status:** Proposed — awaiting owner sign-off (the 0.3 gate).
+- **Status:** Approved. P1–P7 were subsequently implemented as recorded in
+  `migration-plan.md`; P8 was approved by the owner on 2026-08-09 and defines the redesign
+  target where it supersedes an earlier implementation decision.
 - **Inputs:** `docs/feature-inventory.md` (0.1), `docs/data-inventory.md` (0.2).
 - **Load-bearing fact from 0.2:** all 100 drops are the owner's own test data; **zero
   real third-party users**. Data-disposition risk is therefore low, which is what makes
@@ -298,4 +300,94 @@ questions about *people*, and no amount of per-drop counting answers them. That 
 uids to anyone who can read the drop, so the organiser can see them today. The rollup should
 report **aggregates**, not per-attendee identity — there is no reason a dashboard needs to
 name who redeemed, and doing so would sit badly beside the location-privacy work in Phase 3.
+
+---
+
+## P8 — Approved redesign alignment (added 2026-08-09, task R0)
+
+The owner approved all seven fundamental recommendations and the inconsistency-resolution
+table in `redesign-alignment-proposal.md`. These decisions are binding targets; they do not
+claim the current clients or deployed backend already implement them.
+
+1. **Server-authoritative unlock (supersedes P6 only where payload release/receipt creation
+   still depends on a client-only proximity decision).** Split readable discovery metadata
+   from the locked payload. A callable validates a one-shot precise fix, accuracy, age,
+   active window, membership, configured radius, idempotency, and abuse controls before it
+   returns content and writes an immutable receipt. Never persist or log the coordinates.
+2. **Issued is not used (supersedes P6's use of “redeemed” at code generation and P7's
+   matching counter).** Assign a server-held, pre-generated code on reward unlock and
+   reserve inventory. Record confirmed business use separately through an owner-authorized,
+   audited operation. Migrate existing pre-pilot receipts as issued, not proven used.
+3. **Approved-organizer-only Pilot 1 creation.** Keep exactly two internal roles. `BUSINESS`
+   means approved organizer; it is not a merchant employee role. Only an approved organizer
+   that owns an Experience may create or mutate its event drops. Organizer application
+   status, if stored, is server-authored workflow state rather than a third role.
+4. **Keep private aggregate Results.** The already-built owner dashboard remains launch
+   scope and reports no attendee identity. A founder report supplements it. When decision 2
+   lands, Results separates codes issued from codes used.
+5. **Android-first, iOS preserved.** Redesign and outdoor-qualify Android first. Preserve
+   iOS source, security behavior, and backend compatibility; defer iOS visual parity until
+   the Android pilot gate.
+6. **Scheduled drops remain deferred.** Immediate publish and expiration stay in v1. Do
+   not build a date picker without the server transition, notification, timezone, and
+   recovery system an explicit later reversal would require.
+7. **Qualify QR onboarding through real Play distribution.** Prefer a fail-closed
+   production listing with owned-domain App Links, Install Referrer, and event-code fallback.
+   Open testing is a disclosed fallback. Closed-test enrollment and sideloading cannot close
+   the attendee-funnel gate.
+
+Additional binding resolutions: participant tabs are Nearby/Collection/Account; guest
+browsing precedes an account gate at the first unlock; precise permission begins only after
+the unlock action; push permission follows the first success; Trail is the user-facing
+ordered mechanic; `groups` may remain the Pilot 1 storage name behind an Experience facade;
+earned payload snapshots are immutable; and Firebase Dynamic Links are not used.
+
+**Sequence:** R1 defines contracts and migrations. R2 changes the server/rules boundary
+before redesigned clients depend on it. Every later R task stops at the gate in
+`redesign-alignment-proposal.md`. R0 changes documentation only.
+
+---
+
+## P9 — Split R5 local implementation from the production funnel (added 2026-08-10)
+
+The owner approved postponing the HTTPS host and production-funnel work while the app is
+being renamed and its independent identity is being established. This is a sequencing
+change, not a waiver of the real-install funnel required by P8.
+
+**Decision: split R5 into two gates.**
+
+- **R5-L — local/device implementation:** automated verification, physical-device install,
+  preview-first entry, guest/account transitions, permission recovery, and exact-resume
+  behavior. Approved and complete on 2026-08-10.
+- **R5-P — production funnel:** app-owned HTTPS host, release App Links association, real
+  Play installation continuity, deployment and rollback approval, safe fixtures, and the
+  complete external matrix. Deferred, but blocking before any pilot or public release.
+
+This exception permits later local UI/UX design and implementation to proceed under each
+task's normal approval gate. It authorizes no production deployment, backend enablement,
+Remote Config change, Play publication, production-data mutation, or M4 cutover. R6 is the
+next eligible task; eligibility is not automatic authorization.
+
+**Authorization addendum:** after approving this split, the owner explicitly authorized R6
+local implementation on 2026-08-10. That authorization includes the participant-loop
+crash-stability checkpoint and the R6 scope in `redesign-alignment-proposal.md`; it does not
+expand any production or later-task authority listed above.
+
+---
+
+## P10 - Experience-first entry replaces the legacy account-choice landing (added 2026-08-12)
+
+The old `GeoDrop / Step into a world of hidden drops` page is not a redesign target. It
+placed an account choice before Experience context, which conflicts with P8 and the approved
+R5 preview-first guest flow.
+
+**Decision: remove the legacy landing and its duplicate registration screen.** Entry remains
+Experience code or link -> Experience preview -> controlled anonymous guest browsing. Account
+sign-in and creation remain available from Account and are required at the first unlock. If a
+guest dismisses sign-in, signs out, or completes account deletion, the app returns to guest
+browsing instead of revealing an account-choice wall.
+
+This is an implementation alignment, not a scope change to `product-direction.md` or
+`migration-plan.md`. Verified with the Android unit/lint/build gate and on the physical-device
+DEMO2026 participant route.
 

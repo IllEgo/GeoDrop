@@ -4,6 +4,13 @@ Session date: 2026-07-29
 Status: drafted, not yet reviewed against Legal (ToS/liability language at request time) or Backend feasibility.
 Updated 2026-07-29: reconciled with the draft state added to `drop-authoring-flow.md` — see new subsection under "Get started" behavior, below Screen 3a.
 
+> **R0 alignment decision (approved 2026-08-09; see
+> `redesign-alignment-proposal.md`):** accept the pure human-review gate, no
+> ID verification, no trial tier, and an external Pilot 1 application form. Approval maps
+> the existing account to internal role `BUSINESS`; pending/denied display state, if added,
+> is server-authored workflow state rather than a third role. Legal wording and reapplication
+> policy remain unresolved and must close before this flow is production-ready.
+
 ## Design principle
 
 Open authoring (anyone, anywhere) is not in scope. Organizer accounts are gated behind a request → human review → approve/deny process. No ID verification — vetting is reputation-based (org/business name, contact info, brief description, ToS agreement), not identity-based, at current pilot scale. This is a **pure gate**: no sandboxed/trial organizer tier. Applicants get zero organizer capability until approved.

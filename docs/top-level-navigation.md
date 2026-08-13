@@ -6,6 +6,13 @@ Resolves the open item flagged in `bounty-mechanic-design.md`: "Where the overal
 Updated 2026-07-29 (second pass): added code-entry join path (1.0b in `geodrop-wireframe-spec-v1.md`) and confirmed multi-experience support — Map tab shows one active experience with an explicit switcher, Collection combined across all joined experiences by default.
 Depends on: every Explorer-side and Organizer-side flow doc in this project — this is the structural skeleton they all connect to.
 
+> **R0 alignment override (approved 2026-08-09; see
+> `redesign-alignment-proposal.md`):** the participant tabs are **Nearby**,
+> **Collection**, and **Account**; every reference below to a top-level Map tab means Nearby.
+> One active Experience is shown at a time while Collection combines all joined
+> Experiences. Approved organizer tools remain an Account entry, never a fourth tab.
+> "Explorer" is internal terminology and must not label the participant in UI.
+
 ## Design principle
 
 **One shared shell, additive by account type — not two separate apps, and not a full nav swap.** Explorer nav is the constant base every account has, since every account starts as an Explorer (per the access-request flow's own framing — Organizer is an upgrade granted to an existing account, not a separate signup). An approved Organizer gains one additional entry point into Organizer tools; they don't lose Explorer nav in exchange for it.

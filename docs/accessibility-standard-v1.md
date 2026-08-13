@@ -6,6 +6,12 @@
 > **Upload to:** Frontend Engineer, QA project knowledge bases.
 > **Testing is QA's, not mine.** This file defines the bar; QA defines how it's verified.
 
+> **R0 alignment decision (2026-08-09; see `redesign-alignment-proposal.md`):** accepted as
+> the Pilot 1 accessibility bar.
+> Participant surfaces target WCAG 2.2 AA; the component and outdoor-device evidence in
+> redesign tasks R3, R6, and R10 are required gates. The document remains draft only where
+> it still needs concrete QA cases, not because the standard itself is undecided.
+
 ---
 
 ## The standard, in one line

@@ -6,12 +6,17 @@ import kotlinx.coroutines.tasks.await
 import java.net.URI
 import java.util.Locale
 
+interface LegalConsentGateway {
+    suspend fun fetchManifest(): LegalPolicyManifest
+    suspend fun recordAcceptance(policyVersion: String)
+}
+
 class LegalConsentRepo(
     private val functions: FirebaseFunctions = FirebaseFunctions.getInstance(
         BuildConfig.FIREBASE_FUNCTIONS_REGION
     )
-) {
-    suspend fun fetchManifest(): LegalPolicyManifest {
+) : LegalConsentGateway {
+    override suspend fun fetchManifest(): LegalPolicyManifest {
         val result = functions.getHttpsCallable("getLegalPolicyManifest")
             .call()
             .await()
@@ -30,7 +35,7 @@ class LegalConsentRepo(
         )
     }
 
-    suspend fun recordAcceptance(policyVersion: String) {
+    override suspend fun recordAcceptance(policyVersion: String) {
         functions.getHttpsCallable("recordLegalAcceptance")
             .call(
                 mapOf(
@@ -55,6 +60,25 @@ class LegalConsentRepo(
         }
         return value
     }
+}
+
+/** Local-only policy fixture selected by MainActivity only for a debug APK. */
+object DebugDemoLegalConsentGateway : LegalConsentGateway {
+    private const val DEBUG_POLICY_ROOT = "https://debug-device-demo.invalid"
+
+    override suspend fun fetchManifest() = LegalPolicyManifest(
+        version = "DEBUG-DEMO-NOT-PRODUCTION",
+        terms = "$DEBUG_POLICY_ROOT/terms",
+        privacy = "$DEBUG_POLICY_ROOT/privacy",
+        communityGuidelines = "$DEBUG_POLICY_ROOT/community-guidelines",
+        promotionTerms = "$DEBUG_POLICY_ROOT/promotion-terms",
+        retention = "$DEBUG_POLICY_ROOT/retention",
+        processors = "$DEBUG_POLICY_ROOT/processors",
+        minors = "$DEBUG_POLICY_ROOT/minors",
+        support = "$DEBUG_POLICY_ROOT/support"
+    )
+
+    override suspend fun recordAcceptance(policyVersion: String) = Unit
 }
 
 data class LegalPolicyManifest(

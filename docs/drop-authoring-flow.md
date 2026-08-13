@@ -5,6 +5,16 @@ Status: drafted, not yet reviewed against Backend feasibility or founder walkthr
 Updated 2026-07-29: corrected drop-count assumption (was 10–40, now 8–20 per original vision); confirmed authoring model is ongoing/ add-anytime, not all-at-once — see new §7 (Editing Live Drops) and §8 (Scheduled Drops).
 Depends on: `geodrop-product-spec-v1.md` §4.3–4.5, `bounty-organizer-authoring-flow.md` (this is the screen that flow's bounty disclosure row attaches to).
 
+> **R0 alignment override (approved 2026-08-09; see
+> `redesign-alignment-proposal.md`):** Pilot 1 keeps immediate publish,
+> configurable radius, expiration, text/single-photo authoring, edit, and delete. Scheduled
+> publishing (§8) is deferred. The 30-minute retroactive edit model (§7) is superseded by
+> an immutable snapshot at unlock; later edits affect future unlocks only and carry an
+> Edited marker. Basic cloud drafts are conditional on the timed venue walkthrough proving
+> interruption is a blocker. Every claim below that an authoritative write queues offline
+> is superseded for Pilot 1: cached reads may work offline, but publish/edit/delete/reward
+> mutations fail clearly and retry online.
+
 ## Design principle
 
 This is the highest-frequency screen an Organizer touches, and it's timed — under 3 minutes end to end is a go/no-go input for the whole pilot, not a nice-to-have. Every design decision here is in service of that budget. If a choice makes the screen more complete but slower, it's the wrong choice for v1.

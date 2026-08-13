@@ -4,6 +4,13 @@ Session date: 2026-07-29
 Status: drafted, not yet reviewed against Backend feasibility.
 Depends on: `organizer-access-request-flow.md` (this is the destination of that flow's "Get started" — first thing an approved Organizer does), `drop-authoring-flow.md` and `bounty-organizer-authoring-flow.md` (both assume an experience already exists), `geodrop-product-spec-v1.md` §4.1 (entry/QR), §2 (funnel definitions).
 
+> **R0 alignment override (approved 2026-08-09; see
+> `redesign-alignment-proposal.md`):** strict organizer approval and the lack
+> of an in-app guest list remain accepted. Keep the already-built private aggregate Results
+> view inside organizer tooling; the statement in §4 that Results must be founder-report-
+> only is superseded. Generate an owned-domain App Link plus human event code and qualify
+> the cold-install path through Play. Scheduled drops remain deferred.
+
 ## Design principle
 
 This is the first thing an Organizer does after approval, and it's the screen that produces the one artifact everything else depends on: the QR + event code pair that Explorers actually use to get in. Get this wrong and nothing downstream works, no matter how good the drop authoring or bounty flows are.

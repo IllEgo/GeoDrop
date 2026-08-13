@@ -9,6 +9,13 @@
 > PROJECT-STATE version I have. §1 below is a **proposal to be corrected**, not the founder's
 > own voice. §3 is a decision I'm making and will hold to unless overruled.
 
+> **R0 alignment decision (2026-08-09; see `redesign-alignment-proposal.md`):** accepted as
+> the canonical Pilot 1 terminology
+> and voice reference. Trail replaces Hunt in user-facing copy; Nearby is the tab label;
+> participant UI does not call someone an Explorer; guest-facing creator copy says host.
+> Organizer remains valid in professional/account tooling. Any older design-file glossary
+> or role label is superseded by this document.
+
 ---
 
 ## 1. Voice — proposed

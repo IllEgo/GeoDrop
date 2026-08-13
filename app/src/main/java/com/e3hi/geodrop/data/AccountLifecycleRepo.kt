@@ -3,6 +3,7 @@ package com.e3hi.geodrop.data
 import com.e3hi.geodrop.BuildConfig
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.functions.FirebaseFunctions
+import com.google.firebase.functions.FirebaseFunctionsException
 import kotlinx.coroutines.tasks.await
 
 class AccountLifecycleRepo(
@@ -13,9 +14,11 @@ class AccountLifecycleRepo(
 ) {
     suspend fun requestExport(): AccountExportResult {
         refreshIdToken()
-        val result = functions.getHttpsCallable("requestAccountExport")
-            .call(mapOf("policyVersion" to POLICY_VERSION))
-            .await()
+        val result = lifecycleCall {
+            functions.getHttpsCallable("requestAccountExport")
+                .call(mapOf("policyVersion" to POLICY_VERSION))
+                .await()
+        }
         val data = result.data as? Map<*, *>
             ?: throw IllegalStateException("Account export returned an invalid response")
         return AccountExportResult(
@@ -28,14 +31,16 @@ class AccountLifecycleRepo(
 
     suspend fun deleteAccount(confirmation: String): AccountDeletionReceipt {
         refreshIdToken()
-        val result = functions.getHttpsCallable("deleteAccount")
-            .call(
-                mapOf(
-                    "policyVersion" to POLICY_VERSION,
-                    "confirmation" to confirmation
+        val result = lifecycleCall {
+            functions.getHttpsCallable("deleteAccount")
+                .call(
+                    mapOf(
+                        "policyVersion" to POLICY_VERSION,
+                        "confirmation" to confirmation
+                    )
                 )
-            )
-            .await()
+                .await()
+        }
         val data = result.data as? Map<*, *>
             ?: throw IllegalStateException("Account deletion returned an invalid response")
         val counts = data["counts"] as? Map<*, *> ?: emptyMap<Any, Any>()
@@ -54,6 +59,21 @@ class AccountLifecycleRepo(
         user.getIdToken(true).await()
     }
 
+    private suspend fun <T> lifecycleCall(block: suspend () -> T): T = try {
+        block()
+    } catch (error: FirebaseFunctionsException) {
+        val reason = (error.details as? Map<*, *>)?.get("reason")?.toString()
+        throw AccountLifecycleException(
+            userMessage = AccountLifecyclePolicy.failureMessage(reason),
+            retryable = error.code in setOf(
+                FirebaseFunctionsException.Code.UNAVAILABLE,
+                FirebaseFunctionsException.Code.DEADLINE_EXCEEDED,
+                FirebaseFunctionsException.Code.ABORTED
+            ),
+            cause = error
+        )
+    }
+
     private fun Map<*, *>.string(key: String): String =
         this[key]?.toString()?.takeIf { it.isNotBlank() }
             ?: throw IllegalStateException("Account lifecycle response is missing $key")
@@ -65,6 +85,26 @@ class AccountLifecycleRepo(
         const val POLICY_VERSION = "pilot-2026-07-21-draft"
     }
 }
+
+object AccountLifecyclePolicy {
+    fun failureMessage(reason: String?): String = when (reason) {
+        "REAUTHENTICATION_REQUIRED" ->
+            "Your sign-in is too old for this action. Verify your identity and try again."
+        "POLICY_VERSION_MISMATCH" ->
+            "The account policy changed. Close this screen, review the latest policy, and retry."
+        "EXPLICIT_CONFIRMATION_REQUIRED" ->
+            "Type DELETE exactly before deleting your account."
+        "SERVER_CONFIGURATION_REQUIRED" ->
+            "Account data tools aren't available right now. Try again later."
+        else -> "GeoDrop couldn't complete this account action. Try again."
+    }
+}
+
+class AccountLifecycleException(
+    val userMessage: String,
+    val retryable: Boolean,
+    cause: Throwable? = null
+) : Exception(userMessage, cause)
 
 data class AccountExportResult(
     val requestId: String,

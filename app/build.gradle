@@ -18,6 +18,18 @@ def booleanBuildFlag = { String propertyName, boolean defaultValue ->
     return normalizedValue
 }
 
+def appLinkHost = (
+        project.findProperty('GEODROP_APP_LINK_HOST')
+                ?: System.getenv('GEODROP_APP_LINK_HOST')
+                ?: 'r5-unconfigured.invalid'
+).toString().trim().toLowerCase()
+if (!(appLinkHost ==~ /[a-z0-9.-]+/) || appLinkHost.contains('..')) {
+    throw new GradleException('GEODROP_APP_LINK_HOST must be a bare HTTPS host name')
+}
+if (appLinkHost == 'geodrop.app') {
+    throw new GradleException('geodrop.app is documented as unowned and cannot be claimed by GeoDrop')
+}
+
 android {
     namespace 'com.e3hi.geodrop'
     compileSdk 34
@@ -28,6 +40,10 @@ android {
         targetSdk 34
         versionCode 1
         versionName "1.0"
+        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+        manifestPlaceholders = [geodropAppLinkHost: appLinkHost]
+        buildConfigField 'String', 'APP_LINK_HOST', '"' + appLinkHost.replace('"', '\\"') + '"'
+        buildConfigField 'boolean', 'APP_LINK_CONFIGURED', (appLinkHost != 'r5-unconfigured.invalid').toString()
 
         def functionsRegion = (
                 project.findProperty('FIREBASE_FUNCTIONS_REGION')
@@ -53,7 +69,11 @@ android {
         def googleMapsApiKey = (
                 project.findProperty('GOOGLE_MAPS_API_KEY')
                         ?: System.getenv('GOOGLE_MAPS_API_KEY')
-        ) ?: ""
+        // google-services generates google_api_key from google-services.json. The
+        // project's Android key is already package/certificate restricted and has
+        // Maps SDK for Android enabled, so use it unless a dedicated Maps key is
+        // supplied explicitly for another build environment.
+        ) ?: '@string/google_api_key'
         resValue 'string', 'google_maps_key', googleMapsApiKey.toString()
 
         // Build-time upper bounds for the Remote Config controls. A feature is
@@ -76,6 +96,9 @@ android {
         buildConfig true
     }
     composeOptions { kotlinCompilerExtensionVersion '1.5.14' }
+    testOptions {
+        unitTests.includeAndroidResources = true
+    }
 
     buildTypes {
         release {
@@ -143,10 +166,15 @@ dependencies {
 
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.robolectric:robolectric:4.12.1'
+    testImplementation "androidx.compose.ui:ui-test-junit4:${compose_version}"
+    testImplementation 'androidx.test:core-ktx:1.5.0'
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
+    androidTestImplementation "androidx.compose.ui:ui-test-junit4:${compose_version}"
+    debugImplementation "androidx.compose.ui:ui-test-manifest:${compose_version}"
 
     implementation 'com.google.android.gms:play-services-auth:21.2.0'
+    implementation 'com.android.installreferrer:installreferrer:2.2'
 
     // Maps: the core library (CameraUpdateFactory, BitmapDescriptorFactory) plus
     // the Compose wrapper.

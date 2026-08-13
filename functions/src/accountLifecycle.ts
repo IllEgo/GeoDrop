@@ -14,7 +14,7 @@ const DELETION_RECEIPT_LIFETIME_DAYS = 30;
  * send this value back with destructive requests so stale copy cannot silently
  * authorize a materially different deletion policy.
  */
-export const ACCOUNT_LIFECYCLE_POLICY_VERSION = "pilot-2026-07-21-draft";
+export const ACCOUNT_LIFECYCLE_POLICY_VERSION = "pilot-redesign-r2-2026-08-09-draft";
 
 type CallableContext = functions.https.CallableContext;
 
@@ -94,6 +94,62 @@ const collectQuery = async (
     path: document.ref.path,
     data: document.data(),
   }));
+};
+
+const analyticsActorKey = (uid: string): string => {
+  const configured = process.env.ANALYTICS_HMAC_SECRET?.trim();
+  const secret = configured ||
+    ((process.env.FIRESTORE_EMULATOR_HOST || process.env.FUNCTIONS_EMULATOR === "true") ?
+      "geodrop-emulator-analytics-secret-do-not-use-in-production" : "");
+  if (!secret) {
+    throw new functions.https.HttpsError(
+      "failed-precondition",
+      "Analytics protection is not configured.",
+      {reason: "SERVER_CONFIGURATION_REQUIRED"}
+    );
+  }
+  return crypto.createHmac("sha256", secret)
+    .update(`actor:${uid}`)
+    .digest("hex");
+};
+
+const collectOwnedTargetDocuments = async (
+  uid: string
+): Promise<ExportRecord[]> => {
+  const firestore = admin.firestore();
+  const records: ExportRecord[] = [];
+  const [creator, application, experiences, drops, reports, events] =
+    await Promise.all([
+      collectDocumentTree(firestore.collection("creatorProfiles").doc(uid)),
+      collectDocumentTree(firestore.collection("organizerApplications").doc(uid)),
+      collectQuery(firestore.collection("groups").where("ownerId", "==", uid)),
+      collectQuery(firestore.collection("experienceDrops").where("ownerId", "==", uid)),
+      collectQuery(firestore.collection("safetyReports").where("reporterId", "==", uid)),
+      collectQuery(firestore.collection("analyticsEvents")
+        .where("actorKey", "==", analyticsActorKey(uid))),
+    ]);
+  records.push(...creator, ...application, ...experiences, ...drops, ...reports, ...events);
+  for (const drop of drops) {
+    const dropId = drop.path.split("/").pop();
+    if (dropId) {
+      records.push(...await collectDocumentTree(
+        firestore.collection("dropPayloads").doc(dropId)
+      ));
+      records.push(...await collectDocumentTree(
+        firestore.collection("rewards").doc(dropId)
+      ));
+    }
+  }
+  for (const experience of experiences) {
+    const code = experience.path.split("/").pop();
+    if (code) {
+      const experienceTree = await collectDocumentTree(
+        firestore.collection("groups").doc(code)
+      );
+      records.push(...experienceTree.slice(1));
+    }
+  }
+  return records;
 };
 
 const storagePathFromDrop = (
@@ -195,6 +251,137 @@ const anonymizeSubmittedReports = async (
   return snapshot.size;
 };
 
+const deleteSnapshotDocuments = async (
+  snapshot: admin.firestore.QuerySnapshot
+): Promise<number> => {
+  const writer = admin.firestore().bulkWriter();
+  snapshot.docs.forEach((document) => writer.delete(document.ref));
+  await writer.close();
+  return snapshot.size;
+};
+
+const targetDocumentsForDropIds = async (
+  collectionName: "unlocks" | "rewardReceipts" | "likes",
+  dropIds: string[]
+): Promise<admin.firestore.QueryDocumentSnapshot[]> => {
+  const documents: admin.firestore.QueryDocumentSnapshot[] = [];
+  for (let offset = 0; offset < dropIds.length; offset += 10) {
+    const ids = dropIds.slice(offset, offset + 10);
+    if (ids.length === 0) continue;
+    const snapshot = await admin.firestore().collectionGroup(collectionName)
+      .where("dropId", "in", ids)
+      .get();
+    documents.push(...snapshot.docs);
+  }
+  return documents;
+};
+
+type TargetDeletionCounts = {
+  targetDrops: number;
+  targetExperiences: number;
+  targetUserReceipts: number;
+  targetMediaObjects: number;
+  targetAnalyticsEvents: number;
+  targetReportsAnonymized: number;
+};
+
+const deleteTargetAccountData = async (
+  uid: string,
+  deletionPseudonym: string
+): Promise<TargetDeletionCounts> => {
+  const firestore = admin.firestore();
+  const bucket = admin.storage().bucket();
+  const [targetDrops, targetExperiences, submittedReports, hostedReports, actorEvents] =
+    await Promise.all([
+      firestore.collection("experienceDrops").where("ownerId", "==", uid).get(),
+      firestore.collection("groups").where("ownerId", "==", uid).get(),
+      firestore.collection("safetyReports").where("reporterId", "==", uid).get(),
+      firestore.collection("safetyReports").where("hostId", "==", uid).get(),
+      firestore.collection("analyticsEvents")
+        .where("actorKey", "==", analyticsActorKey(uid)).get(),
+    ]);
+  const dropIds = targetDrops.docs.map((document) => document.id);
+  const experienceCodes = targetExperiences.docs
+    .filter((document) => document.get("schemaVersion") === 2)
+    .map((document) => document.id);
+  const [unlocks, rewards, likes] = await Promise.all([
+    targetDocumentsForDropIds("unlocks", dropIds),
+    targetDocumentsForDropIds("rewardReceipts", dropIds),
+    targetDocumentsForDropIds("likes", dropIds),
+  ]);
+  const receiptOwnerRefs = rewards
+    .map((document) => document.get("receiptId"))
+    .filter((receiptId): receiptId is string => typeof receiptId === "string")
+    .map((receiptId) => firestore.collection("rewardReceiptOwners").doc(receiptId));
+  const membershipDocuments: admin.firestore.QueryDocumentSnapshot[] = [];
+  const progressDocuments: admin.firestore.QueryDocumentSnapshot[] = [];
+  for (let offset = 0; offset < experienceCodes.length; offset += 10) {
+    const codes = experienceCodes.slice(offset, offset + 10);
+    if (codes.length === 0) continue;
+    const [memberships, progress] = await Promise.all([
+      firestore.collectionGroup("groups").where("code", "in", codes).get(),
+      firestore.collectionGroup("trailProgress")
+        .where("experienceCode", "in", codes).get(),
+    ]);
+    membershipDocuments.push(...memberships.docs.filter((document) =>
+      document.ref.parent.parent?.parent.id === "users"
+    ));
+    progressDocuments.push(...progress.docs);
+  }
+  const writer = firestore.bulkWriter();
+  [...unlocks, ...rewards, ...likes, ...membershipDocuments, ...progressDocuments]
+    .forEach((document) => writer.delete(document.ref));
+  receiptOwnerRefs.forEach((reference) => writer.delete(reference));
+  submittedReports.docs.forEach((document) => writer.update(document.ref, {
+    reporterId: deletionPseudonym,
+    reporterDeletedAt: FieldValue.serverTimestamp(),
+  }));
+  hostedReports.docs.forEach((document) => writer.update(document.ref, {
+    hostId: deletionPseudonym,
+    hostDeletedAt: FieldValue.serverTimestamp(),
+  }));
+  actorEvents.docs.forEach((document) => {
+    writer.delete(document.ref);
+    const dedupeKey = document.get("dedupeKey");
+    if (typeof dedupeKey === "string") {
+      writer.delete(firestore.collection("analyticsEventDedupe").doc(dedupeKey));
+    }
+  });
+  await writer.close();
+
+  let mediaObjects = 0;
+  for (const dropId of dropIds) {
+    const [files] = await bucket.getFiles({prefix: `drop-payloads/${dropId}/`});
+    await Promise.all(files.map((file) => file.delete({ignoreNotFound: true})));
+    mediaObjects += files.length;
+    await firestore.recursiveDelete(firestore.collection("dropPayloads").doc(dropId));
+    await firestore.recursiveDelete(firestore.collection("rewards").doc(dropId));
+  }
+  for (const document of targetDrops.docs) await document.ref.delete();
+  for (const document of targetExperiences.docs) {
+    if (document.get("schemaVersion") === 2) {
+      await firestore.recursiveDelete(document.ref);
+    }
+  }
+  await Promise.all([
+    firestore.recursiveDelete(firestore.collection("creatorProfiles").doc(uid)),
+    firestore.recursiveDelete(firestore.collection("organizerApplications").doc(uid)),
+    firestore.collection("analyticsActorAliases").doc(analyticsActorKey(uid)).delete(),
+  ]);
+  const destinationAliases = await firestore.collection("analyticsActorAliases")
+    .where("destinationActorKey", "==", analyticsActorKey(uid)).get();
+  await deleteSnapshotDocuments(destinationAliases);
+  return {
+    targetDrops: dropIds.length,
+    targetExperiences: experienceCodes.length,
+    targetUserReceipts: unlocks.length + rewards.length + likes.length +
+      progressDocuments.length,
+    targetMediaObjects: mediaObjects,
+    targetAnalyticsEvents: actorEvents.size,
+    targetReportsAnonymized: submittedReports.size + hostedReports.size,
+  };
+};
+
 /**
  * Task 4.6 — subcollections that follow a guest into their real account.
  *
@@ -209,6 +396,7 @@ const MERGED_USER_SUBCOLLECTIONS = [
   "huntProgress",
   "groups",
   "blockedCreators",
+  "blockedHosts",
 ];
 
 /**
@@ -226,6 +414,13 @@ const RETAINED_USER_SUBCOLLECTIONS = [
   "notificationTokens",
   "notificationSettings",
   "reportStatuses",
+];
+
+const FORBIDDEN_TARGET_GUEST_SUBCOLLECTIONS = [
+  "unlocks",
+  "rewardReceipts",
+  "trailProgress",
+  "likes",
 ];
 
 /**
@@ -576,6 +771,7 @@ export const requestAccountExport = functions
   .region(REGION)
   .runWith({
     enforceAppCheck: true,
+    secrets: ["ANALYTICS_HMAC_SECRET"],
     timeoutSeconds: 120,
     memory: "1GB",
   })
@@ -589,10 +785,11 @@ export const requestAccountExport = functions
     const profile = await userRef.get();
     const username = profile.get("username");
 
-    const [userDocuments, ownedDrops, submittedReports] = await Promise.all([
+    const [userDocuments, ownedDrops, submittedReports, targetDocuments] = await Promise.all([
       collectDocumentTree(userRef),
       collectQuery(firestore.collection("drops").where("createdBy", "==", uid)),
       collectQuery(firestore.collection("reports").where("reportedBy", "==", uid)),
+      collectOwnedTargetDocuments(uid),
     ]);
 
     let usernameRecord: ExportRecord | null = null;
@@ -627,6 +824,7 @@ export const requestAccountExport = functions
       usernameRecord,
       ownedDrops,
       submittedReports,
+      targetDocuments,
       retentionNotice: {
         deletionReceiptsDays: DELETION_RECEIPT_LIFETIME_DAYS,
         safetyReports: "Reporter identity is removed on deletion; the report may be retained under the approved safety-retention policy.",
@@ -678,6 +876,7 @@ export const deleteAccount = functions
   .region(REGION)
   .runWith({
     enforceAppCheck: true,
+    secrets: ["ANALYTICS_HMAC_SECRET"],
     timeoutSeconds: 540,
     memory: "1GB",
   })
@@ -709,11 +908,12 @@ export const deleteAccount = functions
 
     const receiptRef = firestore.collection("accountDeletionReceipts").doc();
     const deletionPseudonym = `deleted:${receiptRef.id}`;
-    const [anonymizedReports, scrubbedDrops, deletedInventoryCopies] =
+    const [anonymizedReports, scrubbedDrops, deletedInventoryCopies, targetDeletion] =
       await Promise.all([
         anonymizeSubmittedReports(uid, deletionPseudonym),
         scrubUserFromDropMaps(uid),
         deleteOwnedInventoryCopies(dropIds),
+        deleteTargetAccountData(uid, deletionPseudonym),
       ]);
 
     const bucket = admin.storage().bucket();
@@ -753,6 +953,7 @@ export const deleteAccount = functions
         inventoryCopies: deletedInventoryCopies,
         anonymizedReports,
         scrubbedDrops,
+        ...targetDeletion,
       },
     };
     await receiptRef.set({
@@ -785,6 +986,7 @@ export const mergeGuestAccount = functions
   .region(REGION)
   .runWith({
     enforceAppCheck: true,
+    secrets: ["ANALYTICS_HMAC_SECRET"],
     timeoutSeconds: 540,
     memory: "1GB",
   })
@@ -828,10 +1030,28 @@ export const mergeGuestAccount = functions
     // rather than guessed at: a new subcollection should show up in the receipt
     // and in the logs instead of being silently left behind on a deleted account.
     const guestCollections = await guestRef.listCollections();
+    const forbiddenValueCollections = guestCollections
+      .filter((collection) =>
+        FORBIDDEN_TARGET_GUEST_SUBCOLLECTIONS.includes(collection.id)
+      );
+    for (const collection of forbiddenValueCollections) {
+      const value = await collection.limit(1).get();
+      if (!value.empty) {
+        throw new functions.https.HttpsError(
+          "failed-precondition",
+          "Guest merge contains server-authoritative value and requires review.",
+          {
+            reason: "GUEST_TARGET_VALUE_REQUIRES_REVIEW",
+            collection: collection.id,
+          }
+        );
+      }
+    }
     const unexpectedSubcollections = guestCollections
       .map((collection) => collection.id)
       .filter((id) => !MERGED_USER_SUBCOLLECTIONS.includes(id) &&
-        !RETAINED_USER_SUBCOLLECTIONS.includes(id));
+        !RETAINED_USER_SUBCOLLECTIONS.includes(id) &&
+        !FORBIDDEN_TARGET_GUEST_SUBCOLLECTIONS.includes(id));
     if (unexpectedSubcollections.length > 0) {
       console.warn(
         "Guest merge left unrecognised subcollections behind: " +
@@ -854,6 +1074,18 @@ export const mergeGuestAccount = functions
       moveDropMapEntries(guestUid, destinationUid),
       mergeUserSubcollections(guestRef, destinationRef),
     ]);
+
+    const guestActorKey = analyticsActorKey(guestUid);
+    const destinationActorKey = analyticsActorKey(destinationUid);
+    await firestore.collection("analyticsActorAliases").doc(guestActorKey).set({
+      schemaVersion: 1,
+      guestActorKey,
+      destinationActorKey,
+      createdAt: FieldValue.serverTimestamp(),
+      expiresAt: Timestamp.fromMillis(
+        Date.now() + 180 * 24 * 60 * 60 * 1000
+      ),
+    });
 
     await firestore.recursiveDelete(guestRef);
 

@@ -35,9 +35,9 @@ service cloud.firestore {
       // Profile fields are split into the ones a client owns and the ones the
       // server owns. Server-owned fields may be PRESENT (the Admin SDK writes
       // them and bypasses these rules) but a client can neither introduce nor
-      // change them, so the only path to BUSINESS is the
-      // `updateBusinessProfile` callable, which additionally requires a
-      // verified email.
+      // change them. In the R2 source boundary the only path to BUSINESS is an
+      // APPROVE decision from admin/operator tooling; updateBusinessProfile can
+      // edit an already-approved projection but cannot elevate an account.
       function clientAuthoredUserFields() {
         return [
           'displayName',
@@ -56,6 +56,9 @@ service cloud.firestore {
       function serverAuthoredUserFields() {
         return [
           'role',
+          'organizerAccessStatus',
+          'organizerAccessSubmittedAt',
+          'organizerAccessReviewedAt',
           'businessName',
           'businessCategories',
           'moderationStatus',
@@ -101,6 +104,9 @@ service cloud.firestore {
         return !request.resource.data.diff(resource.data).affectedKeys().hasAny([
           'businessName',
           'businessCategories',
+          'organizerAccessStatus',
+          'organizerAccessSubmittedAt',
+          'organizerAccessReviewedAt',
           'moderationStatus',
           'suspendedAt',
           'suspendedBy',
@@ -157,6 +163,21 @@ service cloud.firestore {
 
       allow delete: if isSignedIn()
         && resource.data.userId == request.auth.uid;
+    }
+
+    // R2 target projection. It is deliberately separate from users/{uid},
+    // whose legacy global read remains until the M4 client cutover.
+    match /creatorProfiles/{creatorId} {
+      allow get: if isSignedIn();
+      allow list, create, update, delete: if false;
+    }
+
+    match /organizerApplications/{applicationId}/{document=**} {
+      allow read, write: if false;
+    }
+
+    match /organizerApplicationTokens/{tokenDigest} {
+      allow read, write: if false;
     }
 
     match /reports/{reportId} {
@@ -217,6 +238,78 @@ service cloud.firestore {
       // direction doc's deferred list.
       allow get: if isGroupOwner() || hasGroupMembership();
       allow list, create, update, delete: if false;
+    }
+
+    match /groups/{groupCode}/trails/{trailId} {
+      allow read: if isSignedIn()
+        && get(/databases/$(database)/documents/groups/$(groupCode)).data.ownerId
+          == request.auth.uid;
+      allow create, update, delete: if false;
+    }
+
+    match /groups/{groupCode}/analyticsActors/{actorKey} {
+      allow read, write: if false;
+    }
+
+    // R2 discovery contains coordinates and non-sensitive mechanic metadata,
+    // but never payload. A participant must already hold membership and the
+    // Experience must be active; owners can inspect moderation state.
+    match /experienceDrops/{dropId} {
+      function isTargetDropOwner() {
+        return isSignedIn() && resource.data.ownerId == request.auth.uid;
+      }
+
+      function isActiveTargetMember() {
+        let code = resource.data.experienceCode;
+        let experience = get(/databases/$(database)/documents/groups/$(code));
+        return isSignedIn()
+          && exists(/databases/$(database)/documents/users/$(request.auth.uid)/groups/$(code))
+          && resource.data.state == 'PUBLISHED'
+          && resource.data.moderationState == 'SAFE'
+          && experience.data.schemaVersion == 2
+          && experience.data.state == 'PUBLISHED'
+          && experience.data.startsAt <= request.time
+          && request.time < experience.data.endsAt;
+      }
+
+      allow get, list: if isTargetDropOwner() || isActiveTargetMember();
+      allow create, update, delete: if false;
+    }
+
+    match /dropPayloads/{dropId}/{document=**} {
+      allow read, write: if false;
+    }
+
+    match /rewards/{dropId}/{document=**} {
+      allow read, write: if false;
+    }
+
+    match /rewardReceiptOwners/{receiptId} {
+      allow read, write: if false;
+    }
+
+    match /analyticsEvents/{eventId} {
+      allow read, write: if false;
+    }
+
+    match /analyticsEventDedupe/{dedupeId} {
+      allow read, write: if false;
+    }
+
+    match /analyticsActorAliases/{aliasId} {
+      allow read, write: if false;
+    }
+
+    match /safetyReports/{reportId} {
+      allow read, write: if false;
+    }
+
+    match /callableRateLimits/{limitId} {
+      allow read, write: if false;
+    }
+
+    match /feedbackResponses/{feedbackId} {
+      allow read, write: if false;
     }
 
     match /drops/{dropId} {
@@ -576,6 +669,31 @@ service cloud.firestore {
     }
 
     match /users/{userId}/groups/{groupCode} {
+      allow read: if isCurrentUser(userId);
+      allow create, update, delete: if false;
+    }
+
+    match /users/{userId}/unlocks/{dropId} {
+      allow read: if isCurrentUser(userId);
+      allow create, update, delete: if false;
+    }
+
+    match /users/{userId}/trailProgress/{trailId} {
+      allow read: if isCurrentUser(userId);
+      allow create, update, delete: if false;
+    }
+
+    match /users/{userId}/rewardReceipts/{dropId} {
+      allow read: if isCurrentUser(userId);
+      allow create, update, delete: if false;
+    }
+
+    match /users/{userId}/likes/{dropId} {
+      allow read: if isCurrentUser(userId);
+      allow create, update, delete: if false;
+    }
+
+    match /users/{userId}/blockedHosts/{hostId} {
       allow read: if isCurrentUser(userId);
       allow create, update, delete: if false;
     }

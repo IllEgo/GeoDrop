@@ -1,0 +1,6 @@
+<resources>
+    <!-- The instrumentation APK does not run google-services resource generation.
+         This test-only value lets its merged manifest link without exposing or using
+         the production-restricted Maps key. -->
+    <string name="google_api_key" translatable="false">instrumentation-test-key</string>
+</resources>

@@ -19,6 +19,8 @@ object PilotFeatureFlags {
     const val COUPONS_KEY = "pilot_coupons_enabled"
     const val MEDIA_KEY = "pilot_media_enabled"
     const val HUNTS_KEY = "pilot_hunts_enabled"
+    const val REDESIGN_BACKEND_KEY = "pilot_redesign_backend_enabled"
+    const val REDESIGN_MIN_CONTRACT_KEY = "pilot_redesign_min_contract_version"
 
     private const val TAG = "PilotFeatureFlags"
     private val started = AtomicBoolean(false)
@@ -30,7 +32,9 @@ object PilotFeatureFlags {
                     NOTIFICATIONS_KEY to false,
                     COUPONS_KEY to false,
                     MEDIA_KEY to false,
-                    HUNTS_KEY to false
+                    HUNTS_KEY to false,
+                    REDESIGN_BACKEND_KEY to false,
+                    REDESIGN_MIN_CONTRACT_KEY to Int.MAX_VALUE.toLong()
                 )
             )
             setConfigSettingsAsync(
@@ -51,6 +55,11 @@ object PilotFeatureFlags {
         get() = BuildConfig.FEATURE_MEDIA_ENABLED && remoteConfig.getBoolean(MEDIA_KEY)
     val huntsEnabled: Boolean
         get() = BuildConfig.FEATURE_HUNTS_ENABLED && remoteConfig.getBoolean(HUNTS_KEY)
+    val redesignBackendEnabled: Boolean
+        get() = R6RolloutPolicy.isTargetBackendUsable(
+            enabled = remoteConfig.getBoolean(REDESIGN_BACKEND_KEY),
+            minimumContractVersion = remoteConfig.getLong(REDESIGN_MIN_CONTRACT_KEY)
+        )
 
     fun start() {
         if (!started.compareAndSet(false, true)) return

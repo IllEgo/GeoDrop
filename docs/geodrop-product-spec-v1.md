@@ -5,6 +5,16 @@
 **Scope of this doc:** user stories + acceptance criteria for the closed launch list, metrics spec, monetization validation plan, Now/Next/Later roadmap, capacity check, pilot 1 selection criteria.
 **Not in scope:** relitigating launch scope or platform sequencing. Both closed.
 
+> **R0 alignment override (approved 2026-08-09; see
+> `redesign-alignment-proposal.md`):** `product-direction.md` and the signed P8
+> decision now govern conflicts. Locked payload release and receipt creation move behind a
+> server-authoritative one-shot proximity check. Guest browsing gates an account at the
+> first unlock. Pilot 1 creation is approved-organizer-only, using internal role `BUSINESS`
+> without adding a merchant account type. Reward codes have separate issued and confirmed-
+> used states. Keep the private aggregate in-app Results view and supplement it with a
+> founder report. Scheduled publishing, audio, merchant tooling, and iOS visual parity are
+> deferred for Pilot 1.
+
 ---
 
 ## 0. Read this first — three things I found
