@@ -1,4 +1,4 @@
-# GeoDrop R6 — Participant Loop
+# Kithe R6 — Participant Loop
 
 Status: **Local/device participant experience owner-approved; outdoor/server qualification gate open**  
 Date: 2026-08-11  

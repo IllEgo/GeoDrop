@@ -2,6 +2,10 @@ import * as admin from "firebase-admin";
 import * as crypto from "crypto";
 import * as functions from "firebase-functions/v1";
 import {FieldValue, Timestamp} from "firebase-admin/firestore";
+import {
+  renderExperienceEntryNotFound,
+  renderExperienceEntryPage,
+} from "./entryPage";
 
 const REGION = "us-central1";
 const CONTRACT_VERSION = 1;
@@ -75,7 +79,7 @@ const requireApiVersion = (value: JsonMap): void => {
     fail(
       "failed-precondition",
       "CONTRACT_VERSION_UNSUPPORTED",
-      "Update GeoDrop before continuing."
+      "Update Kithe before continuing."
     );
   }
 };
@@ -507,15 +511,8 @@ export const joinExperience = protectedCallable.https.onCall(async (
   return {schemaVersion: 1, experience, membership: experience.membership};
 });
 
-const escapeEntryHtml = (value: unknown): string => String(value ?? "")
-  .replace(/&/g, "&amp;")
-  .replace(/</g, "&lt;")
-  .replace(/>/g, "&gt;")
-  .replace(/"/g, "&quot;")
-  .replace(/'/g, "&#39;");
-
 /**
- * Hosting fallback for a QR/App Link opened before GeoDrop is installed.
+ * Hosting fallback for a QR/App Link opened before Kithe is installed.
  * It exposes preview metadata only; payload content and attendee identity never
  * enter the page or its URL.
  */
@@ -527,6 +524,7 @@ export const experienceEntryPage = functions
       "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; " +
         "img-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
       "Referrer-Policy": "no-referrer",
+      "Permissions-Policy": "camera=(), geolocation=(), microphone=()",
       "X-Content-Type-Options": "nosniff",
     });
     if (request.method !== "GET" && request.method !== "HEAD") {
@@ -539,7 +537,11 @@ export const experienceEntryPage = functions
     try {
       const code = normalizeExperienceCode(rawCode);
       const preview = await experiencePreview(code, null);
-      const entrySessionId = crypto.randomBytes(16).toString("hex");
+      const rawEntrySessionId = Array.isArray(request.query.entry_session_id) ?
+        request.query.entry_session_id[0] : request.query.entry_session_id;
+      const entrySessionId = typeof rawEntrySessionId === "string" &&
+        /^[A-Za-z0-9_-]{16,128}$/.test(rawEntrySessionId) ?
+        rawEntrySessionId : crypto.randomBytes(16).toString("hex");
       const channel = request.query.channel === "QR" ? "QR" : "LINK";
       const referrer = new URLSearchParams({
         code,
@@ -547,36 +549,19 @@ export const experienceEntryPage = functions
         channel,
       }).toString();
       const playUrl = "https://play.google.com/store/apps/details" +
-        `?id=com.e3hi.geodrop&referrer=${encodeURIComponent(referrer)}`;
-      const name = escapeEntryHtml(preview.name || code);
-      const host = escapeEntryHtml(preview.hostLabel || "Host");
-      const description = escapeEntryHtml(preview.description ||
-        "Location-based drops shared for this Experience.");
-      const count = Number(preview.availableDropCount ?? 0);
-      const codeLabel = escapeEntryHtml(code.length === 8 ?
-        `${code.slice(0, 4)}-${code.slice(4)}` : code);
-      const html = `<!doctype html>
-<html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="robots" content="noindex,nofollow">
-<title>${name} · GeoDrop</title>
-<style>body{margin:0;background:#f7fbfa;color:#132322;font:17px/1.5 system-ui,sans-serif}
-main{max-width:38rem;margin:auto;padding:3rem 1.25rem}small{color:#176d69;font-weight:700}
-h1{font-size:2rem;line-height:1.2;margin:.5rem 0}.meta{color:#526563}.card{background:#d9f4f1;
-padding:1rem;border-radius:1rem;margin:1.5rem 0}a{display:block;text-align:center;padding:1rem;
-border-radius:.75rem;background:#006a66;color:white;text-decoration:none;font-weight:700}</style></head>
-<body><main><small>GEODROP EXPERIENCE</small><h1>${name}</h1>
-<p class="meta">Hosted by ${host} · ${count} drops available · Code ${codeLabel}</p>
-<p>${description}</p><div class="card"><strong>What is this?</strong><br>
-GeoDrop lets you explore location-based drops from a host. You can browse as a guest and
-make an account only when you unlock.</div>
-<a href="${escapeEntryHtml(playUrl)}">Get GeoDrop and start exploring</a></main></body></html>`;
+        `?id=com.kitheapp&referrer=${encodeURIComponent(referrer)}`;
+      const html = renderExperienceEntryPage({
+        code,
+        name: typeof preview.name === "string" ? preview.name : code,
+        description: typeof preview.description === "string" ? preview.description : null,
+        hostLabel: typeof preview.hostLabel === "string" ? preview.hostLabel : "Host",
+        availability: typeof preview.availability === "string" ? preview.availability : "ACTIVE",
+        availableDropCount: Number(preview.availableDropCount ?? 0),
+      }, playUrl);
       response.status(200).type("html").send(request.method === "HEAD" ? "" : html);
     } catch (error) {
       response.status(404).type("html").send(request.method === "HEAD" ? "" :
-        "<!doctype html><meta name=\"viewport\" content=\"width=device-width\">" +
-        "<title>Experience not found · GeoDrop</title>" +
-        "<p>This Experience could not be found. Check the code or ask the host.</p>");
+        renderExperienceEntryNotFound());
     }
   });
 

@@ -1,4 +1,4 @@
-# GeoDrop — Voice, Tone & Terminology Glossary v1
+# Kithe — Voice, Tone & Terminology Glossary v1
 
 > **Owner:** Product Designer. **Status:** draft v0.1, 2026-07-26.
 > **This is the canonical wording reference for every role.** Support articles, store copy,
@@ -24,7 +24,7 @@
 
 Reasoning, so it can be argued with rather than accepted by default:
 
-- **The app is not the event.** Someone is at a wedding, a reunion, a festival. GeoDrop's job is to point at something and get out of the way. An app with a big personality competes with the occasion it was hired to serve.
+- **The app is not the event.** Someone is at a wedding, a reunion, a festival. Kithe's job is to point at something and get out of the way. An app with a big personality competes with the occasion it was hired to serve.
 - **Privacy is a product principle**, which means the voice has to be able to make a serious promise about location and be believed. Jokey copy can't carry that sentence.
 - **One voice has to work at a wedding, a corporate offsite, and a cultural trail** without recalibration. Anything gamey ("Quest complete! 🎉") is fine at a school event and wrong at a memorial reunion. Restraint travels; enthusiasm doesn't.
 
@@ -98,7 +98,7 @@ Rejected, with reasons worth keeping on record:
 | **proximity check, geofence, receipt** | Implementation. The user experiences "checking you're here". |
 
 **Deliberately retired — don't reintroduce:**
-*collect / claim* (one action, and it's **unlock**; Collection is the place things land — see `user-stories-v1.md` §6 and `metrics-spec-v1.md` §8 Q1, both of which resolve the same way) · *pin* (a pin is the map marker, not the content) · *post* (social-feed vocabulary; the direction doc is explicit that GeoDrop isn't that) · *user* (in any user-facing string) · *check in* (implies a different, passive mechanic).
+*collect / claim* (one action, and it's **unlock**; Collection is the place things land — see `user-stories-v1.md` §6 and `metrics-spec-v1.md` §8 Q1, both of which resolve the same way) · *pin* (a pin is the map marker, not the content) · *post* (social-feed vocabulary; the direction doc is explicit that Kithe isn't that) · *user* (in any user-facing string) · *check in* (implies a different, passive mechanic).
 
 ---
 

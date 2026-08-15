@@ -60,7 +60,7 @@
     <string name="r5_location_nearby_body">La ubicación aproximada agrupa los drops por distancias amplias y centra el mapa.</string>
     <string name="r5_location_nearby_privacy">Tu ubicación aproximada solo se usa mientras exploras y no se guarda.</string>
     <string name="r5_location_precise_title">Comprueba que estás en este drop</string>
-    <string name="r5_location_precise_body">GeoDrop necesita una ubicación precisa de una sola vez para comprobar si estás lo bastante cerca.</string>
+    <string name="r5_location_precise_body">Kithe necesita una ubicación precisa de una sola vez para comprobar si estás lo bastante cerca.</string>
     <string name="r5_location_precise_privacy">La ubicación precisa se descarta justo después de la comprobación.</string>
     <string name="r5_notifications_title">¿Quieres saber cuándo hay nuevos drops?</string>
     <string name="r5_notifications_body">Recibe alertas solo de las Experiencias a las que te uniste. Puedes desactivarlas cuando quieras.</string>
@@ -132,7 +132,7 @@
     <string name="r3_trail_next">Siguiente: %1$s</string>
     <string name="r3_code_description">Código de recompensa: %1$s</string>
     <string name="r3_copy_code">Copiar código</string>
-    <string name="r3_component_catalog_title">Catálogo de componentes de GeoDrop</string>
+    <string name="r3_component_catalog_title">Catálogo de componentes de Kithe</string>
     <string name="r3_component_catalog_description">Componentes compartidos mostrados en todos los estados compatibles. Este catálogo es una superficie de desarrollo, no un destino de la app.</string>
     <string name="r3_catalog_section_drop_card">DropCard</string>
     <string name="r3_catalog_section_drop_pin">DropPin</string>
@@ -150,7 +150,7 @@
     <string name="r3_catalog_found_body">Aquí aparece una nota del anfitrión después de llegar al lugar.</string>
     <string name="r3_catalog_next_step">A continuación, sigue el sendero del jardín hacia el parque Liliʻuokalani.</string>
     <string name="r3_catalog_permission_title">Usa tu ubicación para los drops cercanos</string>
-    <string name="r3_catalog_permission_body">GeoDrop comprueba si estás lo bastante cerca cuando eliges Desbloquear.</string>
+    <string name="r3_catalog_permission_body">Kithe comprueba si estás lo bastante cerca cuando eliges Desbloquear.</string>
     <string name="r3_catalog_permission_privacy">Usamos tu ubicación exacta durante un segundo y luego la olvidamos.</string>
     <string name="r3_catalog_trail_title">Sendero del jardín</string>
     <string name="r3_catalog_trail_next">Puente de piedra</string>
@@ -167,12 +167,12 @@
     <string name="r3_catalog_code_business">Museo de la Isla de Hawaiʻi</string>
     <string name="r3_catalog_stat_value">128</string>
     <string name="r3_catalog_found_title">Encontraste la nota de Kīlauea</string>
-    <string name="app_name">GeoDrop</string>
-    <string name="notif_channel_name">GeoDrop Cercanos</string>
+    <string name="app_name">Kithe</string>
+    <string name="notif_channel_name">Kithe Cercanos</string>
     <string name="notif_channel_desc">Alertas cuando entras en un área de drops</string>
     <string name="drag_to_resize">Arrastra para redimensionar</string>
     <string name="content_description_account_options">Opciones de cuenta</string>
-    <string name="content_description_open_onboarding">Abrir el tutorial de GeoDrop</string>
+    <string name="content_description_open_onboarding">Abrir el tutorial de Kithe</string>
     <string name="menu_sign_in_full_participation">Inicia sesión para participar por completo</string>
     <string name="menu_sign_in_business_account">Inicia sesión o crea una cuenta de negocio</string>
     <string name="menu_notification_radius">Radio de notificación (%1$d m)</string>
@@ -211,7 +211,7 @@
     <string name="drop_detail_title">Detalles del drop</string>
     <string name="content_description_back">Atrás</string>
     <string name="drop_detail_adult_content_hidden">Contenido para adultos oculto</string>
-    <string name="drop_detail_enable_adult_content_hint">El contenido para adultos no está disponible durante el piloto de GeoDrop.</string>
+    <string name="drop_detail_enable_adult_content_hint">El contenido para adultos no está disponible durante el piloto de Kithe.</string>
     <string name="audio_recorder_prepare_error">No se pudo preparar espacio para la grabación. Inténtalo de nuevo.</string>
     <string name="audio_recorder_unavailable_device">Grabación no disponible en este dispositivo.</string>
     <string name="audio_recorder_start_error">No se pudo iniciar la grabación. Inténtalo de nuevo.</string>
@@ -236,7 +236,7 @@
     <string name="info_menu_faq">Preguntas frecuentes</string>
     <string name="info_menu_terms">Términos del servicio</string>
     <string name="info_menu_privacy">Política de privacidad</string>
-    <string name="terms_privacy_dialog_title">Términos y políticas de GeoDrop</string>
+    <string name="terms_privacy_dialog_title">Términos y políticas de Kithe</string>
     <string name="terms_privacy_dialog_close">Cerrar</string>
     <string name="bottom_nav_profile">Perfil</string>
     <string name="drop_list_handle_label">Control para redimensionar la lista de drops</string>
@@ -278,15 +278,15 @@
     <string name="edit_profile_saving">Guardando…</string>
     <string name="guest_upgrade_content_merged">Tus drops y colecciones de invitado se movieron a esta cuenta.</string>
     <string name="guest_upgrade_content_not_merged">Iniciaste sesión, pero no se pudieron mover tus drops y colecciones de invitado. Vuelve a iniciar sesión desde el mismo dispositivo para intentarlo de nuevo.</string>
-    <string name="faq_title">Conoce GeoDrop</string>
-    <string name="faq_intro">GeoDrop se basa en compartir drops vinculados a lugares. Aquí tienes un resumen de cómo funciona todo.</string>
-    <string name="faq_question_core_features">¿Cuáles son las funciones principales de GeoDrop?</string>
+    <string name="faq_title">Conoce Kithe</string>
+    <string name="faq_intro">Kithe se basa en compartir drops vinculados a lugares. Aquí tienes un resumen de cómo funciona todo.</string>
+    <string name="faq_question_core_features">¿Cuáles son las funciones principales de Kithe?</string>
     <string name="faq_answer_core_features">Crea drops en lugares reales, explora lo que hay cerca y conecta con personas y lugares mediante historias, ofertas y novedades interactivas.</string>
     <string name="faq_question_drop_contents">¿Qué puede incluir un drop?</string>
     <string name="faq_answer_drop_contents">Los drops pueden incluir notas de texto, fotos, clips de voz e incluso recompensas o cupones de negocios. Combina lo que mejor se adapte al momento.</string>
     <string name="faq_question_explorer_usage">¿Cómo usan los exploradores los drops?</string>
     <string name="faq_answer_explorer_usage">Los exploradores siguen el mapa o las notificaciones para visitar drops, abrir el contenido, reaccionar o recogerlo y guardar sus favoritos para futuras aventuras.</string>
-    <string name="faq_question_groups">¿Cómo funcionan los grupos de GeoDrop?</string>
+    <string name="faq_question_groups">¿Cómo funcionan los grupos de Kithe?</string>
     <string name="faq_answer_groups">Los grupos reúnen a exploradores con intereses, vecindarios o negocios en común. Únete a un grupo para ver drops exclusivos y mantenerte al día con la comunidad.</string>
     <string name="faq_close">Cerrar</string>
 </resources>

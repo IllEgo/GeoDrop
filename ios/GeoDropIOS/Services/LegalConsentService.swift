@@ -84,6 +84,6 @@ enum LegalConsentError: LocalizedError {
     case invalidManifest
 
     var errorDescription: String? {
-        "GeoDrop's approved legal policies are unavailable. Try again later."
+        "Kithe's approved legal policies are unavailable. Try again later."
     }
 }

@@ -38,7 +38,7 @@ struct ProfileView: View {
                             systemImage: "person.crop.circle"
                         )
                     } footer: {
-                        Text("Usernames are unique across GeoDrop. Your changes go live immediately after saving.")
+                        Text("Usernames are unique across Kithe. Your changes go live immediately after saving.")
                             .font(.footnote)
                             .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
                     }
@@ -127,7 +127,7 @@ struct ProfileView: View {
                             systemImage: "briefcase"
                         )
                     } footer: {
-                        Text("Select categories that match your offerings. GeoDrop suggests templates and insights tailored to your choices.")
+                        Text("Select categories that match your offerings. Kithe suggests templates and insights tailored to your choices.")
                             .font(.footnote)
                             .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
                     }

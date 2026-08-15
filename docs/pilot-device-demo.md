@@ -26,10 +26,13 @@ Both notification switches are ANDed, and every feature flag defaults to false i
 so an ordinary release build cannot run most of this. Build the internal variant with:
 
 ```
-GEODROP_FEATURE_NOTIFICATIONS_ENABLED=true
-GEODROP_FEATURE_CREATION_ENABLED=true      # only for the authored-drop steps
-GEODROP_FEATURE_HUNTS_ENABLED=true         # only for the trail step
+KITHE_FEATURE_NOTIFICATIONS_ENABLED=true
+KITHE_FEATURE_CREATION_ENABLED=true      # only for the authored-drop steps
+KITHE_FEATURE_HUNTS_ENABLED=true         # only for the trail step
 ```
+
+The Android build temporarily accepts the former `GEODROP_FEATURE_*` names as compatibility
+aliases, but new local and CI configuration must use `KITHE_FEATURE_*`.
 
 **App Check is enforced on `mergeGuestAccount`** (as on `deleteAccount` and
 `updateBusinessProfile`). A debug build uses the debug provider, so its debug token must be
@@ -54,7 +57,7 @@ already exercises claims, inventory, and membership migration — which is most 
 
 ### Accounts
 
-- **A Google account with no GeoDrop account yet** — for the link path. This is the one most
+- **A Google account with no Kithe account yet** — for the link path. This is the one most
   likely to be missing; check before you start.
 - **An existing account** — for the merge path. 25 profiles exist; `EATZ` is owned by
   `HY1o48UI…`, so use something else as the destination to keep roles simple.

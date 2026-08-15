@@ -1,6 +1,6 @@
-# GeoDrop iOS
+# Kithe iOS
 
-This directory contains the SwiftUI iOS client for GeoDrop. It mirrors the Android application's core functionality:
+This directory contains the SwiftUI iOS client for Kithe. It mirrors the Android application's core functionality:
 
 * Firebase Authentication-based sign-in and sign-up
 * Group membership management and drop feed discovery

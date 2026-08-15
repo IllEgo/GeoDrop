@@ -1,4 +1,4 @@
-# GeoDrop — Wireframe Spec v1 (text-based)
+# Kithe — Wireframe Spec v1 (text-based)
 
 **Owner:** Product Designer
 **Status:** draft v0.1, 2026-07-26 — founder review required
@@ -96,7 +96,7 @@ Screens marked **[SHARED]** exist regardless of which guest-access branch ships.
 - Date range (from experience creation's Basics step)
 - Optional one-line description, if the organizer set one at creation — this is the one piece of copy that IS organizer-authored, and it's allowed to be empty
 - Primary button: "Start exploring"
-- Secondary, lower-weight link: "What is this?" — for the guest who scanned a QR at a party with zero context and isn't sure what they've landed on. Leads to a short, generic (non-experience-specific) explainer of what GeoDrop is — one paragraph, not a full tutorial.
+- Secondary, lower-weight link: "What is this?" — for the guest who scanned a QR at a party with zero context and isn't sure what they've landed on. Leads to a short, generic (non-experience-specific) explainer of what Kithe is — one paragraph, not a full tutorial.
 
 **States:**
 - *Loading:* brief skeleton while experience metadata (name, drop count, dates) loads — should feel instant given 1.0 already confirmed the experience resolved; this shouldn't reintroduce a second meaningful wait
@@ -127,7 +127,7 @@ Screens marked **[SHARED]** exist regardless of which guest-access branch ships.
 
 **States:**
 - *Loading:* button shows inline spinner, fields disabled
-- *Error (already exists):* "Looks like you've used GeoDrop before — [log in instead]" — resolves without dead-ending per acceptance criteria
+- *Error (already exists):* "Looks like you've used Kithe before — [log in instead]" — resolves without dead-ending per acceptance criteria
 - *Error (validation):* inline, under the field, never a modal
 - *Offline:* form stays interactive but submit shows "You'll need a connection to finish this." Don't lose what they typed.
 
@@ -230,7 +230,7 @@ Transitions straight into 2.1 (Map/List View) with the experience already joined
 **Primary action:** grant precise location (system permission dialog) — this is largely OS-native UI, but the *priming* screen before it is ours.
 
 **Elements (priming screen, shown before the OS dialog fires):**
-- One sentence: "GeoDrop needs your exact location just for a second to confirm you're here." 
+- One sentence: "Kithe needs your exact location just for a second to confirm you're here."
 - Button: "Continue" → triggers OS permission dialog
 - This priming step is mandatory per the role brief — never let the OS dialog fire cold on first use.
 
@@ -354,7 +354,7 @@ Two separate asks, deliberately different in framing and timing, but designed to
 **Elements (priming screen/sheet, shown on banner tap, before the OS dialog fires):**
 - Short illustration or icon — Bobi-adjacent visual language if the mascot system is in play by build time, otherwise a simple map-pin motif. Should visually echo 2.5b's treatment.
 - Headline: "See what's nearby"
-- One line: "GeoDrop uses your approximate location to show how far away things are. We never show your exact position to anyone."
+- One line: "Kithe uses your approximate location to show how far away things are. We never show your exact position to anyone."
 - Button: "Continue" → triggers OS permission dialog
 - Secondary: "Not now" — dismisses back to the map's denied state, no repeat prompt this session
 
@@ -379,7 +379,7 @@ This is screen 2.3 from Part 2, restated here so both priming moments sit togeth
 **Elements (priming screen, shown before the OS dialog fires):**
 - Same illustration/icon family as 2.5a, but paired with a "just for a second" visual cue (e.g. a brief pulse or timer motif) to distinguish "one-time, momentary" from 2.5a's "ongoing while browsing"
 - Headline: "Confirm you're here"
-- One line: "GeoDrop needs your exact location just for a second to confirm you're at this spot. It's not stored, and we stop checking right after."
+- One line: "Kithe needs your exact location just for a second to confirm you're at this spot. It's not stored, and we stop checking right after."
 - Button: "Continue" → triggers OS permission dialog
 
 **States:**

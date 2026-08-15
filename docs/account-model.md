@@ -1,4 +1,4 @@
-# GeoDrop — Account model
+# Kithe — Account model
 
 Status: current as of task **2.7** (2026-07-29). Spec source: `docs/product-direction.md`
 (deferred list, "Multiple account types with extensive permission matrices") and the 0.3

@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Delete your Kithe account — Draft</title>
+  <style>
+    :root{color-scheme:light;--primary:#0b5d5d;--primary-deep:#084949;--surface:#fdfcfa;--raised:#fff;--ink:#14171a;--muted:#4a525c;--border:#cdd8d4;--amber:#e07b24;--draft:#fff4df;--danger:#b3261e}
+    *{box-sizing:border-box}body{margin:0;background:var(--surface);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;font-size:1rem;line-height:1.65}a{color:var(--primary-deep)}a:focus-visible{outline:3px solid #b45309;outline-offset:4px}.shell{width:min(calc(100% - 32px),760px);margin-inline:auto}
+    header{border-bottom:1px solid var(--border);background:var(--raised)}header .shell{display:flex;min-height:72px;align-items:center;justify-content:space-between;gap:20px}.wordmark{color:var(--primary);font-size:1.4rem;font-weight:850;text-decoration:none}main{padding-block:42px 80px}h1,h2{line-height:1.15;letter-spacing:-.025em}h1{margin:0 0 10px;font-size:clamp(2.1rem,7vw,3.4rem)}h2{margin:40px 0 12px;font-size:1.45rem}.meta{margin:0;color:var(--muted);font-size:.92rem}
+    .draft,.callout{margin:28px 0;padding:18px;border-radius:16px}.draft{border:2px solid var(--amber);background:var(--draft)}.draft strong{display:block;margin-bottom:4px}.callout{border:1px solid var(--border);background:var(--raised)}.button{display:inline-flex;min-height:52px;align-items:center;justify-content:center;padding:13px 20px;border-radius:14px;background:var(--primary);color:#fff;font-weight:800;text-decoration:none}.danger{color:var(--danger);font-weight:750}li+li{margin-top:9px}footer{padding-block:28px;border-top:1px solid var(--border);color:var(--muted);font-size:.9rem}footer nav{display:flex;flex-wrap:wrap;gap:16px;margin-bottom:12px}
+  </style>
+</head>
+<body>
+  <header><div class="shell"><a class="wordmark" href="/">Kithe</a><a href="mailto:support@kitheapp.com">Contact support</a></div></header>
+  <main class="shell">
+    <h1>Delete your Kithe account</h1>
+    <p class="meta">Engineering draft · Updated 2026-08-14</p>
+
+    <div class="draft" role="note">
+      <strong>Draft — not approved for publication</strong>
+      The deletion behavior is implemented locally, but the support response target and
+      retained-data exceptions below require owner/privacy approval and a production rehearsal.
+    </div>
+
+    <p>Deleting your account is permanent. Uninstalling Kithe does not delete your account.</p>
+
+    <h2>Delete in the Android app</h2>
+    <ol>
+      <li>Open Kithe and choose <strong>Account</strong>.</li>
+      <li>Under <strong>Privacy and data</strong>, choose <strong>Your data</strong>.</li>
+      <li>Reauthenticate with your password or Google account.</li>
+      <li>Type <strong>DELETE</strong>.</li>
+      <li>Choose <strong>Permanently delete account</strong>.</li>
+    </ol>
+    <p>The app returns a deletion receipt when the request completes.</p>
+
+    <h2>Request deletion without the app</h2>
+    <p>If you cannot access the app, email Kithe from the address associated with your account.
+    Use the subject “Kithe account deletion request.” Support will provide a proportionate
+    identity-verification step before deletion.</p>
+    <p><a class="button" href="mailto:support@kitheapp.com?subject=Kithe%20account%20deletion%20request">Email a deletion request</a></p>
+    <p><strong>Do not email</strong> your password, one-time verification code, precise location,
+    government ID, or any sensitive document unless Kithe first provides an approved secure
+    verification method.</p>
+
+    <h2>What the deletion process removes</h2>
+    <ul>
+      <li>Your authentication account, profile, username mapping, notification tokens, memberships, private Collection and progress data.</li>
+      <li>Drops and media you own, subject to the approved organizer/Experience closure policy.</li>
+      <li>Your identifier from other reaction, report, collection, reward, and pilot-event records where the implemented deletion contract applies.</li>
+      <li>Account-linked raw pilot events and identity aliases.</li>
+    </ul>
+
+    <h2>What may be retained</h2>
+    <ul>
+      <li>A pseudonymous deletion receipt for the proposed 30-day troubleshooting window.</li>
+      <li>A safety report after the reporter account identifier is replaced, for the approved safety/legal window.</li>
+      <li>Deidentified aggregate Experience results and records required for an approved fraud, reward, dispute, tax, security, or legal purpose.</li>
+      <li>Copies in provider backups until the approved maximum backup-restoration window ends.</li>
+    </ul>
+    <p class="danger">Before publication, approve and insert the safety, reward/dispute, legal,
+    and backup windows. Do not publish “as long as necessary” without a documented schedule.</p>
+
+    <h2>Timing and confirmation</h2>
+    <p>In-app deletion is designed to complete during the confirmed request. Email requests
+    will receive an acknowledgment within <strong>[APPROVED SUPPORT TARGET]</strong> and will be
+    completed within <strong>[APPROVED DELETION TARGET]</strong> after identity verification,
+    unless an approved legal exception applies. Kithe will send confirmation when processing
+    is complete.</p>
+
+    <div class="callout">
+      <strong>Need help first?</strong>
+      <p>If the problem is sign-in or account recovery and you do not want deletion, say so in
+      your message. Kithe will not treat a general support request as permission to delete an account.</p>
+    </div>
+  </main>
+  <footer><div class="shell"><nav aria-label="Policy links"><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="/support">Support</a></nav><span>© 2026 Kithe · Draft, not approved for publication</span></div></footer>
+</body>
+</html>
+

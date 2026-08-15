@@ -1,4 +1,4 @@
-# GeoDrop — Entry Flow & Unlock States (Design v0.1)
+# Kithe — Entry Flow & Unlock States (Design v0.1)
 
 > **Owner:** Product Designer. **Status:** draft, 2026-07-26 — founder review required.
 > **Answers:** `user-stories-v1.md` story 1 (QR with no app installed) and story 4 (unlock failure).
@@ -53,7 +53,7 @@ Layer 3 is the important one and it's the cheapest thing in this document: **one
 a Join button.** It is also the only layer that survives Open Decision #3 going the wrong way
 (see 1.5). Build it first, not last.
 
-`ASSUMPTION:` GeoDrop controls a web domain suitable for App Links verification. If not, this
+`ASSUMPTION:` Kithe controls a web domain suitable for App Links verification. If not, this
 plan doesn't work as written — flag it now, it's a prerequisite with a lead time.
 
 ### 1.3 The event code
@@ -75,11 +75,11 @@ of typing.
 
 **S1 — Pre-install web landing page** (`/e/<code>`, no app detected)
 
-Nobody currently owns this and it is the first impression of GeoDrop for most pilot guests.
+Nobody currently owns this and it is the first impression of Kithe for most pilot guests.
 
 - **Primary action:** Get the app
 - Names the actual event ("Kalani & Mei's wedding — 14 drops hidden around the property")
-  pulled from the experience record. A generic "Download GeoDrop" page converts far worse.
+  pulled from the experience record. A generic "Download Kithe" page converts far worse.
 - One sentence on what happens: content is hidden around the venue; walk to it to open it.
 - Event code shown on screen, so a guest who bounces to the Play Store manually still has it.
 - No account creation on the web. No feature list. No screenshots carousel.
@@ -149,7 +149,7 @@ designing — they do, above, and they converge at S4.
 
 | Permission | Requested at | Priming screen |
 |---|---|---|
-| Location (approximate) | After Join, before the map first renders | "GeoDrop shows what's near you. It never shares where you are with anyone." |
+| Location (approximate) | After Join, before the map first renders | "Kithe shows what's near you. It never shares where you are with anyone." |
 | Location (precise, one-time) | First unlock attempt only | Inline in the unlock sheet — see Part 2 |
 | Camera | Only if the guest taps "Scan a code" or a photo drop requires capture | Inline |
 | Notifications | After the **first successful unlock**, not before | "Want a nudge when a new drop appears at this event? Only this event." |
@@ -200,8 +200,8 @@ Provisional copy — see §2.5 on voice. Distances in feet/miles (`ASSUMPTION:` 
 |---|---|---|---|---|
 | 1 | Too far, accuracy good | **Not there yet** — "You're about 120 ft away. The map's showing you where." | Show me → returns to map, drop highlighted | Round: <20 ft "a few steps", <100 ft nearest 10, else nearest 50 |
 | 2 | Too far, accuracy worse than radius | **Your phone isn't sure where you are** — "Step into the open, away from buildings, and try again." | Try again | Never quote a distance here |
-| 3 | No network | **No signal here** — "GeoDrop checks the spot on our end, so this needs a connection. Try again in a moment." | Try again | See §2.4 |
-| 4 | Precise permission denied | **GeoDrop needs your exact location just for this check** — "It's used once, then released. We never keep a trail." | Allow once → system dialog | Also reachable from settings deep-link if permanently denied |
+| 3 | No network | **No signal here** — "Kithe checks the spot on our end, so this needs a connection. Try again in a moment." | Try again | See §2.4 |
+| 4 | Precise permission denied | **Kithe needs your exact location just for this check** — "It's used once, then released. We never keep a trail." | Allow once → system dialog | Also reachable from settings deep-link if permanently denied |
 | 5 | One-time permission expired | Silent re-request, no error screen | — | This is a system behaviour, not a user mistake; don't surface it as failure |
 | 6 | Expired | **This one's closed** — "The organizer set it to end at 9:00 PM." | Back to map | Must read as *different* from #1 (story 5 requirement) |
 | 7 | Already unlocked | Not a failure. Open it. | — | |
@@ -240,11 +240,11 @@ confirm or overrule:
 
 **Warm and plain in ordinary moments; entirely plain in failure moments.** Playfulness belongs
 to the organizer's content, not the app's chrome — the app is the box the surprise comes in,
-not the surprise. Concretely: GeoDrop never jokes at someone who is standing in the rain
+not the surprise. Concretely: Kithe never jokes at someone who is standing in the rain
 looking for a drop that won't open.
 
 Three questions I need answered to close the voice guide (from `APP-BRIEF.md` §9):
-if GeoDrop greeted you at the event, how would it sound? What would it never say? Closer to
+if Kithe greeted you at the event, how would it sound? What would it never say? Closer to
 "clever scavenger-hunt host" or "quiet, trustworthy local guide"?
 
 ---

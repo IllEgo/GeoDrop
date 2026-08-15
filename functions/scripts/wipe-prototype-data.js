@@ -16,7 +16,7 @@
  *
  *   # live run — backup is written first, and refuses to proceed without it
  *   GOOGLE_APPLICATION_CREDENTIALS=/path/to/serviceAccount.json \
- *     node scripts/wipe-prototype-data.js --apply --confirm-project=geodrop-dfcba
+ *     node scripts/wipe-prototype-data.js --apply --confirm-project=kithe-production
  *
  * Safety properties:
  *   - --apply requires --confirm-project=<id> matching the resolved project, so

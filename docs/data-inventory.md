@@ -1,4 +1,4 @@
-# GeoDrop — Data Inventory (Task 0.2)
+# Kithe — Data Inventory (Task 0.2)
 
 Companion to `docs/feature-inventory.md` (0.1) and `docs/migration-plan.md`. This is the
 **Phase 0 data ground-truth**: counts of existing production records that the launch

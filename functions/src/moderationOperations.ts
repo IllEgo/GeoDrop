@@ -134,10 +134,10 @@ const notifyReporter = async (
     notification: {
       title: "Report status updated",
       body: status === "ACTION_TAKEN" ?
-        "GeoDrop took action after reviewing your report." :
+        "Kithe took action after reviewing your report." :
         status === "ESCALATED" ?
           "Your report was escalated for additional review." :
-          "GeoDrop completed its review of your report.",
+          "Kithe completed its review of your report.",
     },
     data: {
       event: "REPORT_STATUS_UPDATED",

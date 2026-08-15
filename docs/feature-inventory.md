@@ -1,4 +1,4 @@
-# GeoDrop — Feature Inventory (Task 0.1)
+# Kithe — Feature Inventory (Task 0.1)
 
 Companion to `docs/product-direction.md` (target state) and `docs/migration-plan.md`
 (ordered work). This is the **Phase 0 ground-truth map**: every feature in the codebase,

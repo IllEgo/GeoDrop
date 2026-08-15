@@ -1,4 +1,4 @@
-# GeoDrop — Prototype → Launch Scope Migration Plan
+# Kithe — Prototype → Launch Scope Migration Plan
 
 Companion to `docs/product-direction.md`. That file defines the target state; this file
 is the ordered work to get there from the current prototype.
@@ -30,8 +30,9 @@ target where the documents now differ.
   `docs/redesign-navigation-shell-r4.md` after the verified build was reinstalled and
   launched on a physical Android device. On 2026-08-10 the owner split R5 into **R5-L**
   (local/device implementation) and **R5-P** (production funnel). **R5-L is approved and
-  complete; R5-P is deliberately deferred and remains blocking before any pilot or public
-  release. The owner explicitly authorized R6 local implementation on 2026-08-10 and
+  complete; R5-P remains blocking before any pilot or public release. On 2026-08-14 the
+  owner authorized R5-P read-only audit and local bundle preparation; external mutations
+  remain separately gated. The owner explicitly authorized R6 local implementation on 2026-08-10 and
   approved the implemented local/device participant experience on 2026-08-11 after the
   working map and relocated demo drops were reviewed. Its crash fix and target participant
   loop are locally implemented and device-smoke tested, while the real server/outdoor
@@ -50,21 +51,25 @@ target where the documents now differ.
   verified locally; the R9 review APK was installed and the Account/report/block/unblock
   flows were physically reviewed. A subsequent bottom-inset correction passed the full
   automated Android gate, was installed on the physical device, and passed its focused
-  action-row and clean-log smoke test. R9 owner approval is pending, and its intentionally open
-  pre-pilot dependencies are recorded in `redesign-account-safety-operations-r9.md`.
-  **R10 and production actions are not authorized.** See
+  action-row and clean-log smoke test. On 2026-08-13 the owner approved every R9 local/device
+  item while keeping its intentionally open pre-pilot dependencies recorded in
+  `redesign-account-safety-operations-r9.md`.
+  On 2026-08-13 the owner split R10 and authorized **R10-L local Android qualification
+  only**; on 2026-08-14 the owner approved and closed R10-L after its evidence passed.
+  **R10-P and production actions are not authorized.** See
   `redesign-entry-guest-permissions-r5.md`. Do not
   deploy or enable the target backend, mutate production data, migrate screens ahead of
   their approved R task, or perform the M4 legacy cutover.
 - The unfinished 4.6 QR deliverable is absorbed by **R5**.
 - Phase 5 requirements remain mandatory and are absorbed by **R9**; public exposure still
   cannot precede their operational gate.
-- Phase 6 contracts begin in **R1** and final qualification occurs in **R10**.
-- Phase 7 store readiness is part of **R10**, including the approved real Play install
+- Phase 6 contracts begin in **R1** and final production qualification occurs in **R10-P**.
+- Phase 7 store readiness is part of **R10-P**, including the approved real Play install
   path. A sideload or closed-test enrollment is not QR-funnel acceptance evidence.
 - The R5 split is a sequencing exception for local redesign work only. R5-P must close
-  before R10 can authorize the pilot, and it does not weaken any hosting, App Link, Play,
-  clean-install, deployment, rollback, or production-data requirement.
+  before R10-P can authorize the pilot, and neither the R5 nor R10 split weakens any
+  hosting, App Link, Play, clean-install, deployment, rollback, or production-data
+  requirement. R10-L is limited to local Android qualification.
 
 If a legacy task below conflicts with the approved R sequence, follow the R sequence and
 the signed redesign decision in `migration-decisions.md`; do not silently combine tasks.
@@ -1027,7 +1032,7 @@ experience you joined, never where the recipient is.
 **Still open — this needs your phone.** Nobody has yet seen a scoped push land on a
 device. The demo needs **both** switches, since `PilotFeatureFlags.notificationsEnabled`
 is `BuildConfig.FEATURE_NOTIFICATIONS_ENABLED && remoteConfig.getBoolean(…)`: an internal
-build with `GEODROP_FEATURE_NOTIFICATIONS_ENABLED=true`, *and* Remote Config
+build with `KITHE_FEATURE_NOTIFICATIONS_ENABLED=true`, *and* Remote Config
 `pilot_notifications_enabled` flipped on. That key is global and `conditions` is empty in
 `remoteconfig.template.json`, so flipping it is a production change — every other client
 is protected only by its build flag defaulting to false. Flip it for the demo, then flip it

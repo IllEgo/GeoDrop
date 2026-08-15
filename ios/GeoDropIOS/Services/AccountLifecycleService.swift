@@ -166,7 +166,7 @@ enum AccountLifecycleError: LocalizedError {
         case .notSignedIn:
             return "Sign in to manage account data."
         case .invalidResponse:
-            return "GeoDrop returned an invalid account-data response."
+            return "Kithe returned an invalid account-data response."
         case .passwordRequired:
             return "Enter your password to continue."
         case .googleSignInUnavailable:

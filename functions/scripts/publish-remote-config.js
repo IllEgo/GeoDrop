@@ -14,15 +14,15 @@
  *
  * Dry run (default) — prints what would change against the live template:
  *   GOOGLE_APPLICATION_CREDENTIALS=../.secrets/<key>.json \
- *     node scripts/publish-remote-config.js --project=geodrop-dfcba
+ *     node scripts/publish-remote-config.js --project=kithe-production
  *
  * Publish:
- *   ... --project=geodrop-dfcba --apply --confirm-project=geodrop-dfcba
+ *   ... --project=kithe-production --apply --confirm-project=kithe-production
  *
  * Temporarily enable flags for a supervised demo **without editing the
  * template**, which is what keeps the committed file fail-closed and makes the
  * revert unmissable:
- *   ... --apply --confirm-project=geodrop-dfcba \
+ *   ... --apply --confirm-project=kithe-production \
  *       --enable=pilot_creation_enabled,pilot_hunts_enabled --allow-enabled
  *
  * Revert by running with no --enable at all: the committed template is all-false

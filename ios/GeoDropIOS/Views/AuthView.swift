@@ -40,7 +40,7 @@ struct AuthView: View {
             ScrollView {
                 VStack(spacing: 24) {
                     VStack(spacing: 12) {
-                        Text("GeoDrop")
+                        Text("Kithe")
                             .font(geoDropTheme.typography.title.weight(.bold))
                             .foregroundColor(geoDropTheme.colors.onSurface)
                         Text(accountDescription)

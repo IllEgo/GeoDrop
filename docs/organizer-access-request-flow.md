@@ -60,9 +60,9 @@ This flow originally stopped at the "Get started →" button without specifying 
 
 **Screen 1:**
 > **Organizer accounts**
-> Organizer accounts let you build and manage GeoDrop experiences for your event, business, or organization — placing drops, tracking engagement, and issuing rewards.
+> Organizer accounts let you build and manage Kithe experiences for your event, business, or organization — placing drops, tracking engagement, and issuing rewards.
 >
-> Every organizer account is reviewed before approval. This helps keep GeoDrop's content trustworthy for everyone using it.
+> Every organizer account is reviewed before approval. This helps keep Kithe's content trustworthy for everyone using it.
 >
 > Review typically takes a few business days. We'll follow up by email either way.
 >
@@ -80,7 +80,7 @@ This flow originally stopped at the "Get started →" button without specifying 
 
 **Screen 3b:**
 > **Application not approved at this time**
-> Thanks for your interest in GeoDrop. We're not able to approve this application right now.
+> Thanks for your interest in Kithe. We're not able to approve this application right now.
 >
 > If you have questions, you can [contact us].
 

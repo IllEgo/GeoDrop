@@ -1,8 +1,11 @@
-# GeoDrop R5 — Entry, Guest, Account, and Permissions
+# Kithe R5 — Entry, Guest, Account, and Permissions
 
-Status: **R5-L approved and complete; R5-P production funnel deferred**  
-Date: 2026-08-10  
-Next task: **R6 local implementation authorized; no production action is authorized**
+Status: **R5-L approved and complete; R5-P prerequisite work authorized and in progress**
+Date: 2026-08-14
+Next task: **Complete Play identity, Android-device, and contact-phone verification; then create the app and obtain the Play signing certificate**
+
+Parallel local task: **Review and approve the prepared Play listing and Data safety
+package in `play-listing-data-safety-package.md`; no Play submission is authorized**
 
 This record covers only R5 from `redesign-alignment-proposal.md`. No target functions,
 hosting, App Links association, Remote Config, production data, Play release, or M4
@@ -13,6 +16,12 @@ and a production-funnel gate. The evidence in this record closes **R5-L**. The o
 App Links association, Play distribution, deployment bundle, production-safe fixtures, and
 external cold-install matrix remain together in **R5-P**, which is deferred but mandatory
 before any pilot or public release.
+
+On 2026-08-14 the owner directed work to continue with R5-P. This authorizes its read-only
+production audit and local fail-closed bundle preparation. It is not blanket authorization
+to purchase services, accept Play/Firebase terms, change account security, write DNS,
+deploy Hosting/Functions/rules, create production data, or publish a Play release; each such
+mutation remains an explicit action-time gate.
 
 ## Outcome
 
@@ -87,7 +96,7 @@ pretend the current random ID is a word-based code such as `ORCHID-42`.
 Because the target R2 callables remain undeployed and the connected device currently
 receives Firebase Installations `API_KEY_SERVICE_BLOCKED`, a clean debug reinstall had no
 real code capable of resolving the manual-entry screen. The debug APK now recognizes
-`DEMO2026` as **GeoDrop Device Demo** and supplies a visibly labeled
+`DEMO2026` as **Kithe Device Demo** and supplies a visibly labeled
 `DEBUG-DEMO-NOT-PRODUCTION` policy manifest. Both fixtures are selected only when
 `BuildConfig.DEBUG` is true; release and internal builds still require the Firebase entry
 and legal-policy gateways and fail closed. The demo records only local membership and
@@ -114,18 +123,25 @@ and the seeded signed-in Collection receipt, with neither `PERMISSION_DENIED` no
 missing-permissions message present. This is local demo evidence only and does not satisfy
 the R5-P production fixture or deployment gates.
 
-## R5-P production-funnel gate — deferred
+## R5-P production-funnel gate — in progress
 
 The local implementation gate is approved. The following product and production inputs are
 not code defects, but every one of them must be completed before R5-P can close:
 
-1. **Choose an app-owned HTTPS host after the app identity is settled.** The app is an
-   independent product that E3HI may use; its App Link identity must not depend on or imply
-   ownership by E3HI. Prefer a dedicated subdomain of the eventual app-owned domain because
-   it isolates App Link and landing-page operations. `geodrop.app` is prohibited.
+1. **Configure the registered app-owned HTTPS host.** The owner registered
+   `kitheapp.com` through Cloudflare on 2026-08-13, with `join.kitheapp.com` as the planned
+   dedicated App Link host. Registration is active, auto-renewal and WHOIS redaction are
+   enabled, and a 2026-08-14 read-only check confirmed DNSSEC is active. Base-domain
+   ownership is therefore satisfied;
+   DNS, HTTPS hosting, and the dedicated entry subdomain remain open and the client must stay
+   fail-closed until those checks pass. The app is an independent product that E3HI may use;
+   its App Link identity must not depend on or imply ownership by E3HI. `geodrop.app` remains
+   prohibited.
 2. **Provide the Play App Signing SHA-256 certificate fingerprint.** Publish the release
    fingerprint in `/.well-known/assetlinks.json`. If debug-domain testing is wanted, use
-   a separate staging host/fingerprint; do not add a debug key to the production claim.
+   a separate staging host/fingerprint; do not add a debug key to the production claim. The
+   current debug SHA-1 and SHA-256 are registered only on the Kithe Firebase Android app for
+   local device testing; the Play release fingerprint is still outstanding.
 3. **Approve the production installation route.** The signed F7 recommendation is a
    fail-closed production Play listing while Experiences remain invite-only. The accepted
    alternative is Play open testing with the extra opt-in step disclosed and measured.
@@ -145,6 +161,138 @@ not code defects, but every one of them must be completed before R5-P can close:
    Play, stripped referrer, manual code, LINK, MERGE, denied approximate, coarse-only,
    denied/blocked precise, granted precise, and exact resumed unlock. Analytics continuity
    must be checked by entry session, without logging raw location or payload.
+
+### R5-P resumption audit recorded 2026-08-14
+
+- Cloudflare shows DNSSEC active. No `join.kitheapp.com` DNS record exists yet, so the
+  dedicated entry host remains safely disconnected.
+- Kithe Production remains on Spark. Firebase Hosting is uninitialized, and neither the
+  `experienceEntryPage` landing function nor the R2 callables are deployed. The approved
+  dynamic-preview design requires Blaze/Cloud Billing before a deployment can be reviewed.
+- The independent Kithe Support Google identity has no Play Console developer account. On
+  2026-08-14 the owner enabled two-step verification and Play accepted the prerequisite.
+  The owner then confirmed that Kithe has no legally registered entity or D-U-N-S number,
+  so an Organization account cannot yet be truthfully verified. The owner initially chose
+  to pause Play enrollment and form an independent Hawaii entity, then chose to proceed with
+  a personal Play developer account for now and revisit business ownership later. Hawaii's
+  current public registry returned no record containing `Kithe`, but the portal warns that
+  search results are not definitive name-availability or trademark clearance. The personal
+  enrollment wizard accepted `Kithe` as the public developer name. The owner completed and
+  linked a personal Google Payments profile, and Play advanced to the public developer
+  profile. `support@kitheapp.com` is the approved public developer email. Play requires a
+  public website at this step. The owner approved the root-site deployment and DNS change on
+  2026-08-14. The dependency-free site in `website/` is now deployed through the Cloudflare
+  Pages project `kithe` and live with SSL at `https://kitheapp.com`; the root proxied CNAME
+  targets `kithe-370.pages.dev`. The existing email-routing MX, SPF, and DKIM records remain
+  present. The site is intentionally separate from the Firebase entry host and the unapproved
+  draft policy pages in `public/`, and `join.kitheapp.com` remains unconfigured. The owner
+  completed the registration payment on 2026-08-14, creating the personal Play developer
+  account **Kithe** (account ID `8042348230312832614`). The Play dashboard currently blocks
+  app creation until the owner completes official-document identity verification, verifies
+  access to a real Android device through the Play Console mobile app, and verifies the
+  contact phone number after Google approves the identity documents. Those owner-controlled
+  verification steps remain open. Any future organization conversion requires its own
+  verified process.
+- While Google identity verification is pending, the local Play listing and Data safety
+  package was prepared in `play-listing-data-safety-package.md`,
+  `play-listing-draft.md`, and `play-data-safety-draft.md`. It is not submitted. The audit
+  found two pre-upload release decisions: remove the deferred audio recorder/microphone
+  boundary from Pilot 1 and remove Firebase Analytics automatic collection. The owner then
+  directed local work to continue. Both corrections are implemented locally: Firebase
+  Analytics and five legacy events are removed, audio authoring/recording is unreachable,
+  and the regenerated debug manifest has no Advertising ID, AdServices, microphone, or
+  recorder component. A clean 2026-08-14 gate passed 127 unit tests, lint, and debug APK
+  assembly. The exact release App Bundle still requires the same audit. Legal approval and
+  publication of `/privacy` and `/account-deletion` remain blocking.
+- The next local-only listing pass audited the visual identity and found the legacy Android
+  launcher still depicts photo, video, and audio inside the old turquoise media pin. A
+  Kithe-specific `K`-as-trail icon candidate, a 1,024-by-500 feature graphic, and a six-shot
+  real-device capture manifest are prepared under `../play-assets/store-listing/`. The PNGs
+  are correctly sized and sRGB; the icon/launcher is not adopted until the owner approves
+  the mark. Substantive local privacy and account-deletion drafts are now in `../public/`,
+  with unresolved decisions recorded in `legal-drafts/play-policy-approval-matrix.md`.
+  Nothing was published, deployed, uploaded, or entered into Play.
+- The owner then approved the Kithe mark, feature graphic, and six-shot plan. Android's
+  adaptive foreground, round icon, and all density fallbacks now use the approved mark; the
+  local website source has matching favicon/touch assets without a deployment. The updated
+  APK passed 127 unit tests, lint, and assembly, installed successfully on Samsung
+  `R5CY114LNCE`, displayed the masked Kithe icon and label correctly in Android App info,
+  and launched `com.kitheapp/.MainActivity` without a fatal log. Existing app data was
+  preserved. The live participant surface correctly remained in the List fallback because
+  Maps setup is still an unauthorized pre-pilot dependency. No policy, site, backend, or
+  Play action occurred.
+- A local internal APK built successfully with `com.kitheapp`, `join.kitheapp.com`, the
+  verified `/e/` intent filter, and `APP_LINK_CONFIGURED=true`. It is debug/internal-signed;
+  its certificate must never be placed in the production `assetlinks.json`. The Play-held
+  app-signing SHA-256 remains required.
+- The existing Firebase Hosting rewrite and landing function remain the approved design.
+  Replacing the dynamic Experience preview with a static landing page would amend the
+  accepted R5-P funnel and is not being done implicitly.
+- Local R5-P bundle preparation now includes the real organizer QR/share surface and the
+  redesigned dynamic web fallback. The organizer detail creates the QR entirely on-device,
+  shows the human event code alongside it, and can copy the link, share a branded portrait
+  QR image, or save that image through Android's document picker without a storage
+  permission. The payload contains only the canonical Experience path, a random 128-bit
+  entry session, and the `QR` channel; it contains no user id, location, drop payload, auth
+  token, or credential. QR presentation remains behind `APP_LINK_CONFIGURED`, so the normal
+  build still shows the honest event-code-only state while `join.kitheapp.com` is
+  disconnected.
+- The undeployed `experienceEntryPage` now renders branded active, upcoming, ended, and
+  not-found states from safe preview metadata, preserves a valid QR entry session through
+  the Play Install Referrer handoff, escapes host-authored text, uses no client analytics or
+  external assets, and denies camera, geolocation, and microphone access at the page header.
+  Local verification passed Functions lint/build/contract checks and the Android gate with
+  **130 tests, zero failures**, lint, and debug APK assembly. The QR test performs an actual
+  encode/decode round trip. This is source and local test evidence only: no DNS, Hosting,
+  Functions, Firebase billing, Play listing, production data, or live-site change occurred.
+- The next predeployment audit found that `firebase.json` still targeted `public/`, which
+  contains nine local policy drafts, including pages visibly marked unapproved. That was an
+  accidental-publication risk, not an accepted R5-P requirement. Firebase Hosting now
+  targets a dedicated minimal `hosting/` directory containing only a noindex root and 404;
+  the dynamic `/e/**` rewrite remains unchanged. The Hosting ignore rule no longer excludes
+  the future `.well-known/assetlinks.json`, and the exact path is configured for JSON plus a
+  short rollout cache lifetime. Static security headers deny active content, framing,
+  referrers, camera, geolocation, and microphone access.
+- `deployment/r5-p/assetlinks.json.template` remains outside the deploy directory with a
+  conspicuous Play-signing placeholder. The local preflight refuses malformed, multiple,
+  wrong-package, placeholder, unexpected-file, or policy-containing bundles and has a
+  production-required mode. Its current result is structurally passing but deliberately
+  `productionReady: false`, with the missing Play App Signing SHA-256 as the only release
+  asset blocker. The ordered external decisions are recorded in
+  `r5-p-external-approval-list.md`. No billing, Firebase, Hosting, DNS, policy, Play, or
+  production-data mutation occurred during this preparation.
+
+### Independent Firebase identity and Android package prepared 2026-08-13
+
+The owner created **Kithe Production** (`kithe-production`) on Firebase's Spark plan and
+registered **Kithe Android** as `com.kitheapp`. The debug SHA-1/SHA-256 fingerprints are
+registered, Android now builds and installs as `com.kitheapp`, and the active Firebase config
+targets Kithe. Anonymous Auth is enabled and an empty deny-all Standard Firestore database is
+created in `nam5`. The physical-device `DEMO2026` route passed through preview and policy to
+the participant surface.
+
+The physical debug build's App Check token is allowlisted without being written to the
+repository. The owner explicitly accepted the Google APIs and Play Integrity API terms on
+2026-08-13, and Kithe Android is registered with Play Integrity using a one-hour token
+lifetime. Firestore and Authentication enforcement remain off. Crashlytics detects the Kithe
+Android app and is waiting for a first crash; Messaging is available, but no test campaign was
+sent and Analytics remains disabled. Local verification passes Functions lint/build,
+redesign and fail-closed Remote Config contracts, local operations readiness, all 18
+Firestore/Storage emulator suites, and the collection-group index check. Five missing
+`schemaVersion` index declarations found by that check were added to the local manifest only.
+
+This does not close R5-P. Cloudflare Email Routing is enabled for `kitheapp.com`, and the
+active `support@kitheapp.com` rule forwards to the verified owner inbox with its MX, SPF, and
+DKIM records publicly resolvable. The alias is now the Google identity **Kithe Support**, is
+an Editor on Kithe Production, and is the Firebase OAuth support email. Google Authentication
+is enabled with public-facing name **Kithe**; the refreshed Android configuration passed a
+physical-device Explorer sign-in and preserved the local `DEMO2026` Collection state.
+Maps SDK enablement requires explicit Maps terms and billing approval, while Firebase Storage
+and Cloud Functions require Blaze. An initial device run confirmed the Maps authorization
+failure; the installed build now defaults to List, disables Map, and shows a pending-setup
+message without making an unauthorized Maps request. No billing, production data, Firestore
+rules/index deploy, Functions, Storage, Hosting, Remote Config, App Check enforcement,
+Analytics, Play release, or App Link association was enabled.
 
 ## Direction and migration alignment
 

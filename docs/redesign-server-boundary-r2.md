@@ -1,4 +1,4 @@
-# GeoDrop R2 — Additive Server Boundary and Gate Evidence
+# Kithe R2 — Additive Server Boundary and Gate Evidence
 
 Status: **Approved — R2 gate complete; R3 client foundation authorized**  
 Date: 2026-08-09  

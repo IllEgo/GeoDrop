@@ -1,14 +1,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.e3hi.geodrop">
+    package="com.kitheapp">
 
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.INTERNET" />
-    <!-- Photo drops still capture from the camera; audio drops still record.
-         Video capture was removed at task 2.3, which narrowed neither. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Pilot 1 authors text and photo drops only. Audio and video capture are deferred. -->
     <uses-permission android:name="android.permission.CAMERA" />
-    <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
     <uses-feature
         android:name="android.hardware.camera"
@@ -18,7 +17,8 @@
         android:name=".GeoDropApplication"
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
-        android:label="GeoDrop"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:theme="@style/Theme.GeoDrop">
 
         <meta-data
@@ -36,11 +36,6 @@
         </activity>
 
         <activity
-            android:name=".ui.AudioRecorderActivity"
-            android:exported="false"
-            android:screenOrientation="portrait" />
-
-        <activity
             android:name=".MainActivity"
             android:exported="true"
             android:screenOrientation="portrait">
@@ -54,14 +49,14 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="http" />
                 <data android:scheme="https" />
-                <data android:host="${geodropAppLinkHost}" />
+                <data android:host="${kitheAppLinkHost}" />
                 <data android:pathPrefix="/e/" />
             </intent-filter>
         </activity>
 
         <provider
             android:name="androidx.core.content.FileProvider"
-            android:authorities="com.e3hi.geodrop.fileprovider"
+            android:authorities="${applicationId}.fileprovider"
             android:exported="false"
             android:grantUriPermissions="true">
             <meta-data

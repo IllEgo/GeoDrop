@@ -1,31 +1,131 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>GeoDrop — Privacy Policy</title>
-<style>
-  :root{color-scheme:light dark}
-  body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;line-height:1.6;max-width:720px;margin:0 auto;padding:24px;color:#1a1a1a;background:#fff}
-  @media (prefers-color-scheme:dark){body{color:#e6e6e6;background:#121212}a{color:#8ab4f8}}
-  h1{font-size:1.6rem;margin:.2em 0 .1em}
-  .draft{background:#fff3cd;color:#664d03;border:1px solid #ffe69c;border-radius:8px;padding:10px 14px;font-size:.9rem;margin:16px 0}
-  @media (prefers-color-scheme:dark){.draft{background:#2b2410;color:#ffe69c;border-color:#4d3f14}}
-  .meta{color:#666;font-size:.85rem}
-  footer{margin-top:40px;font-size:.8rem;color:#888;border-top:1px solid #8883;padding-top:12px}
-  nav a{margin-right:12px;font-size:.85rem}
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Kithe Privacy Policy — Draft</title>
+  <style>
+    :root{color-scheme:light;--primary:#0b5d5d;--primary-deep:#084949;--surface:#fdfcfa;--raised:#fff;--ink:#14171a;--muted:#4a525c;--border:#cdd8d4;--amber:#e07b24;--draft:#fff4df}
+    *{box-sizing:border-box}body{margin:0;background:var(--surface);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;font-size:1rem;line-height:1.65}
+    a{color:var(--primary-deep)}a:focus-visible{outline:3px solid #b45309;outline-offset:4px}.shell{width:min(calc(100% - 32px),780px);margin-inline:auto}
+    header{border-bottom:1px solid var(--border);background:var(--raised)}header .shell{display:flex;min-height:72px;align-items:center;justify-content:space-between;gap:20px}.wordmark{color:var(--primary);font-size:1.4rem;font-weight:850;text-decoration:none}
+    main{padding-block:42px 80px}h1,h2{line-height:1.15;letter-spacing:-.025em}h1{margin:0 0 10px;font-size:clamp(2.1rem,7vw,3.4rem)}h2{margin:42px 0 12px;font-size:1.45rem}p,li{max-width:72ch}.meta{margin:0;color:var(--muted);font-size:.92rem}
+    .draft{margin:28px 0;padding:18px;border:2px solid var(--amber);border-radius:16px;background:var(--draft)}.draft strong{display:block;margin-bottom:4px}.summary{padding:22px;border:1px solid var(--border);border-radius:18px;background:var(--raised)}
+    table{width:100%;border-collapse:collapse;background:var(--raised)}th,td{padding:14px;text-align:left;vertical-align:top;border:1px solid var(--border)}th{color:var(--primary-deep)}
+    footer{padding-block:28px;border-top:1px solid var(--border);color:var(--muted);font-size:.9rem}footer nav{display:flex;flex-wrap:wrap;gap:16px;margin-bottom:12px}@media(max-width:620px){table,thead,tbody,tr,th,td{display:block}thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}td{border-top:0}tr:first-child td:first-child{border-top:1px solid var(--border)}td::before{display:block;color:var(--primary-deep);font-size:.82rem;font-weight:800;text-transform:uppercase;content:attr(data-label)}}
+  </style>
 </head>
 <body>
-  <h1>Privacy Policy</h1>
-  <p class="meta">GeoDrop · Version pilot-2026-07-21-draft · Last updated 2026-07-22</p>
-  <div class="draft"><strong>DRAFT PLACEHOLDER.</strong> This page exists so the app can load the policy manifest. Replace this copy with your reviewed legal text before public launch.</div>
-  <p>This Privacy Policy explains what data GeoDrop collects, how it is used, and your choices.</p><p>Placeholder sections: data we collect (account, location, media), how we use it, sharing with subprocessors, retention, your rights, and contact.</p>
-  <footer>
-    <nav>
-      <a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/community-guidelines">Community</a><a href="/support">Support</a>
-    </nav>
-    &copy; 2026 GeoDrop. Contact: support (placeholder).
-  </footer>
+  <header><div class="shell"><a class="wordmark" href="/">Kithe</a><a href="mailto:support@kitheapp.com">Contact support</a></div></header>
+  <main class="shell">
+    <h1>Privacy Policy</h1>
+    <p class="meta">Engineering draft · Version [APPROVED_VERSION] · Effective [APPROVED_DATE]</p>
+
+    <div class="draft" role="note">
+      <strong>Draft — not approved for publication</strong>
+      This working copy describes the current Pilot 1 design. The legal operator name,
+      minimum age, pilot regions, processor terms, and unresolved retention periods must be
+      approved before this page can become Kithe's public privacy notice.
+    </div>
+
+    <section class="summary" aria-labelledby="summary-title">
+      <h2 id="summary-title">The short version</h2>
+      <p>Kithe connects invitation-only digital Experiences to real places. The app uses
+      approximate location while you browse and requests a precise location only when you
+      choose to unlock a drop or, as an approved organizer, place one at your current
+      location. Kithe does not request background location and is not designed to keep a
+      history of where participants travel.</p>
+      <p>Kithe does not sell personal information, run behavioral advertising, or show a
+      participant's live location to an Experience host or another participant.</p>
+    </section>
+
+    <h2>1. Who is responsible</h2>
+    <p>Kithe is operated by <strong>[APPROVED REGISTERED PARTNERSHIP OR ENTITY NAME]</strong> in
+    <strong>[APPROVED JURISDICTION]</strong>. Questions or privacy requests can be sent to
+    <a href="mailto:support@kitheapp.com">support@kitheapp.com</a>. Add any legally required
+    mailing address or representative here before publication.</p>
+
+    <h2>2. Information Kithe handles</h2>
+    <table>
+      <thead><tr><th>Category</th><th>Examples</th><th>Why it is used</th></tr></thead>
+      <tbody>
+        <tr><td data-label="Category">Account and profile</td><td data-label="Examples">Account identifier, display name or username, email address when you use an identified sign-in method, authentication-provider metadata, and organizer application details.</td><td data-label="Why it is used">Create and secure an account, restore access, manage organizer approval, and provide account export or deletion.</td></tr>
+        <tr><td data-label="Category">Location</td><td data-label="Examples">Approximate foreground location for nearby context; a one-time precise fix, accuracy, and timestamp for an unlock check; a location selected by an organizer for a drop.</td><td data-label="Why it is used">Show relevant nearby content, verify that a participant reached an unlock location, and attach organizer-authored content to a place.</td></tr>
+        <tr><td data-label="Category">Content and activity</td><td data-label="Examples">Joined Experiences, text or photo drops, captions and alt text, unlock receipts, Collection items, likes, reports, blocks, feedback, Trail progress, reward status, and notification choices.</td><td data-label="Why it is used">Provide the Experience, preserve unlocked items, prevent duplicate rewards, support safety review, and measure whether the pilot works.</td></tr>
+        <tr><td data-label="Category">Device and reliability</td><td data-label="Examples">App and OS version, installation or messaging identifier, integrity result, crash stack trace, diagnostic state, network metadata, map interactions, and referral context.</td><td data-label="Why it is used">Deliver notifications, diagnose failures, protect Kithe from abuse, continue an invitation after installation, and operate maps.</td></tr>
+      </tbody>
+    </table>
+
+    <h2>3. How location works</h2>
+    <p>Kithe requests foreground location in context. Approximate location supports nearby
+    browsing. When you press Unlock, the app can send one precise fix with its accuracy and
+    age to Kithe's server. The server evaluates proximity without writing the participant's
+    submitted latitude and longitude to the unlock record. It records the result and related
+    receipt information.</p>
+    <p>An approved organizer can choose coordinates for a drop or place it at the organizer's
+    current position. Those authored coordinates are stored because they define where that
+    drop can be found. Google Maps and platform location services also process request,
+    device, network, and interaction information under their applicable terms.</p>
+
+    <h2>4. How information is used</h2>
+    <ul>
+      <li>Provide invitation preview, joining, maps, Trails, unlocking, Collection, rewards, and organizer tools.</li>
+      <li>Authenticate accounts, merge a guest account when requested, and protect private Experience data.</li>
+      <li>Investigate crashes, outages, fraud, abuse, reports, and reward disputes.</li>
+      <li>Send service notifications for Experiences you joined when notifications are enabled.</li>
+      <li>Create privacy-minimal pilot measurements. Raw pseudonymous pilot events are designed to expire after 180 days and are removed for the account actor during account deletion.</li>
+    </ul>
+
+    <h2>5. Service providers and other recipients</h2>
+    <p>Kithe uses service providers to operate the app and site, including Google services for
+    Firebase Authentication, Firestore, Cloud Functions, Cloud Storage, Cloud Messaging,
+    Crashlytics, App Check/Play Integrity, Remote Config, Maps, and Android platform services;
+    and Cloudflare for the website, DNS, and support-email routing. These providers process
+    information under their own terms and Kithe's configured service relationship.</p>
+    <p>Experience hosts may receive Experience-level results and operational information needed
+    to run their Experience. Kithe's approved design does not provide them with a participant's
+    exact live position or travel path. Information may also be disclosed when required by law,
+    to address an emergency, or to investigate and prevent abuse, subject to an approved process.</p>
+
+    <h2>6. Retention and deletion</h2>
+    <p>Account and Experience data is kept while needed to provide Kithe and for the approved
+    retention periods. Current engineering defaults include: private export objects deleted
+    after 24 hours; export download links expiring after 15 minutes; pseudonymous deletion
+    receipts retained for 30 days; and raw pilot events expiring after 180 days. These periods
+    require final privacy/legal approval.</p>
+    <p>When an account is deleted, Kithe deletes or deidentifies account-linked data according
+    to the account-deletion process. Safety reports can remain after reporter identity is
+    replaced with a deletion pseudonym. Deidentified aggregate results, required fraud or
+    reward records, legal records, and provider backups may remain for approved limited
+    periods. <strong>[APPROVE AND INSERT THE SAFETY, FRAUD/REWARD, LEGAL, AND BACKUP WINDOWS.]</strong></p>
+
+    <h2>7. Your choices</h2>
+    <ul>
+      <li>You can decline location permission. Nearby distance and unlocking will be limited.</li>
+      <li>You can disable Kithe notifications in the app or Android settings.</li>
+      <li>You can create a private data export from Account → Privacy and data → Your data.</li>
+      <li>You can permanently delete your account in the same area or follow the instructions on the <a href="/account-deletion">account-deletion page</a>.</li>
+      <li>You can report content or block a host using the controls provided in Kithe.</li>
+    </ul>
+
+    <h2>8. Children and pilot availability</h2>
+    <p><strong>[OWNER/LEGAL DECISION REQUIRED.]</strong> Insert the approved minimum age,
+    target-audience statement, parental-consent posture if applicable, and pilot regions.
+    The current product recommendation is an adult-only U.S. Pilot 1, but that recommendation
+    is not an approved public policy.</p>
+
+    <h2>9. Security and changes</h2>
+    <p>Kithe uses access controls, encrypted network transport, app-integrity checks, and
+    server-authoritative unlock decisions. No system can guarantee absolute security. Material
+    changes to this notice should receive a new version and effective date; where required,
+    Kithe will ask users to review and accept the updated policies.</p>
+
+    <h2>10. Contact</h2>
+    <p>Email <a href="mailto:support@kitheapp.com">support@kitheapp.com</a> with privacy,
+    access, correction, export, or deletion questions. Do not send passwords, verification
+    codes, precise location, or unnecessary identity documents by email.</p>
+  </main>
+  <footer><div class="shell"><nav aria-label="Policy links"><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/account-deletion">Account deletion</a><a href="/support">Support</a></nav><span>© 2026 Kithe · Draft, not approved for publication</span></div></footer>
 </body>
 </html>

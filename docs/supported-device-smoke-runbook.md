@@ -1,6 +1,6 @@
 # Supported-device smoke runbook
 
-This runbook defines the minimum release-candidate smoke matrix for GeoDrop. It is an evidence checklist, not a claim that a device or journey has passed. Record every run in the release evidence document and link defects rather than silently waiving failures.
+This runbook defines the minimum release-candidate smoke matrix for Kithe. It is an evidence checklist, not a claim that a device or journey has passed. Record every run in the release evidence document and link defects rather than silently waiving failures.
 
 ## Entry criteria
 

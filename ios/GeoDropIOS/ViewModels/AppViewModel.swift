@@ -329,7 +329,7 @@ final class AppViewModel: ObservableObject {
 
     func acceptTerms() {
         guard let manifest = legalManifest else {
-            legalManifestError = "GeoDrop's approved legal policies are unavailable. Try again later."
+            legalManifestError = "Kithe's approved legal policies are unavailable. Try again later."
             hasAcceptedTerms = false
             return
         }

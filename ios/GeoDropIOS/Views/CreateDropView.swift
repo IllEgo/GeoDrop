@@ -335,7 +335,7 @@ struct CreateDropView: View {
                 systemImage: contentType == .photo ? "camera" : contentType == .audio ? "mic" : contentType == .video ? "video" : "text.alignleft"
             )
         } footer: {
-            Text("Media is stored securely and optimized for quick playback in the GeoDrop app.")
+            Text("Media is stored securely and optimized for quick playback in the Kithe app.")
                 .font(.footnote)
                 .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
         }

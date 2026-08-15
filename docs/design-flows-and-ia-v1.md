@@ -1,4 +1,4 @@
-# GeoDrop — Flows, IA & Permission Design v1
+# Kithe — Flows, IA & Permission Design v1
 
 > **Owner:** Product Designer. **Status:** draft v0.1, 2026-07-26 — founder review required.
 > **Scope source:** `product-direction.md` launch scope, `user-stories-v1.md`, `migration-plan.md` Phase 3.
@@ -117,7 +117,7 @@ Returning to the map after sign-up instead of resuming the unlock is the single 
 Full-screen, one job, one button:
 
 > **Show me what's nearby**
-> GeoDrop uses your rough location to show which drops are around you and how far.
+> Kithe uses your rough location to show which drops are around you and how far.
 > When you try to open a drop, we'll ask for your exact location for a few seconds to check you're really there — then we let go of it.
 > We never track where you go, and no one else sees your location.
 >
@@ -134,13 +134,13 @@ Why this shape: it pre-announces the *second* request. The precise-location ask 
 Bottom sheet, on the **first** unlock attempt in an experience. Not on every drop — ten drops must not mean ten explainers.
 
 > **Checking you're here**
-> GeoDrop needs your exact location for a moment to confirm you're at this spot. We use it for the check and forget it — nothing is saved but the fact you found this.
+> Kithe needs your exact location for a moment to confirm you're at this spot. We use it for the check and forget it — nothing is saved but the fact you found this.
 >
 > [ Check now ]   [ Cancel ]
 
 Then the system dialog. On Android prefer **"Only this time"** (one-time precise; migration 3.3). Subsequent unlocks in the same session skip the sheet and go straight to the check.
 
-**Android 12+ edge case Frontend must handle:** the user can grant location but choose *Approximate* in the same dialog. That is not a denial and must not be treated as one — it needs its own message: *"Your phone is sharing a rough location only. GeoDrop needs the exact one for a second to check you're here."* + settings path.
+**Android 12+ edge case Frontend must handle:** the user can grant location but choose *Approximate* in the same dialog. That is not a denial and must not be treated as one — it needs its own message: *"Your phone is sharing a rough location only. Kithe needs the exact one for a second to check you're here."* + settings path.
 
 **Precise denied entirely:** browsing continues to work. The unlock button stays enabled — it opens an explainer rather than doing nothing. A permanently greyed button with no explanation is the worst possible outcome, because the guest concludes the app is broken and tells the host.
 
@@ -187,7 +187,7 @@ This is the core mechanic (user-stories §4) and the only flow worth over-design
 | Fuzzy GPS | "Your phone isn't sure where it is right now (give or take 60 m). Step into the open and try again." | Check again |
 | Expired | "This one closed when the event ended." | Back |
 | No signal | *see Handoff B — two variants drafted, neither shippable until Backend answers* | — |
-| Precise denied | "GeoDrop needs your exact location for a second to check you're here." | Allow · Not now |
+| Precise denied | "Kithe needs your exact location for a second to check you're here." | Allow · Not now |
 | Approximate-only granted | "Your phone is sharing a rough location only." | Open settings · Not now |
 
 Non-negotiables in that table:
@@ -265,7 +265,7 @@ Direction doc says organizer analytics and redemption are what people actually p
 - **The drop nobody found is the most actionable row** (per §10) — visually distinguish it, don't just sort it last.
 - **Available during the event.** The organizer is checking their phone mid-reception.
 - **Empty state, which they will see first:** "No one's arrived yet. Results appear as guests start finding drops." Not a zeroed dashboard — a zeroed dashboard at 6pm reads as broken.
-- **Never any individual guest's path.** Aggregates and receipts only, per the privacy principle. This is also a selling point worth stating in the UI: *"GeoDrop doesn't track where guests go."*
+- **Never any individual guest's path.** Aggregates and receipts only, per the privacy principle. This is also a selling point worth stating in the UI: *"Kithe doesn't track where guests go."*
 
 **Redemption:** business marks a code redeemed manually for pilot 1 (`ASSUMPTION:` per story 9). Design: a search/enter-code field + a big confirm, plus already-redeemed and expired states. This runs at a busy counter — one field, one button, 56dp, high contrast.
 
@@ -290,7 +290,7 @@ Nothing in the source docs sets a v1 standard. `user-stories-v1.md` flags the ga
 
 ### HANDOFF → Backend Engineer  *(A — blocking design)*
 **Context:** Unlock failure states, `design-flows-and-ia-v1.md` §4.
-**What I need:** Does an unlock work with no cell signal? Two mutually exclusive designs follow from the answer — (i) queued: "You found it. We'll confirm when you're back online," with a pending state in Collection and a resolution path if the check later fails; (ii) hard fail: "GeoDrop can't reach the internet. Move somewhere with signal and try again." I will not ship a promise the server won't keep.
+**What I need:** Does an unlock work with no cell signal? Two mutually exclusive designs follow from the answer — (i) queued: "You found it. We'll confirm when you're back online," with a pending state in Collection and a resolution path if the check later fails; (ii) hard fail: "Kithe can't reach the internet. Move somewhere with signal and try again." I will not ship a promise the server won't keep.
 **Constraints from Design:** whichever it is, it must be distinguishable in copy from *too far* and from *expired*. Also confirm the check returns the distance delta to the client — the "about 40 m away" message depends on it.
 **Blocking:** yes, for failure copy only. Rest of the flow proceeds.
 

@@ -1,7 +1,7 @@
-# GeoDrop Redesign Alignment Proposal
+# Kithe Redesign Alignment Proposal
 
-Status: **R0-R5-L approved; R5-P deferred; R6-R8 local/device approved; R9 local/device implementation complete, approval pending; R10 not authorized**  
-Date: 2026-08-11  
+Status: **R0-R5-L approved; R5-P prerequisites in progress; R6-R10-L local/device approved; R10-P not authorized**
+Date: 2026-08-14
 Scope: alignment of the 13 design/UX specifications added to `docs/` with
 `product-direction.md`, `migration-plan.md`, the signed migration decisions, and the
 current pre-pilot implementation.
@@ -24,6 +24,11 @@ the complete gate on 2026-08-10 after the verified R4 build was reinstalled and 
   recorded in `redesign-entry-guest-permissions-r5.md` are ready. R5-P remains mandatory
   before pilot/public release. No backend rollout, production-data, Remote Config, Play
   publication, or M4 work is implied by these approvals.
+
+  On 2026-08-14 the owner directed R5-P to continue. Read-only production audit and local
+  fail-closed bundle preparation are authorized. Billing, account/security changes, DNS,
+  deployment, production data, Play enrollment/publication, and other external mutations
+  remain separate action-time approvals.
 
 On 2026-08-10 the owner explicitly authorized **R6 local implementation**, beginning with
 the participant-loop crash-stability checkpoint. This authorization does not include R5-P,
@@ -56,8 +61,12 @@ the target-report moderation bridge, private callable rate limits, and fail-clos
 operations readiness are implemented and verified locally. The R9 walkthrough and final
 bottom-inset correction passed on the physical review device. Physical-device evidence and
 the deliberately open pre-pilot dependencies are recorded in
-`redesign-account-safety-operations-r9.md`. R9 owner approval is pending. No production
-action or R10 qualification is authorized.
+`redesign-account-safety-operations-r9.md`. On 2026-08-13 the owner approved every R9
+local/device item while keeping the pre-pilot dependencies open. No production action or
+R10-P qualification is authorized. On 2026-08-13 the owner approved a procedural R10 split
+and authorized only R10-L local Android qualification. The bounded scope and evidence are
+recorded in `redesign-local-qualification-r10.md`. On 2026-08-14 the owner approved and
+closed R10-L after its automated, accessibility, and physical-device evidence passed.
 
 ## 1. Decision authority
 
@@ -92,7 +101,7 @@ The review covered:
 
 ## 2. Proposed launch contract
 
-The redesign should make GeoDrop feel like a quiet, trustworthy local guide for a bounded
+The redesign should make Kithe feel like a quiet, trustworthy local guide for a bounded
 event experience. It should not restore the prototype's social-map identity.
 
 ### 2.1 Adopt for Pilot 1
@@ -188,7 +197,7 @@ states, manual business validation, correction history, and both counts.
 - Pre-generate a unique code pool per reward so a pilot business can receive a founder-
   supplied validation list before the event.
 - On reward unlock, assign/reserve one code server-side and record `issuedAt`. Issuance
-  consumes limited inventory so GeoDrop never promises more rewards than exist.
+  consumes limited inventory so Kithe never promises more rewards than exist.
 - An approved organizer later calls an owner-authorized `markRewardCodeUsed` operation,
   recording `usedAt`, actor, and a small correction history. A deliberate correction can
   return the state to issued without creating a second code.
@@ -286,7 +295,7 @@ internal/device behavior but does not settle public Play distribution.
 **Recommended option:** publish a fail-closed production Play build before the real pilot.
 The app may be publicly installable while Experiences remain invite-only and controlled by
 codes. Use an owned-domain App Link and landing page, Play Install Referrer, and event-code
-fallback. Run the full path with a device that has never installed GeoDrop.
+fallback. Run the full path with a device that has never installed Kithe.
 
 **Alternative:** use Play open testing and disclose the opt-in step as part of the measured
 funnel. This is operationally safer but does not represent the final cold-install flow and
@@ -459,6 +468,12 @@ support can be operated by one person at pilot volume.
 
 ### R10 - Instrument, qualify, and run Pilot 1
 
+On 2026-08-13 the owner split this stage into **R10-L** and **R10-P**. R10-L may perform
+local Android instrumentation, accessibility/UX qualification, automated checks, debug
+device rehearsals, and local fixes. R10-P retains every billing, deployment, production
+configuration/data, Play, HTTPS/App Link, release, outdoor/cross-device, and pilot action.
+R10-L evidence cannot close or waive R5-P or any R6-R9 pre-pilot dependency.
+
 1. Validate the funnel against the revised activation definition and Experience-based
    north-star event.
 2. Run automated unit/rules/function/UI/accessibility tests and real-device outdoor tests.
@@ -512,7 +527,8 @@ then explicitly authorized R6 local implementation on 2026-08-10 and approved th
 implemented local/device experience on 2026-08-11. The R6 production/outdoor qualification
 items remain open. The owner approved R7 local/device implementation on 2026-08-11 and
 then authorized R8 local/device implementation. R8 has passing automated and physical
-walkthrough evidence and was approved by the owner on 2026-08-11. R9 local/device work is
-implemented with automated and physical walkthrough evidence; owner approval is pending
-under `redesign-account-safety-operations-r9.md`. R10 and all production actions remain
-unauthorized.
+walkthrough evidence and was approved by the owner on 2026-08-11. R9 local/device work has
+automated and physical walkthrough evidence and was approved by the owner on 2026-08-13;
+its pre-pilot dependencies remain open under `redesign-account-safety-operations-r9.md`.
+R10-L was approved and closed on 2026-08-14 under `redesign-local-qualification-r10.md`.
+R10-P and all production actions remain unauthorized.

@@ -2,6 +2,10 @@
 
 const assert = require("assert");
 const {REDESIGN_TEST_ONLY} = require("../lib/redesign");
+const {
+  renderExperienceEntryNotFound,
+  renderExperienceEntryPage,
+} = require("../lib/entryPage");
 
 assert.strictEqual(REDESIGN_TEST_ONLY.canonicalEventCount, 21);
 assert.strictEqual(REDESIGN_TEST_ONLY.distanceBucket(0), "0_25");
@@ -27,6 +31,45 @@ assert.deepStrictEqual(REDESIGN_TEST_ONLY.rateLimits.unlockDrop, {
   limit: 20,
   windowSeconds: 5 * 60,
 });
+
+const activeEntryHtml = renderExperienceEntryPage({
+  code: "DEMO2026",
+  name: "<Hilo Garden Walk>",
+  description: "Find what the host left for you.",
+  hostLabel: "Kithe & Friends",
+  availability: "ACTIVE",
+  availableDropCount: 3,
+}, "https://play.google.com/store/apps/details?id=com.kitheapp&referrer=safe");
+assert.ok(activeEntryHtml.includes("DEMO-2026"));
+assert.ok(activeEntryHtml.includes("3 drops"));
+assert.ok(activeEntryHtml.includes("&lt;Hilo Garden Walk&gt;"));
+assert.ok(activeEntryHtml.includes("Kithe &amp; Friends"));
+assert.ok(!activeEntryHtml.includes("<Hilo Garden Walk>"));
+assert.ok(!activeEntryHtml.includes("latitude"));
+assert.ok(!activeEntryHtml.includes("longitude"));
+
+const upcomingEntryHtml = renderExperienceEntryPage({
+  code: "NEXT2026",
+  name: "Tomorrow's Walk",
+  description: null,
+  hostLabel: "Host",
+  availability: "UPCOMING",
+  availableDropCount: 1,
+}, "https://play.google.com/store/apps/details?id=com.kitheapp");
+assert.ok(upcomingEntryHtml.includes("STARTS SOON"));
+assert.ok(upcomingEntryHtml.includes("1 drop"));
+
+const endedEntryHtml = renderExperienceEntryPage({
+  code: "PAST2026",
+  name: "Past Walk",
+  description: null,
+  hostLabel: "Host",
+  availability: "ENDED",
+  availableDropCount: 4,
+}, "https://play.google.com/store/apps/details?id=com.kitheapp");
+assert.ok(endedEntryHtml.includes("THIS ONE&#39;S CLOSED"));
+assert.ok(!endedEntryHtml.includes("primary-action\" href="));
+assert.ok(renderExperienceEntryNotFound().includes("We couldn't find that Experience"));
 
 console.log(JSON.stringify({
   passed: true,

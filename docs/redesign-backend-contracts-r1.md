@@ -1,4 +1,4 @@
-# GeoDrop R1 — Backend, Security, Migration, and Analytics Contracts
+# Kithe R1 — Backend, Security, Migration, and Analytics Contracts
 
 Status: **Approved — R1 gate complete; R2 local implementation authorized**  
 Date: 2026-08-09  

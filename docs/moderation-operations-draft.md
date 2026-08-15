@@ -1,4 +1,4 @@
-# GeoDrop Moderation Operations — Pilot Draft
+# Kithe Moderation Operations — Pilot Draft
 
 Status: **Backend workflow draft; staffing, Legal approval, and operational
 rehearsal are required before launch**

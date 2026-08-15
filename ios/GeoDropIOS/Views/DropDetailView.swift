@@ -357,7 +357,7 @@ struct DropDetailView: View {
 
     private func moderationSection(for drop: Drop, alreadyReported: Bool, isOwner: Bool, canParticipate: Bool) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Keep GeoDrop welcoming")
+            Text("Keep Kithe welcoming")
                 .font(.subheadline.weight(.semibold))
 
             HStack(spacing: 12) {
@@ -418,7 +418,7 @@ struct DropDetailView: View {
         VStack(alignment: .leading, spacing: 12) {
             Label("Adult content hidden", systemImage: "eye.slash")
                 .font(.subheadline.weight(.semibold))
-            Text("Adult content is unavailable during the GeoDrop pilot.")
+            Text("Adult content is unavailable during the Kithe pilot.")
                 .font(.callout)
                 .foregroundColor(.primary)
             if !labels.isEmpty {

@@ -1,4 +1,4 @@
-# GeoDrop R3 — Android Design Foundation and Gate Evidence
+# Kithe R3 — Android Design Foundation and Gate Evidence
 
 Status: **Approved — R3 gate complete; R4 subsequently approved**  
 Date: 2026-08-10  

@@ -5,43 +5,52 @@ plugins {
     id 'com.google.firebase.crashlytics'
 }
 
-def booleanBuildFlag = { String propertyName, boolean defaultValue ->
-    def configuredValue = project.findProperty(propertyName) ?: System.getenv(propertyName)
+def booleanBuildFlag = { List<String> propertyNames, boolean defaultValue ->
+    def configuredValue = null
+    for (String propertyName : propertyNames) {
+        configuredValue = project.findProperty(propertyName) ?: System.getenv(propertyName)
+        if (configuredValue != null) {
+            break
+        }
+    }
     if (configuredValue == null) {
         return defaultValue.toString()
     }
 
     def normalizedValue = configuredValue.toString().trim().toLowerCase()
     if (!(normalizedValue in ['true', 'false'])) {
-        throw new GradleException("${propertyName} must be either true or false")
+        throw new GradleException("${propertyNames[0]} must be either true or false")
     }
     return normalizedValue
 }
 
 def appLinkHost = (
-        project.findProperty('GEODROP_APP_LINK_HOST')
+        project.findProperty('KITHE_APP_LINK_HOST')
+                ?: System.getenv('KITHE_APP_LINK_HOST')
+                // Temporary compatibility aliases for existing local/CI setup.
+                ?: project.findProperty('GEODROP_APP_LINK_HOST')
                 ?: System.getenv('GEODROP_APP_LINK_HOST')
                 ?: 'r5-unconfigured.invalid'
 ).toString().trim().toLowerCase()
 if (!(appLinkHost ==~ /[a-z0-9.-]+/) || appLinkHost.contains('..')) {
-    throw new GradleException('GEODROP_APP_LINK_HOST must be a bare HTTPS host name')
+    throw new GradleException('KITHE_APP_LINK_HOST must be a bare HTTPS host name')
 }
 if (appLinkHost == 'geodrop.app') {
-    throw new GradleException('geodrop.app is documented as unowned and cannot be claimed by GeoDrop')
+    throw new GradleException('geodrop.app is documented as unowned and cannot be claimed by Kithe')
 }
 
 android {
-    namespace 'com.e3hi.geodrop'
+    namespace 'com.kitheapp'
     compileSdk 34
 
     defaultConfig {
-        applicationId 'com.e3hi.geodrop'
+        applicationId 'com.kitheapp'
         minSdk 26
         targetSdk 34
         versionCode 1
         versionName "1.0"
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
-        manifestPlaceholders = [geodropAppLinkHost: appLinkHost]
+        manifestPlaceholders = [kitheAppLinkHost: appLinkHost]
         buildConfigField 'String', 'APP_LINK_HOST', '"' + appLinkHost.replace('"', '\\"') + '"'
         buildConfigField 'boolean', 'APP_LINK_CONFIGURED', (appLinkHost != 'r5-unconfigured.invalid').toString()
 
@@ -69,20 +78,22 @@ android {
         def googleMapsApiKey = (
                 project.findProperty('GOOGLE_MAPS_API_KEY')
                         ?: System.getenv('GOOGLE_MAPS_API_KEY')
-        // google-services generates google_api_key from google-services.json. The
-        // project's Android key is already package/certificate restricted and has
-        // Maps SDK for Android enabled, so use it unless a dedicated Maps key is
-        // supplied explicitly for another build environment.
-        ) ?: '@string/google_api_key'
-        resValue 'string', 'google_maps_key', googleMapsApiKey.toString()
+        )?.toString()?.trim()
+        def mapsConfigured = googleMapsApiKey != null && !googleMapsApiKey.isEmpty()
+        // Do not reuse Firebase's general API key for Maps. Kithe needs a dedicated,
+        // package/SHA-restricted Maps key after the Maps terms and billing gate.
+        resValue 'string', 'google_maps_key', mapsConfigured
+                ? googleMapsApiKey
+                : 'KITHE_MAPS_API_KEY_NOT_CONFIGURED'
+        buildConfigField 'boolean', 'MAPS_CONFIGURED', mapsConfigured.toString()
 
         // Build-time upper bounds for the Remote Config controls. A feature is
         // enabled only when this value and its pilot_* Remote Config value are true.
-        buildConfigField 'boolean', 'FEATURE_CREATION_ENABLED', booleanBuildFlag('GEODROP_FEATURE_CREATION_ENABLED', false)
-        buildConfigField 'boolean', 'FEATURE_NOTIFICATIONS_ENABLED', booleanBuildFlag('GEODROP_FEATURE_NOTIFICATIONS_ENABLED', false)
-        buildConfigField 'boolean', 'FEATURE_COUPONS_ENABLED', booleanBuildFlag('GEODROP_FEATURE_COUPONS_ENABLED', false)
-        buildConfigField 'boolean', 'FEATURE_MEDIA_ENABLED', booleanBuildFlag('GEODROP_FEATURE_MEDIA_ENABLED', false)
-        buildConfigField 'boolean', 'FEATURE_HUNTS_ENABLED', booleanBuildFlag('GEODROP_FEATURE_HUNTS_ENABLED', false)
+        buildConfigField 'boolean', 'FEATURE_CREATION_ENABLED', booleanBuildFlag(['KITHE_FEATURE_CREATION_ENABLED', 'GEODROP_FEATURE_CREATION_ENABLED'], false)
+        buildConfigField 'boolean', 'FEATURE_NOTIFICATIONS_ENABLED', booleanBuildFlag(['KITHE_FEATURE_NOTIFICATIONS_ENABLED', 'GEODROP_FEATURE_NOTIFICATIONS_ENABLED'], false)
+        buildConfigField 'boolean', 'FEATURE_COUPONS_ENABLED', booleanBuildFlag(['KITHE_FEATURE_COUPONS_ENABLED', 'GEODROP_FEATURE_COUPONS_ENABLED'], false)
+        buildConfigField 'boolean', 'FEATURE_MEDIA_ENABLED', booleanBuildFlag(['KITHE_FEATURE_MEDIA_ENABLED', 'GEODROP_FEATURE_MEDIA_ENABLED'], false)
+        buildConfigField 'boolean', 'FEATURE_HUNTS_ENABLED', booleanBuildFlag(['KITHE_FEATURE_HUNTS_ENABLED', 'GEODROP_FEATURE_HUNTS_ENABLED'], false)
     }
 
     compileOptions {
@@ -143,9 +154,8 @@ dependencies {
     implementation 'com.google.firebase:firebase-firestore-ktx'
     implementation 'com.google.firebase:firebase-messaging-ktx'
 
-    // Crashlytics & Analytics
+    // Crash reporting. Product analytics uses the privacy-minimal server ledger.
     implementation 'com.google.firebase:firebase-crashlytics-ktx'
-    implementation 'com.google.firebase:firebase-analytics-ktx'
 
     // Play Services Location (fused + geofencing)
     implementation 'com.google.android.gms:play-services-location:21.3.0'
@@ -175,6 +185,10 @@ dependencies {
 
     implementation 'com.google.android.gms:play-services-auth:21.2.0'
     implementation 'com.android.installreferrer:installreferrer:2.2'
+
+    // Core-only QR encoding for the organizer's locally generated join artifact.
+    // No scanner activity, tracking SDK, or vendor-hosted link service is included.
+    implementation 'com.google.zxing:core:3.5.4'
 
     // Maps: the core library (CameraUpdateFactory, BitmapDescriptorFactory) plus
     // the Compose wrapper.

@@ -1,9 +1,14 @@
 # R9 - Account, safety, and operations evidence
 
-Status: **local/device implementation complete; owner approval pending**  
+Status: **local/device gate approved; pre-pilot dependencies remain open**
 Date: 2026-08-11  
 Scope: R9 only. No production deployment, Remote Config change, Play publication,
 production-data mutation, M4 cutover, or R10 qualification is authorized by this work.
+
+Approval record: on 2026-08-13 the owner approved every R9 local/device checklist item
+while explicitly keeping the pre-pilot dependencies open. This approval accepts the
+documented local and physical-device evidence; it does not convert the incomplete
+full-functions rehearsal or missing operational assignments into passing evidence.
 
 ## Direction check
 
@@ -101,17 +106,18 @@ for pre-pilot qualification, not local UI development.
 
 ## R9 local/device approval checklist
 
-- [ ] Accept the Account identity, history, permissions, organizer access, sign-out, and
+- [x] Accept the Account identity, history, permissions, organizer access, sign-out, and
   lifecycle surfaces.
-- [ ] Accept report-status visibility plus server-authorized block/unblock.
-- [ ] Accept the target-report moderation bridge, target removal/appeal behavior, private
+- [x] Accept report-status visibility plus server-authorized block/unblock.
+- [x] Accept the target-report moderation bridge, target removal/appeal behavior, private
   rate limits, and expiration cleanup.
-- [ ] Accept the fail-closed one-person operations checklist and keep all missing real-world
+- [x] Accept the fail-closed one-person operations checklist and keep all missing real-world
   assignments open before R10/pilot.
 - [x] Reinstall the final corrected APK and confirm the Report/Block host action row plus a
   clean launch log on the physical device.
-- [ ] Accept the automated and physical-device evidence, including the explicitly incomplete
+- [x] Accept the automated and physical-device evidence, including the explicitly incomplete
   full-functions rehearsal.
 
-Approval closes only the R9 local/device implementation gate. It does not waive R5-P or
-the open R6-R9 pre-pilot evidence, and it does not authorize R10 or production actions.
+The 2026-08-13 approval closes only the R9 local/device implementation gate. It does not
+waive R5-P or the open R6-R9 pre-pilot evidence, and it does not authorize R10 or production
+actions.

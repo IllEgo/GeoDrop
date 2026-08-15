@@ -22,7 +22,7 @@ struct GeoDropTopNavigationBar: View {
                     .imageScale(.small)
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {
-                        Text("GeoDrop")
+                        Text("Kithe")
                             .font(titleFont)
                             .tracking(0.8)
                             .foregroundColor(geoDropTheme.colors.onSurface)
@@ -113,6 +113,6 @@ private struct InfoMenuButton: View {
                 .foregroundColor(geoDropTheme.colors.onSurface.opacity(0.8))
                 .imageScale(.medium)
         }
-        .accessibilityLabel("Open GeoDrop info options")
+        .accessibilityLabel("Open Kithe info options")
     }
 }

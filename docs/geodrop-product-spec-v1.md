@@ -1,4 +1,4 @@
-# GeoDrop — Product Spec v1
+# Kithe — Product Spec v1
 
 **Owner:** Product Manager role project
 **Date:** 2026-07-26
@@ -74,7 +74,7 @@ These are the canonical definitions. Everything downstream — thresholds, dashb
 | **Returned (intra-event)** | Session resumed after a ≥2h gap, same experience | Client |
 | **Retained (cross-experience)** | Joined a *second, different* experience within 90 days | Server (derived) |
 
-**On retention:** standard D1/D7/D30 is the wrong instrument here. A wedding is one afternoon; there is nothing to come back to on day 7 and a flat retention curve would tell you nothing about the product. GeoDrop's real retention question is *"does a person who had a good time at one experience join another one?"* — which is also the question that determines whether this is a business or a novelty. Measure it at 30 / 90 / 180 days. Accept that it is unmeasurable until at least two experiences exist, and plan for pilot 2 to be the first read.
+**On retention:** standard D1/D7/D30 is the wrong instrument here. A wedding is one afternoon; there is nothing to come back to on day 7 and a flat retention curve would tell you nothing about the product. Kithe's real retention question is *"does a person who had a good time at one experience join another one?"* — which is also the question that determines whether this is a business or a novelty. Measure it at 30 / 90 / 180 days. Accept that it is unmeasurable until at least two experiences exist, and plan for pilot 2 to be the first read.
 
 **Denominator warning:** *Invited* and *Eligible* are offline numbers supplied by a human. Write them down before the event, in a file, with a timestamp. Retro-fitting a denominator after you've seen the numerator is how pilots lie to founders.
 
@@ -373,7 +373,7 @@ Not validated: "the organizer loved it." Not validated: "they said they'd defini
 | 3 | Second event booked and paid at full rate after seeing results | **Yes** |
 | 4 | An organizer with no personal relationship to either founder pays | **Yes, and this is the real one** |
 
-**The E3HI problem.** If pilot 1 is an E3HI event and E3HI "pays" GeoDrop, that's an internal transfer and validates nothing. The go/no-go criterion — *organizers or businesses pay real money* — is only satisfiable if the payer is **E3HI's client**, as a line item on their event invoice. So:
+**The E3HI problem.** If pilot 1 is an E3HI event and E3HI "pays" Kithe, that's an internal transfer and validates nothing. The go/no-go criterion — *organizers or businesses pay real money* — is only satisfiable if the payer is **E3HI's client**, as a line item on their event invoice. So:
 
 > Pilot 1's paying customer must be the client whose event it is, not E3HI. Quote it as a line item. Let them decline. A declined upsell is real information; a comped one is not.
 
@@ -382,7 +382,7 @@ Not validated: "the organizer loved it." Not validated: "they said they'd defini
 **Before pilot 1 is delivered, not after.** Delivering free and asking about price afterward sets that customer's reference price at zero permanently, and you'll never get a clean read from them again.
 
 Sequence:
-1. Event selected → quote GeoDrop as a line item at $200–500 with a "pilot rate" discount, in writing
+1. Event selected → quote Kithe as a line item at $200–500 with a "pilot rate" discount, in writing
 2. Deliver
 3. Within 7 days of delivery, while the organizer still has the feeling: ask for a second booking at **full** rate
 4. Log the outcome against the ladder in §6.2

@@ -1,4 +1,4 @@
-# GeoDrop P0 Execution Status
+# Kithe P0 Execution Status
 
 Assessment date: 2026-07-21  
 External-beta decision: **NO-GO**  

@@ -35,12 +35,12 @@
  *
  *   # dry run (read-only, prints the exact writes it would make)
  *   GOOGLE_APPLICATION_CREDENTIALS=/path/to/serviceAccount.json \
- *     GCLOUD_PROJECT=geodrop-dfcba node scripts/normalize-account-roles.js
+ *     GCLOUD_PROJECT=kithe-production node scripts/normalize-account-roles.js
  *
  *   # live run
  *   GOOGLE_APPLICATION_CREDENTIALS=/path/to/serviceAccount.json \
- *     GCLOUD_PROJECT=geodrop-dfcba node scripts/normalize-account-roles.js \
- *       --apply --confirm-project=geodrop-dfcba
+ *     GCLOUD_PROJECT=kithe-production node scripts/normalize-account-roles.js \
+ *       --apply --confirm-project=kithe-production
  *
  * Safety properties:
  *   - Dry run by default; --apply requires --confirm-project=<id> matching the

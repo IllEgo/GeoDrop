@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-labelledby="title description">
+  <title id="title">Kithe adaptive launcher foreground</title>
+  <desc id="description">A cream K shaped like a three-point trail, with an amber destination point, on a transparent canvas.</desc>
+  <path d="M174 116V396" fill="none" stroke="#FDFCFA" stroke-width="58" stroke-linecap="round"/>
+  <path d="M190 255L339 126" fill="none" stroke="#FDFCFA" stroke-width="58" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M190 255L342 390" fill="none" stroke="#FDFCFA" stroke-width="58" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="344" cy="122" r="37" fill="#FDFCFA"/>
+  <circle cx="344" cy="122" r="24" fill="#E07B24"/>
+</svg>

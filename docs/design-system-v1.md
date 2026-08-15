@@ -1,4 +1,4 @@
-# GeoDrop — Visual System v1
+# Kithe — Visual System v1
 
 > **Owner:** Product Designer. **Status:** draft v0.1, 2026-07-26.
 > **Upload to:** Frontend Engineer (primary), Product Manager.

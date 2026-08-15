@@ -1,4 +1,4 @@
-# GeoDrop — Product Direction
+# Kithe — Product Direction
 
 Status: pre-pilot. Decisions below were made after a formal idea validation (Jul 2026).
 This file defines **what we are building and what we are deliberately not building.**
@@ -11,12 +11,12 @@ every drafted design feature launch scope.
 
 ---
 
-## What GeoDrop is
+## What Kithe is
 
 > A platform for creating location-unlocked digital experiences, rewards, stories,
 > and challenges — for events, businesses, tourism, and communities.
 
-**What GeoDrop is not:** "social media on a map." We are not competing with Snapchat,
+**What Kithe is not:** "social media on a map." We are not competing with Snapchat,
 Instagram, Nextdoor, or Google Maps for open-ended user-generated feeds. Do not propose
 features whose main justification is parity with a general social network.
 
@@ -34,7 +34,7 @@ profiles, groups, and feeds are supporting features, not the product.
 3. **Tourism and hospitality** — third. Longer sales cycles, content approval, cultural
    sensitivity review.
 
-Growth unit is a **drop experience**, not an individual user. GeoDrop must deliver full
+Growth unit is a **drop experience**, not an individual user. Kithe must deliver full
 value with exactly one creator and zero other nearby users. Any feature that only works
 at scale is out of scope for now.
 
@@ -112,7 +112,7 @@ Requirements:
 
 ## Location privacy (part of the product, not compliance overhead)
 
-GeoDrop must never continuously broadcast a user's position. The required design:
+Kithe must never continuously broadcast a user's position. The required design:
 
 1. Show nearby content using **approximate** location.
 2. Request **precise** location only at the moment the user attempts to unlock a drop.
@@ -159,7 +159,7 @@ attendees. The participant redesign and outdoor qualification are Android-first;
 iOS source and shared-backend compatibility, but do not block the Android pilot on iOS
 visual parity. The loop under test is:
 
-> see invitation → open GeoDrop → discover drop → walk to location → unlock → get value → unlock another
+> see invitation → open Kithe → discover drop → walk to location → unlock → get value → unlock another
 
 Downloads are not the success metric. Instrument the funnel so these are answerable:
 
@@ -181,7 +181,7 @@ and at least five interviews as primary. Percentage thresholds remain directiona
 at least 40 eligible Android participants where the event population allows it.
 
 The real-event QR funnel must be tested through a normal Play install path on a device that
-has never installed GeoDrop. A sideloaded APK or closed-test enrollment flow is not evidence
+has never installed Kithe. A sideloaded APK or closed-test enrollment flow is not evidence
 that QR → install → restored Experience is ready. Prefer a fail-closed production listing;
 open testing is acceptable only if its additional opt-in step is disclosed in the funnel.
 This does not make app-store discovery the acquisition strategy: the organizer/E3HI

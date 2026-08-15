@@ -60,7 +60,7 @@
     <string name="r5_location_nearby_body">Approximate location groups drops into broad distance bands and centers the map.</string>
     <string name="r5_location_nearby_privacy">Your approximate location is used only while you browse and is not saved.</string>
     <string name="r5_location_precise_title">Check that you’re at this drop</string>
-    <string name="r5_location_precise_body">GeoDrop needs a one-time precise location fix to check whether you are close enough to unlock.</string>
+    <string name="r5_location_precise_body">Kithe needs a one-time precise location fix to check whether you are close enough to unlock.</string>
     <string name="r5_location_precise_privacy">The precise fix is discarded immediately after the check.</string>
     <string name="r5_notifications_title">Hear about new drops?</string>
     <string name="r5_notifications_body">Get alerts only for Experiences you joined. You can turn them off at any time.</string>
@@ -111,7 +111,7 @@
     <string name="r4_join_success">Joined Experience %1$s.</string>
     <string name="r4_join_not_found">Experience %1$s doesn’t exist. Check the code or ask the host.</string>
     <string name="r4_join_error">Couldn’t join Experience %1$s.</string>
-    <string name="app_name">GeoDrop</string>
+    <string name="app_name">Kithe</string>
     <!-- R3 shared-component foundation. Product-screen strings migrate in R4+. -->
     <string name="r3_state_locked">Locked</string>
     <string name="r3_state_near">Nearby — ready to unlock</string>
@@ -134,7 +134,7 @@
     <string name="r3_trail_next">Next: %1$s</string>
     <string name="r3_code_description">Reward code: %1$s</string>
     <string name="r3_copy_code">Copy code</string>
-    <string name="r3_component_catalog_title">GeoDrop component catalog</string>
+    <string name="r3_component_catalog_title">Kithe component catalog</string>
     <string name="r3_component_catalog_description">Shared components shown across supported states. This catalog is a development surface, not an app destination.</string>
     <string name="r3_catalog_section_drop_card">DropCard</string>
     <string name="r3_catalog_section_drop_pin">DropPin</string>
@@ -152,7 +152,7 @@
     <string name="r3_catalog_found_body">A note from the host appears here after you’re at the spot.</string>
     <string name="r3_catalog_next_step">Next, follow the garden path toward Liliʻuokalani Park.</string>
     <string name="r3_catalog_permission_title">Use your location for nearby drops</string>
-    <string name="r3_catalog_permission_body">GeoDrop checks whether you’re close enough when you choose Unlock.</string>
+    <string name="r3_catalog_permission_body">Kithe checks whether you’re close enough when you choose Unlock.</string>
     <string name="r3_catalog_permission_privacy">We use your exact location for a second, then forget it.</string>
     <string name="r3_catalog_trail_title">Garden Trail</string>
     <string name="r3_catalog_trail_next">Stone bridge</string>
@@ -169,9 +169,10 @@
     <string name="r3_catalog_code_business">Hawaiʻi Island Museum</string>
     <string name="r3_catalog_stat_value">128</string>
     <string name="r3_catalog_found_title">You found the Kīlauea note</string>
-    <string name="notif_channel_name">GeoDrop Nearby</string>
+    <string name="notif_channel_name">Kithe Nearby</string>
     <string name="notif_channel_desc">Alerts when you enter a drop area</string>
-    <string name="default_web_client_id">1017151605782-7is7mob6prbujsepnuo83r4klk8h994q.apps.googleusercontent.com</string>
+    <!-- Intentionally blank until Kithe's public OAuth support email is approved. -->
+    <string name="default_web_client_id" translatable="false"></string>
     <string name="drag_to_resize">Drag to resize</string>
     <string name="content_description_account_options">Account options</string>
     <string name="bottom_nav_profile">Profile</string>
@@ -225,7 +226,7 @@
     <string name="drop_detail_title">Drop details</string>
     <string name="content_description_back">Back</string>
     <string name="drop_detail_adult_content_hidden">Adult content hidden</string>
-    <string name="drop_detail_enable_adult_content_hint">Adult content is unavailable during the GeoDrop pilot.</string>
+    <string name="drop_detail_enable_adult_content_hint">Adult content is unavailable during the Kithe pilot.</string>
     <string name="audio_recorder_prepare_error">Couldn\'t prepare space for the recording. Try again.</string>
     <string name="audio_recorder_unavailable_device">Recording unavailable on this device.</string>
     <string name="audio_recorder_start_error">Couldn\'t start recording. Try again.</string>
@@ -272,22 +273,22 @@
     <string name="edit_profile_saving">Saving…</string>
     <string name="guest_upgrade_content_merged">Your guest drops and collections moved to this account.</string>
     <string name="guest_upgrade_content_not_merged">You\'re signed in, but your guest drops and collections couldn\'t be moved. Sign in again from the same device to retry.</string>
-    <string name="faq_title">Get to know GeoDrop</string>
-    <string name="faq_intro">GeoDrop is built around sharing location-based drops. Here\'s a quick overview of how everything fits together.</string>
-    <string name="faq_question_core_features">What are GeoDrop\'s core features?</string>
+    <string name="faq_title">Get to know Kithe</string>
+    <string name="faq_intro">Kithe is built around sharing location-based drops. Here\'s a quick overview of how everything fits together.</string>
+    <string name="faq_question_core_features">What are Kithe\'s core features?</string>
     <string name="faq_answer_core_features">Create drops at real-world spots, explore what\'s nearby, and connect with people and places through interactive stories, offers, and updates.</string>
     <string name="faq_question_drop_contents">What can a drop include?</string>
     <string name="faq_answer_drop_contents">Drops can hold text notes, photos, voice clips, and even business rewards or coupons. Combine the pieces that best fit the moment.</string>
     <string name="faq_question_explorer_usage">How do explorers use drops?</string>
     <string name="faq_answer_explorer_usage">Explorers follow the map or notifications to visit drops, open the content, react or collect it, and save favorites for later adventures.</string>
-    <string name="faq_question_groups">How do GeoDrop groups work?</string>
-    <string name="content_description_open_onboarding">Open GeoDrop tutorial</string>
-    <string name="content_description_open_info_menu">Open GeoDrop info options</string>
+    <string name="faq_question_groups">How do Kithe groups work?</string>
+    <string name="content_description_open_onboarding">Open Kithe tutorial</string>
+    <string name="content_description_open_info_menu">Open Kithe info options</string>
     <string name="info_menu_tutorial">Tutorial slides</string>
     <string name="info_menu_faq">FAQ</string>
     <string name="info_menu_terms">Terms of Service</string>
     <string name="info_menu_privacy">Privacy Policy</string>
-    <string name="terms_privacy_dialog_title">GeoDrop terms &amp; policies</string>
+    <string name="terms_privacy_dialog_title">Kithe terms &amp; policies</string>
     <string name="terms_privacy_dialog_close">Close</string>
     <string name="faq_answer_groups">Groups bring explorers together around shared interests, neighborhoods, or businesses. Join a group to see exclusive drops and stay in sync with the community.</string>
     <string name="faq_close">Close</string>

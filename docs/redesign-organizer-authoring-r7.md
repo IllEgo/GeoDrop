@@ -1,4 +1,4 @@
-# GeoDrop R7 — Organizer Access and Core Authoring
+# Kithe R7 — Organizer Access and Core Authoring
 
 Status: **R7 local/device gate approved; pre-pilot dependencies remain open**  
 Date: 2026-08-11  

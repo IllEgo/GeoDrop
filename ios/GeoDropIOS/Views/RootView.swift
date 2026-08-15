@@ -130,7 +130,7 @@ private struct AccountDeletionReceiptView: View {
         NavigationView {
             Form {
                 Section {
-                    Text("Your GeoDrop account deletion completed successfully.")
+                    Text("Your Kithe account deletion completed successfully.")
                     LabeledContent("Receipt", value: receipt.receiptID)
                     LabeledContent("Completed", value: receipt.completedAt)
                     LabeledContent("Policy", value: receipt.policyVersion)
@@ -194,7 +194,7 @@ struct TutorialSlidesView: View {
         NavigationView {
             VStack(spacing: 24) {
                 HStack {
-                    Text("Welcome to GeoDrop")
+                    Text("Welcome to Kithe")
                         .font(geoDropTheme.typography.title.weight(.bold))
                         .foregroundColor(geoDropTheme.colors.onSurface)
                     Spacer()
@@ -277,7 +277,7 @@ struct FaqSheet: View {
 
     private let entries: [FaqEntry] = [
         FaqEntry(
-            question: "What are GeoDrop's core features?",
+            question: "What are Kithe's core features?",
             answer: "Create drops at real-world spots, explore what's nearby, and connect with people and places through interactive stories, offers, and updates."
         ),
         FaqEntry(
@@ -289,7 +289,7 @@ struct FaqSheet: View {
             answer: "Explorers follow the map or notifications to visit drops, open the content, react or collect it, and save favorites for later adventures."
         ),
         FaqEntry(
-            question: "How do GeoDrop groups work?",
+            question: "How do Kithe groups work?",
             answer: "Groups bring explorers together around shared interests, neighborhoods, or businesses. Join a group to see exclusive drops and stay in sync with the community."
         )
     ]
@@ -298,7 +298,7 @@ struct FaqSheet: View {
         NavigationView {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    Text("GeoDrop is built around sharing location-based drops. Here's a quick overview of how everything fits together.")
+                    Text("Kithe is built around sharing location-based drops. Here's a quick overview of how everything fits together.")
                         .font(geoDropTheme.typography.body)
                         .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
 
@@ -316,7 +316,7 @@ struct FaqSheet: View {
                 .padding(24)
             }
             .background(geoDropTheme.colors.background)
-            .navigationTitle("Get to know GeoDrop")
+            .navigationTitle("Get to know Kithe")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close") {

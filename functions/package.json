@@ -16,6 +16,7 @@
     "migrate:redesign:audit": "node scripts/redesign-migration-audit.js",
     "migrate:redesign:rehearse": "node scripts/rehearse-redesign-migration.js",
     "test:redesign:unit": "npm run build && node scripts/test-redesign-contract.js",
+    "r5:hosting:check": "node scripts/validate-r5-hosting-bundle.js",
     "test:r9:operations": "node scripts/test-r9-operations-contract.js",
     "r9:readiness": "node scripts/r9-operations-readiness.js",
     "r9:readiness:local": "node scripts/r9-operations-readiness.js --local-only",

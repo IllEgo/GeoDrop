@@ -1,5 +1,7 @@
 {
   "projects": {
-    "default": "geodrop-dfcba"
+    "default": "kithe-production",
+    "kithe": "kithe-production",
+    "legacy-geodrop": "geodrop-dfcba"
   }
 }

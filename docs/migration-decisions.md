@@ -1,4 +1,4 @@
-# GeoDrop — Migration Decision Record (Task 0.3)
+# Kithe — Migration Decision Record (Task 0.3)
 
 An ADR per deferred feature: **delete the code or gate it behind a disabled flag? delete,
 orphan, or archive the data?** — with a recommendation and reasoning for each. This is the
@@ -172,7 +172,7 @@ a drop is added to an experience the user explicitly joined.
 experiences the user explicitly joined" — a membership-scoped send satisfies it exactly.
 Proximity alerts were solving a problem the launch scope never posed, at the cost of the
 one permission the direction doc singles out as sensitive and Play Console scrutinises
-hardest. The pilot's measured loop is in-app anyway: *see invitation → open GeoDrop →
+hardest. The pilot's measured loop is in-app anyway: *see invitation → open Kithe →
 discover drop → walk to location → unlock → get value → unlock another*.
 
 **Accepted cost.** No buzz when a user passes an unrelated drop. If the pilot shows
@@ -373,6 +373,12 @@ local implementation on 2026-08-10. That authorization includes the participant-
 crash-stability checkpoint and the R6 scope in `redesign-alignment-proposal.md`; it does not
 expand any production or later-task authority listed above.
 
+**R5-P resumption addendum:** on 2026-08-14 the owner directed R5-P work to continue.
+Read-only production audit and local fail-closed bundle preparation are authorized. This
+does not pre-approve billing, Play developer enrollment or terms, account-security changes,
+DNS writes, deployments, production-data mutation, or Play publication; those remain
+explicit action-time decisions.
+
 ---
 
 ## P10 - Experience-first entry replaces the legacy account-choice landing (added 2026-08-12)
@@ -390,4 +396,199 @@ browsing instead of revealing an account-choice wall.
 This is an implementation alignment, not a scope change to `product-direction.md` or
 `migration-plan.md`. Verified with the Android unit/lint/build gate and on the physical-device
 DEMO2026 participant route.
+
+---
+
+## P11 - Product name is Kithe; technical identity migrates separately (added 2026-08-13)
+
+The owner selected **Kithe** as the product name. Current user-visible Android, preserved iOS,
+web/legal, notification, demo-fixture, and canonical documentation copy uses Kithe.
+
+**Decision: separate the brand rename from the technical-identity migration.** During the
+brand-only stage, compatibility identifiers remained unchanged, including
+`com.e3hi.geodrop`, the `geodrop-dfcba` Firebase project, source-level `GeoDrop*` symbols,
+stable storage/preferences, and existing App Link configuration. Renaming those prematurely
+would have risked installed sessions, Firebase registration, data access, notification
+delivery, and deferred R5-P work.
+
+Before pilot or public release, the technical-identity gate must replace the E3HI-associated
+application/bundle identifiers, register Kithe with its final Firebase and signing setup, and
+complete the owned HTTPS/App Links path. This sequencing does not change the product behavior
+or override `product-direction.md`; it keeps the already-approved independent-product decision
+while avoiding a premature backend cutover.
+
+---
+
+## P12 - Kithe production domain is kitheapp.com (added 2026-08-13)
+
+The owner selected **`kitheapp.com`** as Kithe's production base domain. The dedicated R5-P
+entry host is planned as **`join.kitheapp.com`**, keeping Experience entry, App Links,
+landing-page fallback, and rollback operations isolated from the root website.
+
+The owner registered `kitheapp.com` through Cloudflare on 2026-08-13. Cloudflare reports the
+registration active through 2027-08-13, with auto-renewal scheduled for 2027-07-14. WHOIS
+redaction is enabled and DNSSEC activation is pending. No invoice, account, registrant, or
+payment details belong in the repository.
+
+Registration proves control of the base domain but does not complete the R5-P host gate. The
+R5 client must retain the fail-closed `r5-unconfigured.invalid` placeholder until
+`join.kitheapp.com` has working DNS and HTTPS, the hosting bundle is approved, and the
+release App Link association is ready. No production hosting, App Link association, or
+deployment is authorized by domain registration alone.
+
+The matching Android application ID is **`com.kitheapp`**. The owner confirmed that
+permanent identifier by authorizing creation of Kithe's independent Firebase identity on
+2026-08-13. Package migration still requires the staged configuration and compatibility
+checks below; the domain decision alone did not authorize a backend cutover.
+
+---
+
+## P13 - Independent Kithe Firebase identity is registered (added 2026-08-13)
+
+The owner authorized and created the independent Firebase project **Kithe Production** with
+project ID **`kithe-production`** on the Spark plan. Google Analytics was left disabled
+because the creation wizard could not finish loading the Analytics-account selector; it can
+be enabled later from Project Settings > Integrations after an account is confirmed.
+
+The Android app **Kithe Android** is registered in that project with package
+**`com.kitheapp`**. The current local debug certificate's SHA-1 and SHA-256 fingerprints are
+registered for device testing. This initially staged the generated configuration separately
+without changing the working client; P14 records the later authorized Android cutover.
+
+---
+
+## P14 - Android technical identity moved to Kithe; paid services remain gated (added 2026-08-13)
+
+After the owner said to continue, Android's namespace, application ID, Kotlin packages,
+instrumentation packages, FileProvider authority, notification actions, Play fallback ID,
+Firebase default alias, and active `google-services.json` moved to **`com.kitheapp`** and
+**`kithe-production`**. Stable preference filenames and source-level `GeoDrop*` UI symbols
+remain compatibility details; they are not package ownership claims.
+
+Kithe Firebase Authentication is initialized with Anonymous and Google enabled. The default
+Standard Firestore database exists in **`nam5`**, matching the legacy project's location,
+with no data and deny-all production rules. The old project's web client ID was removed from
+the Android resources. On 2026-08-13, the owner authorized Cloudflare Email Routing DNS
+for `kitheapp.com` and an active `support@kitheapp.com` rule forwarding to the verified owner
+inbox. Cloudflare reports routing enabled, and public DNS resolves its three MX records plus
+the expected SPF and DKIM records. The forwarding alias was registered as the Google identity
+**Kithe Support**, added to Kithe Production as an Editor (the least project role eligible for
+the OAuth support-email selector), and configured with privacy-minimal Google account settings.
+After the owner explicitly accepted the separate Firebase terms for that identity, Google
+sign-in was enabled with public-facing name **Kithe** and support email
+`support@kitheapp.com`. The refreshed Android Firebase configuration and generated web client
+ID are now active in the local project.
+
+The migrated debug APK passed 118 unit tests, lint, and assembly, then installed and launched
+on the physical Samsung as `com.kitheapp`. `DEMO2026` reached preview, policy acceptance, and
+the participant surface without a fatal crash. Because the application ID changed, Android
+installs it alongside the legacy package and does not transfer that package's local test state
+or Firebase session automatically. This fresh test state is compatible with P3's prototype
+reset decision and does not oppose `product-direction.md`.
+
+After Google Authentication was enabled and the refreshed OAuth configuration was installed,
+the physical Samsung opened the Google account chooser, completed Explorer sign-in, and
+returned to Kithe without an Android runtime failure. The Account surface no longer showed the
+Guest state, and the local `DEMO2026` Collection progress remained available after the account
+upgrade. No account address or credential is stored in this evidence.
+
+App Check is initialized but remains non-enforcing. The physical debug build's secret is
+allowlisted in Firebase without storing it in the repository. On 2026-08-13, the owner
+explicitly accepted the Google APIs and Play Integrity API terms and authorized registration;
+Kithe Android is now registered with the Play Integrity attestation provider using a one-hour
+token lifetime. Firestore and Authentication remain unenforced. Crashlytics has detected the
+Kithe Android app and is waiting for its first crash; no deliberate production crash was
+generated. Firebase Messaging is available for the project, but no campaign was sent and
+Analytics remains disabled.
+
+Local backend verification passed Functions lint/build, the redesign contract, fail-closed
+Remote Config validation, local operations readiness, and all 18 Firestore/Storage emulator
+rule suites. The collection-group index validator exposed five missing `schemaVersion`
+single-field declarations used by the redesign migration audit; the local index manifest now
+contains them and the validator passes. Nothing from that backend bundle has been deployed.
+
+The remote cutover is not complete. Maps SDK for Android is disabled in the Kithe Google Cloud
+project and requires accepting Google Maps Platform terms plus an approved billing setup; the
+first migrated build therefore reported a Maps authorization failure. The app now fails
+closed to the usable List view, disables the Map selector, and explains that map setup is
+pending until a dedicated `GOOGLE_MAPS_API_KEY` is provided. Firebase Storage and Cloud
+Functions also require a Blaze upgrade. No billing account was linked, no terms were accepted, no
+Firestore data or indexes were created, and no rules, Functions, Storage, Hosting, Remote
+Config, App Check enforcement, Analytics, or Play release was deployed. The production App
+Link host remains the fail-closed placeholder.
+
+---
+
+## P15 - R10 is split into local qualification and pilot qualification (added 2026-08-13)
+
+The owner approved splitting R10 into **R10-L** and **R10-P** and authorized R10-L only.
+This is a procedural sequencing amendment, not a change to `product-direction.md` or the
+Pilot 1 acceptance bar.
+
+On 2026-08-14 the owner reviewed the completed R10-L automated, accessibility, and
+physical-device evidence and explicitly approved and closed R10-L. R10-P remains
+unauthorized and requires a separate owner authorization.
+
+R10-L may audit and fix the local Android UI/UX, run automated and accessibility checks,
+exercise debug-only poor-network/permission/GPS states, install debug review builds, and
+collect physical-device evidence. It may not enable or purchase Maps/Firebase services,
+deploy backend or configuration, mutate production data, publish Analytics or Remote Config,
+enforce App Check, create a Play release, configure HTTPS/App Links, sign a release, use
+external pilot accounts, or run Pilot 1.
+
+R10-P retains every paid-service, production, Play, HTTPS, outdoor/cross-device, operational,
+release, and pilot gate. R10-L evidence cannot close or waive R5-P or the open R6-R9
+pre-pilot dependencies. A separate owner authorization is required before R10-P begins.
+
+---
+
+## P16 - Kithe visual mark approved and adopted locally (added 2026-08-14)
+
+The owner approved the local Kithe visual package: a cream `K` drawn as a three-point trail
+on deep teal, an amber nearby destination, the restrained feature graphic, and the six-shot
+participant-first Play capture plan. This replaces the legacy turquoise media-pin identity,
+whose photo/video/audio symbols opposed the Kithe rename and Pilot 1's text/photo boundary.
+
+Android now uses the approved geometry for the adaptive foreground, round icon, and every
+density fallback. The matching local website favicon and touch-icon assets are prepared but
+not deployed. iOS adoption remains deferred under the Android-first sequence. The Play icon
+and feature graphic are not uploaded.
+
+The updated debug APK passed 127 unit tests, lint, and assembly, installed on physical Samsung
+`R5CY114LNCE`, displayed the Kithe icon and label correctly through Android's masked App info
+surface, and launched the Kithe participant UI with no fatal AndroidRuntime or Crashlytics log.
+Existing device data was preserved. Final store screenshots remain gated on the exact signed
+release candidate, approved reviewer fixture, Maps setup, production policies, and release
+audit. This decision does not authorize billing, deployment, policy publication, Play upload,
+or submission.
+
+---
+
+## P17 - Kithe is intended for two-owner operation; legal form remains open (added 2026-08-14)
+
+The owner clarified that Kithe will be a partnership with two owners. This supersedes the
+temporary policy recommendation to name one individual as Kithe's sole operator. It does not
+yet establish whether the Hawaiʻi structure will be a general partnership, LLP, or two-member
+LLC; “members” is LLC terminology, while partnerships have partners.
+
+The owner subsequently confirmed that Kithe is not registered. The formation-readiness
+comparison is recorded in `legal-drafts/two-owner-formation-readiness.md`; it recommends a
+two-member LLC only as the default form to evaluate, not as a selected or authorized filing.
+
+No public policy, Play listing, or backend legal manifest may assert a final operator until
+the owners select the form, complete the applicable Hawaiʻi BREG filing, supply the exact
+registered legal name and formation date, and designate an authorized policy approver. Kithe
+remains independent from E3HI.
+
+The existing Play developer account remains personal. Google currently supports an official
+personal-to-organization conversion after website verification and organization identity,
+payments-profile, D-U-N-S, contact, and verification requirements are satisfied. Conversion
+timing is a new pre-release owner gate; this decision does not authorize registration,
+payments changes, D-U-N-S work, account conversion, publication, or submission.
+
+The owner placed LLC/entity formation on hold on 2026-08-14. Until explicitly resumed, do
+not perform or imply entity selection, registration, name reservation, EIN, D-U-N-S, banking,
+organization payments-profile work, or Play account conversion. The two-owner intent remains
+context only; it is not a registered legal operator. Local app, UI, listing, and Data safety
+preparation may continue without closing LP-1.
 

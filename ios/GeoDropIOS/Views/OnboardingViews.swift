@@ -22,13 +22,13 @@ struct TermsAcceptanceView: View {
                         .foregroundStyle(geoDropTheme.colors.primary)
                         .padding(.top, 40)
 
-                    Text("Before you explore GeoDrop, please review and accept our Terms of Service and Privacy Policy.")
+                    Text("Before you explore Kithe, please review and accept our Terms of Service and Privacy Policy.")
                         .font(geoDropTheme.typography.title.weight(.semibold))
                         .foregroundColor(geoDropTheme.colors.onSurface)
                         .multilineTextAlignment(.center)
 
                     VStack(alignment: .leading, spacing: 16) {
-                        Label("GeoDrop lets you discover and share local drops.", systemImage: "map")
+                        Label("Kithe lets you discover and share local drops.", systemImage: "map")
                         Label("We collect limited data to keep your experience secure.", systemImage: "lock.shield")
                         Label("You can leave guest mode or delete your account at any time.", systemImage: "person.crop.circle.badge.xmark")
                     }
@@ -65,7 +65,7 @@ struct TermsAcceptanceView: View {
                         } else if isLoading {
                             ProgressView("Loading approved policies…")
                         } else {
-                            Text(errorMessage ?? "GeoDrop's approved legal policies are unavailable.")
+                            Text(errorMessage ?? "Kithe's approved legal policies are unavailable.")
                                 .foregroundColor(geoDropTheme.colors.tertiary)
                                 .multilineTextAlignment(.center)
                             Button("Retry", action: onRetry)
@@ -191,7 +191,7 @@ struct UserModeSelectionView: View {
         NavigationView {
             ScrollView {
                 VStack(spacing: 24) {
-                    Text("How would you like to use GeoDrop?")
+                    Text("How would you like to use Kithe?")
                         .font(geoDropTheme.typography.title.weight(.bold))
                         .foregroundColor(geoDropTheme.colors.onSurface)
                         .multilineTextAlignment(.center)
@@ -216,7 +216,7 @@ struct UserModeSelectionView: View {
                     ModeCard(
                         icon: "briefcase.fill",
                         title: "Sign in as Business",
-                        description: "Publish promotions and manage your business presence on GeoDrop.",
+                        description: "Publish promotions and manage your business presence on Kithe.",
                         actionTitle: "Sign in",
                         action: onSelectBusiness
                     )

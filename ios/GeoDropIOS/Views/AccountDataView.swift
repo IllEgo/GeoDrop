@@ -22,7 +22,7 @@ struct AccountDataView: View {
                         SecureField("Password", text: $password)
                             .textContentType(.password)
                     } else {
-                        Text("GeoDrop will ask you to sign in with Google again before either action.")
+                        Text("Kithe will ask you to sign in with Google again before either action.")
                             .font(.footnote)
                     }
                 }
@@ -66,7 +66,7 @@ struct AccountDataView: View {
                     }
                 }
             }
-            .navigationTitle("Your GeoDrop data")
+            .navigationTitle("Your Kithe data")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close") { dismiss() }

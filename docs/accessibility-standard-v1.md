@@ -1,4 +1,4 @@
-# GeoDrop — Accessibility Standard v1
+# Kithe — Accessibility Standard v1
 
 > **Owner:** Product Designer. **Status:** draft, 2026-07-26 — founder sign-off required.
 > **Answers:** `user-stories-v1.md` global-states checklist, open `ASSUMPTION:` "no accessibility
@@ -58,7 +58,7 @@ are the three places this will show up first. Cheap now, a rebuild later.
 
 ---
 
-## 2. The GeoDrop-specific one that no generic checklist contains
+## 2. The Kithe-specific one that no generic checklist contains
 
 **Sunlight legibility.**
 

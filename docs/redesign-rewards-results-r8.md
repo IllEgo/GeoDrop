@@ -1,4 +1,4 @@
-# GeoDrop R8 — Rewards and Results
+# Kithe R8 — Rewards and Results
 
 Status: **R8 local/device gate approved; pre-pilot dependencies remain open**  
 Date: 2026-08-11  
@@ -90,7 +90,7 @@ conversion. None of this source has been deployed.
   correction, full three-event history, summary Results, and per-drop Results.
 - Results after correction reconciled to 2 finds, 1 unique finder, 1 code issued, and 0
   codes used; the reward drop showed 1 find, 1 issued, and 0 used.
-- Post-walkthrough and final-build launch logs contained no GeoDrop fatal exception and no
+- Post-walkthrough and final-build launch logs contained no Kithe fatal exception and no
   `Offset.getX-impl` signature.
 
 Automated R8 coverage proves reward validation, issuance, duplicate retry, sold-out

@@ -94,7 +94,7 @@ struct DropFeedView: View {
                 .font(.headline)
                 .foregroundColor(geoDropTheme.colors.onSurface)
             Text(
-                "GeoDrop uses foreground location after you choose this control to show drops around you and verify pickup distance. You can keep browsing after declining."
+                "Kithe uses foreground location after you choose this control to show drops around you and verify pickup distance. You can keep browsing after declining."
             )
             .font(.footnote)
             .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
@@ -801,7 +801,7 @@ struct DropRowView: View {
             Label("Adult content hidden", systemImage: "eye.slash")
                 .font(.subheadline.weight(.semibold))
                 .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
-            Text("Adult content is unavailable during the GeoDrop pilot.")
+            Text("Adult content is unavailable during the Kithe pilot.")
                 .font(.caption)
                 .foregroundColor(geoDropTheme.colors.onSurfaceVariant)
         }

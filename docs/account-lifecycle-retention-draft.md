@@ -1,4 +1,4 @@
-# GeoDrop Account Lifecycle and Retention Policy — Draft
+# Kithe Account Lifecycle and Retention Policy — Draft
 
 Status: **Engineering draft; Legal and Product approval required before publication**  
 Policy version implemented by the backend: `pilot-2026-07-21-draft`

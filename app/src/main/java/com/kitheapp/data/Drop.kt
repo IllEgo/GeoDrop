@@ -1,0 +1,285 @@
+package com.kitheapp.data
+
+data class Drop(
+    val id: String = "",
+    val text: String = "",
+    val description: String? = null,
+    val lat: Double = 0.0,
+    val lng: Double = 0.0,
+    val createdBy: String = "",
+    val createdAt: Long = 0L,
+    val dropperUsername: String? = null,
+    val isDeleted: Boolean = false,
+    val deletedAt: Long? = null,
+    val decayDays: Int? = null,
+    val groupCode: String? = null,
+    val dropType: DropType = DropType.COMMUNITY,
+    val businessId: String? = null,
+    val businessName: String? = null,
+    val contentType: DropContentType = DropContentType.TEXT,
+    val mediaUrl: String? = null,
+    val mediaMimeType: String? = null,
+    val mediaData: String? = null,
+    val mediaStoragePath: String? = null,
+    val isNsfw: Boolean = false,
+    val nsfwLabels: List<String> = emptyList(),
+    val likeCount: Long = 0,
+    val likedBy: Map<String, Boolean> = emptyMap(),
+    val reportCount: Long = 0,
+    val reportedBy: Map<String, Long> = emptyMap(),
+    val redemptionLimit: Int? = null,
+    val redemptionCount: Int = 0,
+    val redeemedBy: Map<String, Long> = emptyMap(),
+    val huntId: String? = null,
+    val huntStepIndex: Int? = null,
+    val huntTotalSteps: Int? = null
+)
+
+enum class DropType {
+    COMMUNITY,
+    RESTAURANT_COUPON,
+    TOUR_STOP;
+
+    companion object {
+        fun fromRaw(raw: String?): DropType {
+            if (raw.isNullOrBlank()) return COMMUNITY
+            return entries.firstOrNull { it.name.equals(raw, ignoreCase = true) } ?: COMMUNITY
+        }
+    }
+}
+
+// Task 4.3 — the code is server-issued, so a coupon is redeemable by type alone;
+// there is no code on the document to look for.
+fun Drop.requiresRedemption(): Boolean = dropType == DropType.RESTAURANT_COUPON
+
+fun Drop.remainingRedemptions(): Int? {
+    val limit = redemptionLimit ?: return null
+    return (limit - redemptionCount).coerceAtLeast(0)
+}
+
+fun Drop.isBusinessDrop(): Boolean = dropType != DropType.COMMUNITY
+
+/**
+ * Why a drop is or is not live for attendees in this release.
+ *
+ * The pilot flags are client-side kill switches, while the organiser rollup is
+ * computed server-side and counts every drop regardless. Hiding gated drops from
+ * an owner's own dashboard made the two disagree with no explanation — the card
+ * read "4 drops" over a list of 2, and reported redemptions against drops that
+ * were nowhere on screen. The owner sees all of their drops; the ones attendees
+ * cannot reach say so.
+ *
+ * Flags are parameters rather than read from PilotFeatureFlags here so this stays
+ * a pure function over the drop.
+ */
+enum class DropReleaseAvailability {
+    AVAILABLE,
+    COUPONS_DISABLED,
+    MEDIA_DISABLED,
+    HUNTS_DISABLED,
+    FLAGGED;
+
+    val isAvailable: Boolean get() = this == AVAILABLE
+}
+
+fun Drop.releaseAvailability(
+    couponsEnabled: Boolean,
+    mediaEnabled: Boolean,
+    huntsEnabled: Boolean
+): DropReleaseAvailability {
+    if (isNsfw) return DropReleaseAvailability.FLAGGED
+    if (!couponsEnabled && dropType == DropType.RESTAURANT_COUPON) {
+        return DropReleaseAvailability.COUPONS_DISABLED
+    }
+    if (!mediaEnabled && contentType != DropContentType.TEXT) {
+        return DropReleaseAvailability.MEDIA_DISABLED
+    }
+    if (!huntsEnabled && !huntId.isNullOrBlank()) return DropReleaseAvailability.HUNTS_DISABLED
+    return DropReleaseAvailability.AVAILABLE
+}
+
+/** Owner-facing explanation, or null when the drop is live. */
+fun DropReleaseAvailability.ownerExplanation(): String? = when (this) {
+    DropReleaseAvailability.AVAILABLE -> null
+    DropReleaseAvailability.COUPONS_DISABLED ->
+        "Offers are off for this release, so attendees can't see or redeem this drop. It still counts in your totals."
+    DropReleaseAvailability.MEDIA_DISABLED ->
+        "Photo and audio drops are off for this release, so attendees can't see this drop. It still counts in your totals."
+    DropReleaseAvailability.HUNTS_DISABLED ->
+        "Scavenger hunts are off for this release, so attendees can't see this drop. It still counts in your totals."
+    DropReleaseAvailability.FLAGGED ->
+        "Hidden from attendees while it's under moderation review."
+}
+
+fun Drop.isRedeemedBy(userId: String?): Boolean {
+    if (userId.isNullOrBlank()) return false
+    return redeemedBy.containsKey(userId)
+}
+
+private const val MILLIS_PER_DAY = 86_400_000L
+
+fun Drop.decayAtMillis(): Long? {
+    val days = decayDays?.takeIf { it > 0 } ?: return null
+    val created = createdAt.takeIf { it > 0L } ?: return null
+    return created + days * MILLIS_PER_DAY
+}
+
+fun Drop.isExpired(nowMillis: Long = System.currentTimeMillis()): Boolean {
+    val expireAt = decayAtMillis() ?: return false
+    return expireAt <= nowMillis
+}
+
+fun Drop.remainingDecayMillis(nowMillis: Long = System.currentTimeMillis()): Long? {
+    val expireAt = decayAtMillis() ?: return null
+    val remaining = expireAt - nowMillis
+    return if (remaining > 0) remaining else 0L
+}
+
+enum class DropLikeStatus {
+    NONE,
+    LIKED;
+
+    companion object {
+        private val likedStrings = setOf("liked", "like", "true", "1", "up", "thumbs_up")
+
+        fun fromRaw(raw: Any?): DropLikeStatus {
+            return when (raw) {
+                is Boolean -> if (raw) LIKED else NONE
+                is Number -> if (raw.toInt() > 0) LIKED else NONE
+                is String -> if (raw.trim().lowercase() in likedStrings) LIKED else NONE
+                else -> NONE
+            }
+        }
+    }
+}
+
+enum class DropContentType {
+    TEXT,
+    PHOTO,
+    AUDIO;
+
+    companion object {
+        fun fromRaw(value: String?): DropContentType {
+            if (value.isNullOrBlank()) return TEXT
+            return values().firstOrNull { it.name.equals(value, ignoreCase = true) } ?: TEXT
+        }
+    }
+}
+
+fun Drop.displayTitleParts(): Pair<String?, String> {
+    val descriptionText = description.orEmpty()
+    val baseTitle = when (dropType) {
+        DropType.RESTAURANT_COUPON -> text.ifBlank { descriptionText.ifBlank { "Special offer" } }
+        DropType.TOUR_STOP -> text.ifBlank { descriptionText.ifBlank { "Tour stop" } }
+        DropType.COMMUNITY -> when (contentType) {
+            DropContentType.TEXT -> text.ifBlank { descriptionText.ifBlank { "(No message)" } }
+            DropContentType.PHOTO -> text.ifBlank { descriptionText }.ifBlank { "Photo drop" }
+            DropContentType.AUDIO -> text.ifBlank { descriptionText }.ifBlank { "Audio drop" }
+        }
+    }
+
+    val username = dropperUsername?.trim()?.takeIf { it.isNotEmpty() }
+    val handle = if (!username.isNullOrEmpty()) {
+        if (username.startsWith("@")) username else "@$username"
+    } else {
+        null
+    }
+
+    return handle to baseTitle
+}
+
+fun Drop.displayTitle(): String {
+    val (handle, baseTitle) = displayTitleParts()
+    return if (handle != null) {
+        "$handle dropped $baseTitle"
+    } else {
+        baseTitle
+    }
+}
+
+fun Drop.mediaLabel(): String? = mediaUrl?.takeIf { it.isNotBlank() }
+
+fun Drop.isHuntDrop(): Boolean = huntId != null
+
+fun Drop.huntStepLabel(): String? {
+    val step = huntStepIndex ?: return null
+    val total = huntTotalSteps
+    return if (total != null) "Step ${step + 1} of $total" else "Step ${step + 1}"
+}
+
+fun Drop.discoveryTitle(): String {
+    if (huntId != null) {
+        val step = huntStepIndex ?: 0
+        val total = huntTotalSteps
+        return if (total != null) "Scavenger hunt — Step ${step + 1} of $total" else "Scavenger hunt clue"
+    }
+    return when (dropType) {
+        DropType.RESTAURANT_COUPON -> "Local business offer"
+        DropType.TOUR_STOP -> "Guided tour stop"
+        DropType.COMMUNITY -> when (contentType) {
+            DropContentType.TEXT -> "Hidden note"
+            DropContentType.PHOTO -> "Hidden photo drop"
+            DropContentType.AUDIO -> "Hidden audio drop"
+        }
+    }
+}
+
+fun Drop.discoveryDescription(): String {
+    val descriptionText = description.orEmpty()
+    if (huntId != null) {
+        val step = huntStepIndex ?: 0
+        val total = huntTotalSteps
+        val isLast = total != null && step == total - 1
+        return descriptionText.ifBlank {
+            if (isLast) "You've found the final clue! Collect it to claim your prize."
+            else "Collect this clue to unlock the next step in the hunt."
+        }
+    }
+    return when (dropType) {
+        DropType.RESTAURANT_COUPON -> descriptionText.ifBlank {
+            "Unlock the details to redeem this business offer nearby."
+        }
+        DropType.TOUR_STOP -> descriptionText.ifBlank {
+            "Pick up this stop to access the guided story or directions."
+        }
+        DropType.COMMUNITY -> when (contentType) {
+            DropContentType.TEXT -> descriptionText.ifBlank { "Collect this drop to read the message inside." }
+            DropContentType.PHOTO -> descriptionText.ifBlank { "Pick up this drop to reveal the photo." }
+            DropContentType.AUDIO -> descriptionText.ifBlank { "Collect this drop to listen to the recording." }
+        }
+    }
+}
+
+fun Drop.userLikeStatus(userId: String?): DropLikeStatus {
+    if (userId.isNullOrBlank()) return DropLikeStatus.NONE
+    return if (likedBy[userId] == true) DropLikeStatus.LIKED else DropLikeStatus.NONE
+}
+
+fun Drop.applyUserLike(userId: String, status: DropLikeStatus): Drop {
+    val previousStatus = userLikeStatus(userId)
+    if (previousStatus == status) return this
+
+    val updatedLikes = likedBy.toMutableMap()
+    var updatedLikeCount = likeCount
+
+    when (previousStatus) {
+        DropLikeStatus.LIKED -> {
+            updatedLikes.remove(userId)
+            updatedLikeCount = (updatedLikeCount - 1).coerceAtLeast(0)
+        }
+        DropLikeStatus.NONE -> Unit
+    }
+
+    when (status) {
+        DropLikeStatus.LIKED -> {
+            updatedLikes[userId] = true
+            updatedLikeCount += 1
+        }
+        DropLikeStatus.NONE -> Unit
+    }
+
+    return copy(
+        likeCount = updatedLikeCount,
+        likedBy = updatedLikes
+    )
+}

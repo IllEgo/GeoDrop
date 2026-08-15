@@ -1,57 +1,42 @@
 {
   "project_info": {
-    "project_number": "1017151605782",
-    "project_id": "geodrop-dfcba",
-    "storage_bucket": "geodrop-dfcba.firebasestorage.app"
+    "project_number": "94800580164",
+    "project_id": "kithe-production",
+    "storage_bucket": "kithe-production.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:1017151605782:android:ea2aee07aad06f381a3937",
+        "mobilesdk_app_id": "1:94800580164:android:a84684f428e18729dd3611",
         "android_client_info": {
-          "package_name": "com.e3hi.geodrop"
+          "package_name": "com.kitheapp"
         }
       },
       "oauth_client": [
         {
-          "client_id": "1017151605782-jea420h2l4fp3djf9e1r6aes1n95l91l.apps.googleusercontent.com",
+          "client_id": "94800580164-tt9d5i72ue8v0fmr0tl68jqfgp93rqca.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
-            "package_name": "com.e3hi.geodrop",
+            "package_name": "com.kitheapp",
             "certificate_hash": "da54737317c01b5d0867ade66ecff6f3eda574f6"
           }
         },
         {
-          "client_id": "1017151605782-lhu9446u32g6om09dgorecpcjlpdeirm.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.e3hi.geodrop",
-            "certificate_hash": "951eeee659fbc5093bdcb39f758072a544bfd9bf"
-          }
-        },
-        {
-          "client_id": "1017151605782-djbct1o5kc8gc5u44gnnpgqdsoho0b0c.apps.googleusercontent.com",
+          "client_id": "94800580164-u75aqf8ipphgheim855qsv84lvtpmhgl.apps.googleusercontent.com",
           "client_type": 3
         }
       ],
       "api_key": [
         {
-          "current_key": "AIzaSyDD9c_0xHim_ITvXZlHY67b_m_SR-9DUJs"
+          "current_key": "AIzaSyC6yQFEcjQJ-3T0zmqFqGHptAr4VZOhKUo"
         }
       ],
       "services": {
         "appinvite_service": {
           "other_platform_oauth_client": [
             {
-              "client_id": "1017151605782-7is7mob6prbujsepnuo83r4klk8h994q.apps.googleusercontent.com",
+              "client_id": "94800580164-u75aqf8ipphgheim855qsv84lvtpmhgl.apps.googleusercontent.com",
               "client_type": 3
-            },
-            {
-              "client_id": "1017151605782-kg8au2d7ck0usr6lisfatq2edbdiipk3.apps.googleusercontent.com",
-              "client_type": 2,
-              "ios_info": {
-                "bundle_id": "com.e3hi.geodrop.ios"
-              }
             }
           ]
         }

@@ -1,4 +1,4 @@
-# GeoDrop R4 — Navigation Shell and Gate Evidence
+# Kithe R4 — Navigation Shell and Gate Evidence
 
 Status: **Approved — R4 gate complete; R5-L approved and R5-P deferred**  
 Date: 2026-08-10  
