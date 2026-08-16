@@ -63,6 +63,12 @@ jobs:
       - name: Validate fail-closed Remote Config template
         run: npm run remoteconfig:validate
 
+      # Source-level contracts. These caught nothing for weeks because nothing ran
+      # them: the R9 check pins the deletion-policy version shared by the server and
+      # both clients, which had silently drifted and broke account export/deletion.
+      - name: Check redesign and R9 operations contracts
+        run: npm run test:redesign:unit && npm run test:r9:operations
+
       # The emulator creates indexes on demand, so no emulator test can catch a
       # missing collection-group index. This is the only guard against a query
       # that passes CI and fails FAILED_PRECONDITION in production.

@@ -311,6 +311,15 @@ const ingestModerationReport = async (input: ModerationReportInput): Promise<voi
     };
   }
 
+  // Account deletion redacts and removes the reports a user filed, so the source can
+  // disappear between onCreate and this commit. Re-creating it would resurrect deleted
+  // data, and letting the batch fail kills the function on a report that no longer
+  // exists to moderate.
+  if (!(await sourceRef.get()).exists) {
+    console.log(`Report ${reportId} was removed before ingestion; skipping.`);
+    return;
+  }
+
   const caseRef = firestore.collection(MODERATION_CASES).doc(reportId);
   const batch = firestore.batch();
   batch.set(caseRef, {
@@ -344,7 +353,13 @@ const ingestModerationReport = async (input: ModerationReportInput): Promise<voi
     severity,
     receivedAt: FieldValue.serverTimestamp(),
   });
-  await batch.commit();
+  try {
+    await batch.commit();
+  } catch (error) {
+    // 5 = NOT_FOUND: the source lost the same race a moment later.
+    if ((error as {code?: number}).code !== 5) throw error;
+    console.log(`Report ${reportId} was removed during ingestion; skipping.`);
+  }
 };
 
 export const ingestUserReport = functions

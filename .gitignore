@@ -18,10 +18,12 @@ local.properties
 **/node_modules/
 firebase-debug.log
 firestore-debug.log
+pubsub-debug.log
 ui-debug.log
 
 # Service account keys / credentials — never commit
 .secrets/
+functions/.secret.local
 **/serviceAccount*.json
 **/*service-account*.json
 **/*-adminsdk-*.json

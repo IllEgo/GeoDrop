@@ -23,7 +23,9 @@ struct AccountDeletionReceipt {
 
 final class AccountLifecycleService {
     static let shared = AccountLifecycleService()
-    static let policyVersion = "pilot-2026-07-21-draft"
+    // Must equal ACCOUNT_LIFECYCLE_POLICY_VERSION in functions/src/accountLifecycle.ts.
+    // This is the deletion/retention policy, not the legal bundle version.
+    static let policyVersion = "pilot-redesign-r2-2026-08-09-draft"
 
     private let functions: Functions
 

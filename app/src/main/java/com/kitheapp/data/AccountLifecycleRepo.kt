@@ -82,7 +82,9 @@ class AccountLifecycleRepo(
         (this[key] as? Number)?.toLong() ?: 0L
 
     companion object {
-        const val POLICY_VERSION = "pilot-2026-07-21-draft"
+        // Must equal ACCOUNT_LIFECYCLE_POLICY_VERSION in functions/src/accountLifecycle.ts.
+        // This is the deletion/retention policy, not the legal bundle version.
+        const val POLICY_VERSION = "pilot-redesign-r2-2026-08-09-draft"
     }
 }
 
