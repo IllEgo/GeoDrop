@@ -813,6 +813,15 @@ export const analyzeOnUpload = functions
     const bucketName = object.bucket;
     if (!bucketName) return;
 
+    // The emulator has no Vision credentials, so this would reach the real API with
+    // whatever credentials the machine has, then die unhandled — and hang the run
+    // outright on a network that blackholes the call instead of refusing it. Server
+    // SafeSearch stays a production-only moderation signal.
+    if (process.env.FUNCTIONS_EMULATOR === "true") {
+      console.log(`Skipping SafeSearch for ${name}: Vision is disabled in the emulator.`);
+      return;
+    }
+
     const bucket = admin.storage().bucket(bucketName);
     const file = bucket.file(name);
     const [buffer] = await file.download();

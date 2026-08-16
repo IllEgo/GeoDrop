@@ -93,15 +93,52 @@ for pre-pilot qualification, not local UI development.
 - No fatal exception or `Offset.getX-impl` crash appeared in the completed R9 device
   walkthrough log.
 
-## Evidence not claimed
+## Full-functions rehearsal resolved 2026-08-16
 
-- The full Auth/Firestore/Storage/Functions moderation rehearsal did not complete in the
-  current local emulator run: the emulator stalled while loading an existing legacy
-  function trigger before the R9 assertion. No target assertion failed, but this is not a
-  pass. A clean full-functions rehearsal remains mandatory before pilot qualification.
+The previously incomplete Auth/Firestore/Storage/Functions rehearsal now passes end to
+end. Investigating it found three defects, not an environment problem, and the same
+failure had been red on CI's `P0 lifecycle emulator rehearsals` job since 2026-08-13:
+
+1. **The deletion-policy version had drifted apart in three places.** R2 bumped the server
+   `ACCOUNT_LIFECYCLE_POLICY_VERSION` to `pilot-redesign-r2-2026-08-09-draft`, while
+   `AccountLifecycleRepo.POLICY_VERSION` (Android), `AccountLifecycleService.policyVersion`
+   (iOS), and the lifecycle rehearsal all still sent the legal-bundle string
+   `pilot-2026-07-21-draft`. Every export and deletion request was answered with
+   `POLICY_VERSION_MISMATCH`, which is why the chain aborted at `account:rehearse` and why
+   the two destructive surfaces could not have been demonstrated on the review device even
+   if the session had attempted them. Nothing reached production, because the R2 server is
+   not deployed. Both clients now send the server's value, the rehearsal derives it from
+   source instead of repeating a literal, and `test:r9:operations` fails if the three ever
+   disagree again.
+2. **`ingestModerationReport` died on a report that had been deleted underneath it.**
+   Account deletion removes the reports a user filed, so `batch.update(sourceRef, …)` could
+   raise `5 NOT_FOUND`, kill the function, and drop the connection. It now skips ingestion
+   when the source is gone rather than resurrecting deleted report data.
+3. **The legacy `analyzeOnUpload` trigger called the real Vision API from the emulator.**
+   With no valid project it failed unhandled after ~1s, and on a network that blackholes
+   the request rather than refusing it, that call is a hang — the best available explanation
+   for the original "stalled while loading a legacy function trigger" symptom. Server
+   SafeSearch is now skipped under `FUNCTIONS_EMULATOR`, and remains a production signal.
+
+A fourth item was noise rather than a defect: the Functions emulator reads
+`ANALYTICS_HMAC_SECRET` from production Secret Manager while loading each declaring
+trigger. The code already has a deliberate emulator fallback, so the 403 was harmless on a
+networked machine but is a second hang candidate on a restricted one. The gitignored
+`functions/.secret.local` step is now recorded in `moderation-operations-draft.md`.
+
+Result: all six rehearsals — launch migration, account lifecycle, guest merge, moderation,
+prototype wipe, and account roles — pass in one run with no killed function, no dropped
+connection, and no outbound Google API call. Android re-verified at 130 unit tests, zero
+failures. `test:redesign:unit` and `test:r9:operations` existed but ran nowhere; they are
+now part of the `Functions lint and build` CI job. The iOS constant is a one-line literal
+change and is compile-verified by CI only.
+
+## Evidence not claimed
 - Export generation and permanent deletion were not executed on the review device because
   they affect real account data. Their existing automated lifecycle coverage remains in
-  place; release-build and safe-fixture rehearsals remain pre-pilot work.
+  place; release-build and safe-fixture rehearsals remain pre-pilot work. That device
+  rehearsal is now unblocked by the policy-version correction above, but it has not been
+  run.
 - No production function, rule, index, configuration, or data was changed.
 
 ## R9 local/device approval checklist

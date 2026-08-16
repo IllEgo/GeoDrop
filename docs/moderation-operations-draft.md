@@ -67,6 +67,13 @@ Run the isolated end-to-end emulator rehearsal with:
 firebase emulators:exec --only auth,firestore,storage,functions --project geodrop-ci "npm --prefix functions run moderation:rehearse"
 ```
 
+Before the first local run, create the gitignored `functions/.secret.local` with
+`ANALYTICS_HMAC_SECRET=geodrop-emulator-analytics-secret-do-not-use-in-production`.
+Without it the Functions emulator tries to read the secret from production Secret
+Manager while loading every declaring trigger, which fails with a 403 on a networked
+machine and blocks the run outright on one that blackholes the request. The value is
+the same emulator fallback the code already uses; it is never a production secret.
+
 The 2026-07-21 rehearsal passed report ingestion, authenticated queue access,
 Critical triage, video removal, suspension, appeal by the affected user,
 independent overturn, content restoration, suspension reversal, reporter status,

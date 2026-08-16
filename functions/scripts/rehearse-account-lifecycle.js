@@ -1,6 +1,25 @@
 "use strict";
 
+const fs = require("fs");
+const path = require("path");
 const admin = require("firebase-admin");
+
+// Read the server's current value rather than repeating the literal. A client that
+// sends a stale version is rejected with POLICY_VERSION_MISMATCH, so a hard-coded
+// copy here turns a real client/server drift into a rehearsal that cannot run.
+const policyVersion = (() => {
+  const source = fs.readFileSync(
+    path.resolve(__dirname, "..", "src", "accountLifecycle.ts"),
+    "utf8"
+  );
+  const match = source.match(
+    /export const ACCOUNT_LIFECYCLE_POLICY_VERSION = "([^"]+)"/
+  );
+  if (!match) {
+    throw new Error("Could not read ACCOUNT_LIFECYCLE_POLICY_VERSION from source.");
+  }
+  return match[1];
+})();
 
 const requiredHosts = [
   "FIREBASE_AUTH_EMULATOR_HOST",
@@ -168,7 +187,7 @@ const main = async () => {
   await seed();
   const idToken = await signIn();
   const exportResult = await callable("requestAccountExport", idToken, {
-    policyVersion: "pilot-2026-07-21-draft",
+    policyVersion,
   });
   if (!exportResult.requestId || !exportResult.downloadUrl || !exportResult.expiresAt) {
     throw new Error("Account export did not return its signed-link contract");
@@ -182,7 +201,7 @@ const main = async () => {
   }
   const receipt = await callable("deleteAccount", idToken, {
     confirmation: "DELETE",
-    policyVersion: "pilot-2026-07-21-draft",
+    policyVersion,
   });
   await verify(receipt);
   console.log(JSON.stringify({
