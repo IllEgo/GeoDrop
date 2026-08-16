@@ -133,6 +133,13 @@ failures. `test:redesign:unit` and `test:r9:operations` existed but ran nowhere;
 now part of the `Functions lint and build` CI job. The iOS constant is a one-line literal
 change and is compile-verified by CI only.
 
+Confirmed on CI, not only locally. Run
+[31975996260](https://github.com/IllEgo/GeoDrop/actions/runs/31975996260) passed all five
+jobs on the fix: `P0 lifecycle emulator rehearsals` 1m30s (red since 2026-08-13),
+`Firebase rules emulator tests` 55s, `Functions lint and build` 30s, `Android unit, lint,
+and build` 4m38s, and `iOS simulator build` 22m18s — the last being the only compile
+verification of the Swift constant. Merged to master as `0a40189` (PR #60) on 2026-08-16.
+
 ## Evidence not claimed
 - Export generation and permanent deletion were not executed on the review device because
   they affect real account data. Their existing automated lifecycle coverage remains in
