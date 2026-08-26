@@ -1,10 +1,35 @@
 # Kithe Pilot 1 policy owner ballot
 
-Status: **Kithe confirmed unregistered; formation decision required before LP-1; no
-publication or Play submission authorized**
+Status: **requesting owner recorded O-1/LP-1 and approved O-2 through O-8, the verified LP-6
+wording, and the conditional LP-10 posture on 2026-08-26. LP-12, required role-specific signoffs, exact
+policy copy, publication, and Play submission remain open**
 
-Owner decision 2026-08-14: hold off on LLC/entity formation. LP-1 and Play organization
-conversion remain open and must not be inferred from the Kithe brand name or two-owner intent.
+Owner decision 2026-08-14: hold off on LLC/entity formation. At that time LP-1 and Play
+organization conversion remained open and could not be inferred from the Kithe brand name.
+
+Requesting-owner decision 2026-08-26: after being presented with option 1, the owner replied
+`approve`. Record the recommended local direction for LP-2 through LP-8, conditional LP-10,
+and LP-11. Keep LP-1 deferred, LP-9 open until primary/backup support coverage is named, and
+LP-12/publication closed. The approving owner's name/role, the second owner's approval, and
+the required legal/privacy/operations/product role signoffs were not supplied by this
+instruction and remain open.
+
+Coverage instruction 2026-08-26: Micah is primary and Kerise is the operational backup
+for monitoring `support@kitheapp.com`. Their private forwarding destination is intentionally
+not recorded here. The later O-1/LP-1 decision clarified that Micah is the sole legal/equity
+owner. This supplies the missing coverage roles but does not by itself approve
+O-7/LP-9's five-business-day acknowledgment or 30-calendar-day deletion target.
+
+LP-9 decision 2026-08-26: the requesting owner explicitly approved O-7/LP-9. Micah remains
+primary and Kerise backup; acknowledge emailed privacy/deletion requests within five business
+days and complete verified deletion within 30 calendar days unless a disclosed legal
+exception applies. Exact public copy and publication remain separately gated.
+
+O-1/LP-1 decision 2026-08-26: the requesting owner identified **Robert Micah Lee Peralta**
+as Kithe's current operator, selected **individual / sole proprietor** as the legal form,
+confirmed **Kithe** as the brand, and confirmed there is no separate LLC, corporation, or
+partnership. Kerise remains an operational backup, not a legal/equity owner. Independent
+legal/privacy review, exact-copy approval, and publication remain separately gated.
 
 Prepared: 2026-08-14
 
@@ -15,40 +40,23 @@ configuration requires a later action-time approval.
 
 ## Information the owner must provide
 
-### O-1 — Two-owner legal structure and name
+### O-1 — Current individual operator and future conversion
 
-The owner has clarified that Kithe will be owned by two people and confirmed that Kithe is
-not registered. Do not insert one individual's name as Kithe's sole operator. Before
-publication, provide:
+The requesting owner identified **Robert Micah Lee Peralta** as Kithe's current individual /
+sole-proprietor operator. Kithe is the brand; there is no separate LLC, corporation, or
+partnership. Before publication:
 
-1. the exact legal form: **Hawaiʻi general partnership, Hawaiʻi LLP, two-member Hawaiʻi
-   LLC, or another specified form**;
-2. the exact registered legal name shown in the Hawaiʻi BREG record;
-3. the effective/formation date; and
-4. the partner or member authorized to approve policy and control the Play account.
+1. verify that the exact legal name matches the personal Play/Payments identity;
+2. obtain authorized legal/privacy review of the operator and address wording;
+3. approve the exact policy copy; and
+4. record the final policy version and effective date under LP-12.
 
-The word **members** normally points toward an LLC, while a partnership has **partners**;
-casual wording is not enough to select the legal form. Hawaiʻi DCCA describes a general
-partnership as two or more co-owners who are personally liable for partnership debts. An LLP
-is a general partnership that elects limited liability, while an LLC uses members and files
-Articles of Organization. This ballot does not recommend a legal form; the two owners should
-make that choice with a qualified Hawaiʻi attorney and tax professional.
-
-Formation work is currently deferred. The comparison and non-filing preparation sequence are in
-`two-owner-formation-readiness.md`. A two-member LLC is the recommended default to evaluate
-for an app business, but it is not selected or authorized.
-
-Recommended sequencing: keep LP-1 and public policy publication open until the entity or
-partnership is formed and its BREG record is accepted. Then name the registered operator—not
-E3HI and not only one partner—in the policy. Use `support@kitheapp.com` as the public privacy
-contact; do not put either owner's home address into the policy unless a qualified reviewer
-confirms it is required.
-
-The current Play account is personal. Google currently provides an official individual-to-
-organization conversion flow after the organization website is verified and an organization
+The current personal Play account is consistent with this individual posture. If a business
+entity is formed later, update the operator and policy copy and complete Google's official
+personal-to-organization conversion flow after website verification, an organization
 payments profile, D-U-N-S number, organization/contact details, and any requested identity
-verification are complete. Whether to convert before the first release is a separate owner
-gate; do not silently publish a partnership-operated app under a personal-use posture.
+verification. The superseded multi-owner comparison remains in
+`two-owner-formation-readiness.md` for future reference only.
 
 ## Recommended defaults the owner can approve now
 
@@ -66,8 +74,8 @@ gate; do not silently publish a partnership-operated app under a personal-use po
 
 | Matrix ID | Why it cannot be approved by assumption | Closure evidence |
 |---|---|---|
-| LP-6 | The maximum Firebase/Google backup-restoration lifecycle is not verified for the exact production configuration. | Current provider/configuration evidence and a truthful maximum or qualified disclosure. |
-| LP-10 | Play's service-provider exception is configuration- and contract-dependent. Google/Firebase and Cloudflare must remain limited to operating Kithe, with no advertising/profile reuse or optional export that changes the classification. | Exact release SDK audit, provider terms/DPA review, Firebase integration review, and Cloudflare routing/hosting review. |
+| LP-6 | The requesting owner approved the verified direction: no Firestore scheduled backup or PITR, with provider deletion completion of up to 180 days unless law requires storage—not a restoration promise. | Legal approval of exact copy and a production configuration recheck immediately before publication. |
+| LP-10 | The requesting owner approved only a conditional, provisional Play No-sharing posture. A 2026-08-26 review found Analytics, optional Firebase BigQuery/Cloud Logging links, custom external log sinks, and all Maps APIs disabled. The requesting owner then explicitly approved disabling non-Firebase improvement use of Firebase Service Data; the setting was verified unchecked after reload. | Obtain authorized legal/privacy and contract/account confirmation, then repeat the exact-release review after Maps or any other provider/SDK is enabled. |
 | LP-12 | Version, effective date, HTTPS URLs, backend manifest, and signed-build links do not exist as one approved production bundle yet. | Approved copy, publication authorization, HTTPS 2xx checks, backend configuration, and signed-build verification. |
 
 ## Recommended provisional Play position
@@ -78,13 +86,17 @@ as sharing, while SDK collection still must be disclosed. If any provider uses K
 outside that role, or an optional integration exports it elsewhere, change the answer to
 match the actual release.
 
-## Approval language
+## Remaining approval language
 
-The owners can use this instruction after selecting and registering the legal form:
+The operator and assigned approvers can use this instruction after completing the remaining
+legal/privacy and exact-copy review:
 
-> Legal form: [EXACT FORM]. Registered operator name: [EXACT REGISTERED NAME]. Authorized
-> policy approver: [NAME/ROLE]. Approve O-2 through O-8 as written. Keep LP-6, LP-10,
-> LP-12, and Play account conversion open. Do not publish or submit anything yet.
+> Legal form: individual / sole proprietor. Operator: Robert Micah Lee Peralta. Brand:
+> Kithe. No separate entity. Authorized policy approver: [NAME/ROLE/DATE]. Confirm the
+> already recorded requesting-owner direction for
+> O-2 through O-8, LP-6, and conditional LP-10, including Micah as LP-9 primary
+> and Kerise as operational backup. Keep LP-12 and any future Play account conversion open. Do not
+> publish or submit anything yet.
 
 ## Current official policy references
 

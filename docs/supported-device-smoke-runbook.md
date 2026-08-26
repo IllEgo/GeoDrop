@@ -17,8 +17,8 @@ This runbook defines the minimum release-candidate smoke matrix for Kithe. It is
 | Android | API 26 phone emulator or physical device | Minimum supported SDK and constrained-device behavior | Not run |
 | Android | API 29 phone | Background-location permission transition | Not run |
 | Android | API 33 phone | Runtime notification permission | Not run |
-| Android | API 34 phone | Current target-SDK behavior | Not run |
-| Android | API 34 large-screen or tablet | Responsive layout and rotation | Not run |
+| Android | API 36 phone | Current target-SDK behavior | Not run |
+| Android | API 36 large-screen or tablet | Responsive layout and rotation | Not run |
 | iOS | iOS 15.x iPhone simulator or physical device | Minimum deployment target | Not run |
 | iOS | Latest stable iOS, compact iPhone | Current permission and notification behavior | Not run |
 | iOS | Latest stable iOS, large iPhone | Layout and Dynamic Type coverage | Not run |

@@ -1,0 +1,15 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "experienceDrops",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "experienceCode", "order": "ASCENDING" },
+        { "fieldPath": "state", "order": "ASCENDING" },
+        { "fieldPath": "moderationState", "order": "ASCENDING" },
+        { "fieldPath": "publishedAt", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

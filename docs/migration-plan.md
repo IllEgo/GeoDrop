@@ -56,7 +56,18 @@ target where the documents now differ.
   `redesign-account-safety-operations-r9.md`.
   On 2026-08-13 the owner split R10 and authorized **R10-L local Android qualification
   only**; on 2026-08-14 the owner approved and closed R10-L after its evidence passed.
-  **R10-P and production actions are not authorized.** See
+  On 2026-08-25 the owner approved and completed the fail-closed **R5-P A3** generated-host
+  deployment and then separately approved and completed **R5-P A4**. The exact
+  `join.kitheapp.com` CNAME is live, Firebase reports the custom domain connected, and HTTPS
+  plus Digital Asset Links verification passes. The owner then approved and completed
+  **R5-P A5a** locally: the project targets API 36, all 130 release tests pass, release lint
+  and bundle generation pass, and the unsigned diagnostic AAB/privacy audit is recorded in
+  `../deployment/r5-p/A5A-EVIDENCE.md`. Signing, Play setup/closed-test, policy, Maps, Remote
+  Config, screenshot, and reviewer-fixture blockers remain. The next separately gated action
+  is **A5b upload-key and internal-test candidate**; no A5b-A5e stage is authorized.
+  Play, release-client flags, legal-policy backend, device-matrix, QR-distribution, and later
+  production actions remain unauthorized.
+  **R10-P and production actions beyond the recorded R5-P A4 scope are not authorized.** See
   `redesign-entry-guest-permissions-r5.md`. Do not
   deploy or enable the target backend, mutate production data, migrate screens ahead of
   their approved R task, or perform the M4 legacy cutover.
@@ -135,6 +146,14 @@ from an account that had accepted the policies was refused).
 | 2026-08-09 | Remote Config | Publish — **reverted, see the row below** | Pilot device demo | Version **2** (22:11:42Z, `REST_API`, `firebase-adminsdk-fbsvc@`). `pilot_creation_enabled`, `pilot_hunts_enabled`, `pilot_notifications_enabled` → `true` for the device-demo session; coupons and media stay false. Enabled **in memory via `--enable`, not in the committed template**, which remains all-false. **Revert:** `cd functions && node scripts/publish-remote-config.js --project=geodrop-dfcba --apply --confirm-project=geodrop-dfcba` — publishing the committed template *is* the revert. Verified against `listVersions`, not a command's exit status: four earlier attempts reported success and published nothing |
 | 2026-08-09 | Remote Config | Publish — **revert of the row above** | Pilot device demo | Version **3** (22:30:53Z). All five keys fail-closed again; the demo was deferred to 2026-08-10 rather than held open overnight. Achieved by publishing the committed template with no `--enable`, which is the whole point of that design: the revert needs no memory of what was flipped. Re-enable with `--enable=…` when the demo runs |
 | 2026-08-09 | Firestore indexes | Deploy | 5.4 defect fix | `inventory.id` declared with `COLLECTION_GROUP ASCENDING` plus the three collection-scope indexes (an override replaces the defaults). All four went `CREATING` → `READY`; `usesAncestorConfig` is now false for that field, confirming the override took effect without dropping the defaults. **This is what makes `deleteAccount` work for an account that ever created a drop** |
+| 2026-08-25 | `kithe-production` billing | Activate Blaze + budget alerts | R5-P A2 | Dedicated Kithe billing linked; $25 USD monthly alert budget at 50/90/100/150 percent. Alerts are not a hard cap. Evidence in `r5-p-external-approval-list.md` |
+| 2026-08-25 | `kithe-production` Secret Manager | Enable API + create secret | R5-P A3 | `ANALYTICS_HMAC_SECRET` version 1 enabled without displaying/logging the random value; runtime accessor limited to the secret. Evidence in `../deployment/r5-p/A3-EVIDENCE.md` |
+| 2026-08-25 | `kithe-production` Firestore rules + index | Deploy | R5-P A3 | Dedicated fail-closed A3 rules live; exactly one `experienceDrops` composite and zero field overrides verified |
+| 2026-08-25 | `kithe-production` Functions | Deploy | R5-P A3 | Exactly seven reviewed Node.js 22 first-generation Functions `ACTIVE` in `us-central1`; no extras, no legacy policy-base environment variable, one-day artifact cleanup policy |
+| 2026-08-25 | `kithe-production` Firestore data | Atomic safe fixture create | R5-P A3 | Guarded six-document `R5PTEST2` commit passed authenticated verification without logging owner or test-point values |
+| 2026-08-25 | `kithe-production` Firebase Hosting | Deploy generated host | R5-P A3 | `kithe-production.web.app` passed root/404/headers, direct Digital Asset Links parity, and redacted `R5PTEST2` entry checks; no custom domain or DNS mutation |
+| 2026-08-25 | `kithe-production` Firebase Hosting domain | Create pending direct association | R5-P A4a | `join.kitheapp.com` now **Needs setup** with no redirect. Firebase returned one CNAME target, `kithe-production.web.app`; independent DNS still had zero answers. Cloudflare remained unchanged; A4b not authorized |
+| 2026-08-25 | `kitheapp.com` DNS + `kithe-production` Hosting domain | Add exact CNAME and verify | R5-P A4b | Owner approved exactly `CNAME join.kitheapp.com -> kithe-production.web.app`, DNS only, TTL Auto. Cloudflare and Google resolvers returned the target; Firebase reported **Connected**; certificate-validated HTTPS, root/404/headers, safe entry page, and one-statement/three-fingerprint Digital Asset Links parity passed. Unrelated DNS, email, DNSSEC, redirect, Worker, SSL, Play, Remote Config, and QR settings were unchanged |
 
 ### Verifying what is actually live
 

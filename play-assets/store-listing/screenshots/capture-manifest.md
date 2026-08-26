@@ -53,6 +53,7 @@ Capture in the light theme because outdoor legibility is the primary Kithe conte
   approved billing. The current app correctly fails closed to List, but final map screenshots
   cannot be captured until that pre-pilot dependency is authorized and verified.
 - The Play-review code/account and stable production-like fixture are not yet approved.
-- Google identity/device/contact-phone verification currently blocks app creation in Play.
+- The Play app now exists, but its eleven setup tasks are incomplete and production access
+  requires a qualifying 12-tester/14-day closed test.
 - Final screenshot capture must follow the signed release build, production policy URLs, and
   the exact Data safety audit—not the current local debug APK.

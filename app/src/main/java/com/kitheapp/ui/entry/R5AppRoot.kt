@@ -18,6 +18,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -36,6 +37,7 @@ import com.kitheapp.data.R6ParticipantGateway
 import com.kitheapp.data.R7OrganizerGateway
 import com.kitheapp.data.R9AccountGateway
 import com.kitheapp.ui.DropHereScreen
+import com.kitheapp.ui.navigation.ParticipantDestination
 import com.kitheapp.ui.theme.GeoDropSpacing
 import com.kitheapp.util.GroupPreferences
 import com.kitheapp.util.R5EntryParser
@@ -45,6 +47,17 @@ private enum class R5ShellBootstrapState {
     LOADING,
     READY,
     ERROR
+}
+
+internal object R5RootRoutePolicy {
+    fun showEntry(
+        hasActiveRequest: Boolean,
+        hasMemberships: Boolean,
+        manualEntryRequested: Boolean,
+        organizerAccessRequested: Boolean
+    ): Boolean = !organizerAccessRequested && (
+        hasActiveRequest || !hasMemberships || manualEntryRequested
+    )
 }
 
 @Composable
@@ -70,11 +83,13 @@ fun R5AppRoot(
         mutableStateOf(incomingRequest ?: store.pendingEntry())
     }
     var manualEntryRequested by remember { mutableStateOf(false) }
+    var organizerAccessRequested by rememberSaveable { mutableStateOf(false) }
     var bootstrapState by remember { mutableStateOf(R5ShellBootstrapState.LOADING) }
     var bootstrapAttempt by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(incomingRequest) {
         if (incomingRequest != null) {
+            organizerAccessRequested = false
             store.savePendingEntry(incomingRequest)
             activeRequest = incomingRequest
             manualEntryRequested = false
@@ -82,7 +97,12 @@ fun R5AppRoot(
         }
     }
 
-    val needsEntry = activeRequest != null || memberships.isEmpty() || manualEntryRequested
+    val needsEntry = R5RootRoutePolicy.showEntry(
+        hasActiveRequest = activeRequest != null,
+        hasMemberships = memberships.isNotEmpty(),
+        manualEntryRequested = manualEntryRequested,
+        organizerAccessRequested = organizerAccessRequested
+    )
     if (needsEntry) {
         R5EntryFlow(
             initialRequest = activeRequest,
@@ -115,12 +135,22 @@ fun R5AppRoot(
                 manualEntryRequested = false
                 bootstrapState = R5ShellBootstrapState.READY
             },
+            onOrganizerSignIn = {
+                store.clearPendingEntry()
+                activeRequest = null
+                manualEntryRequested = false
+                organizerAccessRequested = true
+            },
             modifier = modifier
         )
         return
     }
 
-    LaunchedEffect(bootstrapAttempt, memberships) {
+    LaunchedEffect(bootstrapAttempt, memberships, organizerAccessRequested) {
+        if (organizerAccessRequested) {
+            bootstrapState = R5ShellBootstrapState.READY
+            return@LaunchedEffect
+        }
         bootstrapState = R5ShellBootstrapState.LOADING
         val session = store.activeEntrySessionId() ?: R5EntryParser.newEntrySessionId()
         runCatching {
@@ -163,7 +193,13 @@ fun R5AppRoot(
             r7OrganizerGateway = r7GatewayOverride,
             r9AccountGateway = r9GatewayOverride,
             legalConsentGateway = legalConsentGatewayOverride,
-            debugDeviceDemoEnabled = debugDeviceDemoEnabled
+            debugDeviceDemoEnabled = debugDeviceDemoEnabled,
+            initialParticipantDestination = if (organizerAccessRequested) {
+                ParticipantDestination.ACCOUNT
+            } else {
+                ParticipantDestination.NEARBY
+            },
+            openOrganizerAccessOnLaunch = organizerAccessRequested
         )
     }
 }

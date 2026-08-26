@@ -2,19 +2,20 @@
 
 Status: **R5-L approved and complete; R5-P prerequisite work authorized and in progress**
 Date: 2026-08-14
-Next task: **Complete Play identity, Android-device, and contact-phone verification; then create the app and obtain the Play signing certificate**
+Next task: **Review and explicitly approve or reject A5b upload-key and internal-test candidate**
 
 Parallel local task: **Review and approve the prepared Play listing and Data safety
 package in `play-listing-data-safety-package.md`; no Play submission is authorized**
 
-This record covers only R5 from `redesign-alignment-proposal.md`. No target functions,
-hosting, App Links association, Remote Config, production data, Play release, or M4
-cutover was deployed or changed.
+This record covers only R5 from `redesign-alignment-proposal.md`. A3 deployed the reviewed
+fail-closed backend, safe fixture, and generated Firebase host; A4 connected and verified the
+dedicated custom domain. No Remote Config release flag, legal-policy backend, Play release,
+QR distribution, or M4 cutover was deployed or changed.
 
 Approval record: on 2026-08-10 the owner approved splitting R5 into a local/device gate
 and a production-funnel gate. The evidence in this record closes **R5-L**. The owned host,
 App Links association, Play distribution, deployment bundle, production-safe fixtures, and
-external cold-install matrix remain together in **R5-P**, which is deferred but mandatory
+external cold-install matrix remain together in **R5-P**, which is in progress and mandatory
 before any pilot or public release.
 
 On 2026-08-14 the owner directed work to continue with R5-P. This authorizes its read-only
@@ -253,14 +254,72 @@ not code defects, but every one of them must be completed before R5-P can close:
   the future `.well-known/assetlinks.json`, and the exact path is configured for JSON plus a
   short rollout cache lifetime. Static security headers deny active content, framing,
   referrers, camera, geolocation, and microphone access.
-- `deployment/r5-p/assetlinks.json.template` remains outside the deploy directory with a
-  conspicuous Play-signing placeholder. The local preflight refuses malformed, multiple,
-  wrong-package, placeholder, unexpected-file, or policy-containing bundles and has a
-  production-required mode. Its current result is structurally passing but deliberately
-  `productionReady: false`, with the missing Play App Signing SHA-256 as the only release
-  asset blocker. The ordered external decisions are recorded in
-  `r5-p-external-approval-list.md`. No billing, Firebase, Hosting, DNS, policy, Play, or
-  production-data mutation occurred during this preparation.
+- The local preflight refuses malformed, multiple, wrong-package, unexpected-file, or
+  policy-containing Hosting bundles and has a production-required mode. The ordered
+  external decisions are recorded in `r5-p-external-approval-list.md`. At this point no
+  billing, Firebase, Hosting, DNS, policy publication, Play release, or production-data
+  mutation had occurred.
+- On 2026-08-25 Google showed the personal Play developer identity and contact phone as
+  verified. The owner explicitly accepted the Developer Program Policies, Play App Signing
+  terms, and US export declaration. The `Kithe` / `com.kitheapp` Play record was created as
+  a free app with automatic protection active (Play app ID `4974868835867500240`). Play App
+  Signing is active. An independent signing-page check found Play's new quantum-ready model
+  uses three production certificates: the prior classical key for Android 16 and earlier
+  plus current classical and post-quantum keys for Android 17+. All three public SHA-256
+  fingerprints are now present in the local, undeployed
+  `hosting/.well-known/assetlinks.json`; no debug or upload certificate was used. A1 is
+  therefore complete. No bundle was uploaded and no release, Hosting, DNS, Firebase,
+  billing, or production-data action occurred.
+- On 2026-08-25 UTC the owner explicitly authorized A2. A dedicated **Kithe Production
+  Billing** account was activated and linked only to `kithe-production`, moving that project
+  from Spark to Blaze. Robert Peralta is the billing owner and alert responder. A
+  project-scoped **$25 USD monthly budget** emails billing administrators at 50%, 90%, 100%,
+  and 150%; these notifications are not a hard cap. The reviewed Functions region remains
+  `us-central1`. A2 is complete. No Functions, Hosting, DNS, Play release, or production-data
+  deployment was authorized or performed.
+- The subsequent A3 audit confirmed the live target still has zero Functions, uninitialized
+  Hosting, an empty `nam5` Firestore database, the original deny-all rules, and no indexes.
+  App Check lists Kithe Android / `com.kitheapp` as registered with Play Integrity. The audit
+  also found that the root rules/index manifest is broader than R5-P and that Secret Manager
+  is not initialized. A dedicated fail-closed A3 config now limits deployment to seven entry,
+  join, continuity, unlock, and merge functions; an A3-specific client ruleset; one discovery
+  index; and the already validated Hosting bundle. Its emulator and local release checks pass.
+  `deployment/r5-p/A3-APPROVAL.md` records the exact proposal and rollback. No secret, Function,
+  rule, index, fixture, Hosting release, DNS, Remote Config, or Play mutation occurred.
+- On 2026-08-25 UTC the owner explicitly approved that exact A3 package. Secret Manager was
+  initialized without exposing the secret value; the dedicated fail-closed rules and one
+  discovery index were deployed; and exactly seven reviewed Functions became active in
+  `us-central1`. The safe, text-only `R5PTEST2` fixture was created as one guarded six-document
+  commit and passed authenticated verification without logging its owner or test point.
+  `https://kithe-production.web.app` passed live root, 404, security-header, direct Digital
+  Asset Links, and redacted entry-page checks. Missing-App-Check requests to the participant
+  callables returned HTTP 401. `deployment/r5-p/A3-EVIDENCE.md` records the result. A3 stopped
+  at the A4 gate: no custom domain, Cloudflare DNS, Remote Config, legal-policy Function, Play
+  release, QR distribution, or legacy GeoDrop project action occurred.
+- The subsequent A4 read-only audit confirmed Firebase Hosting still lists only the two
+  generated default domains. Independent public DNS checks found no CNAME, A, or AAAA answer
+  for `join.kitheapp.com` and no ACME TXT answer, while the Cloudflare nameservers and DNSSEC
+  remain present for `kitheapp.com`. Because Firebase reveals its exact validation/routing
+  record set only after association creation, `deployment/r5-p/A4-APPROVAL.md` splits A4 into
+  A4a (create the pending Firebase association and stop) and A4b (separately approve/apply the
+  exact returned DNS records). No A4 mutation occurred.
+- On 2026-08-25 UTC the owner separately approved A4a and A4b. Firebase added the
+  direct-serving `join.kitheapp.com` association with no redirect, then exactly one Cloudflare
+  record was added: CNAME `join.kitheapp.com` to `kithe-production.web.app`, DNS only, TTL
+  Auto. Cloudflare and Google resolvers returned the exact target, Firebase reported
+  **Connected**, certificate-validated HTTPS passed, and the root, 404, security headers,
+  safe `R5PTEST2` page, and one-statement/three-fingerprint Digital Asset Links contract all
+  passed. No root, email, DNSSEC, redirect, Worker, SSL, Play, Remote Config, legal-policy,
+  QR-distribution, or legacy-project setting was changed. A4 is complete; A5 remains gated.
+- The subsequent A5 preparation audit found no uploadable release candidate. Play reports
+  0/3 internal-test tasks, 0/11 app-setup tasks, 0 opted-in testers, and a mandatory
+  12-tester/14-day closed test before production access. The owner explicitly approved A5a,
+  which is now complete locally: the project targets API 36, all 130 release-variant tests
+  pass, release lint and bundle generation pass, and the unsigned diagnostic artifact/privacy
+  audit is recorded in `deployment/r5-p/A5A-EVIDENCE.md`. Policy URLs still return 404,
+  Remote Config is uninitialized, and Maps, upload-key, screenshots, and reviewer-fixture
+  gates remain open. `deployment/r5-p/A5-APPROVAL.md` splits the work into A5a through A5e.
+  A5b through A5e and every Play field edit remain unauthorized.
 
 ### Independent Firebase identity and Android package prepared 2026-08-13
 

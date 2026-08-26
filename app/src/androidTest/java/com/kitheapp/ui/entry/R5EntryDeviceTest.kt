@@ -34,7 +34,8 @@ class R5EntryDeviceTest {
                     gateway = DeviceEntryGateway,
                     onRequestResolved = {},
                     onClearRequest = {},
-                    onEntered = { _, _ -> }
+                    onEntered = { _, _ -> },
+                    onOrganizerSignIn = {}
                 )
             }
         }

@@ -70,6 +70,7 @@ fun R5EntryFlow(
     onRequestResolved: (R5EntryRequest) -> Unit,
     onClearRequest: () -> Unit,
     onEntered: (R5EntryRequest, R5ExperiencePreview) -> Unit,
+    onOrganizerSignIn: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val scope = rememberCoroutineScope()
@@ -125,7 +126,8 @@ fun R5EntryFlow(
                     manualValidationError = false
                 },
                 validationError = manualValidationError,
-                onSubmit = ::submitManualCode
+                onSubmit = ::submitManualCode,
+                onOrganizerSignIn = onOrganizerSignIn
             )
 
             is R5EntryUiState.Loading -> R5EntryLoading(joining = current.joining)
@@ -164,7 +166,8 @@ fun R5EntryFlow(
                     onClearRequest()
                     state = R5EntryUiState.Manual
                     manualValidationError = false
-                }
+                },
+                onOrganizerSignIn = onOrganizerSignIn
             )
         }
     }
@@ -175,7 +178,8 @@ private fun R5ManualEntry(
     code: String,
     onCodeChange: (String) -> Unit,
     validationError: Boolean,
-    onSubmit: () -> Unit
+    onSubmit: () -> Unit,
+    onOrganizerSignIn: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -232,6 +236,20 @@ private fun R5ManualEntry(
                 .testTag("r5_preview_experience")
         ) {
             Text(stringResource(R.string.r5_entry_preview))
+        }
+        Text(
+            text = stringResource(R.string.r5_entry_organizer_prompt),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        OutlinedButton(
+            onClick = onOrganizerSignIn,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 48.dp)
+                .testTag("r5_organizer_sign_in")
+        ) {
+            Text(stringResource(R.string.r5_entry_organizer_action))
         }
     }
 }
@@ -383,7 +401,8 @@ internal fun R5EntryErrorContent(
     reason: R5EntryFailureReason,
     retryable: Boolean,
     onRetry: () -> Unit,
-    onDifferentCode: () -> Unit
+    onDifferentCode: () -> Unit,
+    onOrganizerSignIn: () -> Unit
 ) {
     val message = when (reason) {
         R5EntryFailureReason.INVALID_CODE,
@@ -436,6 +455,16 @@ internal fun R5EntryErrorContent(
                 .heightIn(min = 48.dp)
         ) {
             Text(stringResource(R.string.r5_preview_different_code))
+        }
+        Spacer(Modifier.height(GeoDropSpacing.sm))
+        OutlinedButton(
+            onClick = onOrganizerSignIn,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 48.dp)
+                .testTag("r5_organizer_sign_in")
+        ) {
+            Text(stringResource(R.string.r5_entry_organizer_action))
         }
     }
 }

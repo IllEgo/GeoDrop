@@ -5,6 +5,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
 /**
  * Locally stored collected notes are the one place pre-2.6 dislike data survives:
@@ -16,6 +17,7 @@ import org.robolectric.RobolectricTestRunner
  * which is stubbed out in plain JVM unit tests.
  */
 @RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
 class CollectedNoteLegacyJsonTest {
 
     private fun legacyJson(isLiked: Boolean, isDisliked: Boolean): JSONObject =

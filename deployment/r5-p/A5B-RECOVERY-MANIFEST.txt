@@ -1,0 +1,45 @@
+KITHE PLAY UPLOAD-KEY RECOVERY MANIFEST
+Created: 2026-08-25
+Package: com.kitheapp
+Alias: kithe-play-upload
+
+Public upload certificate SHA-256:
+2B:7B:4D:86:B8:C4:70:A2:1D:18:1B:42:8D:98:F6:DB:A8:4D:6F:93:8A:69:0A:8B:42:63:47:30:94:5E:9C:B1
+
+Archive payload integrity:
+kithe-upload.jks
+  bytes: 3958
+  SHA-256: 6793D98F08480AF9687C8546EAF6867CD9461670251333DEC42B718DA58B26C2
+kithe-upload-certificate.pem
+  bytes: 2036
+  SHA-256: 6D86560AC16CB85C267301004782291A564CA147EB7BBCEEA146CE74AC1B57E7
+
+The removable-drive key archive uses 7-Zip AES-256 encryption with encrypted file names. Its
+archive password is the JKS store password. The distinct JKS key password is also required to
+sign a release.
+
+Password escrow archive:
+kithe-upload-password-escrow.7z
+  bytes: 609
+  SHA-256: 2B83A3A85EF5242630875828DEB92B9EC63FEACE231B825DA2F39B06599B141A
+
+The password escrow archive uses 7-Zip AES encryption with encrypted file names and contains
+the store and key passwords only in encrypted form. Its independent 128-bit recovery code is
+recorded only in the sealed Kithe Play Upload Key Recovery envelope designated for custodian
+Micah. The envelope must be stored separately from the RECOVERY_BACKUP drive.
+
+Windows DPAPI files are intentionally excluded. They are tied to the source Windows profile
+and are not an independent recovery method.
+
+Recovery verification:
+1. Obtain the sealed envelope from Micah and the RECOVERY_BACKUP drive through the authorized
+   recovery process.
+2. Use the envelope code to extract the password escrow archive on an isolated machine.
+3. Use its store password to extract the key archive.
+4. Confirm the two payload SHA-256 values above.
+5. Open the JKS with keytool using alias kithe-play-upload and both recovered passwords.
+6. Export/inspect the public certificate and confirm the colon-separated fingerprint above.
+7. Record only the date, verifier, storage-system identifiers, and pass/fail result. Never
+   record plaintext passwords or private-key material in source control, chat, or email.
+
+If any hash or fingerprint differs, stop release work and notify the Play account owner.

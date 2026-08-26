@@ -7,7 +7,9 @@
       "namespace": "android_app",
       "package_name": "com.kitheapp",
       "sha256_cert_fingerprints": [
-        "PLAY_APP_SIGNING_SHA256_REPLACE_BEFORE_DEPLOY"
+        "PLAY_APP_SIGNING_LEGACY_CLASSICAL_SHA256_REPLACE_BEFORE_DEPLOY",
+        "PLAY_APP_SIGNING_QUANTUM_CLASSICAL_SHA256_REPLACE_BEFORE_DEPLOY",
+        "PLAY_APP_SIGNING_POST_QUANTUM_SHA256_REPLACE_BEFORE_DEPLOY"
       ]
     }
   }

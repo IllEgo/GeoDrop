@@ -16,12 +16,15 @@
   <header><div class="shell"><a class="wordmark" href="/">Kithe</a><a href="mailto:support@kitheapp.com">Contact support</a></div></header>
   <main class="shell">
     <h1>Delete your Kithe account</h1>
-    <p class="meta">Engineering draft · Updated 2026-08-14</p>
+    <p class="meta">Engineering draft · Version [APPROVED_VERSION] · Effective [APPROVED_DATE] · Updated 2026-08-26</p>
 
     <div class="draft" role="note">
       <strong>Draft — not approved for publication</strong>
-      The deletion behavior is implemented locally, but the support response target and
-      retained-data exceptions below require owner/privacy approval and a production rehearsal.
+      This non-public working copy incorporates the requesting owner's retention and response
+      directions. The individual legal operator is recorded locally, but authorized
+      legal/privacy review, final policy version/effective date, exact-copy approval, and
+      production rehearsal remain unresolved.
+      Do not publish or submit this draft to Google Play.
     </div>
 
     <p>Deleting your account is permanent. Uninstalling Kithe does not delete your account.</p>
@@ -55,20 +58,24 @@
 
     <h2>What may be retained</h2>
     <ul>
-      <li>A pseudonymous deletion receipt for the proposed 30-day troubleshooting window.</li>
-      <li>A safety report after the reporter account identifier is replaced, for the approved safety/legal window.</li>
-      <li>Deidentified aggregate Experience results and records required for an approved fraud, reward, dispute, tax, security, or legal purpose.</li>
-      <li>Copies in provider backups until the approved maximum backup-restoration window ends.</li>
+      <li>A pseudonymous deletion receipt for 30 days, then it is purged.</li>
+      <li>Safety case records for 180 days after final case closure after the reporter account identifier is replaced; extend only for a logged legal hold, emergency, or active appeal.</li>
+      <li>Deidentified reward, fraud, and dispute audit records for 180 days after the Experience ends, with account linkage removed; extend only for a documented legal, tax, or dispute hold.</li>
+      <li>Deidentified aggregate Experience results that no longer identify the deleted account.</li>
+      <li>Residual copies in Google's provider systems during deletion processing, which may take up to 180 days unless applicable law requires storage. This is not a Kithe restoration window.</li>
     </ul>
-    <p class="danger">Before publication, approve and insert the safety, reward/dispute, legal,
-    and backup windows. Do not publish “as long as necessary” without a documented schedule.</p>
+    <p>Kithe currently has no scheduled Firestore backup and no Firestore point-in-time
+    recovery. See the <a href="/data-retention">data-retention schedule</a> for the full draft
+    schedule.</p>
+    <p class="danger">Before publication, obtain the remaining legal/privacy role signoffs,
+    verify provider and production settings again, and approve the exact final wording.</p>
 
     <h2>Timing and confirmation</h2>
     <p>In-app deletion is designed to complete during the confirmed request. Email requests
-    will receive an acknowledgment within <strong>[APPROVED SUPPORT TARGET]</strong> and will be
-    completed within <strong>[APPROVED DELETION TARGET]</strong> after identity verification,
-    unless an approved legal exception applies. Kithe will send confirmation when processing
-    is complete.</p>
+    will receive an acknowledgment within <strong>five business days</strong> and a verified
+    deletion request will be completed within <strong>30 calendar days</strong>, unless a
+    disclosed legal exception applies. Kithe will send confirmation when processing is
+    complete.</p>
 
     <div class="callout">
       <strong>Need help first?</strong>
@@ -79,4 +86,3 @@
   <footer><div class="shell"><nav aria-label="Policy links"><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="/support">Support</a></nav><span>© 2026 Kithe · Draft, not approved for publication</span></div></footer>
 </body>
 </html>
-

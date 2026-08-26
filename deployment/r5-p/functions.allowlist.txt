@@ -1,0 +1,7 @@
+experienceEntryPage
+resolveExperience
+joinExperience
+recordClientEvent
+recordAuthCompletion
+unlockDrop
+mergeGuestAccount

@@ -28,6 +28,10 @@ functions/.secret.local
 **/*service-account*.json
 **/*-adminsdk-*.json
 application_default_credentials.json
+*.jks
+*.keystore
+*.p12
+*.pfx
 
 # iOS build artifacts
 ios/Pods/

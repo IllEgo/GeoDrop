@@ -1,0 +1,189 @@
+rules_version = '2';
+service cloud.firestore {
+  function isSignedIn() {
+    return request.auth != null
+      && (!request.auth.token.keys().hasAny(['suspended'])
+        || request.auth.token.suspended != true);
+  }
+
+  function isCurrentUser(userId) {
+    return isSignedIn() && request.auth.uid == userId;
+  }
+
+  function isValidUsername(name) {
+    return name is string && name.matches('^[a-z0-9._]{3,20}$');
+  }
+
+  match /databases/{database}/documents {
+    match /users/{userId} {
+      function clientAuthoredUserFields() {
+        return [
+          'displayName',
+          'username',
+          'nsfwEnabled',
+          'nsfwEnabledAt',
+          'createdAt'
+        ];
+      }
+
+      function serverAuthoredUserFields() {
+        return [
+          'role',
+          'organizerAccessStatus',
+          'organizerAccessSubmittedAt',
+          'organizerAccessReviewedAt',
+          'businessName',
+          'businessCategories',
+          'moderationStatus',
+          'suspendedAt',
+          'suspendedBy',
+          'suspensionReason',
+          'suspensionCaseId',
+          'reinstatedAt',
+          'legalAcceptanceVersion',
+          'legalAcceptedAt'
+        ];
+      }
+
+      function isLaunchAccountRole(role) {
+        return role == 'EXPLORER' || role == 'BUSINESS';
+      }
+
+      function preservesRole() {
+        return isLaunchAccountRole(request.resource.data.get('role', ''))
+          && ((resource.data.keys().hasAny(['role'])
+              && request.resource.data.role == resource.data.role)
+            || (!resource.data.keys().hasAny(['role'])
+              && request.resource.data.role == 'EXPLORER'));
+      }
+
+      function preservesUsername() {
+        return (!resource.data.keys().hasAny(['username'])
+            && !request.resource.data.keys().hasAny(['username']))
+          || (resource.data.keys().hasAny(['username'])
+            && request.resource.data.keys().hasAny(['username'])
+            && request.resource.data.username == resource.data.username);
+      }
+
+      function preservesServerAuthoredFields() {
+        return !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'businessName',
+          'businessCategories',
+          'organizerAccessStatus',
+          'organizerAccessSubmittedAt',
+          'organizerAccessReviewedAt',
+          'moderationStatus',
+          'suspendedAt',
+          'suspendedBy',
+          'suspensionReason',
+          'suspensionCaseId',
+          'reinstatedAt',
+          'legalAcceptanceVersion',
+          'legalAcceptedAt'
+        ]);
+      }
+
+      function hasOnlyAllowedUserFields() {
+        return request.resource.data.keys()
+          .hasOnly(clientAuthoredUserFields().concat(serverAuthoredUserFields()));
+      }
+
+      function hasPilotSafeContentPreference() {
+        return !request.resource.data.keys().hasAny(['nsfwEnabled'])
+          || request.resource.data.nsfwEnabled == false;
+      }
+
+      allow read: if isCurrentUser(userId);
+
+      allow create: if isCurrentUser(userId)
+        && request.resource.data.keys()
+          .hasOnly(clientAuthoredUserFields().concat(['role']))
+        && hasPilotSafeContentPreference()
+        && request.resource.data.role == 'EXPLORER'
+        && !request.resource.data.keys().hasAny(['username']);
+
+      allow update: if isCurrentUser(userId)
+        && hasOnlyAllowedUserFields()
+        && hasPilotSafeContentPreference()
+        && preservesRole()
+        && preservesUsername()
+        && preservesServerAuthoredFields()
+        && (!request.resource.data.keys().hasAny(['username'])
+          || isValidUsername(request.resource.data.username));
+
+      match /groups/{groupCode} {
+        allow read: if isCurrentUser(userId);
+        allow create, update, delete: if false;
+      }
+
+      match /unlocks/{dropId} {
+        allow read: if isCurrentUser(userId);
+        allow create, update, delete: if false;
+      }
+
+      match /trailProgress/{trailId} {
+        allow read: if isCurrentUser(userId);
+        allow create, update, delete: if false;
+      }
+
+      match /rewardReceipts/{dropId} {
+        allow read: if isCurrentUser(userId);
+        allow create, update, delete: if false;
+      }
+
+      match /blockedHosts/{hostId} {
+        allow read: if isCurrentUser(userId);
+        allow create, update, delete: if false;
+      }
+
+      match /legalAcceptances/{policyVersion} {
+        allow read: if isCurrentUser(userId);
+        allow create, update, delete: if false;
+      }
+    }
+
+    match /groups/{groupCode} {
+      function isGroupOwner() {
+        return isSignedIn()
+          && resource.data.keys().hasAny(['ownerId'])
+          && resource.data.ownerId == request.auth.uid;
+      }
+
+      function hasGroupMembership() {
+        return isSignedIn()
+          && exists(/databases/$(database)/documents/users/$(request.auth.uid)/groups/$(groupCode));
+      }
+
+      allow get: if isGroupOwner() || hasGroupMembership();
+      allow list, create, update, delete: if false;
+    }
+
+    match /experienceDrops/{dropId} {
+      function isTargetDropOwner() {
+        return isSignedIn() && resource.data.ownerId == request.auth.uid;
+      }
+
+      function isActiveTargetMember() {
+        let code = resource.data.experienceCode;
+        let experience = get(/databases/$(database)/documents/groups/$(code));
+        return isSignedIn()
+          && exists(/databases/$(database)/documents/users/$(request.auth.uid)/groups/$(code))
+          && resource.data.state == 'PUBLISHED'
+          && resource.data.moderationState == 'SAFE'
+          && experience.data.schemaVersion == 2
+          && experience.data.state == 'PUBLISHED'
+          && experience.data.startsAt <= request.time
+          && request.time < experience.data.endsAt;
+      }
+
+      allow get, list: if isTargetDropOwner() || isActiveTargetMember();
+      allow create, update, delete: if false;
+    }
+
+    // Payloads, rewards, analytics, rate limits, legacy collections, and every
+    // organizer/moderation/account-lifecycle surface stay server-only in A3.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

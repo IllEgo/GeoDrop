@@ -566,6 +566,8 @@ or submission.
 
 ## P17 - Kithe is intended for two-owner operation; legal form remains open (added 2026-08-14)
 
+**Historical decision superseded by P18 on 2026-08-26.**
+
 The owner clarified that Kithe will be a partnership with two owners. This supersedes the
 temporary policy recommendation to name one individual as Kithe's sole operator. It does not
 yet establish whether the Hawaiʻi structure will be a general partnership, LLP, or two-member
@@ -591,4 +593,32 @@ not perform or imply entity selection, registration, name reservation, EIN, D-U-
 organization payments-profile work, or Play account conversion. The two-owner intent remains
 context only; it is not a registered legal operator. Local app, UI, listing, and Data safety
 preparation may continue without closing LP-1.
+
+---
+
+## P18 - Kithe is currently individually owned and operated (added 2026-08-26)
+
+The requesting owner superseded P17's planned two-owner legal/equity structure and identified
+**Robert Micah Lee Peralta** as Kithe's current legal operator. The selected current form is
+**individual / sole proprietor**; **Kithe** is the brand, and there is no separate LLC,
+corporation, or partnership. Kerise remains an operational backup for the support and release
+continuity plan, not a legal/equity owner.
+
+The existing personal Play developer-account posture is consistent with the current
+individual operator. If Kithe later forms a business entity, the operator and policy copy
+must be updated and Google's personal-to-organization conversion requirements completed at
+that time. This decision does not authorize entity formation, policy publication, Play
+answers, account changes, a release, or any other external mutation.
+
+The requesting owner confirmed **Robert Micah Lee Peralta** as the authoritative
+government-identity name. The linked personal Payments profile currently presents the
+shorter **Robert Peralta** form and must be updated and reverified before publication. No
+identity-document detail is stored, and this record does not authorize the external change.
+
+The owner later authorized the external correction and completed private passkey
+verification. Google Payments required documentary evidence of a legally documented name
+change, so the workflow stopped before the document process. No name or document was
+submitted. This does not change the authoritative operator decision; it leaves Play/Payments
+identity parity open for support-assisted correction or an owner-controlled accepted-document
+process.
 

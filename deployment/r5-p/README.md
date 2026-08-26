@@ -1,16 +1,19 @@
 # R5-P entry-host deployment bundle
 
-Status: local preparation only; production actions are not authorized.
+Status: A1 through A5a are complete. Live A3 evidence is in `A3-EVIDENCE.md`; the connected
+custom domain and A4 verification are in `A4-APPROVAL.md`; and the local API-36 release gate
+is in `A5A-EVIDENCE.md`. A5b through A5e remain staged and unapproved in `A5-APPROVAL.md`.
 
 ## Bundle boundary
 
 - `hosting/` is the only Firebase Hosting static directory.
 - `public/` contains unapproved legal drafts and is deliberately excluded.
 - `/e/**` rewrites to the dynamic `experienceEntryPage` function.
-- `/.well-known/assetlinks.json` must not exist in `hosting/` until the Play App Signing
-  SHA-256 fingerprint is available and approved.
-- The production association contains only `com.kitheapp` and the Play-held app-signing
-  fingerprint. Never add a debug or internal certificate to the production host.
+- `/.well-known/assetlinks.json` contains all three Play-provided production App Signing
+  SHA-256 fingerprints for `com.kitheapp` and is verified on the generated Firebase host.
+- The production association contains only `com.kitheapp` and its legacy-classical,
+  quantum-classical, and post-quantum Play-held signing fingerprints. Never add a debug,
+  internal, or upload certificate to the production host.
 
 ## External approvals required before any mutation
 
@@ -27,30 +30,42 @@ Status: local preparation only; production actions are not authorized.
 6. The owner separately approves the Firebase Hosting/custom-domain operation and the
    Cloudflare DNS record for `join.kitheapp.com`.
 
+Approval progress as of 2026-08-25 UTC: items 1 through 6 are complete through A4. The
+single approved Cloudflare CNAME is live, Firebase reports the custom domain connected, and
+the HTTPS and Digital Asset Links checks pass. A5a is complete locally; A5b through A5e
+remain separately gated.
+
+The A3 package uses `firebase.r5-p.json`, `deployment/r5-p/firestore.rules`, the single-index
+`deployment/r5-p/firestore.indexes.json`, and `functions.allowlist.txt`. The root rules/index
+configuration is intentionally broader and must not be substituted.
+
 ## Release asset preparation
 
-1. Copy `assetlinks.json.template` to `hosting/.well-known/assetlinks.json` only after the
-   Play fingerprint is known.
-2. Replace the placeholder with the uppercase, colon-delimited Play App Signing SHA-256.
-3. Run:
+1. Confirm `hosting/.well-known/assetlinks.json` contains the three exact uppercase,
+   colon-delimited Play App Signing SHA-256 values shown in Play Console: the prior
+   classical certificate used on Android 16 and earlier plus the current classical and
+   post-quantum certificates used by Android 17's hybrid signing. Never substitute the
+   upload, debug, or internal certificate.
+2. Run:
 
    `npm.cmd --prefix functions run r5:hosting:check -- --require-release-assets`
 
-4. Review the exact diff and confirm that `hosting/` contains no policy drafts, credentials,
+3. Review the exact diff and confirm that `hosting/` contains no policy drafts, credentials,
    test certificates, source maps, or production Experience data.
 
-## Authorized deployment sequence (not yet authorized)
+## Deployment sequence and remaining gate
 
-1. Capture current Functions, Hosting, rules/index, App Check, billing, and DNS state.
-2. Deploy only the reviewed R5/R6 function allowlist needed by the external matrix.
-3. Deploy Firebase Hosting to its generated Firebase domain first; do not change DNS yet.
-4. Verify the landing states, security headers, `assetlinks.json` content type, lack of
-   redirects, and install-referrer URL using a safe fixture.
-5. Add and verify `join.kitheapp.com` in Firebase Hosting, then apply the exact approved
-   Cloudflare DNS record.
-6. Verify HTTPS and Digital Asset Links before distributing any QR.
-7. Build the Play release with `KITHE_APP_LINK_HOST=join.kitheapp.com`, upload it through
-   the approved Play track, and run the complete never-installed/installed matrix.
+1. [x] Capture current Functions, Hosting, rules/index, App Check, billing, and DNS state.
+2. [x] Deploy only the reviewed seven-Function A3 allowlist.
+3. [x] Deploy Firebase Hosting to its generated Firebase domain without changing DNS.
+4. [x] Verify landing states, security headers, `assetlinks.json`, redirects, and the safe
+   `R5PTEST2` entry fixture.
+5. [x] After separate A4 approval, add and verify `join.kitheapp.com`, then apply only the
+   exact Firebase-requested Cloudflare DNS record.
+6. [x] Verify custom-domain HTTPS and Digital Asset Links before distributing any QR.
+7. [ ] After the staged A5 approvals, remediate and sign the exact release candidate, finish
+   Play setup, complete the mandatory closed test, obtain production access, and run the full
+   never-installed/installed matrix.
 
 ## Rollback
 

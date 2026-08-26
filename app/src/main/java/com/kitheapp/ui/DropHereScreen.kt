@@ -402,7 +402,9 @@ fun DropHereScreen(
     r7OrganizerGateway: R7OrganizerGateway? = null,
     r9AccountGateway: R9AccountGateway? = null,
     legalConsentGateway: LegalConsentGateway? = null,
-    debugDeviceDemoEnabled: Boolean = false
+    debugDeviceDemoEnabled: Boolean = false,
+    initialParticipantDestination: ParticipantDestination = ParticipantDestination.NEARBY,
+    openOrganizerAccessOnLaunch: Boolean = false
 ) {
     val ctx = LocalContext.current
     val networkAvailable = rememberNetworkAvailable()
@@ -1416,10 +1418,16 @@ fun DropHereScreen(
     var businessDashboardLoading by remember { mutableStateOf(false) }
     var businessDashboardError by remember { mutableStateOf<String?>(null) }
     var businessDashboardRefreshToken by remember { mutableStateOf(0) }
-    var selectedParticipantDestination by rememberSaveable {
-        mutableStateOf(ParticipantDestination.NEARBY.name)
+    var selectedParticipantDestination by rememberSaveable(initialParticipantDestination) {
+        mutableStateOf(initialParticipantDestination.name)
     }
     var showOrganizerTools by rememberSaveable { mutableStateOf(false) }
+    var organizerSignInPrompted by rememberSaveable(openOrganizerAccessOnLaunch) {
+        mutableStateOf(false)
+    }
+    var organizerToolsAutoOpened by rememberSaveable(openOrganizerAccessOnLaunch) {
+        mutableStateOf(false)
+    }
     var nearbyAlertsEnabled by remember { mutableStateOf(notificationPrefs.areNearbyAlertsEnabled()) }
     var showNotificationPermissionRecovery by remember { mutableStateOf(false) }
 
@@ -3059,6 +3067,38 @@ fun DropHereScreen(
     val currentParticipantDestination = R4NavigationPolicy.resolveDestination(
         selectedParticipantDestination
     )
+
+    LaunchedEffect(
+        openOrganizerAccessOnLaunch,
+        currentUser?.uid,
+        currentUser?.isAnonymous,
+        r7OrganizerAccessLoading,
+        organizerToolsAvailable
+    ) {
+        if (!openOrganizerAccessOnLaunch) return@LaunchedEffect
+
+        selectedParticipantDestination = ParticipantDestination.ACCOUNT.name
+        if (currentUser?.isAnonymous != false) {
+            if (!organizerSignInPrompted) {
+                organizerSignInPrompted = true
+                openAccountAuthDialog(
+                    initialType = AccountType.EXPLORER,
+                    initialMode = AccountAuthMode.SIGN_IN,
+                    lockAccountType = false
+                )
+            }
+            return@LaunchedEffect
+        }
+
+        if (
+            !r7OrganizerAccessLoading &&
+            organizerToolsAvailable &&
+            !organizerToolsAutoOpened
+        ) {
+            organizerToolsAutoOpened = true
+            showOrganizerTools = true
+        }
+    }
 
     LaunchedEffect(
         currentParticipantDestination,

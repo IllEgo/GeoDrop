@@ -5,6 +5,8 @@
     <string name="r5_entry_code_label">Código de Experiencia</string>
     <string name="r5_entry_code_hint">ABCD-EFGH</string>
     <string name="r5_entry_preview">Vista previa</string>
+    <string name="r5_entry_organizer_prompt">¿Organizas una Experiencia? Inicia sesión o continúa a las herramientas de Organizador.</string>
+    <string name="r5_entry_organizer_action">Acceso de Organizador</string>
     <string name="r5_entry_invalid_code">Ingresa un código de Experiencia válido.</string>
     <string name="r5_entry_loading">Buscando tu Experiencia…</string>
     <string name="r5_entry_joining">Abriendo la Experiencia…</string>

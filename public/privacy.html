@@ -24,9 +24,12 @@
 
     <div class="draft" role="note">
       <strong>Draft — not approved for publication</strong>
-      This working copy describes the current Pilot 1 design. The legal operator name,
-      minimum age, pilot regions, processor terms, and unresolved retention periods must be
-      approved before this page can become Kithe's public privacy notice.
+      This non-public working copy incorporates the requesting owner's Pilot 1 directions.
+      Kithe's individual legal operator is recorded locally, but authorized legal/privacy
+      review, identity parity with the linked Play/Payments profile, final provider
+      classification, policy version, effective date, and exact-copy approval remain
+      unresolved. Do
+      not publish or submit this draft to Google Play.
     </div>
 
     <section class="summary" aria-labelledby="summary-title">
@@ -41,10 +44,12 @@
     </section>
 
     <h2>1. Who is responsible</h2>
-    <p>Kithe is operated by <strong>[APPROVED REGISTERED PARTNERSHIP OR ENTITY NAME]</strong> in
-    <strong>[APPROVED JURISDICTION]</strong>. Questions or privacy requests can be sent to
-    <a href="mailto:support@kitheapp.com">support@kitheapp.com</a>. Add any legally required
-    mailing address or representative here before publication.</p>
+    <p>Kithe is operated by <strong>Robert Micah Lee Peralta</strong>, an individual / sole
+    proprietor in Hawaiʻi, United States. Kithe is a brand and is not currently a separate
+    LLC, corporation, or partnership. Questions or privacy requests can be sent to
+    <a href="mailto:support@kitheapp.com">support@kitheapp.com</a>.
+    <strong>[ADD ONLY THE APPROVED, LEGALLY REQUIRED BUSINESS MAILING ADDRESS OR
+    REPRESENTATIVE BEFORE PUBLICATION.]</strong></p>
 
     <h2>2. Information Kithe handles</h2>
     <table>
@@ -65,8 +70,10 @@
     receipt information.</p>
     <p>An approved organizer can choose coordinates for a drop or place it at the organizer's
     current position. Those authored coordinates are stored because they define where that
-    drop can be found. Google Maps and platform location services also process request,
-    device, network, and interaction information under their applicable terms.</p>
+    drop can be found. Android platform location services process the location request. The
+    current candidate does not have Google Maps configured; if Maps is separately approved
+    and enabled, Google Maps will also process request, device, network, location, and map
+    interaction information under the applicable service terms.</p>
 
     <h2>4. How information is used</h2>
     <ul>
@@ -80,25 +87,46 @@
     <h2>5. Service providers and other recipients</h2>
     <p>Kithe uses service providers to operate the app and site, including Google services for
     Firebase Authentication, Firestore, Cloud Functions, Cloud Storage, Cloud Messaging,
-    Crashlytics, App Check/Play Integrity, Remote Config, Maps, and Android platform services;
-    and Cloudflare for the website, DNS, and support-email routing. These providers process
-    information under their own terms and Kithe's configured service relationship.</p>
+    Crashlytics, App Check/Play Integrity, Remote Config, and Android platform services; and
+    Cloudflare for the website, DNS, and support-email routing. Google Maps would be added
+    only if separately approved and enabled. These providers process information to provide
+    their configured services to Kithe. Kithe does not sell personal information or permit
+    these providers to use it for Kithe-directed behavioral advertising.
+    Firebase's optional account setting that permits Google to use Firebase Service Data for
+    analysis, recommendations, and improvement of non-Firebase Google services is disabled.
+    Firebase states that it can still use Service Data to improve Firebase services and to
+    deliver or improve other Google services that Kithe requests.
+    <strong>[RECHECK THE CONTRACT, ACCOUNT SETTING, AND EXACT RELEASE BEFORE FINALIZING THIS
+    SECTION OR THE PLAY SHARING ANSWER.]</strong></p>
     <p>Experience hosts may receive Experience-level results and operational information needed
     to run their Experience. Kithe's approved design does not provide them with a participant's
     exact live position or travel path. Information may also be disclosed when required by law,
     to address an emergency, or to investigate and prevent abuse, subject to an approved process.</p>
 
     <h2>6. Retention and deletion</h2>
-    <p>Account and Experience data is kept while needed to provide Kithe and for the approved
-    retention periods. Current engineering defaults include: private export objects deleted
-    after 24 hours; export download links expiring after 15 minutes; pseudonymous deletion
-    receipts retained for 30 days; and raw pilot events expiring after 180 days. These periods
-    require final privacy/legal approval.</p>
-    <p>When an account is deleted, Kithe deletes or deidentifies account-linked data according
-    to the account-deletion process. Safety reports can remain after reporter identity is
-    replaced with a deletion pseudonym. Deidentified aggregate results, required fraud or
-    reward records, legal records, and provider backups may remain for approved limited
-    periods. <strong>[APPROVE AND INSERT THE SAFETY, FRAUD/REWARD, LEGAL, AND BACKUP WINDOWS.]</strong></p>
+    <p>Account, membership, content, and Experience data is kept while needed to provide the
+    account or Experience and is then deleted or deidentified under the applicable schedule.
+    Private export download links expire after 15 minutes and export objects are deleted
+    after 24 hours. Raw pseudonymous pilot events expire after 180 days, and their account
+    actor link is removed during account deletion.</p>
+    <p>A pseudonymous deletion receipt is retained for 30 days. Safety case records are
+    retained for 180 days after final case closure, then deleted or deidentified; an extension
+    requires a logged legal hold, emergency, or active appeal. Deidentified reward, fraud,
+    and dispute audit records are retained for 180 days after the Experience ends, with
+    account linkage removed on deletion; an extension requires a documented legal, tax, or
+    dispute hold.</p>
+    <p>Kithe currently has no scheduled Firestore backup and no Firestore point-in-time
+    recovery. After Kithe requests deletion, residual data in Google's provider systems may
+    take up to 180 days to be deleted unless applicable law requires storage. This is a
+    provider deletion-completion period, not a Kithe restoration window. Crashlytics retains
+    crash reports and associated identifiers for 90 days before beginning removal from live
+    and backup systems. Kithe's default Google Cloud application and service logs are retained
+    for 30 days; required administrative and system audit logs are retained for 400 days.
+    As of the 2026-08-26 configuration review, no optional Crashlytics BigQuery/Cloud Logging
+    integration or custom external log sink was linked.
+    <strong>[RECHECK THESE SETTINGS IMMEDIATELY BEFORE PUBLICATION.]</strong></p>
+    <p>See the <a href="/data-retention">data-retention schedule</a> and
+    <a href="/account-deletion">account-deletion instructions</a> for more detail.</p>
 
     <h2>7. Your choices</h2>
     <ul>
@@ -110,10 +138,9 @@
     </ul>
 
     <h2>8. Children and pilot availability</h2>
-    <p><strong>[OWNER/LEGAL DECISION REQUIRED.]</strong> Insert the approved minimum age,
-    target-audience statement, parental-consent posture if applicable, and pilot regions.
-    The current product recommendation is an adult-only U.S. Pilot 1, but that recommendation
-    is not an approved public policy.</p>
+    <p>Kithe Pilot 1 is available only in the United States and is intended only for people
+    aged 18 and over. It is not designed for children. Do not create an account or use Pilot
+    1 if you are under 18.</p>
 
     <h2>9. Security and changes</h2>
     <p>Kithe uses access controls, encrypted network transport, app-integrity checks, and
@@ -124,7 +151,10 @@
     <h2>10. Contact</h2>
     <p>Email <a href="mailto:support@kitheapp.com">support@kitheapp.com</a> with privacy,
     access, correction, export, or deletion questions. Do not send passwords, verification
-    codes, precise location, or unnecessary identity documents by email.</p>
+    codes, precise location, or unnecessary identity documents by email. Kithe will
+    acknowledge emailed privacy or deletion requests within five business days and complete
+    a verified deletion request within 30 calendar days unless a disclosed legal exception
+    applies.</p>
   </main>
   <footer><div class="shell"><nav aria-label="Policy links"><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/account-deletion">Account deletion</a><a href="/support">Support</a></nav><span>© 2026 Kithe · Draft, not approved for publication</span></div></footer>
 </body>

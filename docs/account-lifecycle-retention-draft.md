@@ -1,6 +1,8 @@
 # Kithe Account Lifecycle and Retention Policy — Draft
 
-Status: **Engineering draft; Legal and Product approval required before publication**  
+Status: **Requesting-owner retention directions recorded; assigned Legal, Privacy,
+Operations, Trust & Safety, Security, and Product signoffs plus production verification are
+required before publication**
 Policy version implemented by the backend: `pilot-2026-07-21-draft`
 
 This document records the behavior implemented by the account export and
@@ -51,15 +53,17 @@ The completion response contains a receipt ID, completion time, policy version,
 and deletion counts. A pseudonymous server-side copy of the receipt is retained
 for 30 days to diagnose failed or disputed deletion requests.
 
-## Proposed retention exceptions requiring approval
+## Recorded retention directions and remaining signoffs
 
 | Data | Proposed handling | Decision owner | Approval |
 |---|---|---|---|
-| Safety reports | Retain the report after removing the reporter account ID; retain evidence only for the approved safety/legal window. | Legal, Trust & Safety | Pending |
-| Deletion receipts | Retain pseudonymous receipt and counts for 30 days, then purge. | Legal, Privacy | Pending |
-| Export objects | Delete after 24 hours; signed access expires after 15 minutes. | Privacy, Security | Pending |
-| Provider backups | Remove through the provider backup lifecycle; publish the maximum restoration window. | Engineering, Legal | Pending — window not selected |
-| Fraud/redemption records | Retain only fields required by the approved fraud, tax, or dispute policy. | Legal, Operations | Pending — schema/window not selected |
+| Safety reports | Remove the reporter account ID; retain the case and evidence for 180 days after final case closure, then delete or deidentify. Extend only for a logged legal hold, emergency, or active appeal. | Legal, Trust & Safety | Requesting owner approved 2026-08-26; assigned-role signoff and hold process pending |
+| Deletion receipts | Retain pseudonymous receipt and counts for 30 days, then purge. | Legal, Privacy | Requesting owner approved 2026-08-26; assigned-role signoff and parity check pending |
+| Export objects | Delete after 24 hours; signed access expires after 15 minutes. | Privacy, Security | Implemented; assigned-role signoff and production cleanup verification pending |
+| Provider deletion lifecycle | No scheduled Firestore backup or PITR is enabled. Disclose Google/Firebase deletion completion of up to 180 days unless law requires storage; do not describe it as a Kithe restoration window. | Engineering, Legal | Requesting owner approved 2026-08-26; legal signoff, export audit, and pre-publication configuration recheck pending |
+| Diagnostic and service logs | Crashlytics reports: 90 days before provider removal begins. Google Cloud `_Default` application/service logs: 30 days. Required administrative/system audit logs in `_Required`: 400 days. | Engineering, Legal, Privacy, Security | Read-only production review 2026-08-26 found no optional Firebase BigQuery/Cloud Logging link and no custom external log sink; assigned-role signoff and pre-publication recheck pending |
+| Reward/fraud/dispute audit | Retain deidentified audit fields for 180 days after the Experience ends, remove account linkage on deletion, and extend only for a documented legal, tax, or dispute hold. | Legal, Operations, Privacy | Requesting owner approved 2026-08-26; schema, assigned-role signoff, and hold process pending |
+| Email privacy/deletion requests | Acknowledge within five business days and complete verified deletion within 30 calendar days unless a disclosed legal exception applies. Micah is primary and Kerise backup. | Operations | Requesting owner approved 2026-08-26; production procedure/rehearsal pending |
 
 ## Verification evidence and remaining P0 work
 
@@ -85,8 +89,10 @@ Remaining before P0 completion:
 - Test password and Google-provider reauthentication through signed Android and
   iOS release builds.
 - Verify production signed-URL expiry, scheduled 24-hour cleanup, retry behavior,
-  and the approved provider backup lifecycle.
-- Approve and publish every retention exception and record Legal approval.
+  Crashlytics/Cloud Logging/BigQuery export posture, and the approved provider deletion
+  lifecycle.
+- Obtain every assigned-role signoff, approve exact final copy, and separately authorize
+  publication.
 
 Use `npm run account:audit -- preflight --uid UID --output MANIFEST.json`
 before the test, keep that manifest private, then run

@@ -10,6 +10,11 @@ const assetLinksPath = path.join(hostingRoot, ".well-known", "assetlinks.json");
 const requireReleaseAssets = process.argv.includes("--require-release-assets");
 const errors = [];
 const blockers = [];
+const expectedPlaySigningFingerprints = new Set([
+  "FA:E1:0E:1D:6C:4F:91:04:65:B2:BB:29:1F:62:19:BB:D8:FA:02:CD:7A:74:17:1C:33:A9:7A:FE:66:DA:8E:30",
+  "FC:7F:32:9A:99:46:39:01:7B:1E:23:83:55:8E:B7:5B:81:D6:05:D5:39:F1:21:7D:84:38:5B:ED:00:AF:85:67",
+  "04:2F:DC:1C:DA:D9:76:6B:69:A1:D3:FE:9B:82:BB:35:84:C6:1F:58:5F:2F:54:CB:4D:27:43:A5:7D:3B:D2:EF",
+]);
 
 const walkFiles = (directory, prefix = "") => {
   if (!fs.existsSync(directory)) return [];
@@ -100,13 +105,18 @@ if (!fs.existsSync(assetLinksPath)) {
       if (target.namespace !== "android_app" || target.package_name !== "com.kitheapp") {
         errors.push("assetlinks.json must target only Android package com.kitheapp.");
       }
-      if (!Array.isArray(fingerprints) || fingerprints.length !== 1) {
-        errors.push("assetlinks.json must contain exactly one Play App Signing fingerprint.");
+      if (!Array.isArray(fingerprints) || fingerprints.length !== 3) {
+        errors.push("assetlinks.json must contain all three quantum-ready Play App Signing fingerprints.");
       } else {
         fingerprintCount = fingerprints.length;
         const fingerprintPattern = /^(?:[0-9A-F]{2}:){31}[0-9A-F]{2}$/;
-        if (!fingerprintPattern.test(fingerprints[0])) {
+        if (!fingerprints.every((fingerprint) => fingerprintPattern.test(fingerprint))) {
           errors.push("The App Links fingerprint must be uppercase, colon-delimited SHA-256.");
+        }
+        const actualFingerprints = new Set(fingerprints);
+        if (actualFingerprints.size !== expectedPlaySigningFingerprints.size ||
+            [...expectedPlaySigningFingerprints].some((fingerprint) => !actualFingerprints.has(fingerprint))) {
+          errors.push("assetlinks.json does not match the three Play-held Kithe signing certificates.");
         }
       }
     }

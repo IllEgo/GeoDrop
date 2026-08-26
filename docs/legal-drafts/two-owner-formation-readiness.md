@@ -1,6 +1,11 @@
 # Kithe two-owner formation readiness
 
-Status: **deferred by owner 2026-08-14; Kithe is not registered; no filing or payment
+Status: **Superseded for the current launch posture on 2026-08-26. Kithe is currently
+individually owned and operated by Robert Micah Lee Peralta as an individual / sole
+proprietor. Retain this document only as background if a multi-owner entity is considered
+later; it does not describe the current operator.**
+
+Historical status as of 2026-08-14: **deferred by owner; Kithe was not registered; no filing or payment
 authorized**
 
 Confirmed: 2026-08-14

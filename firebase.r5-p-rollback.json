@@ -1,0 +1,5 @@
+{
+  "firestore": {
+    "rules": "deployment/r5-p/rollback-firestore.rules"
+  }
+}

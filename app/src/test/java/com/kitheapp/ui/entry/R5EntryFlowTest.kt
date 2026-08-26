@@ -60,7 +60,8 @@ class R5EntryFlowTest {
                     gateway = gateway,
                     onRequestResolved = {},
                     onClearRequest = {},
-                    onEntered = { _, _ -> }
+                    onEntered = { _, _ -> },
+                    onOrganizerSignIn = {}
                 )
             }
         }
@@ -87,7 +88,8 @@ class R5EntryFlowTest {
                     gateway = gateway,
                     onRequestResolved = { resolved = it },
                     onClearRequest = {},
-                    onEntered = { _, _ -> }
+                    onEntered = { _, _ -> },
+                    onOrganizerSignIn = {}
                 )
             }
         }
@@ -116,7 +118,8 @@ class R5EntryFlowTest {
                             gateway = gateway,
                             onRequestResolved = {},
                             onClearRequest = {},
-                            onEntered = { _, _ -> }
+                            onEntered = { _, _ -> },
+                            onOrganizerSignIn = {}
                         )
                     }
                 }
@@ -144,7 +147,8 @@ class R5EntryFlowTest {
                             reason = R5EntryFailureReason.OFFLINE,
                             retryable = true,
                             onRetry = {},
-                            onDifferentCode = {}
+                            onDifferentCode = {},
+                            onOrganizerSignIn = {}
                         )
                     }
                 }
@@ -163,6 +167,34 @@ class R5EntryFlowTest {
         composeRule.onNodeWithText("Enter a different code")
             .performScrollTo()
             .assertIsDisplayed()
+    }
+
+    @Test
+    fun `manual entry lets an Organizer sign in without resolving an Experience`() {
+        val gateway = FakeEntryGateway()
+        var organizerSignInRequested = false
+        composeRule.setContent {
+            GeoDropTheme {
+                R5EntryFlow(
+                    initialRequest = null,
+                    gateway = gateway,
+                    onRequestResolved = {},
+                    onClearRequest = {},
+                    onEntered = { _, _ -> },
+                    onOrganizerSignIn = { organizerSignInRequested = true }
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Organizer access")
+            .assertIsDisplayed()
+            .assertHeightIsAtLeast(48.dp)
+            .performClick()
+
+        composeRule.runOnIdle {
+            assertEquals(true, organizerSignInRequested)
+            assertEquals(0, gateway.guestSessionCalls)
+        }
     }
 }
 

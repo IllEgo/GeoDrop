@@ -1,31 +1,71 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Kithe — Data Retention Policy</title>
-<style>
-  :root{color-scheme:light dark}
-  body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;line-height:1.6;max-width:720px;margin:0 auto;padding:24px;color:#1a1a1a;background:#fff}
-  @media (prefers-color-scheme:dark){body{color:#e6e6e6;background:#121212}a{color:#8ab4f8}}
-  h1{font-size:1.6rem;margin:.2em 0 .1em}
-  .draft{background:#fff3cd;color:#664d03;border:1px solid #ffe69c;border-radius:8px;padding:10px 14px;font-size:.9rem;margin:16px 0}
-  @media (prefers-color-scheme:dark){.draft{background:#2b2410;color:#ffe69c;border-color:#4d3f14}}
-  .meta{color:#666;font-size:.85rem}
-  footer{margin-top:40px;font-size:.8rem;color:#888;border-top:1px solid #8883;padding-top:12px}
-  nav a{margin-right:12px;font-size:.85rem}
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Kithe Data Retention — Draft</title>
+  <style>
+    :root{color-scheme:light;--primary:#0b5d5d;--primary-deep:#084949;--surface:#fdfcfa;--raised:#fff;--ink:#14171a;--muted:#4a525c;--border:#cdd8d4;--amber:#e07b24;--draft:#fff4df;--danger:#b3261e}
+    *{box-sizing:border-box}body{margin:0;background:var(--surface);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;font-size:1rem;line-height:1.65}a{color:var(--primary-deep)}a:focus-visible{outline:3px solid #b45309;outline-offset:4px}.shell{width:min(calc(100% - 32px),820px);margin-inline:auto}
+    header{border-bottom:1px solid var(--border);background:var(--raised)}header .shell{display:flex;min-height:72px;align-items:center;justify-content:space-between;gap:20px}.wordmark{color:var(--primary);font-size:1.4rem;font-weight:850;text-decoration:none}main{padding-block:42px 80px}h1,h2{line-height:1.15;letter-spacing:-.025em}h1{margin:0 0 10px;font-size:clamp(2.1rem,7vw,3.4rem)}h2{margin:40px 0 12px;font-size:1.45rem}.meta{margin:0;color:var(--muted);font-size:.92rem}
+    .draft{margin:28px 0;padding:18px;border:2px solid var(--amber);border-radius:16px;background:var(--draft)}.draft strong{display:block;margin-bottom:4px}.danger{color:var(--danger);font-weight:750}table{width:100%;border-collapse:collapse;background:var(--raised)}th,td{padding:14px;text-align:left;vertical-align:top;border:1px solid var(--border)}th{color:var(--primary-deep)}footer{padding-block:28px;border-top:1px solid var(--border);color:var(--muted);font-size:.9rem}footer nav{display:flex;flex-wrap:wrap;gap:16px;margin-bottom:12px}@media(max-width:680px){table,thead,tbody,tr,th,td{display:block}thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}td{border-top:0}tr:first-child td:first-child{border-top:1px solid var(--border)}td::before{display:block;color:var(--primary-deep);font-size:.82rem;font-weight:800;text-transform:uppercase;content:attr(data-label)}}
+  </style>
 </head>
 <body>
-  <h1>Data Retention Policy</h1>
-  <p class="meta">Kithe · Version pilot-2026-07-21-draft · Last updated 2026-07-22</p>
-  <div class="draft"><strong>DRAFT PLACEHOLDER.</strong> This page exists so the app can load the policy manifest. Replace this copy with your reviewed legal text before public launch.</div>
-  <p>How long Kithe keeps different categories of data and when it is deleted.</p><p>Placeholder sections: account data, drop content, location history, logs, and deletion on request.</p>
-  <footer>
-    <nav>
-      <a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/community-guidelines">Community</a><a href="/support">Support</a>
-    </nav>
-    &copy; 2026 Kithe. Contact: support (placeholder).
-  </footer>
+  <header><div class="shell"><a class="wordmark" href="/">Kithe</a><a href="mailto:support@kitheapp.com">Contact support</a></div></header>
+  <main class="shell">
+    <h1>Data Retention</h1>
+    <p class="meta">Engineering draft · Version [APPROVED_VERSION] · Effective [APPROVED_DATE]</p>
+
+    <div class="draft" role="note">
+      <strong>Draft — not approved for publication</strong>
+      This non-public schedule incorporates the requesting owner's Pilot 1 retention
+      directions. Kithe's individual legal operator is recorded locally, but authorized
+      legal/privacy review, final policy version/effective date, exact-copy approval, and
+      pre-publication provider recheck remain unresolved. Do not publish or submit this draft
+      to Google Play.
+    </div>
+
+    <p>This schedule explains the current proposed limits for keeping Kithe Pilot 1 data.
+    It accompanies the <a href="/privacy">Privacy Policy</a> and
+    <a href="/account-deletion">account-deletion instructions</a>.</p>
+
+    <h2>Retention schedule</h2>
+    <table>
+      <thead><tr><th>Data</th><th>Default period</th><th>Deletion or exception</th></tr></thead>
+      <tbody>
+        <tr><td data-label="Data">Account, membership, private Collection, progress, and notification-token data</td><td data-label="Default period">While the account and applicable Experience are active.</td><td data-label="Deletion or exception">Deleted or deidentified through permanent account deletion, subject only to the limited records below.</td></tr>
+        <tr><td data-label="Data">Organizer-authored drops and media</td><td data-label="Default period">While the content and applicable Experience are active.</td><td data-label="Deletion or exception">Deleted with the owning account under the implemented deletion contract, subject to the final organizer/Experience closure procedure.</td></tr>
+        <tr><td data-label="Data">Private account exports</td><td data-label="Default period">Download link: 15 minutes. Export object: 24 hours.</td><td data-label="Deletion or exception">The signed link expires first; scheduled cleanup removes the private export object.</td></tr>
+        <tr><td data-label="Data">Raw pseudonymous pilot events</td><td data-label="Default period">180 days.</td><td data-label="Deletion or exception">The account actor link is removed during account deletion.</td></tr>
+        <tr><td data-label="Data">Safety case records and evidence</td><td data-label="Default period">180 days after final case closure.</td><td data-label="Deletion or exception">Then delete or deidentify. Extend only for a logged legal hold, emergency, or active appeal. Reporter identity is replaced during account deletion.</td></tr>
+        <tr><td data-label="Data">Deidentified reward, fraud, and dispute audit records</td><td data-label="Default period">180 days after the Experience ends.</td><td data-label="Deletion or exception">Remove account linkage during deletion. Extend only for a documented legal, tax, or dispute hold.</td></tr>
+        <tr><td data-label="Data">Pseudonymous deletion receipt</td><td data-label="Default period">30 days after completed deletion.</td><td data-label="Deletion or exception">Then purge the receipt and counts.</td></tr>
+        <tr><td data-label="Data">Crashlytics crash reports and associated identifiers</td><td data-label="Default period">Firebase retains them for 90 days before beginning removal from live and backup systems.</td><td data-label="Deletion or exception">No optional Crashlytics BigQuery or Cloud Logging integration was linked at the 2026-08-26 review. Recheck immediately before publication.</td></tr>
+        <tr><td data-label="Data">Google Cloud application and service logs</td><td data-label="Default period">30 days in the `_Default` bucket. Required administrative and system audit logs remain for 400 days in `_Required`.</td><td data-label="Deletion or exception">Only the two internal system-created sinks existed at the 2026-08-26 review; no custom external sink or linked BigQuery dataset was present. Recheck immediately before publication.</td></tr>
+        <tr><td data-label="Data">Residual Google/Firebase provider copies after Kithe requests deletion</td><td data-label="Default period">Deletion may take up to 180 days unless applicable law requires storage.</td><td data-label="Deletion or exception">Kithe currently has no scheduled Firestore backup and no Firestore point-in-time recovery. The provider period is not a Kithe restoration window.</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Deletion requests</h2>
+    <p>In-app deletion requires recent reauthentication and explicit confirmation. A person
+    who cannot use the app may email
+    <a href="mailto:support@kitheapp.com?subject=Kithe%20account%20deletion%20request">support@kitheapp.com</a>
+    from the address associated with the account. Kithe will acknowledge an emailed privacy
+    or deletion request within five business days and complete a verified deletion within
+    30 calendar days unless a disclosed legal exception applies.</p>
+
+    <h2>Holds and exceptions</h2>
+    <p>Any extension must use the specific exception listed in the schedule and be documented,
+    limited, and reviewed. Kithe does not use an undefined “keep as long as necessary” period
+    for the safety, reward, fraud, dispute, or deletion-receipt categories.</p>
+
+    <p class="danger">Before publication, verify the individual operator wording and
+    authorized approver, recheck production provider/export settings, approve the exact final wording,
+    assign the final policy version/effective date, and complete the separately authorized
+    HTTPS and signed-build checks.</p>
+  </main>
+  <footer><div class="shell"><nav aria-label="Policy links"><a href="/privacy">Privacy</a><a href="/account-deletion">Account deletion</a><a href="/terms">Terms</a><a href="/support">Support</a></nav><span>© 2026 Kithe · Draft, not approved for publication</span></div></footer>
 </body>
 </html>

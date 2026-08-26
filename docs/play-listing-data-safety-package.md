@@ -4,6 +4,15 @@ Status: **local package prepared; owner/legal decisions and release verification
 Prepared: 2026-08-14  
 Submission authorization: **not granted**
 
+Current Play/A5 audit — 2026-08-25: the Play app now exists and signing/identity setup from
+A1 is complete, but no release is uploaded. Play reports 0/11 setup tasks, 0 testers, and a
+mandatory 12-tester/14-day closed test before production access. A5a now passes locally at
+API 36: all 130 release-variant tests, release lint, bundle generation, and the privacy audit
+pass. The diagnostic AAB remains intentionally unsigned. An upload key, approved policy
+URLs, Maps, reviewer data, screenshots, Play setup, and the qualifying closed test remain
+blocking. See `../deployment/r5-p/A5-APPROVAL.md` and
+`../deployment/r5-p/A5A-EVIDENCE.md`.
+
 ## Package contents
 
 - `play-listing-draft.md` — copy-ready listing metadata and descriptions, asset plan,
@@ -81,7 +90,7 @@ submission, testing-track release, or publication.
    dependencies close.
 3. Resolve LP-1 through LP-12 in `legal-drafts/play-policy-approval-matrix.md`; obtain
    privacy/legal review of the local pages without publishing.
-4. Complete Play identity/device/phone verification and create the Play app.
+4. [Complete 2026-08-25] Complete Play identity/device/phone verification and create the Play app.
 5. Generate and inspect the exact signed release App Bundle manifest/dependency graph.
 6. Create the reviewer fixture only under separately approved production-data handling.
 7. Reconcile the final App Bundle, production settings, legal pages, and Data safety form.

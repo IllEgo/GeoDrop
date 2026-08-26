@@ -39,14 +39,35 @@ if (appLinkHost == 'geodrop.app') {
     throw new GradleException('geodrop.app is documented as unowned and cannot be claimed by Kithe')
 }
 
+// Release signing is opt-in and environment-only. Keeping any value unset leaves release
+// builds unsigned; a partial configuration fails instead of silently using another key.
+def uploadStoreFile = System.getenv('KITHE_UPLOAD_STORE_FILE')
+def uploadStorePassword = System.getenv('KITHE_UPLOAD_STORE_PASSWORD')
+def uploadKeyPassword = System.getenv('KITHE_UPLOAD_KEY_PASSWORD')
+def uploadKeyAlias = 'kithe-play-upload'
+def uploadSigningValues = [uploadStoreFile, uploadStorePassword, uploadKeyPassword]
+def uploadSigningValueCount = uploadSigningValues.count { value ->
+    value != null && !value.toString().isEmpty()
+}
+if (uploadSigningValueCount != 0 && uploadSigningValueCount != uploadSigningValues.size()) {
+    throw new GradleException(
+            'Release signing requires KITHE_UPLOAD_STORE_FILE, ' +
+                    'KITHE_UPLOAD_STORE_PASSWORD, and KITHE_UPLOAD_KEY_PASSWORD together'
+    )
+}
+def uploadSigningConfigured = uploadSigningValueCount == uploadSigningValues.size()
+if (uploadSigningConfigured && !file(uploadStoreFile).isFile()) {
+    throw new GradleException('KITHE_UPLOAD_STORE_FILE must point to an existing keystore')
+}
+
 android {
     namespace 'com.kitheapp'
-    compileSdk 34
+    compileSdk 36
 
     defaultConfig {
         applicationId 'com.kitheapp'
         minSdk 26
-        targetSdk 34
+        targetSdk 36
         versionCode 1
         versionName "1.0"
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
@@ -111,8 +132,22 @@ android {
         unitTests.includeAndroidResources = true
     }
 
+    signingConfigs {
+        if (uploadSigningConfigured) {
+            create('upload') {
+                storeFile file(uploadStoreFile)
+                storePassword uploadStorePassword
+                keyAlias uploadKeyAlias
+                keyPassword uploadKeyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
+            if (uploadSigningConfigured) {
+                signingConfig signingConfigs.getByName('upload')
+            }
             buildConfigField 'boolean', 'USE_PLAY_INTEGRITY_APPCHECK', 'true'
         }
         internal {
@@ -175,7 +210,7 @@ dependencies {
     implementation 'com.google.android.material:material:1.12.0'
 
     testImplementation 'junit:junit:4.13.2'
-    testImplementation 'org.robolectric:robolectric:4.12.1'
+    testImplementation 'org.robolectric:robolectric:4.16.1'
     testImplementation "androidx.compose.ui:ui-test-junit4:${compose_version}"
     testImplementation 'androidx.test:core-ktx:1.5.0'
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'
