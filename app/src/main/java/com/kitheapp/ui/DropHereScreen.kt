@@ -328,6 +328,8 @@ import com.kitheapp.util.ContextualPermissionPolicy
 import com.kitheapp.util.PermissionGrantState
 import com.kitheapp.util.R5EntryStore
 import com.kitheapp.util.R5EntryParser
+import com.kitheapp.util.R5OrganizerAccessAction
+import com.kitheapp.util.R5OrganizerAccessPolicy
 import com.kitheapp.util.formatTimestamp
 import com.kitheapp.util.TermsPreferences
 import com.google.android.gms.location.LocationServices
@@ -3078,8 +3080,17 @@ fun DropHereScreen(
         if (!openOrganizerAccessOnLaunch) return@LaunchedEffect
 
         selectedParticipantDestination = ParticipantDestination.ACCOUNT.name
-        if (currentUser?.isAnonymous != false) {
-            if (!organizerSignInPrompted) {
+        when (
+            R5OrganizerAccessPolicy.nextAction(
+                organizerAccessRequested = openOrganizerAccessOnLaunch,
+                isAnonymous = currentUser?.isAnonymous,
+                signInPrompted = organizerSignInPrompted,
+                organizerAccessLoading = r7OrganizerAccessLoading,
+                organizerToolsAvailable = organizerToolsAvailable,
+                organizerToolsAutoOpened = organizerToolsAutoOpened
+            )
+        ) {
+            R5OrganizerAccessAction.PROMPT_SIGN_IN -> {
                 organizerSignInPrompted = true
                 openAccountAuthDialog(
                     initialType = AccountType.EXPLORER,
@@ -3087,16 +3098,16 @@ fun DropHereScreen(
                     lockAccountType = false
                 )
             }
-            return@LaunchedEffect
-        }
 
-        if (
-            !r7OrganizerAccessLoading &&
-            organizerToolsAvailable &&
-            !organizerToolsAutoOpened
-        ) {
-            organizerToolsAutoOpened = true
-            showOrganizerTools = true
+            R5OrganizerAccessAction.OPEN_ORGANIZER_TOOLS -> {
+                organizerToolsAutoOpened = true
+                showOrganizerTools = true
+            }
+
+            R5OrganizerAccessAction.NONE,
+            R5OrganizerAccessAction.AWAIT_SIGN_IN,
+            R5OrganizerAccessAction.AWAIT_ORGANIZER_ACCESS,
+            R5OrganizerAccessAction.STAY_ON_ACCOUNT -> Unit
         }
     }
 
